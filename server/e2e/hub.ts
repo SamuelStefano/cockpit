@@ -7,9 +7,10 @@ import type { WebSocket } from 'ws';
 import {
   SealedChannel, newEphemeral, newNonce, signTranscript, verifyTranscript, type Ephemeral, type Transcript,
 } from '../../shared/e2e/channel';
-import { grantMac } from '../../shared/e2e/enroll';
+import { grantMac, preauthGrantMac } from '../../shared/e2e/enroll';
+import { pinProof } from '../../shared/e2e/passkey';
 import { fromB64, toB64, type Bytes } from '../../shared/e2e/bytes';
-import { isEnrolled, redeemEnrollCode, touchDevice } from './devices';
+import { devicePin, isEnrolled, redeemEnrollCode, redeemPreauth, touchDevice } from './devices';
 
 // One SealedPeer per browser channel. It looks like a WebSocket to
 // serveConnection/broadcast, so the agent serves each sealed browser exactly as
@@ -119,6 +120,8 @@ export interface HubOptions {
   serve: (peer: SealedPeer) => void;
   intercept?: (peer: SealedPeer, text: string) => boolean;
   onPeersChanged: () => void;
+  // The relay's id for this box: what a passkey device's pin key is bound to.
+  boxId?: string;
 }
 
 export class SealedHub {
@@ -169,6 +172,7 @@ export class SealedHub {
       case 'e2e-hello': return this.hello(c, m);
       case 'e2e-confirm': return this.confirm(c, m);
       case 'e2e-enroll': return this.enroll(c, m);
+      case 'e2e-preauth': return this.preauth(c, m);
     }
   }
 
@@ -183,7 +187,9 @@ export class SealedHub {
     const sig = await signTranscript('agent', this.o.keys.sign, t);
     this.prunePending();
     this.pending.set(c, { eph, t, devicePub, at: Date.now() });
-    this.reply(c, { t: 'e2e-accept', agent: toB64(this.o.keys.pub), eA: toB64(t.eA), nA: toB64(t.nA), sig: toB64(sig) });
+    const pin = this.o.boxId ? devicePin(devicePub) : null;
+    const proof = pin ? { pin: toB64(await pinProof(pin, this.o.keys.pub, dev, this.o.boxId!)) } : {};
+    this.reply(c, { t: 'e2e-accept', agent: toB64(this.o.keys.pub), eA: toB64(t.eA), nA: toB64(t.nA), sig: toB64(sig), ...proof });
   }
 
   private async confirm(c: string, m: Record<string, unknown>): Promise<void> {
@@ -214,6 +220,16 @@ export class SealedHub {
     if (!secret) { this.reply(c, { t: 'e2e-enroll-failed' }); return; }
     console.error(`[agent] e2e: device enrolled (${toB64(dev).slice(0, 8)}…)`);
     this.reply(c, { t: 'e2e-enrolled', agent: toB64(this.o.keys.pub), mac: toB64(await grantMac(secret, this.o.keys.pub, dev)) });
+  }
+
+  private async preauth(c: string, m: Record<string, unknown>): Promise<void> {
+    const dev = bytesField(m.dev, 32), mac = bytesField(m.mac, 32);
+    const label = typeof m.label === 'string' ? m.label.slice(0, 200) : '';
+    if (!dev || !mac) return;
+    const secret = await redeemPreauth(dev, label, mac);
+    if (!secret) { this.reply(c, { t: 'e2e-preauth-failed' }); return; }
+    console.error(`[agent] e2e: device enrolled at pairing (${toB64(dev).slice(0, 8)}…)`);
+    this.reply(c, { t: 'e2e-preauthed', agent: toB64(this.o.keys.pub), mac: toB64(await preauthGrantMac(secret, this.o.keys.pub, dev)) });
   }
 
   // connIds come from the relay, so a hostile one could open handshakes forever.

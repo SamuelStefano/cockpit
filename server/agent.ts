@@ -38,7 +38,7 @@ import { loadManagedEnv } from './admin-ops';
 import { startAutoPauseLoop } from './canvas/autopause-loop';
 import { SealedHub, loadE2eKeys, type AgentKeys } from './e2e/hub';
 import { deviceFrameHandler } from './e2e/manage';
-import { createEnrollCode, listDevices, revokeDevice } from './e2e/devices';
+import { createEnrollCode, listDevices, revokeDevice, storePreauth } from './e2e/devices';
 
 // Entrypoint do AGENTE T3 (DR-023): em vez de escutar (attachWs), DISCA pro relay
 // e serve o MESMO protocolo pelo socket de saída. O relay encaminha os frames do
@@ -213,8 +213,9 @@ function connect(relayUrl: string, id: Identity, onOpen: () => void, onClose: (c
           keys,
           link: ws,
           serve: (peer) => serveConnection(peer as unknown as WebSocket, { role: AGENT_ROLE, root: AGENT_ROOT }),
-          intercept: deviceFrameHandler(keys.pub, () => hub),
+          intercept: deviceFrameHandler(keys.pub, () => hub, id.agentId),
           onPeersChanged: () => {},
+          boxId: id.agentId,
         });
         hub = sealed;
         setClientSource({ get clients() { return sealed.peers.values() as unknown as Iterable<WebSocket>; } });
@@ -484,6 +485,21 @@ async function enrollDeviceCli(): Promise<void> {
   process.exit(0);
 }
 
+// The browser that showed the setup command put its device code in the
+// environment (never argv, which `ps` shows): it may enroll itself once.
+export function preauthFromEnv(env: NodeJS.ProcessEnv = process.env): boolean {
+  const code = env.DECK_DEVICE_CODE;
+  if (!code) return false;
+  try {
+    storePreauth(code);
+    console.log('[agent] o navegador que gerou o comando fica autorizado por 10 min: abra o Deck nele.');
+    return true;
+  } catch {
+    console.error('[agent] DECK_DEVICE_CODE inválido; cadastre o navegador com --enroll-device.');
+    return false;
+  }
+}
+
 // Execução direta: `tsx server/agent.ts [--pair=CÓDIGO | --pair]` (relay via
 // DECK_RELAY_URL). Com `--pair` sem valor, o código vem de DECK_PAIR_CODE — argv é
 // legível por qualquer usuário local no `ps`. Só o flag explícito ativa o pairing:
@@ -510,7 +526,7 @@ if (process.argv[1] && process.argv[1].endsWith('agent.ts')) {
     const code = pairArg === '--pair' ? (process.env.DECK_PAIR_CODE ?? '') : pairArg.slice('--pair='.length);
     if (!code) { console.error('[agent] --pair sem código: passe --pair=CÓDIGO ou defina DECK_PAIR_CODE'); process.exit(1); }
     pairAgent(url, code)
-      .then(() => process.exit(0))
+      .then(() => { preauthFromEnv(); process.exit(0); })
       .catch((e) => { console.error('[agent]', e.message ?? e); process.exit(1); });
   } else {
     runAgent(url);

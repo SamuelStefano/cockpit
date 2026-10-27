@@ -25,7 +25,7 @@ export function parseEnrollCode(code: string): EnrollCode {
   return { agentFp: b.slice(0, FP_LEN), secret: b.slice(FP_LEN) };
 }
 
-async function hmac(secret: Bytes, data: Bytes): Promise<Bytes> {
+export async function hmac(secret: Bytes, data: Bytes): Promise<Bytes> {
   const key = await crypto.subtle.importKey('raw', secret, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
   return new Uint8Array(await crypto.subtle.sign('HMAC', key, data));
 }
@@ -57,4 +57,42 @@ export async function checkGrant(code: EnrollCode, agentPub: Bytes, devicePub: B
   if (agentPub.length !== 32) return false;
   if (!equalBytes(await fingerprint(agentPub), code.agentFp)) return false;
   return equalBytes(mac, await grantMac(code.secret, agentPub, devicePub));
+}
+
+// Pre-authorization at pairing (DECK_DEVICE_CODE), the mirror of an enroll
+// code: the SPA puts its passkey device key's fingerprint and a one-time secret
+// in the setup command it shows, and `--pair` stores both on the box. The
+// command goes from the screen to the box's terminal, never through the relay,
+// so the secret authenticates the device key to the agent and the agent key back.
+
+export interface DeviceCode { deviceFp: Bytes; secret: Bytes }
+
+export async function newDeviceCode(devicePub: Bytes): Promise<{ code: string; secret: Bytes }> {
+  const secret = randomBytes(SECRET_LEN);
+  return { code: toB32(concat(await fingerprint(devicePub), secret)), secret };
+}
+
+export function parseDeviceCode(code: string): DeviceCode {
+  const b = fromB32(code);
+  if (b.length !== FP_LEN + SECRET_LEN) throw new Error('invalid device code');
+  return { deviceFp: b.slice(0, FP_LEN), secret: b.slice(FP_LEN) };
+}
+
+export function preauthMac(secret: Bytes, devicePub: Bytes, label: string): Promise<Bytes> {
+  return hmac(secret, framed(utf8(PROTO), utf8('preauth-request'), devicePub, utf8(label)));
+}
+
+export function preauthGrantMac(secret: Bytes, agentPub: Bytes, devicePub: Bytes): Promise<Bytes> {
+  return hmac(secret, framed(utf8(PROTO), utf8('preauth-grant'), agentPub, devicePub));
+}
+
+export async function checkPreauthRequest(code: DeviceCode, devicePub: Bytes, label: string, mac: Bytes): Promise<boolean> {
+  if (devicePub.length !== 32 || mac.length !== 32) return false;
+  if (!equalBytes(await fingerprint(devicePub), code.deviceFp)) return false;
+  return equalBytes(mac, await preauthMac(code.secret, devicePub, label));
+}
+
+export async function checkPreauthGrant(secret: Bytes, agentPub: Bytes, devicePub: Bytes, mac: Bytes): Promise<boolean> {
+  if (agentPub.length !== 32 || mac.length !== 32) return false;
+  return equalBytes(mac, await preauthGrantMac(secret, agentPub, devicePub));
 }
