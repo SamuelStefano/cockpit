@@ -42,7 +42,7 @@ export function Sidebar({ route, nav, role, navCounts, onNew, onPalette, bitStat
       className={`relative z-30 flex h-full shrink-0 flex-col bg-neutral-950 ${drawer ? 'w-full' : `border-r border-neutral-800 transition-[width] duration-200 ${expanded ? 'w-66' : 'w-14'}`}`}
     >
       <div className={`flex shrink-0 p-2 ${expanded ? 'h-12 items-center justify-between' : 'flex-col items-center gap-1'}`}>
-        <Tooltip label={`Ir pro chat · ${BIT_STATE_LABEL[bitState]}`} side="right">
+        <Tooltip label={`Ir pro chat · ${BIT_STATE_LABEL[bitState]}`} side="right" disabled={!!drawer}>
           <button type="button" onClick={() => nav('/')} aria-label="Ir pro chat" className="flex h-10 items-center gap-2 rounded-lg px-1 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-orange-500/40">
             <Bit state={bitState} size={30} />
             {expanded && <span className="font-mono text-[14px] font-semibold lowercase tracking-tight text-neutral-100">Deck</span>}
