@@ -5,6 +5,7 @@ import { subscribeRefine } from './primitives/livepreview/refine-bus';
 import { MessageRow, Thinking } from './chat/MessageView';
 import { ChatEmpty, ChatInput } from './chat/ChatInput';
 import { ChatHeader } from './chat/ChatHeader';
+import { CallDock } from './chat/call/CallDock';
 import { ScrollAffordances } from './chat/ScrollAffordances';
 import { ChatTopics } from './chat/ChatTopics';
 import { useChatTopics } from './chat/useChatTopics';
@@ -139,6 +140,8 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, sess
       {turnStatus}
 
       <TurnBanners phase={phase} failed={c.failed} resumeOffer={resumeOffer} onResume={resumeOffer && resumeRun ? () => resumeRun(resumeOffer.sessionKey) : undefined} planPending={c.planPending} pendingQuestion={c.pendingQuestion} queuedCount={c.queued.length} lastEnd={lastEnd} retryLast={c.retryLast} retryText={c.retryText} onSend={onSend} onForceQueue={session ? () => queueForce(session.id) : undefined} />
+
+      <CallDock messages={messages} phase={phase} onSend={onSend} keyboardOpen={keyboardOpen} />
 
       <ChatInput disabled={c.disabled} placeholder={botDecor && c.pendingQuestion ? BOT_ANSWER_PLACEHOLDER : undefined} onSend={onSend} onStop={onStop} value={draft} setValue={setDraft} mode={mode} setMode={setMode}
         caps={caps} bypass={bypass} setBypass={setBypass}

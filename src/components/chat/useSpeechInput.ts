@@ -8,10 +8,10 @@ import { isTouchMobile } from './touch';
 
 // Tipos mínimos da Web Speech API (não vêm no lib.dom de todo target). Só o que
 // usamos: ditado contínuo com resultados parciais e final por trecho.
-interface SpeechResult { 0: { transcript: string }; isFinal: boolean }
-interface SpeechResultEvent { resultIndex: number; results: ArrayLike<SpeechResult> }
-interface SpeechErrorEvent { error: string }
-interface SpeechRecognition {
+export interface SpeechResult { 0: { transcript: string }; isFinal: boolean }
+export interface SpeechResultEvent { resultIndex: number; results: ArrayLike<SpeechResult> }
+export interface SpeechErrorEvent { error: string }
+export interface SpeechRecognition {
   lang: string;
   continuous: boolean;
   interimResults: boolean;
@@ -25,7 +25,7 @@ interface SpeechRecognition {
 }
 type SpeechCtor = new () => SpeechRecognition;
 
-function speechCtor(): SpeechCtor | null {
+export function speechCtor(): SpeechCtor | null {
   const w = window as unknown as { SpeechRecognition?: SpeechCtor; webkitSpeechRecognition?: SpeechCtor };
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
