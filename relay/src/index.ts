@@ -38,6 +38,11 @@ export interface RelayStore {
   createPairingCode(accountId: string, label?: string): Promise<{ code: string; expiresAt: string }>;
   consumePairingCode(code: string): Promise<string | null>;
   createAgent(accountId: string, publicKey: string, label?: string): Promise<string | null>;
+  // The account's paired, non-revoked boxes (kind 'vps'), oldest first.
+  listBoxes(accountId: string): Promise<Array<{ id: string; label: string; lastSeen: string | null }>>;
+  // Scoped to the account: false when the box is not one of its live boxes.
+  renameBox(accountId: string, agentId: string, label: string): Promise<boolean>;
+  revokeBox(accountId: string, agentId: string): Promise<boolean>;
 }
 
 export interface RelayConfig {
