@@ -1,47 +1,39 @@
-import { Icon, type IconName } from '../primitives';
+import type { ReactNode } from 'react';
 import { Bit } from '../bit/Bit';
 import { isVirtualKeyboardOnly } from './touch';
 
 interface ChatEmptyProps {
   onPrompt: (text: string) => void;
-  // Phone: a tap while scrolling fired a real agent turn ("Mostra o estado da
-  // VPS" runs commands). There the card fills the composer instead.
+  // Phone: a tap while scrolling fired a real agent turn. There the chip
+  // fills the composer instead.
   onSeed?: (text: string) => void;
+  suggestions?: string[];
+  // The composer, centered between the question and the chips.
+  children?: ReactNode;
 }
 
-// Grid de tópicos estilo ChatGPT: cards categorizados com ícone, em vez de lista
-// crua. Cada card envia o prompt direto — a categoria dá o "cheiro" do que o
-// agente sabe fazer nesta VPS (terminal, deploy, debug, análise).
-const TOPICS: { icon: IconName; label: string; prompt: string }[] = [
-  { icon: 'terminal', label: 'Terminal', prompt: 'Mostra o estado da VPS: disco, memória, processos pesados' },
-  { icon: 'zap', label: 'Deploy', prompt: 'Configurar deploy com webhook na VPS' },
-  { icon: 'search', label: 'Debug', prompt: 'O psql travou num lock — como destravo?' },
-  { icon: 'sparkles', label: 'Análise', prompt: 'Analisa os logs recentes e resume o que aconteceu' },
+const FALLBACK_SUGGESTIONS = [
+  'Resumir o que mudou esta semana',
+  'Escrever um rascunho de post',
+  'Revisar um texto que vou colar',
 ];
 
-export function ChatEmpty({ onPrompt, onSeed }: ChatEmptyProps) {
-  const pick = (prompt: string) => (onSeed && isVirtualKeyboardOnly() ? onSeed(prompt) : onPrompt(prompt));
+export function ChatEmpty({ onPrompt, onSeed, suggestions = FALLBACK_SUGGESTIONS, children }: ChatEmptyProps) {
+  const pick = (text: string) => (onSeed && isVirtualKeyboardOnly() ? onSeed(text) : onPrompt(text));
   return (
-    <div className="flex h-full flex-col items-center justify-center overflow-hidden px-6 text-center">
-      <Bit state="wave" size={84} className="fade-up mb-4" />
-      <h2 className="fade-up text-[22px] font-semibold tracking-tight text-neutral-100">Em que vamos trabalhar?</h2>
-      <p className="fade-up mt-2 max-w-sm text-[14px] leading-relaxed text-neutral-500">
-        Converse com o agente — ele roda comandos direto nos seus terminais da VPS.
-      </p>
-      <div className="stagger-fade mt-7 grid w-full max-w-lg grid-cols-1 gap-2.5 sm:grid-cols-2">
-        {TOPICS.map((t) => (
+    <div className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto px-3 pb-10 text-center">
+      <Bit state="wave" size={72} className="fade-up mb-5" />
+      <h2 className="fade-up mb-6 px-3 text-[26px] font-semibold tracking-tight text-neutral-100 pointer-coarse:text-[22px]">Em que vamos trabalhar?</h2>
+      {children && <div className="w-full">{children}</div>}
+      <div className="stagger-fade mt-2 flex max-w-[760px] flex-wrap justify-center gap-2 px-3">
+        {suggestions.slice(0, 3).map((text) => (
           <button
-            key={t.label}
-            onClick={() => pick(t.prompt)}
-            className="group relative flex flex-col gap-2 overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900/50 p-3.5 text-left transition hover:-translate-y-0.5 hover:border-orange-500/40 hover:bg-neutral-900 hover:shadow-[0_8px_24px_-12px_rgba(0,0,0,0.7)] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-orange-500/40"
+            key={text}
+            type="button"
+            onClick={() => pick(text)}
+            className="inline-flex h-8 items-center rounded-full border border-neutral-700 px-3 text-[13px] text-neutral-400 transition-colors hover:bg-neutral-800 hover:text-neutral-100 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-orange-500/40"
           >
-            <span className="flex items-center justify-between">
-              <span className="flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-wide text-neutral-600 transition group-hover:text-orange-400">
-                <Icon name={t.icon} size={12} /> {t.label}
-              </span>
-              <Icon name="arrowUp" size={13} className="translate-x-1 rotate-45 text-orange-400/0 transition group-hover:translate-x-0 group-hover:text-orange-400/80" />
-            </span>
-            <span className="text-[13px] leading-snug text-neutral-400 transition group-hover:text-neutral-200">{t.prompt}</span>
+            {text}
           </button>
         ))}
       </div>

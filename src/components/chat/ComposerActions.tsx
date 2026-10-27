@@ -48,21 +48,23 @@ function BusyActions({ hasText, hasAtt, attUploading, onSubmit, onStop }: Compos
   );
 }
 
-function PrimaryAction({ paused, hasText, hasAtt, attUploading, onSubmit, mic }: ComposerActionsProps) {
-  // Dictation owns the slot while listening, even with text: the dictated words make
-  // hasText true and Send would take over, leaving no way to stop the recording.
-  if (mic?.listening) {
+function MicButton({ mic }: { mic: Mic }) {
+  if (mic.listening) {
     return (
       <button type="button" onClick={mic.toggle} aria-label="Parar de ditar" title="Parar de ditar" className={`${btn} animate-pulse bg-red-500/20 text-red-400 focus-visible:ring-red-500/40`}>
         <Icon name="mic" size={16} />
       </button>
     );
   }
+  return <IconButton icon="mic" label="Ditar por voz" tip={mic.error ?? 'Ditar por voz'} onClick={mic.toggle} className="rounded-full" />;
+}
+
+function PrimaryAction({ paused, hasText, hasAtt, attUploading, onSubmit, onCall }: ComposerActionsProps) {
   const canSend = hasText || hasAtt;
-  if (!canSend && !attUploading && mic?.supported) {
+  if (!canSend && !attUploading && onCall) {
     return (
-      <button type="button" onClick={mic.toggle} aria-label="Ditar por voz" title={mic.error ?? 'Ditar por voz'} className={`${btn} bg-neutral-800 text-neutral-200 hover:bg-neutral-700 focus-visible:ring-orange-500/40`}>
-        <Icon name="mic" size={16} />
+      <button type="button" onClick={onCall} aria-label="Ligar" title="Conversar por voz com a sessão, sem as mãos" className={`${btn} bg-orange-500 text-neutral-950 hover:bg-orange-400 focus-visible:ring-orange-500/40`}>
+        <Icon name="audio" size={17} />
       </button>
     );
   }
@@ -87,15 +89,9 @@ function PrimaryAction({ paused, hasText, hasAtt, attUploading, onSubmit, mic }:
 
 export function ComposerActions(props: ComposerActionsProps) {
   if (props.busy) return <BusyActions {...props} />;
-  const showCall = !!props.onCall && !props.hasText && !props.hasAtt && !props.mic?.listening;
   return (
     <div className="flex shrink-0 items-center gap-1">
-      {/* Phone only: on a narrow screen the call lives in the + menu to leave room for the text. */}
-      {showCall && (
-        <span className="hidden sm:inline-flex">
-          <IconButton icon="phone" label="Ligar" tip="Conversar por voz com a sessão, sem as mãos" onClick={props.onCall} />
-        </span>
-      )}
+      {props.mic?.supported && <MicButton mic={props.mic} />}
       <PrimaryAction {...props} />
     </div>
   );

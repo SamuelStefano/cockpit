@@ -2,9 +2,8 @@ import type { Message } from '../../data/types';
 import type { TurnStats } from '../../../shared/protocol';
 import { ExportMenu } from './ExportMenu';
 import { HistoryControls } from './HistoryControls';
-import { TurnStat } from './TurnStat';
-import { prettyModel } from './toolbar-format';
-import { Icon } from '../primitives';
+import { prettyModel, turnStatParts } from './toolbar-format';
+import { Icon, Menu, MenuItem, MenuSeparator } from '../primitives';
 
 interface HistoryProps {
   sessionId: string;
@@ -26,31 +25,63 @@ interface ChatHeaderMenuProps {
   history: HistoryProps | null;
   canExport: boolean;
   profile?: { open: boolean; toggle: () => void } | null;
+  contextPct?: number | null;
+  onRename?: () => void;
+  onTerminal?: () => void;
+  terminalRunning?: boolean;
+  onDelete?: () => void;
   onDone: () => void;
 }
 
-// Everything that used to be a badge in the bar: info as text, then the actions.
-// A click on any action closes the menu (delegated: the row components stay dumb).
-export function ChatHeaderMenu({ title, messages, lastTurn, ranOn, selectedModel, history, canExport, profile, onDone }: ChatHeaderMenuProps) {
+export function ChatHeaderMenu({ title, messages, lastTurn, ranOn, selectedModel, history, canExport, profile, contextPct = null, onRename, onTerminal, terminalRunning, onDelete, onDone }: ChatHeaderMenuProps) {
+  const turn = turnStatParts(lastTurn);
+  const turns = lastTurn?.numTurns ? ` · ${lastTurn.numTurns} turno${lastTurn.numTurns === 1 ? '' : 's'}` : '';
+  const hasActions = !!onRename || canExport || !!history || !!onTerminal;
   return (
-    <div className="w-64 py-1" onClick={(e) => { if ((e.target as HTMLElement).closest('button')) onDone(); }}>
-      {profile && (
-        <button
-          type="button" aria-pressed={profile.open} onClick={profile.toggle}
-          className="flex h-9 w-full items-center gap-2 px-3 text-left text-[13px] text-neutral-200 hover:bg-neutral-800 pointer-coarse:h-11"
-        >
-          <Icon name="user" size={15} className="text-neutral-400" />
-          Perfil do agente
-        </button>
-      )}
-      <TurnStat stats={lastTurn} />
-      {ranOn && (
-        <p className="px-3 py-1.5 text-[12px] text-amber-300/90">
-          rodou em {prettyModel(ranOn)}, não em {prettyModel(selectedModel)}
-        </p>
-      )}
-      {history && <HistoryControls {...history} />}
-      {canExport && <ExportMenu title={title} messages={messages} />}
-    </div>
+    <Menu label="Mais ações da conversa" className="w-72" >
+      <div className="contents" onClick={(e) => { if ((e.target as HTMLElement).closest('button')) onDone(); }}>
+        {contextPct !== null && (
+          <>
+            <div className="flex items-center gap-3 px-2.5 py-2 text-[12px] text-neutral-500">
+              <span>Contexto</span>
+              <span role="meter" aria-label={`Contexto ${contextPct}%`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={contextPct} className="h-1 flex-1 overflow-hidden rounded-full bg-neutral-800">
+                <span className="block h-full rounded-full bg-neutral-500" style={{ width: `${Math.min(100, contextPct)}%` }} />
+              </span>
+              <span className="tabular-nums">{contextPct}%</span>
+            </div>
+            <MenuSeparator />
+          </>
+        )}
+        {profile && <MenuItem icon="user" label="Perfil do agente" aria-pressed={profile.open} onClick={profile.toggle} />}
+        {onRename && <MenuItem icon="pencil" label="Renomear" onClick={onRename} />}
+        {canExport && <ExportMenu title={title} messages={messages} />}
+        {history && <HistoryControls {...history} />}
+        {onTerminal && (
+          <MenuItem
+            icon="terminal" label="Abrir terminal" aria-label="Abrir terminais" onClick={onTerminal}
+            right={terminalRunning ? <span className="h-2 w-2 rounded-full bg-green-500" /> : undefined}
+          />
+        )}
+        {(turn || ranOn) && hasActions && <MenuSeparator />}
+        {turn && (
+          <p title="Último turno (custo real do CLI)" className="flex items-center gap-2.5 px-2.5 py-2 text-[13px] text-neutral-300">
+            <Icon name="clock" size={14} className="text-neutral-400" />
+            <span>Último turno</span>
+            <span className="ml-auto text-[12px] tabular-nums text-neutral-500">{turn.parts.join(' · ')}{turn.model ? ` · ${turn.model}` : ''}{turns}</span>
+          </p>
+        )}
+        {ranOn && (
+          <p className="px-2.5 py-1.5 text-[12px] text-amber-300/90">
+            rodou em {prettyModel(ranOn)}, não em {prettyModel(selectedModel)}
+          </p>
+        )}
+        {onDelete && (
+          <>
+            <MenuSeparator />
+            <MenuItem icon="trash" label="Apagar conversa" danger onClick={onDelete} />
+          </>
+        )}
+      </div>
+    </Menu>
   );
 }

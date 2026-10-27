@@ -16,14 +16,14 @@ export function ExportMenu({ title, messages }: { title: string; messages: Messa
     catch { toast('Não consegui gerar o PDF — tente o .md', { tone: 'error' }); }
     finally { setBusy(false); }
   };
-  const row = `flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] text-neutral-300 transition hover:bg-neutral-800/60 hover:text-neutral-100 disabled:opacity-50 pointer-coarse:min-h-11 ${tokens.focusRing}`;
+  const row = `flex h-9 w-full items-center gap-2.5 rounded-lg px-2.5 text-left text-[13px] text-neutral-100 transition-colors hover:bg-neutral-800 disabled:opacity-50 pointer-coarse:h-11 ${tokens.focusRing}`;
   return (
     <>
       <button onClick={exportMd} disabled={busy} title="Baixar conversa em Markdown" className={row}>
-        <Icon name="download" size={13} /> Exportar .md
+        <Icon name="download" size={14} /> Exportar .md
       </button>
       <button onClick={exportPdf} disabled={busy} title="Baixar conversa em PDF" className={row}>
-        <Icon name={busy ? 'rotate' : 'download'} size={13} className={busy ? 'spin' : ''} /> Exportar pdf
+        <Icon name={busy ? 'rotate' : 'download'} size={14} className={busy ? 'spin' : ''} /> Exportar .pdf
       </button>
     </>
   );

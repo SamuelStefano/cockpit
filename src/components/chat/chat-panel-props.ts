@@ -103,6 +103,7 @@ export interface ChatPanelProps {
   onQuote?: (text: string) => void;
   onMemorize?: (text: string) => void;
   onRename?: (id: string, title: string) => void;
+  onDelete?: (id: string) => void;
   onOpenFull?: (id: string) => void;
   onLoadOlder?: (id: string) => void;
   onOpenSummary?: (id: string) => void;
@@ -113,6 +114,7 @@ export interface ChatPanelProps {
   onTerminal?: () => void;
   terminalRunning?: boolean;
   isMobile?: boolean;
+  onMenu?: () => void;
   // Teclado virtual aberto no celular: o chat enxuga tudo que não é mensagem
   // (só sobram ~150px de thread num viewport de 420).
   keyboardOpen?: boolean;

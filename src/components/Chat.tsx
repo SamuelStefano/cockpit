@@ -32,7 +32,7 @@ import { BotThreadContext, BOT_ANSWER_PLACEHOLDER } from './chat/bot-thread-cont
 
 export type { Phase };
 
-export function ChatPanel({ session, messages, phase, terminalBusy = false, sessionTodos, draft, setDraft, onSend, onPrompt, onApproveWorkflow, onStop, mode, setMode, caps, claudeReady = true, claudeLogin, agents, onClaudeLoginStart, onClaudeLoginCode, onClaudeLoginCancel, bypass, setBypass, model, setModel, modelLocked, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, slashCommands, contextTokens, contextModel = null, sendCost, liveTurnTokens, turnStartedAt, bgAgents, lastTurn, lastEnd, onNew, onHandoff, handoffBusy = false, attachments, onUpload, onRemoveAttachment, attPreview = null, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser, onQuote, onMemorize, onRename, onOpenFull, onLoadOlder, onOpenSummary, truncated, onShowHelp, focusSignal = 0, onTerminal, terminalRunning, isMobile = false, keyboardOpen = false, quotaPaused = false, quotaResetsAt = null, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueReleaseAt = 0, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce, resumeOffer = null, resumeRun, orchestratorSessionId, turnStatus, botDecor, conn, call }: ChatPanelProps) {
+export function ChatPanel({ session, messages, phase, terminalBusy = false, sessionTodos, draft, setDraft, onSend, onPrompt, onApproveWorkflow, onStop, mode, setMode, caps, claudeReady = true, claudeLogin, agents, onClaudeLoginStart, onClaudeLoginCode, onClaudeLoginCancel, bypass, setBypass, model, setModel, modelLocked, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, slashCommands, contextTokens, contextModel = null, sendCost, liveTurnTokens, turnStartedAt, bgAgents, lastTurn, lastEnd, onNew, onHandoff, handoffBusy = false, attachments, onUpload, onRemoveAttachment, attPreview = null, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser, onQuote, onMemorize, onRename, onDelete, onOpenFull, onLoadOlder, onOpenSummary, truncated, onShowHelp, focusSignal = 0, onTerminal, terminalRunning, isMobile = false, onMenu, keyboardOpen = false, quotaPaused = false, quotaResetsAt = null, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueReleaseAt = 0, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce, resumeOffer = null, resumeRun, orchestratorSessionId, turnStatus, botDecor, conn, call }: ChatPanelProps) {
   const c = useChatPanel({ session, messages, phase, models, model, lastEnd, onSend, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queueRetry, queueRunBg, queueRunNow });
   // Modo iterativo: um refino pedido de dentro de um live preview vira o próximo
   // prompt (o card não tem acesso ao compositor — publica no [[refine-bus]]).
@@ -69,6 +69,20 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, sess
     <MessageRow key={m.id} msg={m} caretOnLast={c.streaming && i === shown.length - 1 && m.role === 'assistant'} modelLabel={botDecor ? botDecor.name : m.role === 'assistant' && m.model ? c.labelFor(m.model) : c.modelLabel} avatar={botDecor?.avatar} bit={i === shown.length - 1 && m.role === 'assistant' ? turnBit : undefined} showModelLabel thinking={phase !== 'idle' && !c.pendingQuestion && i === shown.length - 1 && m.role === 'assistant'} live={i === shown.length - 1 && m.role === 'assistant' && !c.pendingQuestion ? live : undefined} onEditUser={onEditUser} onQuote={onQuote} onMemorize={onMemorize} answerable={(phase === 'idle' || c.pendingQuestion) && i === shown.length - 1 && m.role === 'assistant'} onAnswer={onPrompt} reviewable={phase === 'idle' && i > lastUserIdx && m.role === 'assistant'} onApproveWorkflow={onApproveWorkflow} onRegenerate={phase === 'idle' && !c.pendingQuestion && i === shown.length - 1 && m.role === 'assistant' ? c.retryLast : undefined} onOpenAttachment={onAttOpen} attThumbs={attThumbs} onAttThumb={onAttThumb} />
   );
 
+  const composer = (
+    <ChatInput disabled={c.disabled} placeholder={botDecor && c.pendingQuestion ? BOT_ANSWER_PLACEHOLDER : undefined} onSend={onSend} onStop={onStop} value={draft} setValue={setDraft} mode={mode} setMode={setMode}
+      caps={caps} bypass={bypass} setBypass={setBypass}
+      model={model} setModel={setModel} modelLocked={modelLocked} models={models} onRefreshModels={onRefreshModels}
+      effort={effort} setEffort={setEffort}
+      mcpServers={mcpServers} selectedMcps={selectedMcps} setSelectedMcps={setSelectedMcps} slashCommands={slashCommands}
+      attachments={attachments} onUpload={onUpload} onRemoveAttachment={onRemoveAttachment} onOpenAttachment={onAttOpen} focusSignal={focusSignal}
+      queued={c.queued} queuedAtts={c.queuedAtts} queuedModels={c.queuedModels} onRunQueuedBg={c.runQueuedInBgAt} onRunQueuedNow={c.runQueuedNowAt} onQueue={c.enqueue} onCancelQueueAt={c.cancelQueueAt} onEditQueuedAt={c.editQueuedAt} onMoveQueued={c.moveQueuedItem} history={c.sentHistory} pendingConfirm={c.bannerConfirm} onNew={onNew} onShowHelp={onShowHelp}
+      queuePaused={queuePaused} queueReleaseAt={queueReleaseAt} onToggleQueuePause={() => queueSetPaused(!queuePaused)}
+      queueHeld={c.queueHeld} onResumeQueue={c.resumeQueue}
+      paused={quotaPaused} quotaResetsAt={quotaResetsAt} onCall={call.supported ? call.dial : undefined} />
+  );
+  const hero = c.isEmpty && phase === 'idle' && !botDecor;
+
   return (
     <div
       className="relative flex h-full flex-col bg-neutral-900"
@@ -85,8 +99,8 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, sess
         contextTokens={contextTokens} contextModel={contextModel} lastTurn={lastTurn} onNew={onNew}
         fullLoaded={c.fullLoaded} truncated={truncated} onOpenFull={onOpenFull} onLoadOlder={onLoadOlder} onOpenSummary={onOpenSummary}
         beforeGrow={c.captureAnchor}
-        setFullLoaded={c.setFullLoaded} onTerminal={onTerminal} terminalRunning={terminalRunning} onRename={onRename}
-        keyboardOpen={keyboardOpen} selectedModel={model}
+        setFullLoaded={c.setFullLoaded} onTerminal={onTerminal} terminalRunning={terminalRunning} onRename={onRename} onDelete={onDelete}
+        keyboardOpen={keyboardOpen} selectedModel={model} onMenu={isMobile ? onMenu : undefined}
         agent={botDecor && { name: botDecor.name, avatar: botDecor.avatar, ...botDecor.header }}
       />
 
@@ -98,10 +112,11 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, sess
       {/* Wrapper relativo: as afordâncias de scroll ancoram no fim da ÁREA DE
           SCROLL, não do painel — antes (bottom fixo no painel) um composer alto
           engolia os botões pra dentro do input. */}
+      {hero ? <ChatEmpty onPrompt={onPrompt} onSeed={setDraft}>{composer}</ChatEmpty> : (
       <div className="relative flex min-h-0 flex-1 flex-col">
       <div ref={c.scrollRef} onScroll={c.onScroll} className="print-thread scroll-thin flex-1 overflow-y-auto overflow-x-hidden overscroll-contain">
         {c.isEmpty && phase === 'idle' && !botDecor?.extras.length ? (
-          botDecor ? botDecor.empty : <ChatEmpty onPrompt={onPrompt} onSeed={setDraft} />
+          botDecor?.empty
         ) : (
           // role=log is polite-live: a reader hears new replies. aria-busy holds it
           // while tokens stream, so it reads the finished answer, not every delta.
@@ -122,6 +137,7 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, sess
         <ScrollAffordances promptAbove={c.promptAbove} onScrollToPrompt={c.scrollToLastPrompt} onScrollToBottom={c.scrollToBottom} />
       )}
       </div>
+      )}
 
       {trayTodos && <TaskTray todos={trayTodos} isMobile={isMobile} keyboardOpen={keyboardOpen} />}
 
@@ -144,16 +160,7 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, sess
 
       <CallDock call={call} />
 
-      <ChatInput disabled={c.disabled} placeholder={botDecor && c.pendingQuestion ? BOT_ANSWER_PLACEHOLDER : undefined} onSend={onSend} onStop={onStop} value={draft} setValue={setDraft} mode={mode} setMode={setMode}
-        caps={caps} bypass={bypass} setBypass={setBypass}
-        model={model} setModel={setModel} modelLocked={modelLocked} models={models} onRefreshModels={onRefreshModels}
-        effort={effort} setEffort={setEffort}
-        skills={skills} selectedSkills={selectedSkills} setSelectedSkills={setSelectedSkills} mcpServers={mcpServers} selectedMcps={selectedMcps} setSelectedMcps={setSelectedMcps} slashCommands={slashCommands}
-        attachments={attachments} onUpload={onUpload} onRemoveAttachment={onRemoveAttachment} onOpenAttachment={onAttOpen} focusSignal={focusSignal}
-        queued={c.queued} queuedAtts={c.queuedAtts} queuedModels={c.queuedModels} onRunQueuedBg={c.runQueuedInBgAt} onRunQueuedNow={c.runQueuedNowAt} onQueue={c.enqueue} onCancelQueueAt={c.cancelQueueAt} onEditQueuedAt={c.editQueuedAt} onMoveQueued={c.moveQueuedItem} history={c.sentHistory} pendingConfirm={c.bannerConfirm} onNew={onNew} onShowHelp={onShowHelp}
-        queuePaused={queuePaused} queueReleaseAt={queueReleaseAt} onToggleQueuePause={() => queueSetPaused(!queuePaused)}
-        queueHeld={c.queueHeld} onResumeQueue={c.resumeQueue}
-        paused={quotaPaused} quotaResetsAt={quotaResetsAt} onCall={call.supported ? call.dial : undefined} />
+      {!hero && composer}
 
       {attPreview && onAttClose && <AttachmentModal att={attPreview} onClose={onAttClose} />}
     </div>

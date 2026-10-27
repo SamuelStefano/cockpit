@@ -11,10 +11,9 @@ describe('ContextRing', () => {
     expect(container.firstChild).toBeNull();
   });
 
-  it('describes the fill as percent and k tokens, with no new-session button below the limit', () => {
-    render(<ContextRing tokens={76_000} model="claude-opus-4-8" onNew={vi.fn()} />);
-    expect(screen.getByRole('meter').getAttribute('aria-label')).toMatch(/^Contexto \d+% · 76k$/);
-    expect(screen.queryByText('nova sessão')).toBeNull();
+  it('hides below 70 percent', () => {
+    const { container } = render(<ContextRing tokens={76_000} model="claude-opus-4-8" onNew={vi.fn()} />);
+    expect(container.firstChild).toBeNull();
   });
 
   it('shows the new-session action when over the limit', () => {

@@ -12,7 +12,7 @@ interface HistoryControlsProps {
 }
 
 // Rows of the header "…" menu; the visible text and the aria-label stay in sync.
-const row = `flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] text-neutral-300 transition hover:bg-neutral-800/60 hover:text-neutral-100 pointer-coarse:min-h-11 ${tokens.focusRing}`;
+const row = `flex h-9 w-full items-center gap-2.5 rounded-lg px-2.5 text-left text-[13px] text-neutral-100 transition-colors hover:bg-neutral-800 pointer-coarse:h-11 ${tokens.focusRing}`;
 
 // `truncated` = ainda existe conversa mais antiga no arquivo. O botão é repetível:
 // cada clique estende a janela em uma página, até chegar ao começo da sessão.
@@ -26,8 +26,8 @@ export function HistoryControls({ sessionId, fullLoaded, truncated, onOpenFull, 
           aria-label="Carregar mensagens antigas"
           className={row}
         >
-          <Icon name="chevronUp" size={13} />
-          carregar antigas
+          <Icon name="chevronUp" size={14} />
+          Carregar antigas
         </button>
       )}
       {fullLoaded ? (
@@ -37,8 +37,8 @@ export function HistoryControls({ sessionId, fullLoaded, truncated, onOpenFull, 
           aria-label="Mostrar resumido"
           className={row}
         >
-          <Icon name="message" size={13} />
-          mostrar resumido
+          <Icon name="message" size={14} />
+          Mostrar resumido
         </button>
       ) : !truncated && (
         <button
@@ -47,8 +47,8 @@ export function HistoryControls({ sessionId, fullLoaded, truncated, onOpenFull, 
           aria-label="Ver todas as mensagens"
           className={row}
         >
-          <Icon name="message" size={13} />
-          ver tudo
+          <Icon name="rotate" size={14} />
+          Ver conversa inteira
         </button>
       )}
     </>
