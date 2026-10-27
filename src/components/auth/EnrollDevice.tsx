@@ -1,7 +1,6 @@
 import { BrandMark, Button } from '../primitives';
 import { useEnrollDevice } from './useEnrollDevice';
 import { usePasskeySetup } from './usePasskeySetup';
-import { PasskeyUnlock } from './PasskeyUnlock';
 import { EnrollCodeForm } from './EnrollCodeForm';
 import { EnrollLinkStatus } from './EnrollLinkStatus';
 
@@ -30,7 +29,6 @@ export function EnrollDevice({ onSignOut }: { onSignOut: () => void }) {
           </p>
         )}
         <EnrollLinkStatus />
-        <PasskeyUnlock pk={pk} />
         {!e.showCode && (
           <>
             <p className="mt-4 text-[13px] leading-relaxed text-neutral-400">

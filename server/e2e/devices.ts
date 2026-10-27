@@ -246,6 +246,17 @@ export function trustFirstDevice(devicePub: Bytes, label: string, now = Date.now
   }, mustLock);
 }
 
+export function trustAccountDevice(devicePub: Bytes, label: string, now = Date.now()): boolean {
+  const pub = toB64(devicePub);
+  return withFileLockSync(DEVICES(), () => {
+    const t = readTrust();
+    if (!t.ok || isRevoked(t, pub)) return false;
+    if (t.devices.some((d) => d.pub === pub)) return true;
+    writeTrust([...t.devices, { pub, label: cleanLabel(label), addedAt: new Date(now).toISOString() }], t.revoked);
+    return true;
+  }, mustLock);
+}
+
 // An enrolled device vouches for this browser's passkey key from inside its
 // sealed channel, handing over the key's pin key for this box in the same write.
 export function addPasskeyDevice(devicePub: Bytes, label: string, pin: Bytes, now = Date.now()): boolean {

@@ -479,8 +479,22 @@ describe('pre-authorization grants are bound to a box and survive a lost answer'
   });
 });
 
+describe('account trust (default)', () => {
+  it('trusts every new browser the relay routes, even with devices already enrolled', async () => {
+    const h = await passkeySetup(BOX, tofuWindow({}));
+    for (const label of ['PC · Chrome', 'iPhone · Safari']) {
+      const dev = await deviceKeys();
+      const d = new DeviceHandshake(dev, [], null, { tofu: true, label });
+      h.hub.handle(toAgent(await d.hello())); await flush();
+      const accepted = await d.accept(last(h.sent));
+      h.hub.handle(toAgent(accepted.confirm)); await flush();
+    }
+    expect(listDevices().map((x) => x.label)).toEqual(['PC · Chrome', 'iPhone · Safari']);
+  });
+});
+
 describe('trust on first use for a box with no devices', () => {
-  const open = () => tofuWindow({});
+  const open = () => tofuWindow({ DECK_ACCOUNT_TRUST: 'off' });
 
   it('trusts the first device, says so in the accept, and logs it on the box', async () => {
     const h = await passkeySetup(BOX, open());
@@ -576,8 +590,8 @@ describe('trust on first use for a box with no devices', () => {
   });
 
   it('shuts at the migration cutoff even for an agent started just before it', async () => {
-    expect(tofuWindow({}).until).toBe(TOFU_UNTIL);
-    const h = await passkeySetup(BOX, tofuWindow({}));
+    expect(tofuWindow({ DECK_ACCOUNT_TRUST: 'off' }).until).toBe(TOFU_UNTIL);
+    const h = await passkeySetup(BOX, tofuWindow({ DECK_ACCOUNT_TRUST: 'off' }));
     const d = new DeviceHandshake(await deviceKeys(), [], null, { tofu: true });
     const hello = await d.hello();
     const now = vi.spyOn(Date, 'now').mockReturnValue(TOFU_UNTIL + 1);
@@ -610,7 +624,7 @@ describe('trust on first use for a box with no devices', () => {
 
   it('is off with DECK_E2E_TOFU=off', () => {
     expect(tofuWindow({ DECK_E2E_TOFU: 'off' }).until).toBe(0);
-    expect(tofuWindow({}).until).toBe(TOFU_UNTIL);
+    expect(tofuWindow({ DECK_ACCOUNT_TRUST: 'off' }).until).toBe(TOFU_UNTIL);
   });
 
   it('a browser with a pin for the box rejects tofu:true for any other key', async () => {
@@ -692,7 +706,7 @@ describe('device management frames', () => {
   });
 
   it('a revoked device never gets back in on first use', async () => {
-    const h = await passkeySetup(BOX, tofuWindow({}));
+    const h = await passkeySetup(BOX, tofuWindow({ DECK_ACCOUNT_TRUST: 'off' }));
     const dev = await deviceKeys();
     const { code } = await createEnrollCode(h.keys.pub);
     h.hub.handle(toAgent((await enrollRequest(code, dev.pub, 'a')).frame)); await flush();
