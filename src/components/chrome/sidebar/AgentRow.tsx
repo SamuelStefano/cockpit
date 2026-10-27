@@ -1,5 +1,6 @@
 import { Icon, Tooltip, tokens } from '../../primitives';
 import { Mascot } from '../../team/Mascot';
+import { LivingPhrase } from '../../team/LivingPhrase';
 import type { BotView } from '../../../routes/equipe/team-view';
 
 interface AgentRowProps {
@@ -25,6 +26,7 @@ function Dot({ view, rail }: { view: BotView; rail: boolean }) {
 // The hierarchy shows as indentation; the primary agent carries a star.
 export function AgentRow({ view, active, expanded, depth = 0, onOpen }: AgentRowProps) {
   const { bot, state, preview } = view;
+  const live = state === 'thinking' || state === 'working';
   return (
     <Tooltip label={bot.name} side="right" disabled={expanded} className={expanded ? 'flex min-w-0 flex-1' : 'inline-flex'}>
       <button
@@ -44,7 +46,9 @@ export function AgentRow({ view, active, expanded, depth = 0, onOpen }: AgentRow
               <span className="truncate">{bot.name}</span>
               {bot.primary && <Icon name="star" size={11} className="shrink-0 fill-orange-400 text-orange-400" />}
             </span>
-            {preview && <span className="block truncate text-[12px] text-neutral-500">{preview}</span>}
+            {live
+              ? <LivingPhrase active startedAt={view.startedAt} className="text-[12px] text-neutral-400" />
+              : preview && <span className="block truncate text-[12px] text-neutral-500">{preview}</span>}
           </span>
         )}
         {expanded && <Dot view={view} rail={false} />}

@@ -1,12 +1,12 @@
 import type { TeamBot } from '../../../shared/protocol';
 import { Badge, Button, Icon, SkeletonCards, tokens } from '../../components/primitives';
-import type { MascotState } from '../../components/team/mascot-state';
+import type { BotState } from '../../components/team/botState';
 import { computerState, diskLine, previewText, profileLine } from './computer-view';
 import { useComputer } from './computer-context';
 
 interface BotComputerProps {
   bot: TeamBot;
-  state: MascotState;
+  state: BotState;
 }
 
 export function BotComputer({ bot, state }: BotComputerProps) {

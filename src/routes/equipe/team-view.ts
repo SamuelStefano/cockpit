@@ -2,7 +2,7 @@ import type { TeamBot, TeamPendingQuestion } from '../../../shared/protocol';
 import { botDraftKey } from '../../../shared/team';
 import { trafficLine, type TeamMessage } from '../../../shared/team-messages';
 import type { Session } from '../../data/types';
-import { deriveMascotState, type MascotState } from '../../components/team/mascot-state';
+import { deriveBotState, type BotState } from '../../components/team/botState';
 import type { Phase } from '../../components/chat/useChatPanel';
 
 export interface BotView {
@@ -10,7 +10,7 @@ export interface BotView {
   key: string;
   preview: string;
   unread: boolean;
-  state: MascotState;
+  state: BotState;
   startedAt?: number;
   pending?: TeamPendingQuestion;
 }
@@ -60,7 +60,7 @@ export function botView(bot: TeamBot, ctx: TeamViewCtx): BotView {
   const s = ctx.sessions.find((x) => x.id === key) ?? (bot.sessionId ? undefined : ctx.sessions.find((x) => x.id === botDraftKey(bot.id)));
   const running = ctx.running.has(key);
   const pending = ctx.pending?.[bot.id];
-  const state = deriveMascotState({
+  const state = deriveBotState({
     running,
     phase: key === ctx.activeId ? ctx.phase : undefined,
     waiting: s?.waiting || !!pending,

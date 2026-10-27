@@ -1,5 +1,5 @@
 import { Badge, Button, Icon, tokens } from '../../components/primitives';
-import type { MascotState } from '../../components/team/mascot-state';
+import type { BotState } from '../../components/team/botState';
 import { computerState, diskLine, previewText } from './computer-view';
 
 interface ComputerPreviewPaneProps {
@@ -7,7 +7,7 @@ interface ComputerPreviewPaneProps {
   files: number;
   bytes: number;
   truncated: boolean;
-  state: MascotState;
+  state: BotState;
   preview: string[];
   termAlive: boolean;
   isAdmin: boolean;

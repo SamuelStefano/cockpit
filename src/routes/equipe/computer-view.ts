@@ -1,19 +1,19 @@
 import type { BotComputer, TeamProfile } from '../../../shared/protocol';
-import type { MascotState } from '../../components/team/mascot-state';
+import type { BotState } from '../../components/team/botState';
 import { formatSize } from './file-groups';
 
 type Tone = 'neutral' | 'orange' | 'green' | 'red' | 'yellow';
 
-const STATE: Record<MascotState, { label: string; tone: Tone }> = {
+const STATE: Record<BotState, { label: string; tone: Tone }> = {
   idle: { label: 'Parado', tone: 'neutral' },
   thinking: { label: 'Pensando', tone: 'orange' },
   working: { label: 'Trabalhando', tone: 'orange' },
   waiting: { label: 'Esperando você', tone: 'yellow' },
-  blocked: { label: 'Travado', tone: 'red' },
+  error: { label: 'Travado', tone: 'red' },
   done: { label: 'Terminou', tone: 'green' },
 };
 
-export const computerState = (s: MascotState) => STATE[s] ?? STATE.idle;
+export const computerState = (s: BotState) => STATE[s] ?? STATE.idle;
 
 export function diskLine(c: Pick<BotComputer, 'files' | 'bytes' | 'truncated'>): string {
   if (!c.files) return 'vazio';
@@ -30,7 +30,7 @@ export function profileLine(profile: TeamProfile | undefined): string {
 export const COMPUTER_POLL_MS = 2000;
 export const PREVIEW_LINES = 12;
 
-export function computerActive(state: MascotState, termAlive: boolean): boolean {
+export function computerActive(state: BotState, termAlive: boolean): boolean {
   return termAlive || state === 'thinking' || state === 'working';
 }
 
