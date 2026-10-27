@@ -100,6 +100,9 @@ describe('agent-setup.sh', () => {
 
   it('sobe o agente sob flock e com limite de respawn', () => {
     expect(fonte).toContain('EXEC_START="$FLOCK_BIN -n $LOCK');
+    // The lock lives in the agent's own dir, never in shared /tmp.
+    expect(fonte).not.toContain('LOCK=/tmp/');
+    expect(fonte.match(/LOCK="\$AGENT_DIR\/agent\.lock"/g)?.length).toBe(2);
     // Room for the self-update rollback: 3 failed boots + the boot that rolls back.
     expect(fonte).toContain('StartLimitBurst=10');
     expect(fonte).toContain('StartLimitIntervalSec=300');
@@ -331,6 +334,75 @@ describe('agent-setup.sh', () => {
       const w = gerarWrapper('wrapper-sudo', 'deck');
       expect(w.run('enroll-device').status).toBe(0);
       expect(w.lido()).toBe(`SUDO -H -u deck -- ${w.dest} enroll-device\n`);
+    });
+  });
+
+  it('renders the exec line with the lock inside AGENT_DIR', () => {
+    const r = spawnSync('bash', ['-c', [
+      'set -uo pipefail',
+      extrairFuncao('build_exec_start'),
+      'AGENT_DIR=/home/deck/.deck-agent; LOCK="$AGENT_DIR/agent.lock"; FLOCK_BIN=/usr/bin/flock; NPX_BIN=/usr/bin/npx',
+      'build_exec_start; echo "$EXEC_START"',
+    ].join('\n')], { encoding: 'utf8' });
+    expect(r.stdout.trim()).toBe('/usr/bin/flock -n /home/deck/.deck-agent/agent.lock /usr/bin/npx tsx server/agent.ts');
+  });
+
+  describe('WSL keepalive', () => {
+    const funcoesWsl = () => ['is_wsl', 'ensure_wsl_systemd', 'setup_wsl_keepalive'].map(extrairFuncao).join('\n');
+    const logger = (name: string) => `#!/bin/sh\necho "${name} $*" >> "$LOG"\nexit 0\n`;
+    function rodarWsl(nome: string, stubs: Record<string, string>, extraEnv: Record<string, string> = {}) {
+      const { home, bin } = caixa(nome, '#!/bin/sh\n');
+      for (const [cmd, sh] of Object.entries(stubs)) writeFileSync(join(bin, cmd), sh, { mode: 0o755 });
+      const conf = join(home, 'wsl.conf');
+      const log = join(home, 'calls.log');
+      const r = spawnSync('bash', ['-c', ['set -uo pipefail', 'SUDO=""', funcoesWsl(), 'setup_wsl_keepalive; echo "RC=$?"'].join('\n')], {
+        env: { HOME: home, PATH: `${bin}:/usr/bin:/bin`, WSL_CONF: conf, LOG: log, ...extraEnv },
+        encoding: 'utf8',
+      });
+      return { saida: `${r.stdout}${r.stderr}`, conf, log: existsSync(log) ? readFileSync(log, 'utf8') : '' };
+    }
+    function editar(home: string, name: string, initial: string): string {
+      const conf = join(home, name);
+      writeFileSync(conf, initial);
+      spawnSync('bash', ['-c', ['set -uo pipefail', 'SUDO=""', funcoesWsl(), 'ensure_wsl_systemd; ensure_wsl_systemd'].join('\n')], {
+        env: { HOME: home, PATH: '/usr/bin:/bin', WSL_CONF: conf }, encoding: 'utf8',
+      });
+      return readFileSync(conf, 'utf8');
+    }
+
+    it('registers the task via schtasks.exe and sets systemd=true', () => {
+      const r = rodarWsl('wsl-schtasks', { 'schtasks.exe': logger('schtasks') }, { WSL_DISTRO_NAME: 'Ubuntu-24.04' });
+      expect(r.log).toContain('schtasks /Create /F /SC ONLOGON /TN DeckWslKeepAlive-Ubuntu-24.04');
+      expect(r.log).toContain('wsl.exe -d Ubuntu-24.04 --exec sleep infinity');
+      expect(readFileSync(r.conf, 'utf8')).toContain('[boot]\nsystemd=true');
+      expect(r.saida).toContain('vmIdleTimeout=-1');
+      expect(r.saida).toContain('RC=0');
+    });
+
+    it('prefers powershell.exe (hidden task) when available', () => {
+      const r = rodarWsl('wsl-ps', { 'powershell.exe': logger('powershell'), 'schtasks.exe': logger('schtasks') }, { WSL_DISTRO_NAME: 'Ubuntu' });
+      expect(r.log).toContain('Register-ScheduledTask');
+      expect(r.log).toContain('-Hidden');
+      expect(r.log).not.toContain('schtasks');
+    });
+
+    it('prints the manual command and still succeeds without interop', () => {
+      const r = rodarWsl('wsl-manual', {}, { WSL_DISTRO_NAME: 'Ubuntu' });
+      expect(r.saida).toContain('sem interop');
+      expect(r.saida).toContain('schtasks.exe /Create /F /SC ONLOGON /TN "DeckWslKeepAlive-Ubuntu"');
+      expect(r.saida).toContain('RC=0');
+    });
+
+    it('keeps an existing systemd=true untouched (idempotent)', () => {
+      const { home } = caixa('wsl-idem', '#!/bin/sh\n');
+      const txt = '[boot]\nsystemd=true\n[user]\ndefault=deck\n';
+      expect(editar(home, 'a.conf', txt)).toBe(txt);
+    });
+
+    it('inserts into an existing [boot] and flips systemd=false', () => {
+      const { home } = caixa('wsl-edit', '#!/bin/sh\n');
+      expect(editar(home, 'b.conf', '[boot]\ncommand=ls\n')).toBe('[boot]\nsystemd=true\ncommand=ls\n');
+      expect(editar(home, 'c.conf', '[boot]\nsystemd=false\n')).toBe('[boot]\nsystemd=true\n');
     });
   });
 });
