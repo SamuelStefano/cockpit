@@ -28,7 +28,7 @@ function renderThread(isAdmin = true) {
   const chatProps = { messages: [], session: null, onQuote: vi.fn() } as unknown as ChatPanelProps;
   return render(
     <BotComputerProvider bot={bot} state="working" api={api} term={{} as TermApi} connected isAdmin={isAdmin} isMobile={false}>
-      <BotThread view={view} chatProps={chatProps} bots={[bot]} log={[]} files={{ botFileData: {}, onBotFileGet: vi.fn() }} onOpenPeer={vi.fn()} />
+      <BotThread view={view} chatProps={chatProps} bots={[bot]} log={[]} files={{ botFileData: {}, onBotFileGet: vi.fn() }} />
     </BotComputerProvider>,
   );
 }

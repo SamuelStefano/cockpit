@@ -9,7 +9,7 @@ afterEach(cleanup);
 const tool = (multiSelect = false) => ({
   id: 't1', name: 'AskUserQuestion', label: '', command: '', status: 'done', output: [],
   questions: [{ question: 'O que faço com a proposta do cadastro do dia 2?', header: 'Cadastro', multiSelect, options: [
-    { label: 'Aprovar com os ajustes' }, { label: 'Aprovar como está' }, { label: 'Pedir um novo mockup antes' }, { label: 'Cortar' },
+    { label: 'Aprovar com os ajustes (Recomendada)' }, { label: 'Aprovar como está' }, { label: 'Pedir um novo mockup antes' }, { label: 'Cortar' },
   ] }],
 });
 const blocks = (multi = false) => [{ type: 'tool', tool: tool(multi) }] as never;
@@ -21,7 +21,7 @@ const mount = (onAnswer = vi.fn(() => true), opts: { bot?: boolean; answerable?:
   </BotThreadContext.Provider>,
 );
 
-describe('BotQuestionCard', () => {
+describe('AskQuestionCard', () => {
   it('shows the question in bold with lettered options A–D', () => {
     const r = mount();
     expect(r.getByText('O que faço com a proposta do cadastro do dia 2?').className).toContain('font-semibold');
@@ -60,7 +60,16 @@ describe('BotQuestionCard', () => {
     expect((r.getByText('Cortar').closest('button') as HTMLButtonElement).disabled).toBe(false);
   });
 
-  it('history is read-only and outside a bot thread the regular card is unchanged', () => {
+  it('marks the recommended option and says so in the footer, without the marker in the answer', () => {
+    const onAnswer = vi.fn(() => true);
+    const r = mount(onAnswer);
+    expect(r.getByText('Recomendo A. Responda com a letra ou escreva outra ideia.')).toBeTruthy();
+    expect((r.getByText('Aprovar com os ajustes').closest('button') as HTMLButtonElement).className).toContain('border-orange-500/40');
+    fireEvent.click(r.getByText('Aprovar com os ajustes'));
+    expect(onAnswer).toHaveBeenCalledWith('Aprovar com os ajustes');
+  });
+
+  it('history is read-only; outside a team thread letters render but the key shortcut stays off', () => {
     const onAnswer = vi.fn(() => true);
     const ro = mount(onAnswer, { answerable: false });
     fireEvent.keyDown(window, { key: 'a' });
@@ -68,8 +77,11 @@ describe('BotQuestionCard', () => {
     expect((ro.getByText('Cortar').closest('button') as HTMLButtonElement).disabled).toBe(true);
     cleanup();
     const plain = mount(onAnswer, { bot: false });
-    expect(plain.getByText('O Claude precisa da sua escolha')).toBeTruthy();
-    expect(plain.queryByText('A')).toBeNull();
+    expect(plain.getByText('A')).toBeTruthy();
+    fireEvent.keyDown(window, { key: 'a' });
+    expect(onAnswer).not.toHaveBeenCalled();
+    fireEvent.click(plain.getByText('Cortar'));
+    expect(onAnswer).toHaveBeenCalledWith('Cortar');
     cleanup();
     expect(mount(onAnswer, { multi: true }).getByText('Enviar resposta')).toBeTruthy();
   });

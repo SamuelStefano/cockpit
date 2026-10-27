@@ -177,7 +177,7 @@ function CockpitBody() {
   const agentsProps = {
     views: agent.views, activeId: agent.active?.bot.id ?? null, onNew: agent.openNew,
     onOpen: (id: string) => { agent.open(id); setDrawer(false); },
-    paused: cockpit.teamPaused, onPauseSet: isAdmin ? cockpit.onTeamPauseSet : undefined,
+    paused: cockpit.teamPaused,
   };
   const openPalette = () => { setDrawer(false); setPalette(true); };
   const usageDock = { usageAgent, planUsage, planBlockedUntil, planReadAt, planNextReadAt, onRefreshPlanUsage, grokUsage: cockpit.grokUsage, onRefreshGrokUsage: cockpit.onRefreshGrokUsage, quotaWarn: quotaGate.warn, quotaPaused: quotaGate.paused, quotaResetsAt: quotaGate.resetsAt, stats };

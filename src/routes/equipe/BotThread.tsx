@@ -25,13 +25,13 @@ interface BotThreadProps {
   chatProps: ChatPanelProps;
   bots: TeamBot[];
   log: TeamMessage[];
-  onOpenPeer: (peerId: string) => void;
   files: Pick<BotFilesApi, 'botFileData' | 'onBotFileGet'>;
   onProfile?: () => void;
   profileOpen?: boolean;
+  pause?: { paused: boolean; onSet: (paused: boolean) => void };
 }
 
-export function BotThread({ view, chatProps, bots, log, files, onOpenPeer, onProfile, profileOpen }: BotThreadProps) {
+export function BotThread({ view, chatProps, bots, log, files, onProfile, profileOpen, pause }: BotThreadProps) {
   const { bot, state, startedAt } = view;
   const live = state === 'thinking' || state === 'working';
   const computer = useComputer();
@@ -54,10 +54,10 @@ export function BotThread({ view, chatProps, bots, log, files, onOpenPeer, onPro
     extras: groups.map((g) => ({
       key: `t-${g.key}`,
       ts: g.ts,
-      node: <TrafficMarker group={g} botId={bot.id} byId={byId} onOpen={onOpenPeer} onQuote={chatProps.onQuote} />,
+      node: <TrafficMarker group={g} byId={byId} onQuote={chatProps.onQuote} />,
     })),
-    header: { avatar: <Mascot mascot={bot.mascot} state={state} size={24} name={bot.name} />, actions: status, onProfile, profileOpen },
-  }), [bot.id, bot.name, bot.mascot, avatar, state, status, onProfile, profileOpen, groups, byId, onOpenPeer, chatProps.onQuote]);
+    header: { avatar: <Mascot mascot={bot.mascot} state={state} size={24} name={bot.name} />, actions: status, onProfile, profileOpen, pause },
+  }), [bot.id, bot.name, bot.mascot, avatar, state, status, onProfile, profileOpen, pause, groups, byId, chatProps.onQuote]);
   const images = useMemo(() => botImageResolver(bot.id, files.botFileData, files.onBotFileGet), [bot.id, files.botFileData, files.onBotFileGet]);
   const showDock = !!computer && computer.previewOpen && !computer.takenOver;
   const ok = computer?.data?.status === 'ok' ? computer.data.computer : null;

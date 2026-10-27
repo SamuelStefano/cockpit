@@ -27,6 +27,7 @@ export interface ChatAgentHeader {
   actions?: ReactNode;
   onProfile?: () => void;
   profileOpen?: boolean;
+  pause?: { paused: boolean; onSet: (paused: boolean) => void };
 }
 
 export interface ChatPanelProps {
