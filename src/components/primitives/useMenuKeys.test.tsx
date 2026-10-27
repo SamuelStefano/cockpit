@@ -8,9 +8,9 @@ afterEach(cleanup);
 
 const mic = { listening: false, supported: true, toggle: vi.fn(), error: null } as never;
 const settings: ComposerSettingsProps = {
-  mode: 'auto', setMode: vi.fn(), caps: null, bypass: false, setBypass: vi.fn(), model: 'sonnet',
-  effort: 'low', setEffort: vi.fn(), skills: [], selectedSkills: [], setSelectedSkills: vi.fn(),
-  mcpServers: [], selectedMcps: [], setSelectedMcps: vi.fn(), onRefreshModels: vi.fn(),
+  mode: 'auto', setMode: vi.fn(), caps: null, model: 'sonnet',
+  effort: 'low', setEffort: vi.fn(),
+  mcpServers: [], selectedMcps: [], setSelectedMcps: vi.fn(),
 };
 const plus = () => <ComposerPlus touch mic={mic} onAttach={vi.fn()} onPhoto={vi.fn()} onCall={vi.fn()} settings={settings} />;
 const TRIGGER = 'Mais opções do composer';
