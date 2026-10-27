@@ -1,6 +1,8 @@
 import { Badge, Button } from '../primitives';
 import { useCopied } from '../../lib/useCopied';
 import type { InstallMode } from './pairing';
+import { WslSteps } from './WslSteps';
+import { useWslGuide } from './useWslGuide';
 
 interface PairCommandProps {
   code: string;
@@ -15,8 +17,10 @@ const mono = 'font-mono text-neutral-400';
 
 export function PairCommand({ code, cmd, busy, expired, countdown, mode }: PairCommandProps) {
   const [copied, copy, copyFailed] = useCopied();
+  const wsl = useWslGuide();
   return (
     <div>
+      {wsl.isWindows && <WslSteps target={wsl.target} onTarget={wsl.setTarget} showSteps={wsl.showSteps} />}
       <div className={`rounded-xl border bg-neutral-950 p-3.5 ${expired ? 'border-yellow-500/40' : 'border-neutral-800'}`}>
         {code ? (
           <code className={`block break-all font-mono text-[13px] leading-relaxed ${expired ? 'text-neutral-600 line-through' : 'text-orange-200'}`}>{cmd}</code>
