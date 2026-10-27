@@ -91,6 +91,7 @@ describe('authorize', () => {
       'admin-cli-install', 'admin-cli-update', 'admin-deck-restart',
       'agent-add-custom', 'agent-probe-draft', 'provider-probe',
       'claude-import-scan', 'claude-import-apply',
+      'versions-restore',
     ] as const;
     expect([...ROOT_ONLY].sort()).toEqual([...owner].sort());
     for (const t of owner) {
