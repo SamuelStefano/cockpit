@@ -16,6 +16,7 @@ import { createRateLimiter } from './guard';
 import { sendDurableSnapshot } from './snapshot';
 import { authorize } from './authz';
 import { boxHealth, healthFrame } from '../box-health';
+import { secretFrameAllowed, SECRET_CHANNEL_MESSAGE, type Transport } from './secret-gate';
 
 // Ciclo de vida de UMA conexão WS, independente do transporte. No modo listen
 // (app de hoje) o attachWs chama isto por socket aceito; no modo dial (agente T3)
@@ -25,8 +26,8 @@ import { boxHealth, healthFrame } from '../box-health';
 // authorize, e o cleanup de terminais no close.
 // `root` = the box owner's connection: unlocks the owner-only frames
 // (shared/root-frames.ts). Default false, so a new transport denies them.
-export function serveConnection(ws: WebSocket, opts: { role: Role; root?: boolean; sendCaps?: boolean }) {
-  const { role, root = false, sendCaps = true } = opts;
+export function serveConnection(ws: WebSocket, opts: { role: Role; root?: boolean; sendCaps?: boolean; transport?: Transport }) {
+  const { role, root = false, sendCaps = true, transport = 'plain' } = opts;
   (ws as WebSocket & { isAlive?: boolean }).isAlive = true;
   ws.on('pong', () => { (ws as WebSocket & { isAlive?: boolean }).isAlive = true; });
   // No modo dial (agente T3) o caps autoritativo é do relay (papel da conta vem do
@@ -72,6 +73,10 @@ export function serveConnection(ws: WebSocket, opts: { role: Role; root?: boolea
     if (msg.t === 'box-roster' && role !== 'admin') return;
     // Teto por conexão antes de qualquer trabalho: corta loop de frames (DoS).
     if (!limiter.allow(msg.t)) { send(ws, { t: 'error', message: 'muitas requisições' }); return; }
+    if (!secretFrameAllowed(msg.t, transport)) {
+      send(ws, { t: 'error', message: SECRET_CHANNEL_MESSAGE });
+      return;
+    }
     // Checkpoint ÚNICO de autorização (default-deny), ANTES do handleTerm (que
     // trata term-* e retorna) e do dispatch/startRun.
     if (!authorize(role, msg.t, root)) {

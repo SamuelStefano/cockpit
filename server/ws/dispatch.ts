@@ -691,9 +691,8 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       return;
     }
     // Box vault (root-only). Unicast, metadata only: the value of vault-put never
-    // comes back. Refused when the sealed E2E channel is switched off.
+    // comes back. Refused upstream (serve-connection) off the sealed/local channel.
     case 'vault-put': {
-      if (process.env.DECK_E2E === 'off') { send(ws, { t: 'error', message: 'vault needs the sealed E2E channel' }); return; }
       const r = await putSecret(msg.name, msg.value, msg.agents);
       if ('error' in r) { send(ws, { t: 'error', message: r.error }); return; }
       send(ws, { t: 'vault', items: listSecrets() });
