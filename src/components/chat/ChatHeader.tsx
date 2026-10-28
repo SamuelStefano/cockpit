@@ -50,7 +50,7 @@ export function ChatHeader({ session, messages, isEmpty, contextTokens, contextM
   const menu = useHeaderMenu();
   const [renameSignal, setRenameSignal] = useState(0);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const title = agent?.name ?? (session ? session.title : 'Nova sessão');
+  const title = agent?.name ?? (session ? session.title : 'Nova conversa');
   if (keyboardOpen) return <ChatHeaderCompact title={title} onTerminal={onTerminal} terminalRunning={terminalRunning} />;
 
   const saved = !!session && !session.id.startsWith('new-');
