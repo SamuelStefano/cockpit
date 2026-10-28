@@ -21,7 +21,7 @@ export interface AppDeps {
   sessionSecret: string;
   adminIds: Set<string>;
   publicOrigin: string;
-  login: Omit<LoginDeps, never>;
+  login: LoginDeps;
   data: OpsData;
   health: () => Promise<Health>;
   now: () => number;
