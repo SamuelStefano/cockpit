@@ -7,7 +7,7 @@ import { RouteFallback } from './RouteFallback';
 import { ChunkErrorBoundary } from './ChunkErrorBoundary';
 import {
   Skills, Pontos, Observatorio,
-  Graph, Canvas, Admin, Docs, DesignSystem, Onboarding, EquipePage, Agente,
+  Graph, Canvas, Admin, Conexoes, Docs, DesignSystem, Onboarding, EquipePage, Agente,
 } from './lazyRoutes';
 import type { ChatPanelProps } from '../components/chat/chat-panel-props';
 import type { TerminalsPanelProps } from '../components/Terminals';
@@ -126,6 +126,12 @@ export function RouteContent({ route, agentRoute, skillRoute, isMobile, isAdmin,
           accounts={c.accounts} accountsLoaded={c.accountsLoaded} onAccountsList={c.onAccountsList} onSetAdmin={c.onSetAdmin} isRoot={isRoot}
           adminOp={c.adminOp} onEnvSet={c.onEnvSet} onEnvUnset={c.onEnvUnset} onMcpAdd={c.onMcpAdd} onMcpRemove={c.onMcpRemove} onCliInstall={c.onCliInstall}
           onCliUpdate={c.onCliUpdate} onDeckRestart={c.onDeckRestart} agents={c.agents} dflMcps={c} term={c.term} models={c.models} onOpenAgentChat={onOpenAgentChat} />
+      );
+    }
+    if (route === '/conexoes' && isAdmin) {
+      return (
+        <Conexoes connected={connected} items={c.connections} loaded={c.connectionsLoaded} bots={c.bots}
+          dflMcpsState={c.dflMcps} dflMcpsBusy={c.dflMcpsBusy} onGet={c.onConnectionsGet} onToolAdd={c.onDflMcpsAdd} onGo={navigateTo} />
       );
     }
     if (route === '/agentes' && agentRoute) {
