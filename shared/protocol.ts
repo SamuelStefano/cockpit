@@ -26,6 +26,8 @@ export interface ToolQuestion {
   header: string;
   multiSelect: boolean;
   options: ToolQuestionOption[];
+  image?: string; // proposal picture: a path in the bot's workspace or an https URL
+  deadline?: string; // free text shown in the footer ("10:30"): when the bot holds the round
 }
 
 // MCP Apps (SEP-1865): uma tool MCP pode declarar `_meta.ui.resourceUri` apontando

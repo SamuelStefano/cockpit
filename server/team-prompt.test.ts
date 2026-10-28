@@ -21,6 +21,11 @@ describe('buildBotIdentity', () => {
     expect(t).toContain('AskUserQuestion com uma pergunta e 2 a 4 opções curtas e mutuamente exclusivas');
     expect(t).toContain('![legenda](nome.png)');
   });
+  it('tells the bot about the optional image and deadline of a proposal', () => {
+    const t = buildBotIdentity(team[0], team);
+    expect(t).toContain('`image`');
+    expect(t).toContain('`deadline`');
+  });
   it('omits the roster for a team of one and caps the size', () => {
     const solo = mk('solo1', { instructions: 'z'.repeat(40_000) });
     const t = buildBotIdentity(solo, [solo]);

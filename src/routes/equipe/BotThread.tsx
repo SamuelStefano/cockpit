@@ -3,10 +3,15 @@ import { ChatPanel } from '../../components/Chat';
 import type { ChatBotDecor, ChatPanelProps } from '../../components/chat/chat-panel-props';
 import { Mascot } from '../../components/team/Mascot';
 import { LivingPhrase } from '../../components/team/LivingPhrase';
+import { TeamWorkingCard } from '../../components/team/TeamWorkingCard';
+import { teamIsWorking, teamRows } from '../../components/team/team-working';
+import { useTeamPresence } from '../../components/team/useTeamPresence';
+import { ThreadEvent } from '../../components/chat/ThreadEvent';
+import { routineEvents } from './thread-events';
 import { ImageResolverContext } from '../../components/primitives';
 import { botImageResolver } from './bot-image';
 import type { BotFilesApi } from './equipe-props';
-import type { TeamBot } from '../../../shared/protocol';
+import type { Cron, TeamBot } from '../../../shared/protocol';
 import type { TeamMessage } from '../../../shared/team-messages';
 import type { BotView } from './team-view';
 import { BotThreadEmpty } from './BotThreadEmpty';
@@ -29,9 +34,11 @@ interface BotThreadProps {
   onProfile?: () => void;
   profileOpen?: boolean;
   pause?: { paused: boolean; onSet: (paused: boolean) => void };
+  views?: BotView[];
+  crons?: Cron[];
 }
 
-export function BotThread({ view, chatProps, bots, log, files, onProfile, profileOpen, pause }: BotThreadProps) {
+export function BotThread({ view, chatProps, bots, log, files, onProfile, profileOpen, pause, views, crons }: BotThreadProps) {
   const { bot, state, startedAt } = view;
   const live = state === 'thinking' || state === 'working';
   const computer = useComputer();
@@ -45,19 +52,32 @@ export function BotThread({ view, chatProps, bots, log, files, onProfile, profil
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [hasComputer, computer?.active, computer?.previewOpen],
   );
+  const rows = useMemo(() => (bot.primary && views ? teamRows(views, bot.id) : []), [bot.primary, bot.id, views]);
+  const presence = useTeamPresence(rows.length > 0 && teamIsWorking(rows));
+  const rowsKey = rows.map((r) => `${r.bot.id}:${r.state}:${r.startedAt ?? ''}:${r.endedAt ?? ''}`).join('|');
+  const teamNode = useMemo(
+    () => (presence === 'hidden' ? null : <TeamWorkingCard rows={rows} leaving={presence === 'leaving'} />),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [presence, rowsKey],
+  );
+  const events = useMemo(() => routineEvents(crons ?? [], bot.id).map((e) => ({ key: e.key, ts: e.ts, node: <ThreadEvent>{e.node}</ThreadEvent> })), [crons, bot.id]);
   const avatar = useMemo(() => <Mascot mascot={bot.mascot} size={28} name={bot.name} />, [bot.mascot, bot.name]);
   const botDecor = useMemo<ChatBotDecor>(() => ({
     name: bot.name,
     avatar,
     empty: <BotThreadEmpty name={bot.name} />,
     hideMessage: isTeamPromptMessage,
-    extras: groups.map((g) => ({
-      key: `t-${g.key}`,
-      ts: g.ts,
-      node: <TrafficMarker group={g} byId={byId} onQuote={chatProps.onQuote} />,
-    })),
+    extras: [
+      ...(teamNode ? [{ key: 'team-working', ts: 0, node: teamNode }] : []),
+      ...events,
+      ...groups.map((g) => ({
+        key: `t-${g.key}`,
+        ts: g.ts,
+        node: <TrafficMarker group={g} byId={byId} onQuote={chatProps.onQuote} />,
+      })),
+    ],
     header: { avatar: <Mascot mascot={bot.mascot} state={state} size={24} name={bot.name} />, actions: status, onProfile, profileOpen, pause },
-  }), [bot.id, bot.name, bot.mascot, avatar, state, status, onProfile, profileOpen, pause, groups, byId, chatProps.onQuote]);
+  }), [bot.id, bot.name, bot.mascot, avatar, state, status, onProfile, profileOpen, pause, groups, byId, chatProps.onQuote, teamNode, events]);
   const images = useMemo(() => botImageResolver(bot.id, files.botFileData, files.onBotFileGet), [bot.id, files.botFileData, files.onBotFileGet]);
   const showDock = !!computer && computer.previewOpen && !computer.takenOver;
   const ok = computer?.data?.status === 'ok' ? computer.data.computer : null;
