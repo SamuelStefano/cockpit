@@ -127,13 +127,15 @@ describe('ChatHeader', () => {
 describe('ChatHeader phone bar', () => {
   const base = { session: { id: 's1', title: 'Relatório' } as never, messages: [], isEmpty: false, isMobile: true, contextTokens: 0, onNew: vi.fn(), fullLoaded: false, setFullLoaded: vi.fn() };
 
-  it('shows ☰ · title · one "…" action, the terminal button, no "…" duplicate', () => {
+  it('shows ☰ · title · "+" · one "…" menu that holds the terminal row', () => {
     const onMenu = vi.fn();
     render(<ChatHeader {...base} onMenu={onMenu} onTerminal={vi.fn()} />);
     fireEvent.click(screen.getByRole('button', { name: 'Menu' }));
     expect(onMenu).toHaveBeenCalledOnce();
     expect(screen.getByRole('button', { name: 'Mais ações da conversa' })).toBeTruthy();
-    expect(screen.getAllByRole('button', { name: 'Abrir terminais' })).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: 'Abrir terminais' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Mais ações da conversa' }));
+    expect(screen.getAllByRole('menuitem', { name: 'Abrir terminais' })).toHaveLength(1);
   });
 
   it('on a fresh chat the action is "+" and the title is Deck', () => {

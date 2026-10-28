@@ -58,7 +58,7 @@ export function SessionRow({ s, active, running, stalled, updated, runStart, pin
           className={`flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-left text-[13px] outline-hidden ${active ? 'text-neutral-50' : 'text-neutral-300 group-hover:text-neutral-100'}`}
         >
           {dot && <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${dot}`} title={status?.title ?? 'Novo output desde a última vez que você abriu'} />}
-          <span className="truncate">{s.title}</span>
+          <span className="line-clamp-2 break-words">{s.title}</span>
         </button>
       )}
       {!editing && (

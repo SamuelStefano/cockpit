@@ -10,7 +10,7 @@ export function Context() {
           Cada mensagem, ferramenta e arquivo lido ocupa espaço na janela. O medidor (%) na sessão mostra quanto já foi usado.
           Perto do limite, o badge <Pill>contexto N%</Pill> avisa: o agente vai <span className="font-medium text-neutral-300">compactar</span> — resumir
           o histórico antigo pra abrir espaço — e pode perder detalhes finos do começo da conversa. Cheio não é erro: é o momento de
-          compactar ou abrir uma <span className="font-medium text-neutral-300">nova sessão</span> pra um recomeço limpo.
+          compactar ou usar <span className="font-medium text-neutral-300">Recomeçar com contexto limpo</span> (ícone no topo do chat).
         </InfoCard>
         <InfoCard icon="sparkles" iconClass="text-violet-300" title="Compactação">
           Automática (perto do limite) ou manual (<Pill>/compact</Pill>). O divisor “Conversa compactada” marca o ponto na timeline;

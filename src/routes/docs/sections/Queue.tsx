@@ -22,7 +22,7 @@ export function Queue() {
         </InfoCard>
         <InfoCard icon="sparkles" iconClass="text-violet-300" title="Resumo & contexto">
           Cada sessão mostra um título destilado pelo agente e um medidor de quanto da janela de contexto já foi usado.
-          Quando o contexto enche, o botão de <span className="font-medium text-neutral-300">nova sessão</span> dá um recomeço limpo sem perder o histórico antigo.
+          Quando o contexto enche, o ícone <span className="font-medium text-neutral-300">Recomeçar com contexto limpo</span> (no topo do chat, a partir de 70 %) dá um recomeço limpo sem perder o histórico antigo.
         </InfoCard>
         <InfoCard icon="clock" iconClass="text-orange-300" title="Mexer na fila">
           O bloco laranja acima do compositor lista o que está esperando. Em cada item dá pra <span className="font-medium text-neutral-300">ver completo</span>,
