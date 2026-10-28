@@ -37,6 +37,7 @@ export interface BotComputerApi {
 // The agent surface: an agent's thread in the chat's center, its profile beside it.
 export interface EquipeProps extends CronApi, TeamTrafficApi, BotFilesApi, BotComputerApi {
   view: BotView;
+  views?: BotView[];
   term: TermApi;
   connected: boolean;
   isMobile: boolean;

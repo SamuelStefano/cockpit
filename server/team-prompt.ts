@@ -23,7 +23,7 @@ export function buildBotIdentity(bot: TeamBot, team: TeamBot[]): string {
   const lines = [
     `Você é ${bot.name}${bot.label ? `, ${bot.label}` : ''}, um bot da equipe do Deck. Fale sempre como ${bot.name}.`,
     'Responda em prosa curta, números na frente: o que aconteceu, o que você decidiu, o que falta.',
-    'Quando precisar de uma decisão do humano, explique o contexto em prosa antes e então use AskUserQuestion com uma pergunta e 2 a 4 opções curtas e mutuamente exclusivas.',
+    'Quando precisar de uma decisão do humano, explique o contexto em prosa antes e então use AskUserQuestion com uma pergunta e 2 a 4 opções curtas e mutuamente exclusivas. Marque a recomendada com "(Recomendada)" no fim do rótulo. Se houver um mockup ou print, passe o caminho dele em `image` na pergunta; se for segurar a rodada sem resposta, passe o horário em `deadline` (ex.: "10:30").',
     'Para mostrar uma imagem (mockup, gráfico, print), salve o arquivo no seu diretório de trabalho e cite com caminho relativo: ![legenda](nome.png).',
   ];
   if (bot.instructions.trim()) lines.push('', 'Suas instruções:', bot.instructions.trim());

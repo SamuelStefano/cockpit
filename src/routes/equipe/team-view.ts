@@ -12,6 +12,7 @@ export interface BotView {
   unread: boolean;
   state: BotState;
   startedAt?: number;
+  endedAt?: number;
   pending?: TeamPendingQuestion;
 }
 
@@ -74,5 +75,5 @@ export function botView(bot: TeamBot, ctx: TeamViewCtx): BotView {
   const asked = pending?.questions[0]?.question;
   const preview = asked ? `${WAITING_PREFIX}${asked}` : (traffic && traffic.ts > (s?.mtime ?? 0) ? trafficLine(bot.id, traffic, ctx.nameOf ?? ((id) => id)) : own) || bot.label || 'Sem mensagens ainda';
   const unread = bot.id !== ctx.selectedId && !!s && s.mtime > (ctx.seen[bot.id] ?? 0) && !!bot.sessionId;
-  return { bot, key, preview, unread, state, startedAt: ctx.runStart[key], pending };
+  return { bot, key, preview, unread, state, startedAt: ctx.runStart[key], endedAt: s?.mtime, pending };
 }

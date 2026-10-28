@@ -122,9 +122,19 @@ export function planOf(name: unknown, input: unknown): string | undefined {
 // a resposta não pode voltar no mesmo turno — extraímos as perguntas pra render de
 // botões clicáveis e a escolha vira o PRÓXIMO prompt (resume continua). Sem isto, o
 // card aparecia vazio e o usuário ficava travado num turno que espera input que nunca chega.
+const MAX_IMAGE_REF = 300;
+const MAX_DEADLINE = 40;
+
+function optionalText(v: unknown, max: number): string | undefined {
+  if (typeof v !== 'string') return undefined;
+  const t = v.trim();
+  return t && t.length <= max ? t : undefined;
+}
+
 export function questionsOf(name: unknown, input: unknown): ToolQuestion[] | undefined {
   if (name !== 'AskUserQuestion' || !input || typeof input !== 'object') return undefined;
-  const raw = (input as Record<string, unknown>).questions;
+  const top = input as Record<string, unknown>;
+  const raw = top.questions;
   if (!Array.isArray(raw)) return undefined;
   const questions: ToolQuestion[] = [];
   for (const q of raw) {
@@ -141,7 +151,9 @@ export function questionsOf(name: unknown, input: unknown): ToolQuestion[] | und
         description: typeof op.description === 'string' ? op.description : undefined,
       }));
     if (!options.length) continue;
-    questions.push({ question, header, multiSelect: o.multiSelect === true, options });
+    const image = optionalText(o.image ?? top.image, MAX_IMAGE_REF);
+    const deadline = optionalText(o.deadline ?? top.deadline, MAX_DEADLINE);
+    questions.push({ question, header, multiSelect: o.multiSelect === true, options, ...(image ? { image } : {}), ...(deadline ? { deadline } : {}) });
   }
   return questions.length ? questions : undefined;
 }

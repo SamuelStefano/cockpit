@@ -60,6 +60,23 @@ describe('questionsOf', () => {
       { label: 'B', description: undefined },
     ]);
   });
+  it('leaves image and deadline off when absent', () => {
+    const q = questionsOf('AskUserQuestion', input)![0];
+    expect('image' in q).toBe(false);
+    expect('deadline' in q).toBe(false);
+  });
+  it('keeps an optional image and deadline from the question or the top level', () => {
+    const q = input.questions[0];
+    expect(questionsOf('AskUserQuestion', { questions: [{ ...q, image: ' mock.png ', deadline: '10:30' }] })![0]).toMatchObject({ image: 'mock.png', deadline: '10:30' });
+    expect(questionsOf('AskUserQuestion', { ...input, image: 'a.png', deadline: '11:00' })![0]).toMatchObject({ image: 'a.png', deadline: '11:00' });
+  });
+  it('drops an image or deadline that is not text or too long', () => {
+    const q = input.questions[0];
+    const out = questionsOf('AskUserQuestion', { questions: [{ ...q, image: 42, deadline: 'x'.repeat(41) }] })![0];
+    expect(out.image).toBeUndefined();
+    expect(out.deadline).toBeUndefined();
+    expect(questionsOf('AskUserQuestion', { questions: [{ ...q, image: 'x'.repeat(301) }] })![0].image).toBeUndefined();
+  });
   it('ignores wrong tool or bad shape', () => {
     expect(questionsOf('Edit', input)).toBeUndefined();
     expect(questionsOf('AskUserQuestion', {})).toBeUndefined();
