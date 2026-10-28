@@ -19,7 +19,7 @@ function setup(over: Partial<SidebarProps> = {}) {
 describe('Sidebar', () => {
   it('starts expanded with text labels and keeps the palette aria-label', () => {
     const p = setup();
-    expect(screen.getByRole('complementary', { name: 'Navegação principal' }).className).toContain('w-66');
+    expect(screen.getByRole('complementary', { name: 'Navegação principal' }).className).toContain('w-75');
     expect(screen.getByText('Nova conversa')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: /^Comandos \((⌘K|Ctrl\+K)\)$/ }));
     expect(p.onPalette).toHaveBeenCalledOnce();
@@ -92,7 +92,7 @@ describe('Sidebar', () => {
     const onClose = vi.fn();
     setup({ drawer: { onClose } });
     expect(screen.getByRole('complementary').className).toContain('w-full');
-    expect(screen.getByText('Nova conversa')).toBeTruthy();
+    expect(screen.queryByText('Nova conversa')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Recolher barra lateral' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Fechar menu' }));
     expect(onClose).toHaveBeenCalledOnce();

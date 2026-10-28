@@ -38,7 +38,7 @@ export function Sidebar({ route, nav, role, navCounts, onNew, onPalette, bitStat
   return (
     <aside
       aria-label="Navegação principal"
-      className={`relative z-30 flex h-full shrink-0 flex-col bg-neutral-950 ${drawer ? 'w-full' : `border-r border-neutral-800 transition-[width] duration-200 ${expanded ? 'w-66' : 'w-14'}`}`}
+      className={`relative z-30 flex h-full shrink-0 flex-col bg-neutral-950 ${drawer ? 'w-full' : `border-r border-neutral-800 transition-[width] duration-200 ${expanded ? 'w-75' : 'w-14'}`}`}
     >
       <div className={`flex shrink-0 p-2 ${expanded ? 'h-12 items-center justify-between' : 'flex-col items-center gap-1'}`}>
         <Tooltip label={`Ir pro chat · ${BIT_STATE_LABEL[bitState]}`} side="right" disabled={!!drawer}>
@@ -51,7 +51,7 @@ export function Sidebar({ route, nav, role, navCounts, onNew, onPalette, bitStat
       </div>
 
       <div className="flex shrink-0 flex-col gap-0.5 px-2 pb-2">
-        <SidebarItem icon="plus" label="Nova conversa" expanded={expanded} onClick={onNew} />
+        {!drawer && <SidebarItem icon="plus" label="Nova conversa" expanded={expanded} onClick={onNew} />}
         <SidebarItem
           icon="search" label="Buscar" ariaLabel={`Comandos (${k})`} tip={`Buscar · ${k}`} expanded={expanded} onClick={onPalette}
           trailing={<kbd className="font-mono text-[12px] text-neutral-600">{k}</kbd>}

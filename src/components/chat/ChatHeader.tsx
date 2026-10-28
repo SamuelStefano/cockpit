@@ -118,7 +118,8 @@ export function ChatHeader({ session, messages, isEmpty, contextTokens, contextM
         {usage && <UsageDock {...usage} />}
         {terminalButton}
         {!fresh && <ContextRing tokens={contextTokens} model={contextModel} />}
-        {fresh ? <IconButton icon="plus" label="Nova conversa" side="bottom" onClick={onNew} className="pointer-coarse:h-11 pointer-coarse:w-11" /> : moreMenu}
+        <IconButton icon="plus" label="Nova conversa" side="bottom" onClick={onNew} className="pointer-coarse:h-11 pointer-coarse:w-11" />
+        {!fresh && moreMenu}
         {confirm}
       </div>
     );

@@ -7,7 +7,7 @@ import type { BotView } from '../../routes/equipe/team-view';
 afterEach(cleanup);
 beforeEach(() => localStorage.clear());
 
-const view = (id: string, over: Partial<BotView> & { bot?: Partial<BotView['bot']> } = {}): BotView => {
+const view = (id: string, over: Omit<Partial<BotView>, 'bot'> & { bot?: Record<string, unknown> } = {}): BotView => {
   const { bot, ...rest } = over;
   return { bot: { id, name: id.toUpperCase(), mascot: { shape: 'drop', color: '#22c55e' }, ...bot } as BotView['bot'], key: id, preview: '', unread: false, state: 'idle', ...rest };
 };
