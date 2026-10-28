@@ -1,5 +1,6 @@
 import { createRelay } from './index';
 import { supabaseStore } from './store';
+import { readRevision } from './obs';
 
 // Entry do relay T3 (DR-023/024). Lê config do ENV, monta o store Supabase e sobe
 // o servidor em LOOPBACK — o Caddy faz o TLS em :443 e encaminha pra cá. Roda numa
@@ -35,6 +36,9 @@ const { server, shutdown } = createRelay({
   maxBoxesPerAccount: positiveInt(process.env.DECK_MAX_BOXES_PER_ACCOUNT),
   store: supabaseStore({ url: supabaseUrl, serviceKey }),
   statusToken: process.env.DECK_STATUS_TOKEN,
+  opsToken: process.env.DECK_OPS_TOKEN,
+  logSalt: process.env.DECK_LOG_SALT,
+  revision: readRevision(process.env.DECK_RELAY_REVISION),
 });
 
 server.listen(port, host, () => {

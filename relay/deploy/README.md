@@ -46,6 +46,8 @@ COCKPIT_ROOT_EMAILS=samuelstefanodocarmo@gmail.com
 COCKPIT_ROOT_USER_IDS=<uuid do usuário root no Supabase>
 DECK_ALLOWED_ORIGINS=https://<origem do SPA>
 # opcionais: DECK_MAX_SOCKETS_PER_IP (64), DECK_MAX_TABS_PER_ACCOUNT (20, por box), DECK_MAX_BOXES_PER_ACCOUNT (10)
+# observabilidade: DECK_OPS_TOKEN (Bearer de /ops e /ops/stats; sem ele cai em DECK_STATUS_TOKEN; ambos ausentes = 404),
+# DECK_LOG_SALT (sal do hash de ids nos logs; sem ele é aleatório por processo), DECK_RELAY_REVISION (rótulo do deploy)
 RELAY_PORT=8800
 EOF
 chmod 600 /opt/deck-relay/.env
