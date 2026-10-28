@@ -18,9 +18,9 @@ function itemStatus(t: ToolCall): { text: string; cls: string } {
 export function ActivityRow({ tools }: ActivityRowProps) {
   const [manual, setManual] = useState<boolean | null>(null);
   const [detail, setDetail] = useState<Record<string, boolean>>({});
-  const anyRunning = tools.some((t) => t.status === 'running');
   const failed = tools.filter((t) => t.status === 'error').length;
-  const open = manual ?? anyRunning;
+  // Collapsed by default, also while a command runs: the summary line already says "Rodando · …".
+  const open = manual ?? false;
 
   return (
     <div className="my-1">

@@ -15,6 +15,7 @@ interface Props {
   loaded: boolean;
   onBack: () => void;
   onToggleAgent?: (skillId: string, botId: string, on: boolean) => void;
+  onVersions?: () => void;
 }
 
 function Detail({ k, v, mono }: { k: string; v: string; mono?: boolean }) {
@@ -26,7 +27,7 @@ function Detail({ k, v, mono }: { k: string; v: string; mono?: boolean }) {
   );
 }
 
-export function SkillPage({ skill, doc, skillId, bots, loaded, onBack, onToggleAgent }: Props) {
+export function SkillPage({ skill, doc, skillId, bots, loaded, onBack, onToggleAgent, onVersions }: Props) {
   if (loaded && !skill) {
     return (
       <EmptyState size="sm" icon="search" title="Skill não encontrada" description="Ela pode ter sido removida desta máquina.">
@@ -47,8 +48,9 @@ export function SkillPage({ skill, doc, skillId, bots, loaded, onBack, onToggleA
         <h1 className="text-[22px] font-semibold tracking-[-0.02em] text-neutral-100 max-lg:hidden">{title}</h1>
         {skill && risksOf(skill).map((r) => <RiskBadge key={r} risk={r} />)}
         {skill && <Badge>{sourceLabel(sourceOf(skill))}</Badge>}
+        {onVersions && skill && <Button className="ml-auto" variant="ghost" size="sm" icon="clock" onClick={onVersions}>Versões</Button>}
         {body && (
-          <Button className="ml-auto" variant="ghost" size="sm" icon="copy" aria-label="Copiar SKILL.md"
+          <Button className={onVersions && skill ? '' : 'ml-auto'} variant="ghost" size="sm" icon="copy" aria-label="Copiar SKILL.md"
             onClick={() => { void navigator.clipboard?.writeText(body); toast('SKILL.md copiado'); }}>Copiar</Button>
         )}
       </div>

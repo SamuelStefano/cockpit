@@ -7,8 +7,8 @@ import { MODE_KEY, MODEL_KEY, EFFORT_KEY } from './lib/account-prefs';
 import { persistableModelOverrides } from './cockpit/model-overrides';
 import { SUPABASE_ENABLED, supabase } from './lib/supabase';
 import { SealedSocket } from './cockpit/sealed-socket';
-import { boxStore } from './cockpit/boxes-store';
 import { boxHealthStore } from './cockpit/box-health-store';
+import { boxStore, rosterMsg } from './cockpit/boxes-store';
 import { onAuthClose, tokenUnchangedAndLive, RELAY_AUTH_RETRY_MS, shouldRefreshSession, dialOnTokenChange } from './cockpit/ws-auth';
 import { TOKEN_EXPIRED_CLOSE, TOKEN_EXPIRED_EVENT } from './lib/auth-events';
 import { requestNotifyPermission, notifyTurnDone, notifyTurnError } from './lib/notify';
@@ -43,6 +43,7 @@ import { MAX_PROMPT_BYTES, MAX_UPLOAD_BYTES, uploadWatchdogMs } from '../shared/
 import { aliasRoutedKey, type PendingCanvasSend } from './cockpit/canvas-send-tracker';
 import { useAdmin, type Admin } from './cockpit/useAdmin';
 import { useDflMcps, type DflMcps } from './cockpit/useDflMcps';
+import { useClaudeImport, type ClaudeImportApi } from './cockpit/useClaudeImport';
 import { useAgents, type AgentsApi } from './cockpit/useAgents';
 import type { Connection } from '../shared/connections';
 import type { ProbeResult } from '../shared/provider-probe';
@@ -96,6 +97,7 @@ type LeafApis = Omit<Drops & Crons & Team & BotFiles & BotComputers & GrokUsage 
 
 export interface Cockpit extends LeafApis {
   agents: AgentsApi;
+  claudeImport: ClaudeImportApi;
   dflMcps: DflMcps['dflMcps'];
   dflMcpsBusy: boolean;
   onDflMcpsGet: () => void;
@@ -487,6 +489,8 @@ export function useCockpit(): Cockpit {
     return true;
   }, []);
 
+  useEffect(() => { const off = boxStore.subscribe(() => { const m = rosterMsg(); if (m) send(m); }); return () => { off(); }; }, [send]);
+
   // Domínios-folha: estado próprio, frames próprios e ações que só chamam `send`.
   // Nada aqui toca sessão/turno, então cada um vive num hook e o switch abaixo só
   // repassa o frame — `onMsg` devolve true quando reivindicou o tipo.
@@ -504,6 +508,7 @@ export function useCockpit(): Cockpit {
   const canvasApi = useCanvas(send);
   const adminApi = useAdmin(send);
   const dflMcpsApi = useDflMcps(send);
+  const claudeImportApi = useClaudeImport(send);
   const agentsApi = useAgents(send);
   const connectionsApi = useConnections(send);
   const probeApi = useProviderProbe(send);
@@ -516,7 +521,7 @@ export function useCockpit(): Cockpit {
   // O onServer é um callback estável (o socket guarda a 1ª referência); ler os
   // handlers por ref evita recriá-lo — e reabrir o WS — a cada render.
   const leafHandlers = useRef<((m: ServerMsg) => boolean)[]>([]);
-  leafHandlers.current = [dropsApi.onMsg, cronsApi.onMsg, teamApi.onMsg, botFilesApi.onMsg, botComputerApi.onMsg, grokUsageApi.onMsg, pointsApi.onMsg, contextsApi.onMsg, memoriesApi.onMsg, skillsApi.onMsg, graphsApi.onMsg, canvasApi.onMsg, adminApi.onMsg, dflMcpsApi.onMsg, agentsApi.onMsg, connectionsApi.onMsg, probeApi.onMsg];
+  leafHandlers.current = [dropsApi.onMsg, cronsApi.onMsg, teamApi.onMsg, botFilesApi.onMsg, botComputerApi.onMsg, grokUsageApi.onMsg, pointsApi.onMsg, contextsApi.onMsg, memoriesApi.onMsg, skillsApi.onMsg, graphsApi.onMsg, canvasApi.onMsg, adminApi.onMsg, dflMcpsApi.onMsg, claudeImportApi.onMsg, agentsApi.onMsg, connectionsApi.onMsg, probeApi.onMsg];
   // Domínios-folha que também entram na reconciliação de reconnect. Referências
   // estáveis (useCallback sobre `send`), então não recriam o `reconcile`.
   const { onUsageList } = adminApi;
@@ -1539,6 +1544,8 @@ export function useCockpit(): Cockpit {
   // que o CLI só manda durante um run) sem depender de eventos perdidos.
   const reconcile = useCallback(() => {
     send({ t: 'list' });
+    const roster = rosterMsg();
+    if (roster) send(roster);
     send({ t: 'list-archived' });
     send({ t: 'sync' });       // reemite o estado durável fresco (busy/rate/plan/models)
     send({ t: 'queue-get' });  // fila estacionada do servidor (drena com quota liberada)
@@ -2365,5 +2372,5 @@ export function useCockpit(): Cockpit {
 
   const attachmentsView = useMemo(() => markDuplicates(attachments, sentHashes[activeId]), [attachments, sentHashes, activeId]);
 
-  return { ...dropsApi, ...cronsApi, ...teamApi, ...botFilesApi, botComputers: botComputerApi.botComputers, onBotComputerGet: botComputerApi.onBotComputerGet, grokUsage: grokUsageApi.grokUsage, onRefreshGrokUsage: grokUsageApi.onRefreshGrokUsage, ...pointsApi, ...contextsApi, ...memoriesApi, ...skillsApi, ...graphsApi, ...canvasApi, ...adminApi, dflMcps: dflMcpsApi.dflMcps, dflMcpsBusy: dflMcpsApi.dflMcpsBusy, onDflMcpsGet: dflMcpsApi.onDflMcpsGet, onDflMcpsAdd: dflMcpsApi.onDflMcpsAdd, agents: agentsApi.agents, connections: connectionsApi.connections, connectionsLoaded: connectionsApi.loaded, onConnectionsGet: connectionsApi.refresh, probeResult: probeApi.probeResult, probeBusy: probeApi.probeBusy, onProviderProbe: probeApi.onProviderProbe, onProviderProbeReset: probeApi.onProviderProbeReset, sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], running, runningAnywhere, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, planBlockedUntil, planReadAt, planNextReadAt, stats, archived, contextTokens, contextModel, usageModel, sendCost, liveTurnTokens, turnStartedAt, bgAgents: activeBgAgents, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, interrupted, searchResults, onSearch, marathon, onToggleMarathon, attachments: attachmentsView, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, claudeLogin, onClaudeLoginStart, onClaudeLoginCode, onClaudeLoginCancel, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, onRefreshPlanUsage, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onSendTo, canvasSendError, dismissCanvasSendError, onLaunchFork, canvasForkRuns, pendingSessionIds, onApproveWorkflow, onEditUser: editUser, onStop, onNew, onHandoff, onLaunchAgent, handoffBusy, onFunnel, funnelBusy, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onLoadOlder, onOpenSummary, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueReleaseAt, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce, resumeOffer: resumeOffers[activeId] ?? null, resumeRun, onOpenBot };
+  return { ...dropsApi, ...cronsApi, ...teamApi, ...botFilesApi, botComputers: botComputerApi.botComputers, onBotComputerGet: botComputerApi.onBotComputerGet, grokUsage: grokUsageApi.grokUsage, onRefreshGrokUsage: grokUsageApi.onRefreshGrokUsage, ...pointsApi, ...contextsApi, ...memoriesApi, ...skillsApi, ...graphsApi, ...canvasApi, ...adminApi, dflMcps: dflMcpsApi.dflMcps, dflMcpsBusy: dflMcpsApi.dflMcpsBusy, onDflMcpsGet: dflMcpsApi.onDflMcpsGet, onDflMcpsAdd: dflMcpsApi.onDflMcpsAdd, agents: agentsApi.agents, claudeImport: claudeImportApi, connections: connectionsApi.connections, connectionsLoaded: connectionsApi.loaded, onConnectionsGet: connectionsApi.refresh, probeResult: probeApi.probeResult, probeBusy: probeApi.probeBusy, onProviderProbe: probeApi.onProviderProbe, onProviderProbeReset: probeApi.onProviderProbeReset, sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], running, runningAnywhere, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, planBlockedUntil, planReadAt, planNextReadAt, stats, archived, contextTokens, contextModel, usageModel, sendCost, liveTurnTokens, turnStartedAt, bgAgents: activeBgAgents, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, interrupted, searchResults, onSearch, marathon, onToggleMarathon, attachments: attachmentsView, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, claudeLogin, onClaudeLoginStart, onClaudeLoginCode, onClaudeLoginCancel, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, onRefreshPlanUsage, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onSendTo, canvasSendError, dismissCanvasSendError, onLaunchFork, canvasForkRuns, pendingSessionIds, onApproveWorkflow, onEditUser: editUser, onStop, onNew, onHandoff, onLaunchAgent, handoffBusy, onFunnel, funnelBusy, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onLoadOlder, onOpenSummary, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueReleaseAt, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce, resumeOffer: resumeOffers[activeId] ?? null, resumeRun, onOpenBot };
 }

@@ -18,9 +18,17 @@ describe('ActivityRow', () => {
     expect(screen.queryByText(/ok, 2.1s/)).toBeNull();
   });
 
-  it('opens by default while a tool runs and lists status per item', () => {
+  it('stays collapsed while a tool runs and says so in the summary', () => {
     render(<ActivityRow tools={[tool({ id: '1', durationMs: 2100 }), tool({ id: '2', command: 'validar', status: 'running' })]} />);
-    expect(screen.getAllByRole('button')[0].getAttribute('aria-expanded')).toBe('true');
+    const btn = screen.getAllByRole('button')[0];
+    expect(btn.getAttribute('aria-expanded')).toBe('false');
+    expect(btn.textContent).toContain('Rodando');
+    expect(screen.queryByText(/rodando…/)).toBeNull();
+  });
+
+  it('lists status per item once opened', () => {
+    render(<ActivityRow tools={[tool({ id: '1', durationMs: 2100 }), tool({ id: '2', command: 'validar', status: 'running' })]} />);
+    fireEvent.click(screen.getAllByRole('button')[0]);
     expect(screen.getByText(/ok, 2.1s/)).toBeTruthy();
     expect(screen.getByText(/rodando…/)).toBeTruthy();
   });

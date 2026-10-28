@@ -18,6 +18,7 @@ import { sweepDrops } from './drop';
 import { loadManagedEnv } from './admin-ops';
 import { handleMcpRequest, isMcpPath } from './mcp/serve';
 import { CONFIG } from './config';
+import { ensureBundledSkills } from './bundled-skills';
 import { sandboxUpstream, proxySandbox } from './sandbox-proxy';
 
 const distDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'dist');
@@ -74,6 +75,8 @@ async function main() {
   const sweep = () => { sweepAttachments().catch(() => {}); sweepUsage(); checkpointWal(); sweepMcpConfigs(); sweepDrops().catch(() => {}); };
   sweep();
   setInterval(sweep, 6 * 60 * 60 * 1000).unref();
+
+  ensureBundledSkills(CONFIG.skillsDir);
 
   server.listen(CONFIG.port, CONFIG.host, () => {
     console.log(`cockpit em http://${CONFIG.host}:${CONFIG.port} (ws /ws, permission=${CONFIG.permissionMode})`);

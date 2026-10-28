@@ -8,9 +8,11 @@ import type { DflDraft, DraftOp } from './dfl-drafts';
 import type { DflMcpsState } from './dfl-mcps';
 import type { Connection } from './connections';
 import type { ProbeResult } from './provider-probe';
+import type { ClaudeImportResult, ClaudeImportScan, ImportKind } from './claude-import';
 import type { AgentView, AgentPreset, AgentStatus, AgentCustomField } from './agents';
 import type { TeamMessage } from './team-messages';
 import type { BoxHealth, SmokeResult } from './box-health';
+import type { VersionKind, VersionMeta } from './versions';
 
 export interface ToolDiff {
   path: string;
@@ -430,6 +432,12 @@ export type MascotShape = 'drop' | 'blob' | 'tri' | 'bean';
 export interface TeamMascot { shape: MascotShape; color: string }
 export type TeamProfile = 'full' | 'restricted';
 export interface BotPermissions { read: boolean; write: boolean; net: boolean }
+export interface RosterBox {
+  label: string;
+  online: boolean;
+  self: boolean;
+}
+
 export interface TeamBot {
   id: string;
   name: string;
@@ -703,6 +711,9 @@ export type ClientMsg =
   // (relay/NAT dropou sem FIN, laptop dormiu) segue "OPEN" pro browser sem disparar
   // onclose — o pong é o único sinal de que o ida-e-volta ainda vive.
   | { t: 'ping' }
+  // The relay's box list, forwarded by the tab so the box can describe its siblings
+  // in the Deck context of the sessions it spawns (boxes never get it from the relay).
+  | { t: 'box-roster'; boxes: RosterBox[] }
   | { t: 'list' }
   // Resume (mobile): reemite o estado durável (busy/rate/plan-usage/models +
   // sessions) que o CLI só manda durante um run, sem depender de eventos perdidos.
@@ -803,12 +814,16 @@ export type ClientMsg =
   | { t: 'team-get' }
   | { t: 'team-save'; bot: TeamBotInput }
   | { t: 'team-delete'; id: string }
+  | { t: 'agent-build'; reqId: string; history: { role: 'user' | 'assistant'; text: string }[]; draft: { name: string; label: string; instructions: string; skills: string[] } }
   | { t: 'team-messages-get'; botId?: string; peer?: string; before?: number }
   | { t: 'team-pause-set'; paused: boolean }
   | { t: 'team-files-get'; botId: string }
   | { t: 'team-file-get'; botId: string; path: string }
   | { t: 'team-computer-get'; botId: string }
   | { t: 'skill-list' }
+  | { t: 'versions-list'; kind: VersionKind; id: string }
+  | { t: 'versions-diff'; kind: VersionKind; id: string; from: string; to: string }
+  | { t: 'versions-restore'; kind: VersionKind; id: string; version: string }
   | { t: 'skill-open'; id: string }
   | { t: 'registry-get'; refresh?: boolean }
   | { t: 'registry-install'; reqId: string; items: RegistryRef[] }
@@ -822,6 +837,8 @@ export type ClientMsg =
   | { t: 'connections-get' }
   // Lists the models of an OpenAI-compatible endpoint. The key is used once and never stored, logged or echoed.
   | { t: 'provider-probe'; endpoint: string; key?: string }
+  | { t: 'claude-import-scan'; path?: string }
+  | { t: 'claude-import-apply'; path?: string; kinds: ImportKind[] }
   | { t: 'admin-health' }
   // Machine health (shared/box-health.ts): a fresh report, and one tiny real prompt.
   | { t: 'box-health-get' }
@@ -1003,6 +1020,9 @@ export type ServerMsg =
   | { t: 'agent-custom-result'; ok: boolean; message: string; field?: AgentCustomField; id?: string }
   | { t: 'agent-draft-result'; ok: boolean; status: AgentStatus; message: string; field?: AgentCustomField }
   | { t: 'skills'; items: SkillMeta[] }
+  | { t: 'versions'; kind: VersionKind; id: string; items: VersionMeta[] }
+  | { t: 'versions-diff'; kind: VersionKind; id: string; from: string; to: string; ok: boolean; diff: string; message?: string }
+  | { t: 'versions-restore-result'; kind: VersionKind; id: string; ok: boolean; message: string }
   | { t: 'skill'; id: string; name: string; body: string }
   | { t: 'registry'; catalog: RegistryCatalog | null; error?: string }
   | { t: 'registry-install-result'; reqId: string; ok: boolean; installed: string[]; skipped: string[]; error?: string }
@@ -1041,6 +1061,7 @@ export type ServerMsg =
   // Veredito da triagem de um prompt enviado com o turno ocupado. msgId casa a
   // bolha do usuário p/ anexar o selo; quick-answer chega à parte quando answer.
   | { t: 'triage'; sessionKey: string; msgId?: string; action: TriageAction; reason: string }
+  | { t: 'agent-build-result'; reqId: string; ok: boolean; text?: string; error?: string }
   | { t: 'quick-answer'; sessionKey: string; id: string; text: string; ts: number }
   // model = modelo PEDIDO no turno (alias/id); carimba a bolha na hora pra o label
   // não cair no seletor vivo e mudar retroativamente ao trocar de modelo. O 'done'
@@ -1079,6 +1100,7 @@ export type ServerMsg =
   | { t: 'dfl-mcps'; state: DflMcpsState }
   | { t: 'connections'; items: Connection[] }
   | { t: 'provider-probe'; result: ProbeResult }
+  | { t: 'claude-import'; scan: ClaudeImportScan; hint?: string; result?: ClaudeImportResult }
   | { t: 'accounts'; accounts: AccountSummary[] }
   | { t: 'stats'; stats: SysStats }
   | { t: 'graphs'; items: GraphMeta[] }

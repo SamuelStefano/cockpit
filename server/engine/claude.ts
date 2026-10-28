@@ -17,6 +17,7 @@ import { teamFile, teamLogFile, teamOutboxDir, teamPauseFile } from '../team-log
 import type { TeamProfile } from '../../shared/protocol';
 import { projectSlug } from '../config';
 import { restrictedTurn, ensureWorkspace, type RestrictedTurn } from './restricted-profile';
+import { deckAgentContext, joinSystemPrompts } from '../deck-context';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -47,6 +48,7 @@ export interface RunOpts {
   effort?: string;             // nível de pensamento (--effort low|medium|high|xhigh|max). Sem isto o CLI usa o default da conta (alto) → thinking tokens caros em pedido simples. Default do Deck = low.
   allowWorkflow?: boolean;
   appendSystemPrompt?: string; // Equipe bot identity (--append-system-prompt); never starts with '-' (built server-side)
+  deckContext?: string;        // where the session runs (server/deck-context.ts); goes before the bot identity
   botId?: string;              // a Equipe bot's turn: loads the team MCP (team_list/team_send) as this bot
   teamHop?: number;            // chain depth of the message that started this turn; the MCP stamps hop+1
   forkId?: string;             // roda em cima do transcript do `resumeId` mas GRAVA neste id novo (--fork-session). Sem isto dois processos escreveriam o mesmo JSONL.
@@ -188,10 +190,10 @@ export function profilePermissions(o: Pick<RunOpts, 'profile' | 'botId' | 'mode'
 // task pendente (`system/task_updated {status:"killed"}`) e sai — é por isso
 // que "eu te aviso quando terminar" nunca chegava a acontecer no Deck. Root
 // cause + comportamento verificados ao vivo com claude 2.1.281 (ver PR).
-export type BuildArgsOpts = Pick<RunOpts, 'prompt' | 'resumeId' | 'mode' | 'model' | 'effort' | 'maxBudgetUsd' | 'bypass' | 'role' | 'disallowedSkills' | 'forkId' | 'allowWorkflow' | 'appendSystemPrompt' | 'botId' | 'profile'>;
+export type BuildArgsOpts = Pick<RunOpts, 'prompt' | 'resumeId' | 'mode' | 'model' | 'effort' | 'maxBudgetUsd' | 'bypass' | 'role' | 'disallowedSkills' | 'forkId' | 'allowWorkflow' | 'appendSystemPrompt' | 'deckContext' | 'botId' | 'profile'>;
 
 export function buildArgs(opts: BuildArgsOpts, mcpConfigPath?: string): { args: string[] } | { error: string } {
-  const { resumeId, mode, model, effort, maxBudgetUsd, bypass, role, disallowedSkills, forkId, allowWorkflow, appendSystemPrompt, botId } = opts;
+  const { resumeId, mode, model, effort, maxBudgetUsd, bypass, role, disallowedSkills, forkId, allowWorkflow, appendSystemPrompt, deckContext, botId } = opts;
   const restricted = profilePermissions(opts);
   if (restricted && 'error' in restricted) return { error: restricted.error };
   const resolved = restricted ?? resolveMode(mode, { bypass, role });
@@ -233,7 +235,10 @@ export function buildArgs(opts: BuildArgsOpts, mcpConfigPath?: string): { args: 
   // MESMO --disallowedTools (uma flag só; rules space-separated).
   const deny = [...new Set([...(restricted?.deny ?? []), ...CONFIG.disallowedTools, ...(disallowedSkills ?? [])])].sort();
   if (deny.length) args.push('--disallowedTools', deny.join(' '));
-  if (appendSystemPrompt?.trim()) args.push('--append-system-prompt', appendSystemPrompt);
+  // Passed on resume too: the CLI's system-prompt snapshot keeps the first launch's
+  // text verbatim, so a resumed thread never sees it twice or a different version.
+  const system = joinSystemPrompts(deckContext, appendSystemPrompt);
+  if (system) args.push('--append-system-prompt', system);
   if (resumeId) {
     if (!UUID_RE.test(resumeId)) return { error: 'sessionId inválido' };
     args.push('--resume', resumeId);
@@ -292,6 +297,7 @@ export function run(opts: RunOpts): RunHandle {
 
   const built = buildArgs({
     prompt, resumeId, mode, model, effort, maxBudgetUsd, bypass, role, disallowedSkills, forkId, allowWorkflow, appendSystemPrompt, botId, profile,
+    deckContext: restricted ? undefined : deckAgentContext({ bot: !!botId }),
   }, mcpConfigPath);
   if ('error' in built) {
     cleanupMcp();

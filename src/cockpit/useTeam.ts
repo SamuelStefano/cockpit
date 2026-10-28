@@ -2,6 +2,9 @@ import { useCallback, useState } from 'react';
 import type { ClientMsg, ServerMsg, TeamBot, TeamBotInput, TeamPendingQuestion } from '../../shared/protocol';
 import { mergeTeamMessages, type TeamMessage } from '../../shared/team-messages';
 
+export interface AgentBuildResult { reqId: string; ok: boolean; text?: string; error?: string }
+export type AgentBuildRequest = Omit<Extract<ClientMsg, { t: 'agent-build' }>, 't'>;
+
 export interface TeamMessagesQuery { botId?: string; peer?: string; before?: number }
 
 export interface Team {
@@ -15,6 +18,8 @@ export interface Team {
   onTeamDelete: (id: string) => void;
   onTeamMessagesGet: (q?: TeamMessagesQuery) => void;
   onTeamPauseSet: (paused: boolean) => void;
+  agentBuild: AgentBuildResult | null;
+  onAgentBuild: (req: AgentBuildRequest) => boolean;
   onMsg: (msg: ServerMsg) => boolean;
 }
 
@@ -23,6 +28,7 @@ export function useTeam(send: (m: ClientMsg) => boolean): Team {
   const [teamLoaded, setTeamLoaded] = useState(false);
   const [teamMessages, setTeamMessages] = useState<TeamMessage[]>([]);
   const [teamPaused, setTeamPaused] = useState(false);
+  const [agentBuild, setAgentBuild] = useState<AgentBuildResult | null>(null);
   const [pendingQuestions, setPendingQuestions] = useState<TeamPendingQuestion[]>([]);
 
   const onMsg = useCallback((msg: ServerMsg) => {
@@ -40,6 +46,9 @@ export function useTeam(send: (m: ClientMsg) => boolean): Team {
       case 'team-paused':
         setTeamPaused(msg.paused);
         return true;
+      case 'agent-build-result':
+        setAgentBuild({ reqId: msg.reqId, ok: msg.ok, text: msg.text, error: msg.error });
+        return true;
       case 'team-pending':
         setPendingQuestions(msg.items);
         return true;
@@ -54,6 +63,8 @@ export function useTeam(send: (m: ClientMsg) => boolean): Team {
     teamMessages,
     teamPaused,
     pendingQuestions,
+    agentBuild,
+    onAgentBuild: useCallback((req: AgentBuildRequest) => send({ t: 'agent-build', ...req }), [send]),
     onTeamGet: useCallback(() => { send({ t: 'team-get' }); }, [send]),
     onTeamSave: useCallback((bot: TeamBotInput) => { send({ t: 'team-save', bot }); }, [send]),
     onTeamDelete: useCallback((id: string) => { send({ t: 'team-delete', id }); }, [send]),

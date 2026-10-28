@@ -25,11 +25,15 @@ import { fireCron, type CronFire } from './runs';
 import { getTeam, saveBot, deleteBot } from '../team';
 import { getMemories, saveMemory, deleteMemory, validateMemoryInput, readMemoriesSafe } from '../memories';
 import { botTurnFor, botDenyRules } from '../team-prompt';
+import { agentBuilderTurn } from '../engine/triage';
+import { cleanBuildRequest } from './agent-build';
 import { sendTeamMessages, sendTeamPaused, setTeamPause } from './team-frames';
 import { clearBotQuestion, sendTeamPending } from './team-pending-frames';
 import { sendBotComputer, sendBotFile, sendBotFiles } from './team-files-frames';
 import { validateBotInput } from '../../shared/team';
+import { builderPrompt, builderSystemPrompt } from '../../shared/agent-builder';
 import { queueReleaseAt } from './ctx-guard';
+import { diffVersions, restoreVersion, versionsFor } from '../versions/service';
 import { listSkills, readSkill, resolveSkillDeny, installSkill } from '../skills';
 import { getRegistryCatalog, installFromRegistry } from '../skill-registry-runner';
 import { addUploadChunk, readAttachment } from '../attachments';
@@ -45,6 +49,8 @@ import { claudeLogin } from '../claude-login';
 import { dflMcpsState, addDflMcps } from '../dfl-mcps';
 import { listConnections } from '../connections';
 import { probe } from '../providers';
+import { scanClaudeImport, applyClaudeImport } from '../claude-import';
+import { copyHintCommand, IMPORT_KINDS } from '../../shared/claude-import';
 import { detach } from './detach';
 import { startRun, routeSend, drainParked, runParkedInBackground, runParkedNow, acceptResumeOffer, refreshBusyElsewhere, orchestratorPaneTarget, type BgRunReject, type NowRunReject } from './runs';
 import { threads, stopSession, resolveThreadKey, runningSessionIds } from './threads';
@@ -84,6 +90,7 @@ import { cancelPendingPush, pushCardDflStatus } from '../canvas/dfl-status-sync'
 import { bindForkSession } from '../canvas/fork-sessions';
 import { boxHealth, healthFrame } from '../box-health';
 import { smokeOnce } from '../box-smoke';
+import { parseRoster, saveRoster } from '../deck-context';
 
 // Registers the turn-closed listener once, at module load — both entry points
 // (server/index.ts, server/agent.ts) reach this file via ws/serve-connection.ts.
@@ -137,6 +144,7 @@ const NOW_RUN_MESSAGE: Record<NowRunReject, string> = {
 
 // Cards with a dfl-task-create-link between its checks and its board write.
 const dflCreatesInFlight = new Set<string>();
+const buildInFlight = new WeakSet<WebSocket>();
 
 export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
   switch (msg.t) {
@@ -144,6 +152,11 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       // Ecoa o pong pro MESMO socket. Barato de propósito: o cliente usa o
       // ida-e-volta pra detectar socket meio-aberto e reconectar sem F5.
       send(ws, { t: 'pong' });
+      return;
+    }
+    case 'box-roster': {
+      const boxes = parseRoster(msg.boxes);
+      if (boxes) { try { saveRoster(boxes); } catch { /* best effort: the context falls back to "unknown" */ } }
       return;
     }
     case 'graph-list': {
@@ -861,6 +874,17 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       broadcast({ t: 'team', bots: r.bots });
       return;
     }
+    case 'agent-build': {
+      const req = cleanBuildRequest(msg);
+      if (!req) { send(ws, { t: 'agent-build-result', reqId: typeof msg.reqId === 'string' ? msg.reqId.slice(0, 64) : '', ok: false, error: 'pedido inválido' }); return; }
+      if (buildInFlight.has(ws)) { send(ws, { t: 'agent-build-result', reqId: req.reqId, ok: false, error: 'espere a resposta anterior' }); return; }
+      buildInFlight.add(ws);
+      try {
+        const text = await agentBuilderTurn(builderSystemPrompt(await listSkills(), req.draft), builderPrompt(req.history), `agent-build-${req.reqId}`);
+        send(ws, text ? { t: 'agent-build-result', reqId: req.reqId, ok: true, text } : { t: 'agent-build-result', reqId: req.reqId, ok: false, error: 'não consegui responder agora, tente de novo' });
+      } finally { buildInFlight.delete(ws); }
+      return;
+    }
     case 'team-delete': {
       if (typeof msg.id !== 'string') { send(ws, { t: 'error', message: 'bot inválido' }); return; }
       broadcast({ t: 'team', bots: await deleteBot(msg.id) });
@@ -883,6 +907,26 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     }
     case 'skill-list': {
       send(ws, { t: 'skills', items: await listSkills(await getTeam()) });
+      return;
+    }
+    case 'versions-list': {
+      send(ws, { t: 'versions', kind: msg.kind, id: msg.id, items: await versionsFor(msg.kind, msg.id) });
+      return;
+    }
+    case 'versions-diff': {
+      const r = await diffVersions(msg.kind, msg.id, msg.from, msg.to);
+      send(ws, { t: 'versions-diff', kind: msg.kind, id: msg.id, from: msg.from, to: msg.to, ok: r.ok, diff: r.ok ? r.diff : '', message: r.ok ? undefined : r.message });
+      return;
+    }
+    case 'versions-restore': {
+      const denied = msg.kind === 'agent' ? customAgentDenial(role, CONFIG.localOnly) : null;
+      const r = denied ? { ok: false, message: denied } : await restoreVersion(msg.kind, msg.id, msg.version);
+      send(ws, { t: 'versions-restore-result', kind: msg.kind, id: msg.id, ok: r.ok, message: r.message });
+      if (r.ok) {
+        send(ws, { t: 'versions', kind: msg.kind, id: msg.id, items: await versionsFor(msg.kind, msg.id) });
+        if (msg.kind === 'agent') afterAgentsChange();
+        else send(ws, { t: 'skills', items: await listSkills() });
+      }
       return;
     }
     case 'skill-open': {
@@ -950,6 +994,13 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       broadcast({ t: 'box-smoke', state: 'running' });
       const r = await smokeOnce(role ?? 'student');
       broadcast({ t: 'box-smoke', ...r });
+      return;
+    }
+    case 'claude-import-scan': { send(ws, await claudeImportFrame(msg.path)); return; }
+    case 'claude-import-apply': {
+      const kinds = (Array.isArray(msg.kinds) ? msg.kinds : []).filter((k) => IMPORT_KINDS.includes(k));
+      const result = await applyClaudeImport(msg.path, kinds);
+      send(ws, { ...(await claudeImportFrame(msg.path)), result });
       return;
     }
     case 'admin-health': {
@@ -1405,4 +1456,10 @@ function afterAgentsChange(): void {
   broadcast(agentsFrame());
   const models = getLastModels();
   if (models.length) broadcast({ t: 'models', models });
+}
+
+async function claudeImportFrame(path?: string): Promise<Extract<ServerMsg, { t: 'claude-import' }>> {
+  const scan = await scanClaudeImport(path);
+  const hint = scan.reason === 'unreadable' ? copyHintCommand(scan.source) : undefined;
+  return { t: 'claude-import', scan, hint };
 }

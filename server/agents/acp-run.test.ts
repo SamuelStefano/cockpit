@@ -11,7 +11,7 @@ vi.mock('node:os', async (orig) => {
   const os = await orig<typeof import('node:os')>();
   return { ...os, homedir: () => root };
 });
-vi.mock('../config', () => ({ CONFIG: { workdir: root, projectsDir: join(root, 'projects') } }));
+vi.mock('../config', () => ({ CONFIG: { workdir: root, projectsDir: join(root, 'projects') }, projectSlug: (p: string) => p.replace(/[/\\:.]/g, '-') }));
 vi.mock('../admin-ops', async (orig) => ({ ...(await orig<typeof import('../admin-ops')>()), managedEnvSync: () => managed }));
 
 // A tiny ACP agent: answers the handshake, streams a chunk, runs one tool that
@@ -134,11 +134,15 @@ describe('runAgent', () => {
   it("puts a bot's identity on the first prompt of a fresh session only, never in the transcript", async () => {
     const log = fakeAgent + '.prompts';
     rmSync(log, { force: true });
+    process.env.DECK_BOX_LABEL = 'pc-samuel';
+    process.env.DECK_BOX_ROSTER_FILE = join(root, 'no-roster.json');
     const first = await turn({ appendSystemPrompt: 'Você é capo' });
     const sid = first.events[0].session_id;
     await turn({ resumeId: sid, appendSystemPrompt: 'Você é capo' });
     const sent = readFileSync(log, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
-    expect(sent[0]).toBe('Você é capo\n\n---\n\noi');
+    expect(sent[0]).toMatch(/^# You are running inside the Deck\n[\s\S]*Box: pc-samuel[\s\S]*\n\nVocê é capo\n\n---\n\noi$/);
+    delete process.env.DECK_BOX_LABEL;
+    delete process.env.DECK_BOX_ROSTER_FILE;
     expect(sent[1]).toBe('oi');
     expect(readFileSync(join(root, 'projects', `${sid}.jsonl`), 'utf8')).not.toContain('Você é capo');
   });
