@@ -40,6 +40,8 @@ const STUDENT_ALLOWED: ReadonlySet<ClientMsg['t']> = new Set([
   // restricted profile and limits the cron frames to bot routines
   // (ws/student-team.ts) — the frame alone grants no Bash.
   'team-get', 'team-save', 'team-delete',
+  // Text-only one-shot with no tools (ws/agent-build.ts); one in flight per socket.
+  'agent-build',
   'crons-get', 'cron-save', 'cron-delete', 'cron-run',
   // Read-only, limited to a bot in this account's team.json and to that bot's
   // workspace after realpath (ws/team-files-frames.ts, team-files.ts).

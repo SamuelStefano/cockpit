@@ -45,6 +45,18 @@ describe('useTeam', () => {
   });
 });
 
+describe('useTeam agent builder', () => {
+  it('sends the build frame and keeps the latest result', () => {
+    const { result, sent } = mount();
+    const history = [{ role: 'user' as const, text: 'oi' }];
+    const draft = { name: '', label: '', instructions: '', skills: [] };
+    act(() => { result.current.onAgentBuild({ reqId: 'r1', history, draft }); });
+    expect(sent).toEqual([{ t: 'agent-build', reqId: 'r1', history, draft }]);
+    act(() => { expect(result.current.onMsg({ t: 'agent-build-result', reqId: 'r1', ok: true, text: 'olá' })).toBe(true); });
+    expect(result.current.agentBuild).toEqual({ reqId: 'r1', ok: true, text: 'olá', error: undefined });
+  });
+});
+
 describe('useTeam messages and pause', () => {
   const m = (id: string, ts: number) => ({ id, from: 'capo1', to: 'ativ1', text: id, ts, status: 'delivered' as const, hop: 1 });
 
