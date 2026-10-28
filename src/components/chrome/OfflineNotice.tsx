@@ -47,7 +47,7 @@ export function OfflineNotice({ show, onReconnect, authRejected = false, offline
                 ? <>O relay em <span className="font-mono">{backendHost()}</span> não aceitou a sua sessão. Se não voltar sozinho em alguns segundos, saia e entre de novo.</>
                 : <>O Deck não alcança o servidor em <span className="font-mono">{backendHost()}</span>. Confira se o backend está rodando (ou o túnel/Tailscale). Tentando reconectar…</>}
             </p>
-            {diag && <p className="text-[11px] text-red-200/50">{diag}</p>}
+            {diag && <p className="text-[12px] text-red-200/50">{diag}</p>}
             {onReconnect && (
               <button
                 type="button"
