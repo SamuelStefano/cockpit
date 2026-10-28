@@ -54,11 +54,12 @@ describe('Sidebar', () => {
     expect(p.nav).toHaveBeenCalledWith('/skills');
   });
 
-  it('keeps a student on the Equipe entry only', () => {
+  it('keeps a student on Equipe and Configurações only', () => {
     setup({ role: 'student' });
     expect(screen.getByRole('button', { name: 'Equipe' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Skills' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Configurações' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Conexões' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Configurações' })).toBeTruthy();
   });
 
   it('keeps the footer entries as icons in the rail', () => {

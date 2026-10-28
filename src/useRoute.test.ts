@@ -8,7 +8,23 @@ describe('useRoute', () => {
   afterEach(() => history.replaceState(null, '', '/'));
 
   it('inicia na rota atual quando válida', () => {
-    history.replaceState(null, '', '/painel');
+    history.replaceState(null, '', '/configuracoes/pessoas');
+    const { result } = renderHook(() => useRoute());
+    expect(result.current.route).toBe('/configuracoes/pessoas');
+  });
+
+  it('/painel e /uso redirecionam pra Configurações', () => {
+    for (const [from, to] of [['/painel', '/configuracoes/maquina'], ['/painel#overview', '/configuracoes/maquina'], ['/painel#accounts', '/configuracoes/pessoas'], ['/uso', '/configuracoes/uso']]) {
+      history.replaceState(null, '', from);
+      const { result, unmount } = renderHook(() => useRoute());
+      expect(result.current.route).toBe(to);
+      expect(location.pathname + location.hash).toBe(to);
+      unmount();
+    }
+  });
+
+  it('abas de Conexões continuam em /painel até a fatia 22b', () => {
+    history.replaceState(null, '', '/painel#models');
     const { result } = renderHook(() => useRoute());
     expect(result.current.route).toBe('/painel');
   });
@@ -38,8 +54,8 @@ describe('useRoute', () => {
       history.pushState(null, '', '/admin#host');
       window.dispatchEvent(new PopStateEvent('popstate'));
     });
-    expect(result.current.route).toBe('/painel');
-    expect(location.pathname + location.hash).toBe('/painel#host');
+    expect(result.current.route).toBe('/configuracoes/maquina');
+    expect(location.pathname + location.hash).toBe('/configuracoes/maquina');
   });
 
   it('cai pra "/" quando o pathname não é uma rota conhecida', () => {
@@ -50,9 +66,9 @@ describe('useRoute', () => {
 
   it('nav troca rota e empurra no history', () => {
     const { result } = renderHook(() => useRoute());
-    act(() => result.current.nav('/uso'));
-    expect(result.current.route).toBe('/uso');
-    expect(location.pathname).toBe('/uso');
+    act(() => result.current.nav('/configuracoes/uso'));
+    expect(result.current.route).toBe('/configuracoes/uso');
+    expect(location.pathname).toBe('/configuracoes/uso');
   });
 
   it('nav pra rota atual é no-op (não duplica history)', () => {
@@ -108,9 +124,9 @@ describe('useRoute', () => {
   it('nav pra outra aba limpa o chatId', () => {
     history.replaceState(null, '', '/c/s1');
     const { result } = renderHook(() => useRoute());
-    act(() => result.current.nav('/uso'));
+    act(() => result.current.nav('/configuracoes/uso'));
     expect(result.current.chatId).toBe('');
-    expect(location.pathname).toBe('/uso');
+    expect(location.pathname).toBe('/configuracoes/uso');
   });
 
   it('reage a popstate (voltar/avançar) revalidando a rota', () => {

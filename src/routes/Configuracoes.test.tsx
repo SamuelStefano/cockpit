@@ -1,0 +1,59 @@
+// @vitest-environment jsdom
+import { describe, it, expect, afterEach, vi } from 'vitest';
+import { render, cleanup, screen } from '@testing-library/react';
+import { Configuracoes } from './Configuracoes';
+import type { NavRole } from '../components/chrome/nav-routes';
+import type { Route } from '../useRoute';
+
+afterEach(cleanup);
+
+const noop = () => {};
+const cockpit = {
+  usageStats: null, onUsageList: noop, sessions: [], rate: null, accounts: [], accountsLoaded: true, onAccountsList: noop, onSetAdmin: noop,
+  stats: null, health: null, onHealthList: noop, adminOp: null, onEnvSet: () => true, onEnvUnset: noop, onMcpAdd: noop, onMcpRemove: noop,
+  onCliInstall: noop, onCliUpdate: noop, onDeckRestart: noop, caps: { role: 'admin', canBypass: true }, bypass: false, setBypass: noop,
+} as never;
+const dock = { planUsage: null, stats: null } as never;
+
+function mount(role: NavRole, route: Route = '/configuracoes', nav: (to: Route) => void = noop) {
+  return render(
+    <Configuracoes
+      route={route} role={role} nav={nav} isMobile={false} connected cockpit={cockpit}
+      account={{ onSignOut: noop, onChangePassword: async () => null }} usageDock={dock} onOpenSession={noop} onOpenTerminal={noop}
+    />,
+  );
+}
+
+describe('Configuracoes', () => {
+  it('student: Conta only, no subnav', () => {
+    mount('student');
+    expect(screen.queryByRole('navigation', { name: 'Seções de configurações' })).toBeNull();
+    for (const l of ['Mostrar ferramentas', 'Agrupar notas do agente', 'Som ao terminar o turno']) expect(screen.getByRole('switch', { name: l })).toBeTruthy();
+    expect(screen.getByText('Trocar senha')).toBeTruthy();
+    expect(screen.getByText('Desconectar conta')).toBeTruthy();
+  });
+
+  it('student on a restricted section is sent back to Conta', () => {
+    const nav = vi.fn();
+    mount('student', '/configuracoes/maquina', nav);
+    expect(nav).toHaveBeenCalledWith('/configuracoes');
+  });
+
+  it('admin: four sections, no Pessoas', () => {
+    mount('admin');
+    const nav = screen.getByRole('navigation', { name: 'Seções de configurações' });
+    expect(nav.textContent).toBe('ContaUsoMáquinaAvançado');
+  });
+
+  it('root: Avançado holds bypass, terminal and restart', () => {
+    mount('root', '/configuracoes/avancado');
+    expect(screen.getByRole('switch', { name: 'Executar sem pedir permissão' })).toBeTruthy();
+    expect(screen.getByText('Terminal')).toBeTruthy();
+    expect(screen.getByText('Reiniciar o Deck')).toBeTruthy();
+  });
+
+  it('admin: Avançado has no restart', () => {
+    mount('admin', '/configuracoes/avancado');
+    expect(screen.queryByText('Reiniciar o Deck')).toBeNull();
+  });
+});

@@ -6,8 +6,8 @@ import type { AgentNav } from './useAgentNav';
 import { RouteFallback } from './RouteFallback';
 import { ChunkErrorBoundary } from './ChunkErrorBoundary';
 import {
-  Skills, Pontos, Observatorio,
-  Graph, Canvas, Admin, Docs, DesignSystem, Onboarding, EquipePage, Agente,
+  Skills, Pontos,
+  Graph, Canvas, Admin, Configuracoes, Docs, DesignSystem, Onboarding, EquipePage, Agente,
 } from './lazyRoutes';
 import type { ChatPanelProps } from '../components/chat/chat-panel-props';
 import type { TerminalsPanelProps } from '../components/Terminals';
@@ -15,6 +15,10 @@ import type { Terminal } from '../data/types';
 import type { useCockpit } from '../useCockpit';
 import type { AgentTab, Route } from '../useRoute';
 import { navigateTo } from '../lib/route-nav';
+import { requestTerminal } from '../lib/terminal-request';
+import type { NavRole } from '../components/chrome/nav-routes';
+import type { UsageDockProps } from '../components/chrome/sidebar/UsageDock';
+import type { AccountProps } from '../routes/configuracoes/Conta';
 
 // The DFL snapshot is root-only on the server: the Canvas of a plain admin skips it.
 const noop = () => {};
@@ -48,9 +52,13 @@ interface RouteContentProps {
   onOpenAgentChat: (model: string) => void;
   layout: LayoutState;
   mobile: MobileState;
+  role: NavRole;
+  nav: (to: Route) => void;
+  account: AccountProps;
+  usageDock: UsageDockProps;
 }
 
-export function RouteContent({ route, agentRoute, skillRoute, isMobile, isAdmin, isRoot, connected, cockpit, chatProps, termProps, onOpenSession, agent, onOpenAgentChat, layout, mobile }: RouteContentProps) {
+export function RouteContent({ route, agentRoute, skillRoute, isMobile, isAdmin, isRoot, connected, cockpit, chatProps, termProps, onOpenSession, agent, onOpenAgentChat, layout, mobile, role, nav, account, usageDock }: RouteContentProps) {
   const c = cockpit;
   const view = (() => {
     if (route === '/equipe' || route === '/equipe/rotinas' || route === '/equipe/memoria') {
@@ -84,10 +92,11 @@ export function RouteContent({ route, agentRoute, skillRoute, isMobile, isAdmin,
           drafts={c.drafts} draftsLoaded={c.draftsLoaded} onDraftsGet={c.onDraftsGet} onDraftOp={c.onDraftOp} />
       );
     }
-    if (route === '/uso') {
+    if (route === '/configuracoes' || route.startsWith('/configuracoes/')) {
       return (
-        <Observatorio connected={connected} usageStats={c.usageStats} onUsageList={c.onUsageList} sessions={c.sessions} rate={c.rate}
-          onOpenSession={onOpenSession} />
+        <Configuracoes
+          route={route} role={role} nav={nav} isMobile={isMobile} connected={connected} cockpit={c} account={account} usageDock={usageDock}
+          onOpenSession={onOpenSession} onOpenTerminal={() => { requestTerminal(); navigateTo('/'); }} />
       );
     }
     if (route === '/graph' && isAdmin) {

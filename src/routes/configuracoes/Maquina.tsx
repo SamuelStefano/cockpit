@@ -1,0 +1,55 @@
+import { useEffect } from 'react';
+import { Button, SectionTitle } from '../../components/primitives';
+import { VpsMeters } from '../../components/chrome/sidebar/VpsMeters';
+import { AdminHostOps } from '../AdminHostOps';
+import { AdminDeckUpdate } from '../AdminDeckUpdate';
+import type { AdminHealth, SysStats } from '../../../shared/protocol';
+import { useAdminOpToast } from './useAdminOpToast';
+
+interface MaquinaProps {
+  stats: SysStats | null;
+  health: AdminHealth | null;
+  onHealthList: () => void;
+  isRoot: boolean;
+  adminOp: { ok: boolean; message: string } | null;
+  onEnvSet: (name: string, value: string) => boolean;
+  onEnvUnset: (name: string) => void;
+  onMcpAdd: (name: string, opts: { command?: string; url?: string }) => void;
+  onMcpRemove: (name: string) => void;
+  onCliInstall: (name: string) => void;
+  onCliUpdate: () => void;
+  onDeckRestart: (mode: 'idle' | 'now') => void;
+}
+
+export function Maquina(p: MaquinaProps) {
+  const { onHealthList } = p;
+  useAdminOpToast(p.adminOp);
+  // Health spawns probes server-side: poll only while the tab is visible.
+  useEffect(() => {
+    onHealthList();
+    const id = setInterval(() => { if (!document.hidden) onHealthList(); }, 10_000);
+    const onVisible = () => { if (!document.hidden) onHealthList(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { clearInterval(id); document.removeEventListener('visibilitychange', onVisible); };
+  }, [onHealthList]);
+
+  return (
+    <>
+      <div className="flex items-center">
+        <SectionTitle className="flex-1">Máquina</SectionTitle>
+        <Button variant="secondary" size="sm" icon="rotate" title="Atualizar agora" onClick={onHealthList}>Atualizar</Button>
+      </div>
+      <div className="overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900/60 hairline [&>div]:border-t-0">
+        <VpsMeters stats={p.stats} />
+      </div>
+      {p.isRoot && (
+        <>
+          <SectionTitle>Claude Code e Deck</SectionTitle>
+          <AdminDeckUpdate health={p.health} adminOp={p.adminOp} onCliUpdate={p.onCliUpdate} onDeckRestart={p.onDeckRestart} />
+          <SectionTitle>Tokens, MCPs e CLIs</SectionTitle>
+          <AdminHostOps health={p.health} adminOp={p.adminOp} onEnvSet={p.onEnvSet} onEnvUnset={p.onEnvUnset} onMcpAdd={p.onMcpAdd} onMcpRemove={p.onMcpRemove} onCliInstall={p.onCliInstall} />
+        </>
+      )}
+    </>
+  );
+}

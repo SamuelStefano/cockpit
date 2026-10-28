@@ -9,13 +9,13 @@ export interface FooterNavItem {
   to: Route;
 }
 
-// Conexões and Configurações have no screen of their own yet (slices 13 and 15+):
-// until then they open the closest existing route, so the footer is already final.
+// Conexões has no screen of its own yet (slice 22b): until then it opens the
+// closest existing route, so the footer is already final.
 export const FOOTER_NAV: FooterNavItem[] = [
   { id: 'equipe', label: 'Equipe', icon: 'users', to: '/equipe' },
   { id: 'skills', label: 'Skills', icon: 'sparkles', to: '/skills' },
   { id: 'conexoes', label: 'Conexões', icon: 'link', to: '/painel' },
-  { id: 'configuracoes', label: 'Configurações', icon: 'sliders', to: '/uso' },
+  { id: 'configuracoes', label: 'Configurações', icon: 'sliders', to: '/configuracoes' },
 ];
 
 // navFor still decides what a role may open; the footer only lays the allowed
