@@ -85,4 +85,61 @@ describe('AskQuestionCard', () => {
     cleanup();
     expect(mount(onAnswer, { multi: true }).getByText('Enviar resposta')).toBeTruthy();
   });
+
+  describe('free-text option', () => {
+    const freeTool = () => ({
+      id: 't2', name: 'AskUserQuestion', label: '', command: '', status: 'done', output: [],
+      questions: [{ question: 'Qual caminho?', header: 'Caminho', multiSelect: false, options: [{ label: 'Aprovar' }, { label: 'Escreva a sua' }] }],
+    });
+    const mountFree = (onAnswer = vi.fn(() => true)) => ({ onAnswer, ...render(
+      <BotThreadContext.Provider value={false}>
+        <AssistantBlocks blocks={[{ type: 'tool', tool: freeTool() }] as never} caretOnLast={false} answerable onAnswer={onAnswer} />
+      </BotThreadContext.Provider>,
+    ) });
+
+    it('opens a textarea instead of answering when the free-text option is clicked', () => {
+      const { onAnswer, ...r } = mountFree();
+      fireEvent.click(r.getByText('Escreva a sua'));
+      expect(r.getByLabelText('Escreva sua resposta')).toBeTruthy();
+      expect(onAnswer).not.toHaveBeenCalled();
+    });
+
+    it('Enter submits the typed text through onAnswer, once', () => {
+      const { onAnswer, ...r } = mountFree();
+      fireEvent.click(r.getByText('Escreva a sua'));
+      const ta = r.getByLabelText('Escreva sua resposta');
+      fireEvent.change(ta, { target: { value: '  faz de outro jeito  ' } });
+      fireEvent.keyDown(ta, { key: 'Enter' });
+      fireEvent.keyDown(ta, { key: 'Enter' });
+      expect(onAnswer).toHaveBeenCalledTimes(1);
+      expect(onAnswer).toHaveBeenCalledWith('faz de outro jeito');
+      expect(r.queryByLabelText('Escreva sua resposta')).toBeNull();
+    });
+
+    it('the send button submits and an empty text sends nothing', () => {
+      const { onAnswer, ...r } = mountFree();
+      fireEvent.click(r.getByText('Escreva a sua'));
+      expect((r.getByLabelText('Enviar resposta') as HTMLButtonElement).disabled).toBe(true);
+      fireEvent.change(r.getByLabelText('Escreva sua resposta'), { target: { value: 'ok' } });
+      fireEvent.click(r.getByLabelText('Enviar resposta'));
+      expect(onAnswer).toHaveBeenCalledWith('ok');
+    });
+
+    it('Escape closes the textarea without answering; Shift+Enter does not submit', () => {
+      const { onAnswer, ...r } = mountFree();
+      fireEvent.click(r.getByText('Escreva a sua'));
+      const ta = r.getByLabelText('Escreva sua resposta');
+      fireEvent.change(ta, { target: { value: 'x' } });
+      fireEvent.keyDown(ta, { key: 'Enter', shiftKey: true });
+      expect(onAnswer).not.toHaveBeenCalled();
+      fireEvent.keyDown(ta, { key: 'Escape' });
+      expect(r.queryByLabelText('Escreva sua resposta')).toBeNull();
+    });
+
+    it('a regular option still answers on click', () => {
+      const { onAnswer, ...r } = mountFree();
+      fireEvent.click(r.getByText('Aprovar'));
+      expect(onAnswer).toHaveBeenCalledWith('Aprovar');
+    });
+  });
 });

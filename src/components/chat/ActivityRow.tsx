@@ -37,7 +37,7 @@ export function ActivityRow({ tools }: ActivityRowProps) {
         <Icon name={open ? 'chevronDown' : 'chevronRight'} size={14} className="shrink-0" />
       </button>
       {open && (
-        <div className={`flex w-full min-w-0 flex-col gap-1 rounded-b-md border border-t-0 px-2.5 py-1.5 font-mono text-[12px] text-neutral-500 sm:w-fit sm:min-w-80 ${failed ? 'border-red-500/30' : 'border-neutral-800'}`}>
+        <div className={`flex w-full min-w-0 flex-col gap-1 rounded-b-md border border-t-0 px-2.5 py-1.5 font-mono text-[12px] text-neutral-500 sm:w-fit sm:min-w-80 sm:max-w-full ${failed ? 'border-red-500/30' : 'border-neutral-800'}`}>
           {tools.map((t) => {
             const st = itemStatus(t);
             const expanded = !!detail[t.id];

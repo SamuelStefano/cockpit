@@ -63,7 +63,7 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, draf
       model={model} setModel={setModel} modelLocked={modelLocked} models={models} onRefreshModels={onRefreshModels}
       effort={effort} setEffort={setEffort}
       mcpServers={mcpServers} selectedMcps={selectedMcps} setSelectedMcps={setSelectedMcps} slashCommands={slashCommands}
-      attachments={attachments} onUpload={onUpload} onRemoveAttachment={onRemoveAttachment} onOpenAttachment={onAttOpen} focusSignal={focusSignal}
+      attachments={attachments} onUpload={onUpload} onRemoveAttachment={onRemoveAttachment} onOpenAttachment={onAttOpen} attThumbs={attThumbs} onAttThumb={onAttThumb} focusSignal={focusSignal}
       queued={c.queued} queuedAtts={c.queuedAtts} queuedModels={c.queuedModels} onRunQueuedBg={c.runQueuedInBgAt} onRunQueuedNow={c.runQueuedNowAt} onQueue={c.enqueue} onCancelQueueAt={c.cancelQueueAt} onEditQueuedAt={c.editQueuedAt} onMoveQueued={c.moveQueuedItem} history={c.sentHistory} pendingConfirm={c.bannerConfirm} onNew={onNew} onShowHelp={onShowHelp}
       queuePaused={queuePaused} queueReleaseAt={queueReleaseAt} onToggleQueuePause={() => queueSetPaused(!queuePaused)}
       queueHeld={c.queueHeld} onResumeQueue={c.resumeQueue}
@@ -99,13 +99,13 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, draf
           engolia os botões pra dentro do input. */}
       {hero ? <ChatEmpty onPrompt={onPrompt} onSeed={setDraft} needsProvider={!claudeReady && !isAgentModel(model)}>{composer}</ChatEmpty> : (
       <div className="relative flex min-h-0 flex-1 flex-col">
-      <div ref={c.scrollRef} onScroll={c.onScroll} className="print-thread scroll-thin flex-1 overflow-y-auto overflow-x-hidden overscroll-contain">
+      <div ref={c.scrollRef} onScroll={c.onScroll} className="print-thread scroll-thin flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-3">
         {c.isEmpty && phase === 'idle' && !botDecor?.extras.length ? (
           botDecor?.empty
         ) : (
           // role=log is polite-live: a reader hears new replies. aria-busy holds it
           // while tokens stream, so it reads the finished answer, not every delta.
-          <div role="log" aria-label="Conversa" aria-busy={c.streaming} className={`mx-auto flex max-w-3xl flex-col gap-6 py-6 pl-4 ${topics.topics.length > 0 ? 'pr-9' : 'pr-4'}`}>
+          <div role="log" aria-label="Conversa" aria-busy={c.streaming} className={`mx-auto flex w-full min-w-0 max-w-[760px] flex-col gap-6 pb-10 pt-8 ${topics.topics.length > 0 ? 'pr-6' : ''}`}>
             <BotThreadContext.Provider value={!!botDecor}>
               {rows.map((r) => (r.kind === 'extra' ? <div key={r.key}>{r.node}</div> : renderRow(r.msg, r.index)))}
             </BotThreadContext.Provider>

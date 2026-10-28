@@ -1,15 +1,25 @@
 import { Badge, Icon, tokens } from '../primitives';
 import type { Attachment } from '../../useCockpit';
+import { useAttachmentChip } from './useAttachmentChip';
 
 interface AttachmentChipsProps {
   attachments: Attachment[];
   onRemoveAttachment: (path: string) => void;
   onOpen?: (path: string, name: string) => void;
+  thumbs?: Record<string, string>;
+  onThumb?: (path: string) => void;
+}
+
+function ChipThumb({ a, thumbB64, onThumb }: { a: Attachment; thumbB64?: string; onThumb?: (path: string) => void }) {
+  const { kind, url } = useAttachmentChip(a.path, a.name, thumbB64, a.uploading || a.s3url ? undefined : onThumb);
+  const src = a.s3url && kind === 'image' ? a.s3url : url;
+  if (a.uploading) return <Icon name="rotate" size={11} className="spin shrink-0 text-orange-400" />;
+  return src ? <img src={src} alt={a.name} className="h-8 w-8 shrink-0 rounded-sm object-cover" /> : <Icon name="paperclip" size={11} />;
 }
 
 // Clicar abre o anexo no modal antes de mandar: sem ver o que está anexado, print
 // repetido ia junto e o agente gastava o turno só pra dizer que era igual.
-export function AttachmentChips({ attachments, onRemoveAttachment, onOpen }: AttachmentChipsProps) {
+export function AttachmentChips({ attachments, onRemoveAttachment, onOpen, thumbs, onThumb }: AttachmentChipsProps) {
   return (
     <div className="mb-2 flex flex-wrap gap-1.5">
       {attachments.map((a) => (
@@ -21,11 +31,7 @@ export function AttachmentChips({ attachments, onRemoveAttachment, onOpen }: Att
             title={a.uploading ? 'Enviando…' : `Ver ${a.name}`}
             className={`flex min-w-0 items-center gap-1.5 rounded-md pr-0.5 transition enabled:hover:text-orange-200 ${tokens.focusRing}`}
           >
-            {a.uploading
-              ? <Icon name="rotate" size={11} className="spin shrink-0 text-orange-400" />
-              : a.s3url && /\.(png|jpe?g|gif|webp|avif|bmp|svg)$/i.test(a.name)
-                ? <img src={a.s3url} alt={a.name} className="h-8 w-8 shrink-0 rounded-sm object-cover" />
-                : <Icon name="paperclip" size={11} />}
+            <ChipThumb a={a} thumbB64={thumbs?.[a.path]} onThumb={onThumb} />
             <span className="max-w-[160px] truncate">{a.name}</span>
           </button>
           {a.dup && <Badge tone="yellow">{a.dup === 'sent' ? 'já enviado' : 'repetido'}</Badge>}
