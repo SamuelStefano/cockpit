@@ -45,6 +45,8 @@ import { claudeLogin } from '../claude-login';
 import { dflMcpsState, addDflMcps } from '../dfl-mcps';
 import { listConnections } from '../connections';
 import { probe } from '../providers';
+import { scanClaudeImport, applyClaudeImport } from '../claude-import';
+import { copyHintCommand, IMPORT_KINDS } from '../../shared/claude-import';
 import { detach } from './detach';
 import { startRun, routeSend, drainParked, runParkedInBackground, runParkedNow, acceptResumeOffer, refreshBusyElsewhere, orchestratorPaneTarget, type BgRunReject, type NowRunReject } from './runs';
 import { threads, stopSession, resolveThreadKey, runningSessionIds } from './threads';
@@ -952,6 +954,13 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       broadcast({ t: 'box-smoke', ...r });
       return;
     }
+    case 'claude-import-scan': { send(ws, await claudeImportFrame(msg.path)); return; }
+    case 'claude-import-apply': {
+      const kinds = (Array.isArray(msg.kinds) ? msg.kinds : []).filter((k) => IMPORT_KINDS.includes(k));
+      const result = await applyClaudeImport(msg.path, kinds);
+      send(ws, { ...(await claudeImportFrame(msg.path)), result });
+      return;
+    }
     case 'admin-health': {
       send(ws, { t: 'health', health: await collectHealth() });
       return;
@@ -1405,4 +1414,10 @@ function afterAgentsChange(): void {
   broadcast(agentsFrame());
   const models = getLastModels();
   if (models.length) broadcast({ t: 'models', models });
+}
+
+async function claudeImportFrame(path?: string): Promise<Extract<ServerMsg, { t: 'claude-import' }>> {
+  const scan = await scanClaudeImport(path);
+  const hint = scan.reason === 'unreadable' ? copyHintCommand(scan.source) : undefined;
+  return { t: 'claude-import', scan, hint };
 }

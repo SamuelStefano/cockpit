@@ -8,6 +8,7 @@ import type { DflDraft, DraftOp } from './dfl-drafts';
 import type { DflMcpsState } from './dfl-mcps';
 import type { Connection } from './connections';
 import type { ProbeResult } from './provider-probe';
+import type { ClaudeImportResult, ClaudeImportScan, ImportKind } from './claude-import';
 import type { AgentView, AgentPreset, AgentStatus, AgentCustomField } from './agents';
 import type { TeamMessage } from './team-messages';
 import type { BoxHealth, SmokeResult } from './box-health';
@@ -822,6 +823,8 @@ export type ClientMsg =
   | { t: 'connections-get' }
   // Lists the models of an OpenAI-compatible endpoint. The key is used once and never stored, logged or echoed.
   | { t: 'provider-probe'; endpoint: string; key?: string }
+  | { t: 'claude-import-scan'; path?: string }
+  | { t: 'claude-import-apply'; path?: string; kinds: ImportKind[] }
   | { t: 'admin-health' }
   // Machine health (shared/box-health.ts): a fresh report, and one tiny real prompt.
   | { t: 'box-health-get' }
@@ -1079,6 +1082,7 @@ export type ServerMsg =
   | { t: 'dfl-mcps'; state: DflMcpsState }
   | { t: 'connections'; items: Connection[] }
   | { t: 'provider-probe'; result: ProbeResult }
+  | { t: 'claude-import'; scan: ClaudeImportScan; hint?: string; result?: ClaudeImportResult }
   | { t: 'accounts'; accounts: AccountSummary[] }
   | { t: 'stats'; stats: SysStats }
   | { t: 'graphs'; items: GraphMeta[] }

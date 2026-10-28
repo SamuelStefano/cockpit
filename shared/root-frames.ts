@@ -2,7 +2,8 @@ import type { ClientMsg } from './protocol';
 
 // Frames only the box owner (account role root) may send: the points/DFL finance
 // ledger, the host write-ops (tokens, MCP, CLI, restart) and saving/probing a
-// custom ACP agent (an arbitrary command the box spawns). A plain admin keeps
+// custom ACP agent (an arbitrary command the box spawns), and the .claude import
+// (writes MCP commands into ~/.claude.json). A plain admin keeps
 // the rest of the Painel. Enforced twice: the relay drops them for a non-root
 // account (it is the only party that knows the account role, from the JWT), and
 // the engine's authorize refuses them on a connection that is not the owner's.
@@ -14,6 +15,7 @@ export const ROOT_ONLY: ReadonlySet<ClientMsg['t']> = new Set<ClientMsg['t']>([
   'admin-env-set', 'admin-env-unset', 'admin-mcp-add', 'admin-mcp-remove',
   'admin-cli-install', 'admin-cli-update', 'admin-deck-restart',
   'agent-add-custom', 'agent-probe-draft', 'provider-probe',
+  'claude-import-scan', 'claude-import-apply',
 ]);
 
 // A frame whose own prefix says it belongs to the owner, even if a future one is
