@@ -47,7 +47,7 @@ describe('vault', () => {
   });
 
   it('rejects bad names, reserved names, bad values and bad agents', async () => {
-    for (const n of ['lower', '1ABC', 'A-B', 'PATH', 'HOME', 'ANTHROPIC_API_KEY', 'LD_PRELOAD', 'NODE_OPTIONS', '__proto__', '']) {
+    for (const n of ['lower', '1ABC', 'A-B', 'PATH', 'HOME', 'ANTHROPIC_API_KEY', 'LD_PRELOAD', 'NODE_OPTIONS', 'ANTHROPIC_BASE_URL', 'HTTPS_PROXY', 'NO_PROXY', 'GIT_SSH_COMMAND', 'NODE_EXTRA_CA_CERTS', '__proto__', '']) {
       expect(validVaultName(n)).toBe(false);
     }
     expect(await putSecret('OK_NAME', '')).toHaveProperty('error');
