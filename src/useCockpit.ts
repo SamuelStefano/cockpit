@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { markAgentRestarting } from './app/restartNotice';
 import type { Session, Message, Block, ToolTodo } from './data/types';
 import type { ClientMsg, ServerMsg, SysStats, PermMode, Effort, ModelInfo, TurnStats, Caps, PlanUsage, ParkedView, BgAgent, ClaudeLoginView } from '../shared/protocol';
 import { loadPref, savePref, setPref, usePrefListener } from './lib/persist';
@@ -794,6 +795,7 @@ export function useCockpit(): Cockpit {
         return;
       }
       case 'claude-auth': { setClaudeReady(msg.ready); return; }
+      case 'agent-restarting': { markAgentRestarting(); return; }
       case 'agent-health': { boxHealthStore.applyHealth(msg.health); return; }
       case 'box-smoke': { boxHealthStore.applySmoke(msg as unknown as Record<string, unknown>); return; }
       case 'claude-login': { setClaudeLogin({ state: msg.state, url: msg.url, error: msg.error }); return; }

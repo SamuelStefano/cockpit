@@ -85,11 +85,11 @@ export function ToolCallCard({ tool }: ToolCallCardProps) {
         </div>
       ) : (
         <div className="px-3 pb-2">
-          <div className="flex items-center gap-2 rounded-md border border-neutral-800 bg-[#0c0c0c] px-2.5 py-1.5">
+          <div className="flex items-start gap-2 rounded-md border border-neutral-800 bg-[#0c0c0c] px-2.5 py-1.5">
             {isShell
-              ? <span className="select-none font-mono text-[12px] text-orange-500/70">$</span>
-              : <Icon name={cmdIcon} size={12} className="shrink-0 text-neutral-500" />}
-            <code className="scroll-thin min-w-0 flex-1 overflow-x-auto whitespace-nowrap font-mono text-[12px] text-neutral-300">{tool.command}</code>
+              ? <span className="select-none font-mono text-[12px] leading-relaxed text-orange-500/70">$</span>
+              : <Icon name={cmdIcon} size={12} className="mt-1 shrink-0 text-neutral-500" />}
+            <code className="scroll-thin max-h-52 min-w-0 flex-1 overflow-auto whitespace-pre font-mono text-[12px] leading-relaxed text-neutral-300">{tool.command}</code>
             {isShell && (
               <button
                 onClick={() => setShowShellCmd(false)}

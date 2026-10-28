@@ -28,16 +28,14 @@ interface ChatHeaderMenuProps {
   pause?: { paused: boolean; onSet: (paused: boolean) => void };
   contextPct?: number | null;
   onRename?: () => void;
-  onTerminal?: () => void;
-  terminalRunning?: boolean;
   onDelete?: () => void;
   onDone: () => void;
 }
 
-export function ChatHeaderMenu({ title, messages, lastTurn, ranOn, selectedModel, history, canExport, profile, pause, contextPct = null, onRename, onTerminal, terminalRunning, onDelete, onDone }: ChatHeaderMenuProps) {
+export function ChatHeaderMenu({ title, messages, lastTurn, ranOn, selectedModel, history, canExport, profile, pause, contextPct = null, onRename, onDelete, onDone }: ChatHeaderMenuProps) {
   const turn = turnStatParts(lastTurn);
   const turns = lastTurn?.numTurns ? ` · ${lastTurn.numTurns} turno${lastTurn.numTurns === 1 ? '' : 's'}` : '';
-  const hasActions = !!onRename || canExport || !!history || !!onTerminal;
+  const hasActions = !!onRename || canExport || !!history;
   return (
     <Menu label="Mais ações da conversa" className="w-72" >
       <div className="contents" onClick={(e) => { if ((e.target as HTMLElement).closest('button')) onDone(); }}>
@@ -58,12 +56,6 @@ export function ChatHeaderMenu({ title, messages, lastTurn, ranOn, selectedModel
         {onRename && <MenuItem icon="pencil" label="Renomear" onClick={onRename} />}
         {canExport && <ExportMenu title={title} messages={messages} />}
         {history && <HistoryControls {...history} />}
-        {onTerminal && (
-          <MenuItem
-            icon="terminal" label="Abrir terminal" aria-label="Abrir terminais" onClick={onTerminal}
-            right={terminalRunning ? <span className="h-2 w-2 rounded-full bg-green-500" /> : undefined}
-          />
-        )}
         {(turn || ranOn) && hasActions && <MenuSeparator />}
         {turn && (
           <p title="Último turno (custo real do CLI)" className="flex items-center gap-2.5 px-2.5 py-2 text-[13px] text-neutral-300">

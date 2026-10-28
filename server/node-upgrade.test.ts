@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { planNodeUpgrade, pickTarball, nodeArch, upgradeNode, NODE_DIST, type NodeFacts, type UpgradeDeps } from './node-upgrade';
+import { planNodeUpgrade, quietBusy, pickTarball, nodeArch, upgradeNode, NODE_DIST, type NodeFacts, type UpgradeDeps } from './node-upgrade';
 
 const HOME = '/home/deck';
 const facts = (o: Partial<NodeFacts> = {}): NodeFacts => ({
@@ -112,5 +112,23 @@ describe('upgradeNode', () => {
     const b = fakeBox({ verified: true });
     expect(await upgradeNode(b.deps)).toBe('swapped');
     expect(b.calls.some((c) => c.startsWith('download'))).toBe(false);
+  });
+});
+
+describe('quietBusy', () => {
+  it('stays busy until idle for the whole quiet period, and resets on a turn', () => {
+    let clock = 0;
+    let busy = false;
+    const q = quietBusy(() => busy, () => clock, 1000);
+    expect(q()).toBe(true);
+    clock = 999;
+    expect(q()).toBe(true);
+    busy = true;
+    expect(q()).toBe(true);
+    busy = false;
+    clock = 1500;
+    expect(q()).toBe(true);
+    clock = 2500;
+    expect(q()).toBe(false);
   });
 });

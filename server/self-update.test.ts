@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createSelfUpdater, isSupervised, type ExecResult } from './self-update';
+import { createSelfUpdater, isSupervised, QUIET_MS, type ExecResult } from './self-update';
 import { npmBesideNode } from './self-update-boot';
 
 const OLD = 'a'.repeat(40);
@@ -11,7 +11,7 @@ interface Repo {
   mergeOk?: boolean; npmResults?: boolean[];
 }
 
-function harness(repo: Repo = {}, opts: { env?: NodeJS.ProcessEnv; busy?: () => boolean; maxWaitMs?: number; bad?: string[]; unconfirmed?: boolean } = {}) {
+function harness(repo: Repo = {}, opts: { env?: NodeJS.ProcessEnv; busy?: () => boolean; bad?: string[]; unconfirmed?: boolean } = {}) {
   const bad = new Set(opts.bad ?? []);
   const pending: Array<[string, string]> = [];
   const calls: string[] = [];
@@ -41,14 +41,15 @@ function harness(repo: Repo = {}, opts: { env?: NodeJS.ProcessEnv; busy?: () => 
     exec, now: () => clock, busy: opts.busy ?? (() => false), restart: () => { restarts++; }, log: (m) => logs.push(m),
     isBad: (s) => bad.has(s), markBad: (s) => { bad.add(s); },
     markPending: (from, to) => { pending.push([from, to]); }, unconfirmed: () => !!opts.unconfirmed,
-  }, { env: opts.env ?? { INVOCATION_ID: 'x' }, maxWaitMs: opts.maxWaitMs ?? 1000 });
-  return { updater, calls, logs, bad, pending, restarts: () => restarts, advance: (ms: number) => { clock += ms; } };
+  }, { env: opts.env ?? { INVOCATION_ID: 'x' } });
+  const settle = async () => { await updater.tick(); clock += QUIET_MS; return updater.tick(); };
+  return { updater, settle, calls, logs, bad, pending, restarts: () => restarts, advance: (ms: number) => { clock += ms; } };
 }
 
 describe('self-update decision', () => {
   it('fast-forwards and restarts when origin/main is ahead', async () => {
     const h = harness();
-    expect(await h.updater.tick()).toBe('restarting');
+    expect(await h.settle()).toBe('restarting');
     expect(h.calls).toContain(`git merge --ff-only -q ${NEW}`);
     expect(h.calls.some((c) => c.startsWith('npm'))).toBe(false);
     expect(h.restarts()).toBe(1);
@@ -121,13 +122,13 @@ describe('self-update decision', () => {
 
   it('runs npm ci (never npm install) when dependencies changed', async () => {
     const h = harness({ depsChanged: true });
-    expect(await h.updater.tick()).toBe('restarting');
+    expect(await h.settle()).toBe('restarting');
     expect(h.calls.filter((c) => c.startsWith('npm'))).toEqual(['npm ci --no-audit --no-fund']);
   });
 
   it('rolls back to the old commit and dependencies when npm ci fails, and does not retry that commit', async () => {
     const h = harness({ depsChanged: true, npmResults: [false, true] });
-    expect(await h.updater.tick()).toBe('rolled-back');
+    expect(await h.settle()).toBe('rolled-back');
     expect(h.calls).toContain(`git reset -q --hard ${OLD}`);
     expect(h.calls.filter((c) => c.startsWith('npm'))).toHaveLength(2);
     expect(h.restarts()).toBe(0);
@@ -153,7 +154,7 @@ describe('self-update decision', () => {
 
   it('does not restart when the fast-forward fails', async () => {
     const h = harness({ mergeOk: false });
-    expect(await h.updater.tick()).toBe('merge-failed');
+    expect(await h.settle()).toBe('merge-failed');
     expect(h.restarts()).toBe(0);
   });
 
@@ -163,23 +164,64 @@ describe('self-update decision', () => {
     expect(await h.updater.tick()).toBe('waiting');
     expect(h.calls.some((c) => c.includes('merge --ff-only'))).toBe(false);
     busy = false;
+    expect(await h.updater.tick()).toBe('waiting');
+    h.advance(QUIET_MS);
     expect(await h.updater.tick()).toBe('restarting');
     expect(h.restarts()).toBe(1);
   });
 
-  it('restarts anyway once the max wait is over', async () => {
-    const h = harness({}, { busy: () => true, maxWaitMs: 1000 });
+  it('never restarts while busy, no matter how long', async () => {
+    const h = harness({}, { busy: () => true });
+    for (let i = 0; i < 5; i++) {
+      expect(await h.updater.tick()).toBe('waiting');
+      h.advance(24 * 60 * 60_000);
+    }
+    expect(h.restarts()).toBe(0);
+    expect(h.calls.some((c) => c.includes('merge --ff-only'))).toBe(false);
+  });
+
+  it('restarts only after QUIET_MS of continuous idle', async () => {
+    const h = harness();
     expect(await h.updater.tick()).toBe('waiting');
-    h.advance(999);
+    h.advance(QUIET_MS - 1);
     expect(await h.updater.tick()).toBe('waiting');
     h.advance(1);
     expect(await h.updater.tick()).toBe('restarting');
     expect(h.restarts()).toBe(1);
   });
 
+  it('resets the idle clock when a turn runs in between', async () => {
+    let busy = false;
+    const h = harness({}, { busy: () => busy });
+    await h.updater.tick();
+    h.advance(QUIET_MS - 1);
+    busy = true;
+    expect(await h.updater.tick()).toBe('waiting');
+    busy = false;
+    h.advance(QUIET_MS - 1);
+    expect(await h.updater.tick()).toBe('waiting');
+    h.advance(QUIET_MS);
+    expect(await h.updater.tick()).toBe('restarting');
+  });
+
+  it('waits to restart when a turn starts during npm ci, though the code is already merged', async () => {
+    let calls: string[] = [];
+    let turnEnded = false;
+    const h = harness({ depsChanged: true }, { busy: () => !turnEnded && calls.some((c) => c.startsWith('npm ci')) });
+    calls = h.calls;
+    expect(await h.settle()).toBe('waiting');
+    expect(h.restarts()).toBe(0);
+    turnEnded = true;
+    expect(await h.updater.tick()).toBe('waiting');
+    h.advance(QUIET_MS);
+    expect(await h.updater.tick()).toBe('restarting');
+    expect(h.pending).toEqual([[OLD, NEW]]);
+    expect(h.calls.filter((c) => c.startsWith('git merge --ff-only'))).toHaveLength(1);
+  });
+
   it('restarts only once', async () => {
     const h = harness();
-    await h.updater.tick();
+    await h.settle();
     expect(await h.updater.tick()).toBe('restarting');
     expect(h.restarts()).toBe(1);
   });

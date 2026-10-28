@@ -9,7 +9,7 @@ import { SidebarItem } from './SidebarItem';
 import { SidebarNav } from './SidebarNav';
 import { SidebarAgents, type SidebarAgentsProps } from './SidebarAgents';
 import { SidebarFooter, type AccountProps } from './SidebarFooter';
-import type { UsageDockProps } from './UsageDock';
+import { FOOTER_NAV, footerNav } from './sidebar-nav';
 import { useSidebarCollapsed } from './useSidebarCollapsed';
 
 export interface SidebarProps {
@@ -21,7 +21,6 @@ export interface SidebarProps {
   onPalette: () => void;
   bitState: BitState;
   conn: ConnState;
-  usage: UsageDockProps;
   account: AccountProps;
   agents?: SidebarAgentsProps;
   // The conversations list (SessionsPanel), shown only when expanded.
@@ -30,7 +29,9 @@ export interface SidebarProps {
   drawer?: { onClose: () => void };
 }
 
-export function Sidebar({ route, nav, role, navCounts, onNew, onPalette, bitState, conn, usage, account, agents, sessions, drawer }: SidebarProps) {
+const SETTINGS_TO = FOOTER_NAV.find((i) => i.id === 'configuracoes')!.to;
+
+export function Sidebar({ route, nav, role, navCounts, onNew, onPalette, bitState, conn, account, agents, sessions, drawer }: SidebarProps) {
   const { collapsed, toggle } = useSidebarCollapsed();
   const expanded = drawer ? true : !collapsed;
   const k = comboLabel(['⌘', 'K']);
@@ -67,7 +68,7 @@ export function Sidebar({ route, nav, role, navCounts, onNew, onPalette, bitStat
         </div>
       </div>
 
-      <SidebarFooter expanded={expanded} usage={usage} account={account} conn={conn} role={role} />
+      <SidebarFooter expanded={expanded} onSettings={footerNav(role).some((i) => i.id === 'configuracoes') ? () => nav(SETTINGS_TO) : undefined} onDevices={() => { nav('/conexoes'); history.replaceState(null, '', '/conexoes#aparelhos'); window.dispatchEvent(new PopStateEvent('popstate')); }} account={account} conn={conn} role={role} />
     </aside>
   );
 }
