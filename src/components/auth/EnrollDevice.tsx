@@ -17,7 +17,7 @@ export function EnrollDevice({ onSignOut }: { onSignOut: () => void }) {
   return (
     <div className="flex h-full flex-1 justify-center overflow-y-auto bg-neutral-950 px-4 py-6">
       <div className="my-auto w-full max-w-xl rounded-2xl border border-neutral-800 bg-neutral-900/60 p-5 shadow-2xl sm:p-7">
-        <BrandMark title={e.boxName ? `cadastrar este aparelho em ${e.boxName}` : 'cadastrar este aparelho'} subtitle="conexão cifrada de ponta a ponta com a sua VPS" bitState="connecting" />
+        <BrandMark title={e.boxName ? `cadastrar este aparelho em ${e.boxName}` : 'cadastrar este aparelho'} bitState="connecting" />
         {rejected && (
           <p className="mt-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-[12.5px] leading-relaxed text-red-200">
             A chave que respondeu não é a da sua VPS cadastrada. Ou o agente foi reinstalado, ou alguém está no meio do caminho. Gere um código novo na VPS e cadastre de novo.

@@ -7,12 +7,14 @@ export interface FooterNavItem {
   label: string;
   icon: IconName;
   to: Route;
+  // Colored tile behind the icon: each destination gets its own hue.
+  tile?: string;
 }
 
 export const FOOTER_NAV: FooterNavItem[] = [
-  { id: 'equipe', label: 'Equipe', icon: 'users', to: '/equipe' },
-  { id: 'skills', label: 'Skills', icon: 'sparkles', to: '/skills' },
-  { id: 'conexoes', label: 'Conexões', icon: 'link', to: '/conexoes' },
+  { id: 'equipe', label: 'Equipe', icon: 'users', to: '/equipe', tile: 'bg-sky-500/20 text-sky-300' },
+  { id: 'skills', label: 'Skills', icon: 'sparkles', to: '/skills', tile: 'bg-violet-500/20 text-violet-300' },
+  { id: 'conexoes', label: 'Conexões', icon: 'link', to: '/conexoes', tile: 'bg-emerald-500/20 text-emerald-300' },
   { id: 'configuracoes', label: 'Configurações', icon: 'sliders', to: '/configuracoes' },
 ];
 

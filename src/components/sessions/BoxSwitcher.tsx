@@ -16,8 +16,8 @@ const LOOK = {
   },
   chip: {
     wrap: 'relative',
-    button: 'flex h-6 max-w-56 items-center gap-1.5 rounded-md px-1.5 text-left text-[12px] text-neutral-500 transition hover:bg-neutral-800/60 hover:text-neutral-200 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-orange-500/40',
-    label: 'min-w-0 truncate',
+    button: 'flex h-7 items-center gap-1.5 rounded-lg px-2 text-left text-[13px] text-neutral-500 transition hover:bg-neutral-800/60 hover:text-neutral-200 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-orange-500/40',
+    label: 'sr-only',
     menu: 'bottom-full left-0 mb-1 w-64',
   },
 } as const;
@@ -32,12 +32,13 @@ export function BoxSwitcher({ userId, variant = 'block' }: { userId?: string; va
     <div className={look.wrap}>
       <button
         type="button" onClick={() => s.setOpen(!s.open)} aria-haspopup="menu" aria-expanded={s.open} aria-label="Trocar de máquina"
+        title={s.current ? `${boxLabel(s.current)} · ${s.current.online ? 'online' : 'offline'}` : undefined}
         className={look.button}
       >
         <BoxDot online={s.current?.online ?? false} />
         <span className={look.label}>{s.current ? boxLabel(s.current) : 'Máquina'}</span>
         {s.active && s.levelOf(s.active) !== 'ok' && <HealthBadge level={s.levelOf(s.active)} />}
-        <Icon name={variant === 'chip' ? 'chevronUp' : 'chevronDown'} size={variant === 'chip' ? 12 : 14} className="shrink-0 text-neutral-500" />
+        {variant === 'block' && <Icon name="chevronDown" size={14} className="shrink-0 text-neutral-500" />}
       </button>
       {s.open && (
         <div role="menu" className={`absolute ${look.menu} z-50 rounded-lg border border-neutral-800 bg-neutral-900 p-1 shadow-xl shadow-black/40`}>

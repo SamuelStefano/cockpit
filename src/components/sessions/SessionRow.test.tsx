@@ -22,16 +22,15 @@ describe('SessionRow', () => {
     expect(title.className).not.toContain('line-clamp');
     expect(c.querySelector('[data-row-meta]')).toBeNull();
     expect(screen.queryByText('há 3m')).toBeNull();
-    expect(title.parentElement?.className).toContain('text-[13.5px]');
+    expect(title.parentElement?.className).toContain('text-[14px]');
     expect(screen.queryByText('Pegue o contexto')).toBeNull();
   });
 
-  it('active row gets a soft neutral background and no orange bar', () => {
+  it('active row gets an orange-tinted chip and no side bar', () => {
     const c = row({ active: true });
     const el = c.firstElementChild as HTMLElement;
-    expect(el.className).not.toContain('bg-orange');
     expect(el.className).not.toContain('before:');
-    expect(el.className).toContain('bg-neutral-800/80');
+    expect(el.className).toContain('bg-orange-500/12');
   });
 
   it('running: green dot', () => {

@@ -3,6 +3,8 @@ import { Badge, Icon, Tooltip, type IconName } from '../../primitives';
 
 interface SidebarItemProps {
   icon: IconName;
+  // Tailwind classes for the colored tile behind the icon (bg + text). Bare icon when omitted.
+  tile?: string;
   label: string;
   onClick: () => void;
   expanded: boolean;
@@ -18,7 +20,7 @@ interface SidebarItemProps {
 
 // One row. The 40px icon cell never moves between rail and expanded, so
 // collapsing only reveals or hides the text beside it.
-export function SidebarItem({ icon, label, onClick, expanded, active = false, ariaLabel, tip, count, trailing, expandedControl, haspopup }: SidebarItemProps) {
+export function SidebarItem({ icon, tile, label, onClick, expanded, active = false, ariaLabel, tip, count, trailing, expandedControl, haspopup }: SidebarItemProps) {
   return (
     <Tooltip label={tip ?? label} side="right" disabled={expanded} className={expanded ? 'flex w-full' : 'inline-flex'}>
       <button
@@ -28,12 +30,12 @@ export function SidebarItem({ icon, label, onClick, expanded, active = false, ar
         aria-current={active ? 'page' : undefined}
         aria-expanded={expandedControl}
         aria-haspopup={haspopup ? 'dialog' : undefined}
-        className={`flex h-9.5 items-center rounded-lg text-[14px] transition pointer-coarse:h-11 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-orange-500/40
+        className={`flex h-11 items-center rounded-xl text-[14px] transition focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-orange-500/40
           ${expanded ? 'w-full pr-2' : 'w-10'}
-          ${active ? 'bg-neutral-800/90 text-neutral-50' : 'text-neutral-400 hover:bg-neutral-800/50 hover:text-neutral-100'}`}
+          ${active ? 'bg-orange-500/12 font-semibold text-orange-100 shadow-[inset_0_0_0_1px_rgba(249,115,22,0.3)]' : 'text-neutral-300 hover:bg-neutral-800/50 hover:text-neutral-100'}`}
       >
-        <span className="relative flex h-9.5 w-10 shrink-0 items-center justify-center">
-          <Icon name={icon} size={16} />
+        <span className="relative flex h-11 w-10 shrink-0 items-center justify-center">
+          {tile ? <span className={`flex h-7 w-7 items-center justify-center rounded-lg ${tile}`}><Icon name={icon} size={15} /></span> : <Icon name={icon} size={17} />}
           {!expanded && !!count && (
             <span role="img" aria-label={`${count} esperando você`} className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-orange-500 ring-2 ring-neutral-950" />
           )}

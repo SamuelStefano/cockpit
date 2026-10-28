@@ -41,8 +41,8 @@ export function SessionRow({ s, active, running, stalled, updated, runStart, pin
       ref={rowRef}
       onClick={() => { if (consumeTap()) return; onSelect(s.id); }}
       {...handlers}
-      className={`row-in group relative flex h-9 cursor-pointer items-center gap-1 rounded-lg px-2.5 transition-colors duration-150 outline-hidden has-[[data-row-select]:focus-visible]:ring-2 has-[[data-row-select]:focus-visible]:ring-orange-500/40 pointer-coarse:h-11 pointer-coarse:select-none pointer-coarse:[-webkit-touch-callout:none]
-        ${active ? 'bg-neutral-800/80' : 'hover:bg-neutral-800/40'}`}
+      className={`row-in group relative flex h-11 cursor-pointer items-center gap-1 rounded-xl px-3 transition-colors duration-150 outline-hidden has-[[data-row-select]:focus-visible]:ring-2 has-[[data-row-select]:focus-visible]:ring-orange-500/40 pointer-coarse:select-none pointer-coarse:[-webkit-touch-callout:none]
+        ${active ? 'bg-orange-500/12 shadow-[inset_0_0_0_1px_rgba(249,115,22,0.3)]' : 'hover:bg-neutral-800/40'}`}
     >
       {editing ? (
         <InlineEdit
@@ -56,9 +56,9 @@ export function SessionRow({ s, active, running, stalled, updated, runStart, pin
           type="button"
           data-row-select=""
           aria-current={active ? 'true' : undefined}
-          className={`flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-left text-[13.5px] leading-tight tracking-[-0.005em] outline-hidden ${active ? 'text-neutral-50' : updated ? 'font-medium text-neutral-100' : 'text-neutral-400 group-hover:text-neutral-100'}`}
+          className={`flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-left text-[14px] leading-tight outline-hidden ${active ? 'font-semibold text-orange-50' : updated ? 'font-medium text-neutral-100' : 'text-neutral-300 group-hover:text-neutral-100'}`}
         >
-          {dot && <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${dot}`} title={status?.title ?? 'Novo output desde a última vez que você abriu'} />}
+          {dot && <span className={`h-2 w-2 shrink-0 rounded-full ${dot}`} title={status?.title ?? 'Novo output desde a última vez que você abriu'} />}
           {/* Fade instead of an ellipsis: the box spans the row, so only a title that reaches the edge fades. */}
           <span className="min-w-0 flex-1 overflow-hidden whitespace-nowrap [mask-image:linear-gradient(to_right,black_82%,transparent)]" title={s.title}>{displayTitle(s.title)}</span>
         </button>

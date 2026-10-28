@@ -17,10 +17,9 @@ function setup(over: Partial<SidebarProps> = {}) {
 }
 
 describe('Sidebar', () => {
-  it('starts expanded with new and search as header icons and keeps the palette aria-label', () => {
+  it('starts expanded with a big new-chat button and search as header icon and keeps the palette aria-label', () => {
     const p = setup();
     expect(screen.getByRole('complementary', { name: 'Navegação principal' }).className).toContain('w-75');
-    expect(screen.queryByText('Nova conversa')).toBeNull();
     expect(screen.queryByText('Buscar')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: /^Comandos \((⌘K|Ctrl\+K)\)$/ }));
     expect(p.onPalette).toHaveBeenCalledOnce();
@@ -34,6 +33,16 @@ describe('Sidebar', () => {
     expect(screen.getByRole('complementary').className).toContain('w-14');
     expect(screen.getByRole('button', { name: 'Nova conversa' })).toBeTruthy();
     expect(JSON.parse(localStorage.getItem(Object.keys(localStorage).find((k) => k.includes(SIDEBAR_COLLAPSED_KEY))!)!)).toBe(true);
+  });
+
+  it('on the rail puts Bit first, then the toggle, new chat and the chat tiles', () => {
+    setup({ rail: <button aria-label="Chat X">X</button> });
+    fireEvent.click(screen.getByRole('button', { name: 'Recolher barra lateral' }));
+    const names = screen.getAllByRole('button').map((b) => b.getAttribute('aria-label'));
+    const at = (n: string) => names.indexOf(n);
+    expect(at('Ir pro chat')).toBe(0);
+    expect(at('Expandir barra lateral')).toBe(1);
+    expect(at('Nova conversa')).toBeLessThan(at('Chat X'));
   });
 
   it('restores the collapsed state from storage', () => {

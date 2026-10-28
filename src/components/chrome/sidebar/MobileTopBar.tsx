@@ -15,7 +15,7 @@ export function MobileTopBar({ onMenu, menuOpen, title, action, slotRef }: Mobil
   return (
     <header className="flex h-[52px] shrink-0 items-center gap-1 bg-neutral-950 px-2">
       <IconButton icon="menu" label="Menu" side="bottom" aria-expanded={menuOpen} onClick={onMenu} className="pointer-coarse:h-11 pointer-coarse:w-11" />
-      <span className="min-w-0 flex-1 truncate text-[15px] font-medium text-neutral-100">{title}</span>
+      <span className="min-w-0 flex-1 truncate font-display text-[20px] font-bold text-neutral-50">{title}</span>
       <div ref={slotRef} className="flex shrink-0 items-center gap-0.5" />
       {action}
     </header>

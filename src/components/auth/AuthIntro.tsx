@@ -35,7 +35,7 @@ const FEATURES: Feature[] = [
 export function AuthIntro() {
   return (
     <div className="hidden max-w-md flex-col justify-center lg:flex">
-      <BrandMark title="deck" subtitle="o Claude Code da sua VPS, em qualquer tela" size="lg" className="mb-5" />
+      <BrandMark title="deck" size="lg" className="mb-5" />
 
       <div className="space-y-4">
         {FEATURES.map((f) => (

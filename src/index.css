@@ -9,6 +9,7 @@
 
 @theme {
   --font-sans: Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Barlow Condensed', Inter, ui-sans-serif, system-ui, sans-serif;
   --font-mono: 'Geist Mono', ui-monospace, SFMono-Regular, monospace;
 
   /* Cantos mais macios, igual ao learn (--radius 0.75rem, lg 1rem): o override
@@ -84,6 +85,7 @@ body {
 
 /* Títulos um tom mais apertados = ar mais "desenhado". */
 h1, h2, h3 { letter-spacing: -0.02em; }
+h1, h2 { font-family: var(--font-display); font-weight: 700; letter-spacing: 0; }
 
 /* ── Sistema de profundidade ────────────────────────────────────────────────
    Dark-UI profissional (Linear/Vercel/Raycast) não é chapado: a luz "bate" na
@@ -96,6 +98,22 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 /* Item ativo: aro e halo quentes discretos — o acento vira jóia, não tinta. */
 .glow-active { box-shadow: inset 0 1px 0 0 rgba(249,115,22, 0.18), 0 0 0 1px rgba(249,115,22, 0.28), 0 4px 16px -6px rgba(249,115,22, 0.28); }
 /* Botão primário como jóia: highlight interno no topo + sombra quente ancorando. */
+.btn-chunk { --lip: #c2410c; box-shadow: 0 3px 0 0 var(--lip); transition: transform 80ms ease-out, box-shadow 80ms ease-out, background-color 120ms; }
+.btn-chunk:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 1px 0 0 var(--lip); }
+.btn-chunk-red { --lip: #991b1b; }
+@media (prefers-reduced-motion: reduce) { .btn-chunk { transition: none; } }
+/* Chunky card: a darker bottom lip, lifts on hover, squashes on press. */
+.card-chunk { box-shadow: 0 3px 0 0 #1c1c1c; transition: transform 120ms ease-out, box-shadow 120ms ease-out, border-color 120ms, background-color 120ms; }
+.card-chunk-hover:hover { transform: translateY(-2px); border-color: rgba(249,115,22,0.4); box-shadow: 0 5px 0 0 #7c2d12; }
+.card-chunk-hover:active { transform: translateY(1px); box-shadow: 0 1px 0 0 #7c2d12; }
+@media (prefers-reduced-motion: reduce) { .card-chunk { transition: none; } .card-chunk-hover:hover, .card-chunk-hover:active { transform: none; } }
+/* Subtle Itera-like grid on the main canvas: pure CSS, painted once, no animation. */
+.bg-doodle { isolation: isolate; overflow: hidden; }
+.bg-doodle::before { content: ''; position: absolute; z-index: -1; top: -800px; left: -800px; right: 0; bottom: 0; pointer-events: none; background: url(/doodles.svg) 0 0 / 800px 800px; animation: doodle-drift 90s linear infinite; will-change: transform; }
+@keyframes doodle-drift { to { transform: translate3d(800px, 800px, 0); } }
+@media (prefers-reduced-motion: reduce) { .bg-doodle::before { animation: none; } }
+.chat-backdrop { position: absolute; z-index: -1; top: 0; bottom: 0; left: 50%; width: min(100%, 860px); transform: translateX(-50%); pointer-events: none; background-color: var(--bg-deep); }
+.bg-grid-soft { background-image: linear-gradient(to right, rgba(255,255,255,0.025) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.025) 1px, transparent 1px); background-size: 32px 32px; }
 .btn-jewel { box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.22), 0 1px 2px rgba(0, 0, 0, 0.3), 0 2px 8px -2px rgba(249,115,22, 0.35); }
 @media (prefers-reduced-motion: reduce) { .glow-active, .elev-1, .elev-2 { transition: none; } }
 

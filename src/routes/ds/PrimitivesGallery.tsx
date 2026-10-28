@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Avatar, Button, Badge, BrandMark, IconButton, Input, ListRow, Menu, MenuItem, MenuLabel, MenuSeparator, Popover, RiskBadge, SectionTitle, Sheet, Switch, ToggleChip, Tooltip, UsageRing, toast } from '../../components/primitives';
+import { Avatar, Button, Badge, BrandMark, IconButton, Input, ListRow, Menu, MenuItem, MenuLabel, MenuSeparator, PageTitle, Popover, RiskBadge, SectionTitle, Sheet, Switch, ToggleChip, Tooltip, UsageRing, toast } from '../../components/primitives';
 import { Section } from './Section';
 import { Row } from './Row';
 
@@ -33,6 +33,7 @@ export function PrimitivesGallery() {
           <ListRow label="Notificações" leading={<Avatar name="Ana Lima" size={32} />} onClick={() => toast('clicou')} />
         </div></Row>
         <Row label="SectionTitle"><div><SectionTitle>Conta</SectionTitle></div></Row>
+        <Row label="PageTitle"><PageTitle icon="sparkles" tone="violet">Skills</PageTitle><PageTitle icon="link" tone="emerald">Conexões</PageTitle><PageTitle icon="users" tone="sky">Equipe</PageTitle></Row>
         <Row label="RiskBadge"><RiskBadge risk="read" /><RiskBadge risk="write" /><RiskBadge risk="net" /></Row>
       </Section>
 
@@ -42,6 +43,8 @@ export function PrimitivesGallery() {
         <Row label="outline"><Button variant="outline" icon="plus">Nova conversa</Button><Button variant="outline">Conectar</Button></Row>
         <Row label="ghost"><Button variant="ghost" icon="pencil">Editar</Button><Button variant="ghost">Ignorar</Button></Row>
         <Row label="danger"><Button variant="danger" icon="trash">Excluir</Button></Row>
+        <Row label="dangerSolid (chunky)"><Button variant="dangerSolid" icon="trash">Excluir de vez</Button></Row>
+        <Row label="chunky xs / sm / md"><Button size="xs">Mini</Button><Button size="sm">Pequeno</Button><Button size="md" icon="plus">Nova conversa</Button></Row>
       </Section>
 
       <Section title="Button — tamanhos & estados">
@@ -85,8 +88,8 @@ export function PrimitivesGallery() {
       </Section>
 
       <Section title="BrandMark">
-        <Row label="md"><BrandMark title="deck" subtitle="acesso restrito" /></Row>
-        <Row label="lg"><BrandMark title="deck" subtitle="o Claude Code da sua VPS" size="lg" /></Row>
+        <Row label="md"><BrandMark title="deck" /></Row>
+        <Row label="lg"><BrandMark title="deck" size="lg" /></Row>
         <Row label="connecting"><BrandMark title="conectar sua VPS" bitState="connecting" /></Row>
       </Section>
 

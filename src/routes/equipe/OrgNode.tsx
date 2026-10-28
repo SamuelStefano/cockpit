@@ -14,7 +14,7 @@ export function OrgNode({ view, onOpen }: OrgNodeProps) {
   return (
     <button
       type="button" onClick={() => onOpen(bot.id)} aria-label={`Abrir ${bot.name}`}
-      className="hairline relative flex w-42 flex-col items-center gap-1.5 rounded-xl border border-neutral-800 bg-neutral-900/45 px-4 pb-3 pt-3.5 text-center transition hover:border-neutral-700"
+      className="hairline relative flex w-42 flex-col items-center gap-1.5 rounded-xl border border-neutral-800 bg-neutral-900/45 px-4 pb-3 pt-3.5 text-center lift hover:border-orange-500/40"
     >
       {bot.primary && <Icon name="star" size={12} className="absolute right-2 top-2 fill-orange-500 text-orange-500" />}
       <Mascot mascot={bot.mascot} state={state} size={40} />

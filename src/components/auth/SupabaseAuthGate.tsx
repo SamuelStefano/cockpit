@@ -4,12 +4,6 @@ import { AuthFeedback } from './AuthFeedback';
 import { AuthModeTabs } from './AuthModeTabs';
 import { useAuthGateForm, type AuthGateActions } from './useAuthGateForm';
 
-const SUBTITLE = {
-  login: 'entrar na sua conta',
-  register: 'criar conta',
-  forgot: 'recuperar acesso',
-} as const;
-
 const CTA = {
   login: ['Entrar', 'Entrando…'],
   register: ['Criar conta', 'Criando conta…'],
@@ -28,7 +22,7 @@ export function SupabaseAuthGate({ auth }: { auth: AuthGateActions }) {
     <div className="flex h-full flex-1 items-center justify-center gap-12 bg-neutral-950 px-4">
       <AuthIntro />
       <form onSubmit={submit} className="w-full max-w-sm rounded-2xl border border-neutral-800 bg-neutral-900/60 p-7 shadow-2xl">
-        <BrandMark title="deck" subtitle={SUBTITLE[mode]} className="mb-5" />
+        <BrandMark title="deck" className="mb-5" />
 
         {mode === 'forgot' ? (
           <p className="mb-4 text-[12px] leading-relaxed text-neutral-500">

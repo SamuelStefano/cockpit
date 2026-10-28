@@ -8,7 +8,7 @@ const TONE: Record<string, string> = {
 export function SessionGroupHeader({ label, inset = false }: { label: string; count?: number; inset?: boolean }) {
   const box = inset ? 'px-2.5 pb-1 pt-1' : 'sticky top-0 z-1 -mx-2 bg-neutral-950 px-4.5 pb-1 pt-4';
   return (
-    <div className={`text-[12px] font-medium tracking-wide ${box} ${TONE[label] ?? 'text-neutral-600'}`}>
+    <div className={`text-[12px] font-medium tracking-wide ${box} ${TONE[label] ?? 'text-neutral-500'}`}>
       {label}
     </div>
   );
