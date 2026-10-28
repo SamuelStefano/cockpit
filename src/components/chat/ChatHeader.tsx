@@ -68,11 +68,12 @@ export function ChatHeader({ session, messages, isEmpty, contextTokens, contextM
   const reading = phoneMenu && usage ? readUsage(usage) : null;
   const usageHot = !!reading && (reading.paused || reading.warn || (reading.s.pct ?? 0) >= 85);
   const ctxHot = (ctx?.pct ?? 0) >= 85;
+  // An agent owns one bound thread (BotThread stubs onNew), so a restart control would be dead.
   const phone = phoneMenu
     ? {
         usage: reading ? { text: reading.s.pct === null ? 'Uso do plano: lendo' : `Uso do plano ${reading.s.pct}%`, hot: usageHot } : undefined,
         onTerminal, terminalOpen,
-        onRestart: ctx && ctx.pct >= 70 ? onNew : undefined,
+        onRestart: ctx && ctx.pct >= 70 && !agent ? onNew : undefined,
       }
     : undefined;
   const hasMenu = phoneMenu || !!ctx || !!turnStatParts(lastTurn) || !!ranOn || !!history || canExport || !!profile || !!agent?.pause || canRename || canDelete;
@@ -128,7 +129,7 @@ export function ChatHeader({ session, messages, isEmpty, contextTokens, contextM
         )}
         {agent?.actions}
         {teamSlot}
-        <IconButton icon="plus" label="Nova conversa" side="bottom" onClick={onNew} className="pointer-coarse:h-11 pointer-coarse:w-11" />
+        {!agent && <IconButton icon="plus" label="Nova conversa" side="bottom" onClick={onNew} className="pointer-coarse:h-11 pointer-coarse:w-11" />}
         {!fresh && moreMenu}
         {confirm}
       </div>
@@ -148,7 +149,7 @@ export function ChatHeader({ session, messages, isEmpty, contextTokens, contextM
       <div className="ml-auto flex shrink-0 items-center gap-2 pointer-coarse:gap-3">
         {agent?.actions}
         {teamSlot}
-        <ContextRing tokens={contextTokens} model={contextModel} onNew={onNew} />
+        <ContextRing tokens={contextTokens} model={contextModel} onNew={agent ? undefined : onNew} />
         {usage && <UsageDock {...usage} />}
         {terminalButton}
         {moreMenu}
