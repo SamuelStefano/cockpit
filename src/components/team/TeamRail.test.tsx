@@ -86,8 +86,12 @@ describe('TeamRail', () => {
 
   it('hover overlay starts below the header so it never covers the header buttons', () => {
     setup([view('a'), view('b')]);
-    const rail = screen.getByRole('complementary').firstElementChild as HTMLElement;
-    fireEvent.mouseEnter(rail);
+    const aside = screen.getByRole('complementary');
+    const rail = aside.querySelector('[data-open]') as HTMLElement;
+    expect(rail.className).toContain('top-12');
+    fireEvent.mouseEnter(aside);
+    expect(rail.getAttribute('data-open')).toBe('true');
+    // Same top edge open or closed: no geometry change under a pointer resting at the top.
     expect(rail.className).toContain('top-12');
   });
 });
