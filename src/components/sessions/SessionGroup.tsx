@@ -19,14 +19,14 @@ export function SessionGroup({ label, count, children }: { label: string; count:
   const rule = RULE[label];
   if (!rule) {
     return (
-      <div className="space-y-1.5">
+      <div className="space-y-0.5">
         <SessionGroupHeader label={label} count={count} />
         {children}
       </div>
     );
   }
   return (
-    <section aria-label={label} className={`space-y-1.5 border-l-2 pl-2 ${rule}`}>
+    <section aria-label={label} className={`space-y-0.5 border-l-2 pl-2 ${rule}`}>
       <SessionGroupHeader label={label} count={count} inset />
       {children}
     </section>

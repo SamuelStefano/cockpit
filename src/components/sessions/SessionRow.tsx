@@ -40,8 +40,8 @@ export function SessionRow({ s, active, running, stalled, updated, runStart, pin
       ref={rowRef}
       onClick={() => { if (consumeTap()) return; onSelect(s.id); }}
       {...handlers}
-      className={`row-in group relative flex h-[34px] cursor-pointer items-center gap-1 rounded-lg px-2 transition-colors duration-150 outline-hidden has-[[data-row-select]:focus-visible]:ring-2 has-[[data-row-select]:focus-visible]:ring-orange-500/40 pointer-coarse:h-11 pointer-coarse:select-none pointer-coarse:[-webkit-touch-callout:none]
-        ${active ? 'bg-neutral-800/80' : 'hover:bg-neutral-800/50'}`}
+      className={`row-in group relative flex h-9 cursor-pointer items-center gap-1 rounded-lg px-2.5 transition-colors duration-150 outline-hidden has-[[data-row-select]:focus-visible]:ring-2 has-[[data-row-select]:focus-visible]:ring-orange-500/40 pointer-coarse:h-11 pointer-coarse:select-none pointer-coarse:[-webkit-touch-callout:none]
+        ${active ? 'bg-neutral-800 before:absolute before:inset-y-2 before:left-0 before:w-0.5 before:rounded-full before:bg-orange-500' : 'hover:bg-neutral-800/70'}`}
     >
       {editing ? (
         <InlineEdit
@@ -55,11 +55,14 @@ export function SessionRow({ s, active, running, stalled, updated, runStart, pin
           type="button"
           data-row-select=""
           aria-current={active ? 'true' : undefined}
-          className={`flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-left text-[13px] outline-hidden ${active ? 'text-neutral-50' : 'text-neutral-300 group-hover:text-neutral-100'}`}
+          className={`flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-left text-[13px] outline-hidden ${active ? 'font-medium text-neutral-50' : 'text-neutral-300 group-hover:text-neutral-100'}`}
         >
           {dot && <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${dot}`} title={status?.title ?? 'Novo output desde a última vez que você abriu'} />}
-          <span className="line-clamp-2 break-words">{s.title}</span>
+          <span className="truncate" title={s.title}>{s.title}</span>
         </button>
+      )}
+      {!editing && s.relative && (
+        <span className="shrink-0 text-[11px] tabular-nums text-neutral-500 transition-opacity sm:pointer-fine:group-hover:opacity-0" data-row-meta="">{s.relative}</span>
       )}
       {!editing && (
         <SessionRowActions
