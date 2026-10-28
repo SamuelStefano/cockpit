@@ -7,12 +7,12 @@ import { roleRedirect } from '../../components/chrome/nav-routes';
 
 vi.mock('../AdminAgents', () => ({ AdminAgents: ({ isRoot }: { isRoot: boolean }) => <div>agents-panel root={String(isRoot)}</div> }));
 vi.mock('../AdminModels', () => ({ AdminModels: () => <div>models-panel</div> }));
-vi.mock('../AdminDflMcps', () => ({ AdminDflMcps: () => <div>mcps-panel</div> }));
+vi.mock('../AdminMcps', () => ({ AdminMcps: () => <div>mcps-panel</div> }));
 
 afterEach(cleanup);
 
-const manage = { agents: {}, dflMcps: {}, term: {}, models: [], isRoot: false, onOpenAgentChat: vi.fn() } as unknown as ManageProps;
-const conn = { connected: true, items: [], loaded: true, bots: [], dflMcpsState: null, dflMcpsBusy: false, onGet: vi.fn(), onToolAdd: vi.fn(), onGo: vi.fn() };
+const manage = { agents: {}, onMcpsGet: vi.fn(), term: {}, models: [], isRoot: false, onOpenAgentChat: vi.fn() } as unknown as ManageProps;
+const conn = { connected: true, items: [], loaded: true, bots: [], mcpsState: null, mcpsBusy: false, onGet: vi.fn(), onGo: vi.fn() };
 
 describe('Conexões manage panels', () => {
   it('provider panels stay closed until opened, then show agents and models', () => {
@@ -23,7 +23,7 @@ describe('Conexões manage panels', () => {
     expect(screen.getByText('models-panel')).toBeTruthy();
   });
 
-  it('tool panel opens the MCP admin', () => {
+  it('tool panel opens the MCP login panel', () => {
     render(<ManageTools {...manage} />);
     fireEvent.click(screen.getByRole('button', { name: 'Gerenciar ferramentas' }));
     expect(screen.getByText('mcps-panel')).toBeTruthy();

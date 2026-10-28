@@ -133,10 +133,10 @@ export function RouteContent({ route, agentRoute, skillRoute, isMobile, isAdmin,
       );
     }
     if (route === '/conexoes' && isAdmin) {
-      const manage = { agents: c.agents, dflMcps: c, term: c.term, models: c.models, isRoot, onOpenAgentChat };
+      const manage = { agents: c.agents, onMcpsGet: c.onMcpsGet, term: c.term, models: c.models, isRoot, onOpenAgentChat };
       return (
         <Conexoes connected={connected} items={c.connections} loaded={c.connectionsLoaded} bots={c.bots}
-          dflMcpsState={c.dflMcps} dflMcpsBusy={c.dflMcpsBusy} onGet={c.onConnectionsGet} onToolAdd={c.onDflMcpsAdd} onGo={navigateTo}
+          mcpsState={c.mcps} mcpsBusy={c.mcpsBusy} onGet={c.onConnectionsGet} onGo={navigateTo}
           probe={{ probeResult: c.probeResult, probeBusy: c.probeBusy, onProviderProbe: c.onProviderProbe, onProviderProbeReset: c.onProviderProbeReset }}
           manage={{ provedores: <ManageProviders {...manage} />, ferramentas: <ManageTools {...manage} /> }} />
       );

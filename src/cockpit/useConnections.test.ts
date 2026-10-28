@@ -19,6 +19,6 @@ describe('useConnections', () => {
 
   it('ignores other frames', () => {
     const { result } = renderHook(() => useConnections(() => true));
-    expect(result.current.onMsg({ t: 'dfl-mcps', state: { hosts: [], source: 'fallback' } } as never)).toBe(false);
+    expect(result.current.onMsg({ t: 'mcps', state: { servers: [] } } as never)).toBe(false);
   });
 });

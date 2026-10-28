@@ -29,7 +29,7 @@ describe('admin-ops guards', () => {
 
 describe('validateMcpUrl (SSRF/exfil no admin-mcp-add)', () => {
   it('aceita https remoto', () => {
-    expect(validateMcpUrl('https://plans.mcp.devfellowship.com/mcp').ok).toBe(true);
+    expect(validateMcpUrl('https://notes.example.com/mcp').ok).toBe(true);
   });
 
   it('aceita http só em loopback', () => {

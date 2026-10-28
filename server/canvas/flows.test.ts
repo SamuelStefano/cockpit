@@ -277,8 +277,8 @@ describe('deliverToSession', () => {
 
   it('a flow can opt a target INTO a specific mode/mcps, but never into bypass', async () => {
     resolveThreadKeyMock.mockReturnValue(undefined);
-    await deliverToSession('sess-1', 'prompt', { bypass: true }, flow({ mode: 'acceptEdits', mcps: ['dfl-mcp'] }), 1);
-    expect(startRunMock).toHaveBeenCalledWith(expect.objectContaining({ mode: 'acceptEdits', mcps: ['dfl-mcp'], bypass: false }));
+    await deliverToSession('sess-1', 'prompt', { bypass: true }, flow({ mode: 'acceptEdits', mcps: ['notes'] }), 1);
+    expect(startRunMock).toHaveBeenCalledWith(expect.objectContaining({ mode: 'acceptEdits', mcps: ['notes'], bypass: false }));
   });
 
   it('startRun admission refused (threads never got the key): reports failure', async () => {
@@ -540,8 +540,8 @@ describe('deliverToCard reuse modes (#597 continue/fork)', () => {
     resolveThreadKeyMock.mockReturnValue(undefined);
     const card = reuseCard('continue');
     await updateBoard((b) => upsertCard(b, card));
-    await deliverToCard('card1', flow({ mode: 'acceptEdits', mcps: ['dfl-mcp'] }), 'result', 1, { bypass: true, mcps: ['everything'] });
-    expect(startRunMock).toHaveBeenCalledWith(expect.objectContaining({ mode: 'acceptEdits', mcps: ['dfl-mcp'], bypass: false }));
+    await deliverToCard('card1', flow({ mode: 'acceptEdits', mcps: ['notes'] }), 'result', 1, { bypass: true, mcps: ['everything'] });
+    expect(startRunMock).toHaveBeenCalledWith(expect.objectContaining({ mode: 'acceptEdits', mcps: ['notes'], bypass: false }));
   });
 });
 

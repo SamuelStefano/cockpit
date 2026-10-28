@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AgentView } from '../shared/agents';
-import type { DflMcpsState } from '../shared/dfl-mcps';
+import type { McpsState } from '../shared/mcps';
 import type { TeamBot } from '../shared/protocol';
 import {
   agentConnection, claudeProvider, deviceConnections, listConnections, machineConnections, mcpConnections, safeDetail,
@@ -32,18 +32,22 @@ describe('acp agents', () => {
   });
 });
 
-describe('mcp hosts', () => {
-  const host = (status: DflMcpsState['hosts'][number]['status']) => ({ host: 'work', endpoint: 'e', name: 'dfl-work', status });
+describe('mcp servers', () => {
+  const server = (status: McpsState['servers'][number]['status']) => ({ name: 'github', target: 'e', status });
   it.each([
     ['connected', 'connected'], ['needs-auth', 'expired'], ['failed', 'error'],
   ] as const)('%s -> %s', (status, state) => {
-    expect(mcpConnections({ hosts: [host(status)], source: 'manifest' })[0]).toMatchObject({ kind: 'tool', state });
+    expect(mcpConnections({ servers: [server(status)] })[0]).toMatchObject({ kind: 'tool', state });
   });
-  it('leaves out hosts that were never added', () => {
-    expect(mcpConnections({ hosts: [host('missing'), host('connected')], source: 'manifest' })).toHaveLength(1);
+  it('lists every server with id tool:<name>', () => {
+    const out = mcpConnections({ servers: [server('connected'), { ...server('failed'), name: 'notes' }] });
+    expect(out.map((c) => c.id)).toEqual(['tool:github', 'tool:notes']);
+  });
+  it('explains a server that still needs login', () => {
+    expect(mcpConnections({ servers: [server('needs-auth')] })[0]).toMatchObject({ state: 'expired', detail: 'adicionado; falta entrar com a sua conta' });
   });
   it('carries the list error as the detail', () => {
-    const [c] = mcpConnections({ hosts: [host('failed')], source: 'fallback', error: 'could not run' });
+    const [c] = mcpConnections({ servers: [server('failed')], error: 'could not run' });
     expect(c.detail).toBe('could not run');
   });
 });
@@ -82,7 +86,7 @@ describe('payload safety', () => {
     const items = await listConnections({
       team: async () => [bot('a', 'agent:grok')],
       agents: () => [agent('error', { detail: `boom ${secrets[0]} ${secrets[4]}` })],
-      mcps: async () => ({ hosts: [{ host: 'work', endpoint: 'e', name: 'dfl-work', status: 'failed', detail: secrets[1] }], source: 'manifest' }),
+      mcps: async () => ({ servers: [{ name: 'github', target: 'e', status: 'failed', detail: secrets[1] }] }),
       devices: () => [{ pub, label: 'Phone', addedAt: 'x', pin: 'cd'.repeat(32) }],
       boxes: () => [],
       claudePresent: () => true, claudeHeld: () => false, hostLabel: () => 'vps', now: () => 1,

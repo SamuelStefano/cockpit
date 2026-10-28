@@ -5,7 +5,6 @@ import type { GithubInstallation } from '../../lib/githubApp';
 interface Preset { name: string; hint: string; tone: string; text: string; ready: boolean }
 
 const PRESETS: Preset[] = [
-  { name: 'DevFellowship', hint: 'campaigns, work, studio…', tone: 'bg-orange-950 text-orange-300', text: 'DF', ready: true },
   { name: 'GitHub', hint: 'em breve', tone: 'bg-neutral-800 text-neutral-200', text: 'GH', ready: false },
   { name: 'Gmail', hint: 'em breve', tone: 'bg-rose-950 text-rose-300', text: 'M', ready: false },
   { name: 'Google Drive', hint: 'em breve', tone: 'bg-emerald-950 text-emerald-300', text: 'D', ready: false },
@@ -15,9 +14,9 @@ const PRESETS: Preset[] = [
 
 export interface GithubProps { enabled: boolean; accounts: GithubInstallation[]; busy: boolean; connect: () => void; unlink: (id: number) => void }
 
-interface Props { open: boolean; busy: boolean; onClose: () => void; onConnect: () => void; github?: GithubProps }
+interface Props { open: boolean; onClose: () => void; github?: GithubProps }
 
-export function ConnectTool({ open, busy, onClose, onConnect, github }: Props) {
+export function ConnectTool({ open, onClose, github }: Props) {
   const ghOn = !!github?.enabled;
   return (
     <Modal open={open} onClose={onClose} title="Conectar ferramenta" icon="link" maxWidth="max-w-xl">
@@ -27,7 +26,7 @@ export function ConnectTool({ open, busy, onClose, onConnect, github }: Props) {
           const isGh = p.name === 'GitHub';
           const ready = isGh ? ghOn : p.ready;
           return (
-            <button key={p.name} type="button" disabled={!ready || busy || (isGh && github?.busy)} onClick={isGh ? github?.connect : onConnect}
+            <button key={p.name} type="button" disabled={!ready || (isGh && github?.busy)} onClick={isGh ? github?.connect : undefined}
               className="flex items-center gap-2.5 rounded-xl border border-neutral-800 bg-neutral-900 p-2.5 text-left transition-colors enabled:hover:border-orange-500/40 disabled:opacity-50">
               <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[12px] font-semibold ${p.tone}`}>{p.text}</span>
               <span className="min-w-0 text-[13px] text-neutral-100">{p.name}<small className="block truncate text-[11.5px] text-neutral-500">{isGh && ghOn ? 'Conectar' : p.hint}</small></span>
@@ -37,8 +36,7 @@ export function ConnectTool({ open, busy, onClose, onConnect, github }: Props) {
       </div>
       {ghOn && github && <GithubAccounts accounts={github.accounts} busy={github.busy} onUnlink={github.unlink} />}
       <div className="mt-4 flex justify-end gap-2">
-        <Button variant="ghost" onClick={onClose}>Cancelar</Button>
-        <Button loading={busy} onClick={onConnect}>Continuar</Button>
+        <Button variant="ghost" onClick={onClose}>Fechar</Button>
       </div>
     </Modal>
   );

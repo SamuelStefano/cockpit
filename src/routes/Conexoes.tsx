@@ -17,20 +17,19 @@ import { EmptyTab } from './conexoes/EmptyTab';
 import { Notice } from './conexoes/Notice';
 import { PairDevice } from './conexoes/PairDevice';
 import {
-  itemsOf, noticeOf, problems, tabOfKind, TAB_HEAD, TAB_LABEL, toolHost, visibleTabs, type ConnTab,
+  itemsOf, noticeOf, problems, tabOfKind, TAB_HEAD, TAB_LABEL, toolName, visibleTabs, type ConnTab,
 } from './conexoes/connection-view';
 import type { RowAction } from './conexoes/connection-view';
-import { requestDflLogin } from './dfl-login-request';
+import { requestMcpLogin } from './mcp-login-request';
 
 interface Props {
   connected: boolean;
   items: Connection[];
   loaded: boolean;
   bots: TeamBot[];
-  dflMcpsState: unknown;
-  dflMcpsBusy: boolean;
+  mcpsState: unknown;
+  mcpsBusy: boolean;
   onGet: () => void;
-  onToolAdd: (hosts?: string[]) => void;
   onGo: (to: '/onboarding') => void;
   probe?: ProviderProbeView;
   manage?: { provedores?: ReactNode; ferramentas?: ReactNode };
@@ -42,7 +41,7 @@ const FOOT: Partial<Record<ConnTab, string>> = {
   maquinas: 'Outra VPS ou computador com o Deck instalado. Os agentes de cada máquina aparecem agrupados na barra lateral.',
 };
 
-export function Conexoes({ connected, items, loaded, bots, dflMcpsState, dflMcpsBusy, onGet, onToolAdd, onGo, probe, manage }: Props) {
+export function Conexoes({ connected, items, loaded, bots, mcpsState, mcpsBusy, onGet, onGo, probe, manage }: Props) {
   const [tab, setTab] = useState<ConnTab>(() => connectionsTabFromHash(location.hash) ?? 'provedores');
   const [toolOpen, setToolOpen] = useState(false);
   const [providerOpen, setProviderOpen] = useState(() => !!probe && location.hash === ADD_PROVIDER_HASH);
@@ -61,7 +60,7 @@ export function Conexoes({ connected, items, loaded, bots, dflMcpsState, dflMcps
     return () => window.removeEventListener('popstate', onPop);
   }, [probe]);
   useEffect(() => { if (connected) onGet(); }, [connected, onGet]);
-  useEffect(() => { if (dflMcpsState) onGet(); }, [dflMcpsState, onGet]);
+  useEffect(() => { if (mcpsState) onGet(); }, [mcpsState, onGet]);
   useEffect(() => { const id = setInterval(() => setNow(Date.now()), 30_000); return () => clearInterval(id); }, []);
 
   const tabs = useMemo(() => visibleTabs(items), [items]);
@@ -87,8 +86,7 @@ export function Conexoes({ connected, items, loaded, bots, dflMcpsState, dflMcps
 
   const onAction = (a: RowAction, c: Connection) => {
     if (a.kind === 'remove') { setRemoving(c); return; }
-    if (c.kind === 'tool' && a.kind === 'relogin') requestDflLogin(toolHost(c));
-    else if (c.kind === 'tool') onToolAdd([toolHost(c)]);
+    if (c.kind === 'tool' && a.kind === 'relogin') requestMcpLogin(toolName(c));
     else if (c.kind === 'provider') onGo('/onboarding');
   };
 
@@ -127,7 +125,7 @@ export function Conexoes({ connected, items, loaded, bots, dflMcpsState, dflMcps
               <span /><span>{head[0]}</span><span>{head[1]}</span><span>{head[2]}</span><span>{head[3]}</span><span />
             </div>
             {list.map((c) => (
-              <ConnectionRow key={c.id} c={c} bots={bots} now={now} busy={dflMcpsBusy}
+              <ConnectionRow key={c.id} c={c} bots={bots} now={now} busy={mcpsBusy}
                 deviceBadge={c.detail === 'esta máquina' ? 'esta' : undefined}
                 onAction={(a, row) => onAction(a, row)} canAct={c.kind !== 'device' || canRemove(c)} />
             ))}
@@ -142,7 +140,7 @@ export function Conexoes({ connected, items, loaded, bots, dflMcpsState, dflMcps
         {active === 'aparelhos' && sealed && <PairDevice link={link} />}
       </div>
       {probe && <AddProvider open={providerOpen} onClose={() => { setProviderOpen(false); if (location.hash === ADD_PROVIDER_HASH) history.replaceState(null, '', '/conexoes'); }} probe={probe} onLogin={() => onGo('/onboarding')} />}
-      <ConnectTool github={github} open={toolOpen} busy={dflMcpsBusy} onClose={() => setToolOpen(false)} onConnect={() => { onToolAdd(); setToolOpen(false); }} />
+      <ConnectTool github={github} open={toolOpen} onClose={() => setToolOpen(false)} />
       <Modal open={!!removing} onClose={() => setRemoving(null)} title="Remover aparelho?" icon="smartphone" maxWidth="max-w-sm">
         <p className="text-[13px] leading-relaxed text-neutral-400">{removing?.label} perde o acesso agora e precisa ser pareado de novo para voltar.</p>
         <div className="mt-4 flex justify-end gap-2">

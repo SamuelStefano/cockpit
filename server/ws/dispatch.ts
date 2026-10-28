@@ -47,7 +47,7 @@ import { updateClaudeCli, restartDeck } from '../deck-ops';
 import { CONFIG } from '../config';
 import { send, broadcast } from './broadcast';
 import { claudeLogin } from '../claude-login';
-import { dflMcpsState, addDflMcps } from '../dfl-mcps';
+import { mcpsState } from '../mcps';
 import { listConnections } from '../connections';
 import { probe } from '../providers';
 import { scanClaudeImport, applyClaudeImport } from '../claude-import';
@@ -997,10 +997,9 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     case 'claude-login-start': { claudeLogin.start(); return; }
     case 'claude-login-code': { claudeLogin.submitCode(msg.code); return; }
     case 'claude-login-cancel': { claudeLogin.cancel(); return; }
-    case 'dfl-mcps-get': { send(ws, { t: 'dfl-mcps', state: await dflMcpsState() }); return; }
+    case 'mcps-get': { send(ws, { t: 'mcps', state: await mcpsState() }); return; }
     case 'connections-get': { send(ws, { t: 'connections', items: await listConnections() }); return; }
     case 'provider-probe': { send(ws, { t: 'provider-probe', result: await probe(msg.endpoint, msg.key) }); return; }
-    case 'dfl-mcps-add': { send(ws, { t: 'dfl-mcps', state: await addDflMcps(msg.hosts) }); return; }
     case 'box-health-get': {
       send(ws, healthFrame(await boxHealth.refresh()));
       return;

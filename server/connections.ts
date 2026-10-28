@@ -4,11 +4,11 @@ import { join } from 'node:path';
 import type { Connection, ConnectionState } from '../shared/connections';
 import type { AgentStatus, AgentView } from '../shared/agents';
 import { agentIdOf } from '../shared/agents';
-import type { DflMcpStatus, DflMcpsState } from '../shared/dfl-mcps';
+import type { McpStatus, McpsState } from '../shared/mcps';
 import type { TeamBot } from '../shared/protocol';
 import type { BoxInfo } from '../shared/boxes';
 import { sanitizeBoxLabel } from '../shared/boxes';
-import { dflMcpsState } from './dfl-mcps';
+import { mcpsState } from './mcps';
 import { agentViews } from './agents/probe';
 import { getTeam } from './team';
 import { listDevices, type Device } from './e2e/devices';
@@ -42,11 +42,10 @@ const AGENT_STATE: Record<AgentStatus, ConnectionState> = {
   unknown: 'off',
 };
 
-const MCP_STATE: Record<DflMcpStatus, ConnectionState> = {
+const MCP_STATE: Record<McpStatus, ConnectionState> = {
   connected: 'connected',
   'needs-auth': 'expired',
   failed: 'error',
-  missing: 'off',
 };
 
 export function botsUsingAgent(bots: readonly TeamBot[], agentId: string): string[] {
@@ -68,13 +67,11 @@ export function agentConnection(a: AgentView, bots: readonly TeamBot[]): Connect
   };
 }
 
-export function mcpConnections(state: DflMcpsState): Connection[] {
+export function mcpConnections(state: McpsState): Connection[] {
   const detail = safeDetail(state.error);
-  // A host the user never added is a catalog entry, not a connection: it lives in
-  // "Gerenciar ferramentas" and would otherwise show as an unremovable row.
-  return state.hosts.filter((h) => h.status !== 'missing').map((h) => {
-    const d = state.error ? detail : h.status === 'needs-auth' ? 'adicionado; falta entrar com a sua conta' : safeDetail(h.detail);
-    return { id: `tool:${h.host}`, kind: 'tool' as const, label: h.name, state: MCP_STATE[h.status], ...(d ? { detail: d } : {}) };
+  return state.servers.map((m) => {
+    const d = state.error ? detail : m.status === 'needs-auth' ? 'adicionado; falta entrar com a sua conta' : safeDetail(m.detail);
+    return { id: `tool:${m.name}`, kind: 'tool' as const, label: m.name, state: MCP_STATE[m.status], ...(d ? { detail: d } : {}) };
   });
 }
 
@@ -101,7 +98,7 @@ export function deviceConnections(devices: readonly Device[]): Connection[] {
 }
 
 export interface ConnectionsDeps {
-  mcps?: () => Promise<DflMcpsState>;
+  mcps?: () => Promise<McpsState>;
   agents?: () => AgentView[];
   team?: () => Promise<TeamBot[]>;
   devices?: () => Device[];
@@ -118,7 +115,7 @@ async function settle<T>(p: () => Promise<T> | T, fallback: T): Promise<T> {
 
 export async function listConnections(deps: ConnectionsDeps = {}): Promise<Connection[]> {
   const bots = await settle(deps.team ?? getTeam, [] as TeamBot[]);
-  const mcps = await settle(deps.mcps ?? dflMcpsState, { hosts: [], source: 'fallback' } as DflMcpsState);
+  const mcps = await settle(deps.mcps ?? mcpsState, { servers: [] } as McpsState);
   const agents = await settle(deps.agents ?? agentViews, [] as AgentView[]);
   const devices = await settle(deps.devices ?? listDevices, [] as Device[]);
   const boxes = await settle(deps.boxes ?? (() => []), [] as readonly BoxInfo[]);
