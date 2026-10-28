@@ -17,6 +17,8 @@ import { ShortcutsHelp } from './components/ShortcutsHelp';
 import { Toaster, ConfettiHost } from './components/primitives';
 import { BoxHealthHost } from './components/health/BoxHealthHost';
 import { bitStateFor } from './components/bit/bit-state';
+import { RailChats } from './components/chrome/sidebar/RailChats';
+import { useJustDone } from './components/bit/useJustDone';
 import type { LinkState } from './components/bit/turn-bit-state';
 import { RouteContent } from './app/RouteContent';
 import { useAgentNav } from './app/useAgentNav';
@@ -121,7 +123,9 @@ function CockpitBody() {
   const keyboardOpen = useKeyboardOpen() && isMobile;
   useTabTitle(running, updated);
   const link: LinkState = conn.ws === 'connected' ? 'open' : conn.ws === 'reconnecting' ? 'connecting' : 'closed';
-  const bitState = bitStateFor({ conn: link, agentOnline, running: runningAnywhere.size > 0, thinking: phase === 'thinking' });
+  const anyRunning = runningAnywhere.size > 0;
+  const justDone = useJustDone(anyRunning);
+  const bitState = bitStateFor({ conn: link, agentOnline, running: anyRunning, thinking: phase === 'thinking', justDone });
 
   const { drawer, setDrawer, termSheet, setTermSheet, palette, setPalette, help, setHelp } = useOverlays(route);
   const [focusSignal, setFocusSignal] = useState(0);
@@ -249,6 +253,7 @@ function CockpitBody() {
             route={route} nav={nav} role={role} onNew={handleNew} onPalette={() => setPalette(true)}
             bitState={bitState} conn={conn.ws} account={account}
             sessions={<SessionsPanel {...sessionsProps} embedded />}
+            rail={<RailChats sessions={sidebarSessions} running={runningAnywhere} activeId={activeSessionId} onSelect={selectSession} />}
           />
         )}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">

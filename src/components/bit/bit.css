@@ -64,13 +64,11 @@
 .bit-working .bit-lines { animation: bitLines 0.9s linear infinite; }
 .bit-working .bit-tip { animation-duration: 0.5s; }
 
-.bit-happy { --bit-cheer-count: 2; }
-.bit-happy.bit-loop { --bit-cheer-count: infinite; }
-.bit-happy .bit-all { animation: bitHop 1.3s ease-out var(--bit-cheer-count); }
-.bit-happy .bit-shadow { transform-box: fill-box; transform-origin: center; animation: bitShadowHop 1.3s ease-out var(--bit-cheer-count); }
-.bit-happy .bit-armL { animation: bitCheerL 1.3s ease-in-out var(--bit-cheer-count); }
-.bit-happy .bit-armR { animation: bitCheer 1.3s ease-in-out var(--bit-cheer-count); }
-.bit-happy .bit-spark { animation: bitSpark 1.3s ease-out var(--bit-cheer-count) backwards; }
+.bit-happy .bit-all { animation: bitHop 1.3s ease-out infinite; }
+.bit-happy .bit-shadow { transform-box: fill-box; transform-origin: center; animation: bitShadowHop 1.3s ease-out infinite; }
+.bit-happy .bit-armL { animation: bitCheerL 1.3s ease-in-out infinite; }
+.bit-happy .bit-armR { animation: bitCheer 1.3s ease-in-out infinite; }
+.bit-happy .bit-spark { animation: bitSpark 1.3s ease-out infinite; }
 .bit-happy .bit-spark:nth-of-type(2) { animation-delay: 0.25s; }
 .bit-happy .bit-spark:nth-of-type(3) { animation-delay: 0.5s; }
 
