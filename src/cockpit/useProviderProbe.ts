@@ -10,6 +10,8 @@ export interface ProviderProbeApi {
   onMsg: (msg: ServerMsg) => boolean;
 }
 
+export type ProviderProbeView = Omit<ProviderProbeApi, 'onMsg'>;
+
 export function useProviderProbe(send: (m: ClientMsg) => boolean): ProviderProbeApi {
   const [probeResult, setResult] = useState<ProbeResult | null>(null);
   const [probeBusy, setBusy] = useState(false);
