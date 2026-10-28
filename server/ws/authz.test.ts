@@ -119,13 +119,10 @@ describe('authorize', () => {
     }
   });
 
-  it('DFL MCP onboarding: admin reads and adds, student only reads, never owner-only', () => {
-    for (const t of ['dfl-mcps-get', 'dfl-mcps-add'] as const) {
-      expect(authorize('admin', t)).toBe(true);
-      expect(ROOT_ONLY.has(t)).toBe(false);
-    }
-    expect(authorize('student', 'dfl-mcps-get')).toBe(true);
-    expect(authorize('student', 'dfl-mcps-add')).toBe(false);
+  it('MCP list: admin and student read it, never owner-only', () => {
+    expect(authorize('admin', 'mcps-get')).toBe(true);
+    expect(authorize('student', 'mcps-get')).toBe(true);
+    expect(ROOT_ONLY.has('mcps-get')).toBe(false);
   });
 
   it('connections-get is admin-only and never owner-only', () => {

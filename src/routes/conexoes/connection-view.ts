@@ -129,6 +129,6 @@ export function logoOf(label: string): { text: string; tone: string } {
   return { text, tone: LOGO_TONES[h % LOGO_TONES.length] };
 }
 
-export function toolHost(c: Connection): string {
+export function toolName(c: Connection): string {
   return c.id.startsWith('tool:') ? c.id.slice(5) : c.id;
 }

@@ -5,7 +5,7 @@
 import type { AreaBudget, AreaId, CanvasBoard, CanvasCard, CanvasFlow, CanvasFlowRun, CanvasGraph, CanvasPos, CardStatus, OrchestratorActivity, OrchestratorInfo, SessionPeek, TermStats } from './canvas';
 import type { AreaUsage } from './canvas-budget';
 import type { DflDraft, DraftOp } from './dfl-drafts';
-import type { DflMcpsState } from './dfl-mcps';
+import type { McpsState } from './mcps';
 import type { Connection } from './connections';
 import type { ProbeResult } from './provider-probe';
 import type { ClaudeImportResult, ClaudeImportScan, ImportKind } from './claude-import';
@@ -834,8 +834,7 @@ export type ClientMsg =
   | { t: 'claude-login-start' }
   | { t: 'claude-login-code'; code: string }
   | { t: 'claude-login-cancel' }
-  | { t: 'dfl-mcps-get' }
-  | { t: 'dfl-mcps-add'; hosts: string[] }
+  | { t: 'mcps-get' }
   | { t: 'connections-get' }
   // Lists the models of an OpenAI-compatible endpoint. The key is used once and never stored, logged or echoed.
   | { t: 'provider-probe'; endpoint: string; key?: string }
@@ -1101,7 +1100,7 @@ export type ServerMsg =
   | { t: 'usage-stats'; stats: UsageStats }
   | { t: 'health'; health: AdminHealth }
   | { t: 'admin-op'; ok: boolean; message: string }
-  | { t: 'dfl-mcps'; state: DflMcpsState }
+  | { t: 'mcps'; state: McpsState }
   | { t: 'connections'; items: Connection[] }
   | { t: 'provider-probe'; result: ProbeResult }
   | { t: 'claude-import'; scan: ClaudeImportScan; hint?: string; result?: ClaudeImportResult }
