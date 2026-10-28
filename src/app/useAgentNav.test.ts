@@ -39,10 +39,10 @@ describe('useAgentNav', () => {
     expect(result.current.active?.bot.id).toBe('ana01');
   });
 
-  it('lands /equipe on the primary agent', () => {
+  it('does not open any agent just because /equipe is the route', () => {
     const t = input();
     renderHook(() => useAgentNav(t, '/equipe' as Route, vi.fn()));
-    expect(t.onOpenBot).toHaveBeenCalledWith('capo1', 's-capo', 'capo1');
+    expect(t.onOpenBot).not.toHaveBeenCalled();
   });
 
   it('only toggles the profile while an agent is open', () => {

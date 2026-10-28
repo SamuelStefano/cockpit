@@ -192,7 +192,7 @@ function CockpitBody() {
       drawer={{ onClose: () => setDrawer(false) }}
     />
   ) : null;
-  const chatSurface = route === '/' || route === '/equipe';
+  const chatSurface = route === '/';
   const pageTitle = FOOTER_NAV.find((i) => i.to === route)?.label ?? NAV.find((n) => n.to === route)?.label ?? 'Deck';
 
   const gate = resolveAuthGate({ sbAuth, seal, ejectPairing, authRequired, submitToken });
