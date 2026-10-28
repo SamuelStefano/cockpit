@@ -42,7 +42,7 @@ export function Conta({ account, role }: { account: AccountProps; role: NavRole 
         <ListRow
           label={<label htmlFor="profile-name">Nome</label>}
           hint={uploadError ? <span role="alert" className="text-red-400">{uploadError}</span> : 'Aparece nas iniciais do chat'}
-          trailing={<Input id="profile-name" size="sm" className="w-44" value={name} maxLength={40} onChange={(e) => setName(e.target.value)} placeholder="Seu nome" />}
+          trailing={<span className="w-44 shrink-0"><Input id="profile-name" size="sm" value={name} maxLength={40} onChange={(e) => setName(e.target.value)} placeholder="Seu nome" /></span>}
         />
         <input ref={fileRef} type="file" accept="image/*" onChange={onFile} className="hidden" />
         <SwitchRow label="Mostrar ferramentas" hint="Bash, Read, Grep… no chat" checked={showTools} onChange={() => setShowTools((v) => !v)} />
