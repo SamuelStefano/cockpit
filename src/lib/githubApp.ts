@@ -4,7 +4,7 @@ export interface GithubInstallation { installation_id: number; account_login: st
 
 const url = (import.meta.env.VITE_SUPABASE_URL ?? '').trim().replace(/\/+$/, '');
 const anon = (import.meta.env.VITE_SUPABASE_ANON_KEY ?? '').trim();
-const slug = (import.meta.env.VITE_GITHUB_APP_SLUG ?? '').trim();
+const slug = (import.meta.env.VITE_GITHUB_APP_SLUG || 'deck-devfellowship').trim();
 
 export const GITHUB_APP_ENABLED = !!(supabase && url && anon && slug);
 export const githubInstallUrl = (s = slug): string => `https://github.com/apps/${s}/installations/new`;
