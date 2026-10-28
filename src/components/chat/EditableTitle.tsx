@@ -40,7 +40,7 @@ export function EditableTitle({ id, title, editable, onRename, startSignal = 0 }
       onClick={start}
       title="Renomear sessão"
       aria-label={`Renomear sessão: ${title}`}
-      className={`min-w-0 truncate rounded-sm px-2 py-1 text-left text-[14px] font-medium text-neutral-100 transition hover:bg-neutral-900 ${tokens.focusRing}`}
+      className={`min-w-0 truncate rounded-sm px-2 py-1 text-left text-[14px] font-medium text-neutral-100 transition hover:bg-neutral-800/60 ${tokens.focusRing}`}
     >
       {title}
     </button>

@@ -6,24 +6,41 @@ import { BoxDot } from './BoxDot';
 import { useBoxSwitcher } from './useBoxSwitcher';
 import { HealthBadge } from '../health/HealthBadge';
 
-export function BoxSwitcher({ userId }: { userId?: string }) {
+// `block` fills the phone drawer; `chip` is the quiet desktop footer control, whose menu opens upward.
+const LOOK = {
+  block: {
+    wrap: 'relative mb-2',
+    button: 'flex w-full items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-900/80 px-2.5 py-1.5 text-left text-[12.5px] text-neutral-200 transition hover:border-neutral-700',
+    label: 'min-w-0 flex-1 truncate',
+    menu: 'inset-x-0 top-full mt-1',
+  },
+  chip: {
+    wrap: 'relative',
+    button: 'flex h-6 max-w-56 items-center gap-1.5 rounded-md px-1.5 text-left text-[12px] text-neutral-500 transition hover:bg-neutral-800/60 hover:text-neutral-200 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-orange-500/40',
+    label: 'min-w-0 truncate',
+    menu: 'bottom-full left-0 mb-1 w-64',
+  },
+} as const;
+
+export function BoxSwitcher({ userId, variant = 'block' }: { userId?: string; variant?: keyof typeof LOOK }) {
   const s = useBoxSwitcher();
   useEscapeLayer(s.open, s.close);
   if (!s.visible) return null;
+  const look = LOOK[variant];
 
   return (
-    <div className="relative mb-2">
+    <div className={look.wrap}>
       <button
         type="button" onClick={() => s.setOpen(!s.open)} aria-haspopup="menu" aria-expanded={s.open} aria-label="Trocar de máquina"
-        className="flex w-full items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-900/80 px-2.5 py-1.5 text-left text-[12.5px] text-neutral-200 transition hover:border-neutral-700"
+        className={look.button}
       >
         <BoxDot online={s.current?.online ?? false} />
-        <span className="min-w-0 flex-1 truncate">{s.current ? boxLabel(s.current) : 'Máquina'}</span>
+        <span className={look.label}>{s.current ? boxLabel(s.current) : 'Máquina'}</span>
         {s.active && s.levelOf(s.active) !== 'ok' && <HealthBadge level={s.levelOf(s.active)} />}
-        <Icon name="chevronDown" size={14} className="shrink-0 text-neutral-500" />
+        <Icon name={variant === 'chip' ? 'chevronUp' : 'chevronDown'} size={variant === 'chip' ? 12 : 14} className="shrink-0 text-neutral-500" />
       </button>
       {s.open && (
-        <div role="menu" className="absolute inset-x-0 top-full z-50 mt-1 rounded-lg border border-neutral-800 bg-neutral-900 p-1 shadow-xl shadow-black/40">
+        <div role="menu" className={`absolute ${look.menu} z-50 rounded-lg border border-neutral-800 bg-neutral-900 p-1 shadow-xl shadow-black/40`}>
           {s.sorted.map((b) => (
             <div key={b.id} className="rounded-md px-1.5 py-1 hover:bg-neutral-800/60">
               {s.editingId === b.id ? (
