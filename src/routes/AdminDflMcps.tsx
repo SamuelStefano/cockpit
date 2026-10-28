@@ -5,6 +5,7 @@ import type { TermApi } from '../cockpit/useTerminals';
 import { AdminDflMcpRow } from './AdminDflMcpRow';
 import { AgentTerminal } from './AgentTerminal';
 import { useDflMcpLogin } from './useDflMcpLogin';
+import { useDflPanelOpen } from './useDflPanelOpen';
 
 interface AdminDflMcpsProps {
   api: Pick<DflMcps, 'dflMcps' | 'dflMcpsBusy' | 'onDflMcpsGet' | 'onDflMcpsAdd'>;
@@ -16,7 +17,16 @@ export function AdminDflMcps({ api, term }: AdminDflMcpsProps) {
   const { terminal, login } = useDflMcpLogin(term, onDflMcpsGet);
   useEffect(() => { onDflMcpsGet(); }, [onDflMcpsGet]);
 
+  const { open, show } = useDflPanelOpen(dflMcps);
   const missing = dflMcps?.hosts.filter((h) => h.status === 'missing').length ?? 0;
+  if (!open) {
+    return (
+      <div className="mb-5 flex items-center justify-between gap-2 rounded-xl border border-neutral-800 bg-neutral-900/40 p-4 hairline">
+        <p className="text-[13px] text-neutral-500">Trabalha na DevFellowship? Os servidores MCP da DFL ficam aqui.</p>
+        <Button variant="ghost" size="sm" icon="link" onClick={show}>Mostrar MCPs da DFL</Button>
+      </div>
+    );
+  }
   return (
     <div className="mb-5 flex flex-col gap-3">
       <div className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-4 hairline">
