@@ -125,4 +125,10 @@ describe('authorize', () => {
     expect(authorize('student', 'dfl-mcps-get')).toBe(true);
     expect(authorize('student', 'dfl-mcps-add')).toBe(false);
   });
+
+  it('connections-get is admin-only and never owner-only', () => {
+    expect(authorize('admin', 'connections-get')).toBe(true);
+    expect(authorize('student', 'connections-get')).toBe(false);
+    expect(ROOT_ONLY.has('connections-get')).toBe(false);
+  });
 });

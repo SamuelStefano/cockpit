@@ -6,6 +6,7 @@ import type { AreaBudget, AreaId, CanvasBoard, CanvasCard, CanvasFlow, CanvasFlo
 import type { AreaUsage } from './canvas-budget';
 import type { DflDraft, DraftOp } from './dfl-drafts';
 import type { DflMcpsState } from './dfl-mcps';
+import type { Connection } from './connections';
 import type { AgentView, AgentPreset, AgentStatus, AgentCustomField } from './agents';
 import type { TeamMessage } from './team-messages';
 import type { BoxHealth, SmokeResult } from './box-health';
@@ -811,6 +812,7 @@ export type ClientMsg =
   | { t: 'claude-login-cancel' }
   | { t: 'dfl-mcps-get' }
   | { t: 'dfl-mcps-add'; hosts: string[] }
+  | { t: 'connections-get' }
   | { t: 'admin-health' }
   // Machine health (shared/box-health.ts): a fresh report, and one tiny real prompt.
   | { t: 'box-health-get' }
@@ -1064,6 +1066,7 @@ export type ServerMsg =
   | { t: 'health'; health: AdminHealth }
   | { t: 'admin-op'; ok: boolean; message: string }
   | { t: 'dfl-mcps'; state: DflMcpsState }
+  | { t: 'connections'; items: Connection[] }
   | { t: 'accounts'; accounts: AccountSummary[] }
   | { t: 'stats'; stats: SysStats }
   | { t: 'graphs'; items: GraphMeta[] }
