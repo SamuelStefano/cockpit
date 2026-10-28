@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { Effort, MascotShape, PermMode, TeamBot, TeamBotInput, TeamProfile } from '../../../shared/protocol';
+import type { BotPermissions, Effort, MascotShape, PermMode, TeamBot, TeamBotInput, TeamProfile } from '../../../shared/protocol';
 import { newBotId, validateBotInput, wouldCycle } from '../../../shared/team';
 import { MASCOT_COLORS } from '../../components/team/mascot-shapes';
 import { isAgentModel } from '../../../shared/agents';
@@ -16,21 +16,25 @@ export interface BotDraft {
   model: string;
   mode: PermMode | '';
   effort: Effort | '';
+  permissions?: BotPermissions;
+  skills: string[];
 }
 
 // locked = what the server forces on a non-admin's bot, shown up front in the form.
 export function draftFrom(bot: TeamBot | null, count: number, locked = false): BotDraft {
   const d = baseDraft(bot, count);
-  return locked ? { ...d, profile: 'restricted', mode: 'auto', model: isAgentModel(d.model) ? '' : d.model } : d;
+  return locked ? { ...d, profile: 'restricted', mode: 'auto', model: isAgentModel(d.model) ? '' : d.model, ...(d.permissions ? { permissions: { ...d.permissions, write: false } } : {}) } : d;
 }
 
 function baseDraft(bot: TeamBot | null, count: number): BotDraft {
   if (!bot) {
-    return { name: '', label: '', instructions: '', shape: 'blob', color: MASCOT_COLORS[count % MASCOT_COLORS.length], parentId: '', primary: count === 0, profile: 'full', model: '', mode: '', effort: '' };
+    return { name: '', label: '', instructions: '', shape: 'blob', color: MASCOT_COLORS[count % MASCOT_COLORS.length], parentId: '', primary: count === 0, profile: 'full', model: '', mode: '', effort: '', skills: [] };
   }
   return {
     name: bot.name, label: bot.label, instructions: bot.instructions, shape: bot.mascot.shape, color: bot.mascot.color,
     parentId: bot.parentId ?? '', primary: !!bot.primary, profile: bot.profile, model: bot.model ?? '', mode: bot.mode ?? '', effort: bot.effort ?? '',
+    skills: bot.skills ?? [],
+    ...(bot.permissions ? { permissions: bot.permissions } : {}),
   };
 }
 
@@ -41,6 +45,8 @@ export function toInput(id: string, d: BotDraft): TeamBotInput {
   if (d.model) bot.model = d.model;
   if (d.mode) bot.mode = d.mode;
   if (d.effort) bot.effort = d.effort;
+  if (d.permissions) bot.permissions = d.permissions;
+  if (d.skills.length) bot.skills = d.skills;
   return bot;
 }
 

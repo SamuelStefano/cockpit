@@ -36,7 +36,7 @@ import {
 import { authHold, isAuthFailure, markAuthBroken, AUTH_MESSAGE } from './auth-health';
 import { threadIsMarathon, MARATHON_AUTO_RESUME_CAP } from './marathon';
 import { bindBotSession, getTeam } from '../team';
-import { botTurnParams } from '../team-prompt';
+import { botTurnParams, botDenyRules } from '../team-prompt';
 import { readMemoriesSafe } from '../memories';
 import { botThreadKey } from '../../shared/team';
 import { clearBotQuestion } from './team-pending-frames';
@@ -1415,6 +1415,7 @@ async function fireBotRoutine(cron: Cron, botId: string): Promise<CronFire> {
   if (!turn) return 'bot-gone';
   if (botLiveKey(botId, bot.sessionId)) return 'bot-busy';
   if (isAreaAdmissionBlocked(turn.resumeId, key)) return 'blocked';
+  const denied = await botDenyRules(turn);
   startRun({
     ws: null,
     sessionKey: key,
@@ -1427,6 +1428,7 @@ async function fireBotRoutine(cron: Cron, botId: string): Promise<CronFire> {
     botId,
     appendSystemPrompt: turn.appendSystemPrompt,
     profile: turn.profile,
+    ...(denied.length ? { disallowedSkills: denied } : {}),
   });
   return 'started';
 }

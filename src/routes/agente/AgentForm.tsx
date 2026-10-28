@@ -1,5 +1,5 @@
 import { useRef, useState, type ReactNode } from 'react';
-import type { ModelInfo, TeamBot, TeamBotInput } from '../../../shared/protocol';
+import type { ModelInfo, SkillMeta, TeamBot, TeamBotInput } from '../../../shared/protocol';
 import { Button, Input, Switch, tokens } from '../../components/primitives';
 import { useArmed } from '../../components/primitives/useArmed';
 import { modelOptions } from '../../components/chat/model-options';
@@ -9,6 +9,7 @@ import { MascotPicker } from '../equipe/MascotPicker';
 import { ProfileNote } from '../equipe/ProfileNote';
 import { useBotForm } from '../equipe/useBotForm';
 import { Permissions } from './Permissions';
+import { SkillPicker } from './SkillPicker';
 import { permsFromProfile, profileFromPerms, type Perms } from './permissions';
 
 const field = 'w-full rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-[13px] text-neutral-200 outline-hidden focus:border-orange-500/40';
@@ -28,19 +29,20 @@ interface AgentFormProps {
   bots: TeamBot[];
   models: ModelInfo[];
   locked: boolean;
+  skills?: SkillMeta[];
   onSave: (bot: TeamBotInput) => void;
   onSaved: (id: string) => void;
   onCancel: () => void;
   onDelete?: (id: string) => void;
 }
 
-export function AgentForm({ bot, bots, models, locked, onSave, onSaved, onCancel, onDelete }: AgentFormProps) {
+export function AgentForm({ bot, bots, models, locked, skills = [], onSave, onSaved, onCancel, onDelete }: AgentFormProps) {
   const idRef = useRef('');
   const { id, draft, set, error, submit, parents } = useBotForm(bot, bots, onSave, () => onSaved(idRef.current), locked);
   idRef.current = id;
-  const [perms, setPerms] = useState<Perms>(() => permsFromProfile(draft.profile));
+  const [perms, setPerms] = useState<Perms>(() => draft.permissions ?? permsFromProfile(draft.profile));
   const del = useArmed();
-  const changePerms = (next: Perms) => { setPerms(next); set('profile', profileFromPerms(next)); };
+  const changePerms = (next: Perms) => { setPerms(next); set('permissions', next); set('profile', profileFromPerms(next)); };
   const noAgents = draft.profile === 'restricted';
   return (
     <form className="flex flex-col gap-5" onSubmit={(e) => { e.preventDefault(); submit(); }}>
@@ -69,6 +71,11 @@ export function AgentForm({ bot, bots, models, locked, onSave, onSaved, onCancel
         <Permissions value={perms} onChange={changePerms} disabled={locked} />
         {locked && <ProfileNote profile="restricted" />}
       </Field>
+      {skills.length > 0 && (
+        <Field label="Skills" help="Sem seleção, o agente usa todas.">
+          <SkillPicker skills={skills} value={draft.skills} perms={perms} onChange={(v) => set('skills', v)} />
+        </Field>
+      )}
       <Field label="Responde a">
         <select aria-label="Chefe" value={draft.parentId} onChange={(e) => set('parentId', e.target.value)} className={field}>
           <option value="">ninguém</option>

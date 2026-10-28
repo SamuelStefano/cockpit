@@ -1,7 +1,7 @@
 import type { TeamBot } from '../../shared/protocol';
 import { botThreadKey } from '../../shared/team';
 import { botName, teamPrompt } from '../../shared/team-messages';
-import { botTurnParams } from '../team-prompt';
+import { botTurnParams, botDenyRules } from '../team-prompt';
 import { readMemoriesSafe } from '../memories';
 import { startTeamOutbox, type Delivery, type SpoolMessage } from '../team-outbox';
 import { getTeam } from '../team';
@@ -38,6 +38,7 @@ export async function deliverTeamMessage(m: SpoolMessage, team: TeamBot[]): Prom
     botId: turn.botId, appendSystemPrompt: turn.appendSystemPrompt, teamHop: m.hop,
     // Without this a restricted bot woken by a team message would run unlocked.
     profile: turn.profile,
+    ...(await botDenyRules(turn).then((d) => (d.length ? { disallowedSkills: d } : {}))),
   };
   const queueLive = (live: string): Delivery => {
     // Only the drainer's process ticks parked.json; elsewhere the in-turn queue,

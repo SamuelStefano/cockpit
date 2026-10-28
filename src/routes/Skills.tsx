@@ -3,6 +3,7 @@ import { Badge, Button, EmptyState, SkeletonCards, RouteHeader, Tabs } from '../
 import { useLoadStalled } from '../lib/useLoadStalled';
 import type { RegistryCatalog, RegistryRef, SkillMeta, TeamBot } from '../../shared/protocol';
 import type { SkillDoc } from '../useCockpit';
+import { botWithSkillToggled } from './skills/toggle-agent';
 import { SkillPage } from './skills/SkillPage';
 import { SkillsOffline } from './skills/SkillsOffline';
 import { SkillsEmpty } from './skills/SkillsEmpty';
@@ -26,6 +27,7 @@ interface Props {
   registryLoading: boolean;
   registryError: string | null;
   installing: ReadonlySet<string>;
+  onToggleAgent?: (bot: import('../../shared/protocol').TeamBotInput) => void;
   onNavigate: (id: string) => void;
   onSkillList: () => void;
   onSkillOpen: (id: string) => void;
@@ -59,7 +61,8 @@ export function Skills(p: Props) {
       <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-neutral-950">
         <div className="scroll-thin flex-1 overflow-y-auto p-4 md:p-6">
           {!connected ? <SkillsOffline /> : (
-            <SkillPage skill={skills.find((s) => s.id === skillId)} doc={p.openSkill} skillId={skillId} bots={p.bots} loaded={loaded} onBack={() => p.onNavigate('')} />
+            <SkillPage skill={skills.find((s) => s.id === skillId)} doc={p.openSkill} skillId={skillId} bots={p.bots} loaded={loaded} onBack={() => p.onNavigate('')}
+              onToggleAgent={p.onToggleAgent && ((sid, botId, on) => { const b = p.bots.find((x) => x.id === botId); if (b) p.onToggleAgent?.(botWithSkillToggled(b, skills, sid, on)); })} />
           )}
         </div>
       </div>

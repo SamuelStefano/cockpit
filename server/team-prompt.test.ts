@@ -67,6 +67,23 @@ describe('botTurnFor (fatia E)', () => {
   });
 });
 
+describe('bot access on the turn', () => {
+  it('a bot without the fields produces the same turn as before', () => {
+    const t = botTurnParams(team, 'bot-lead1');
+    expect(t).not.toHaveProperty('skills');
+    expect(t).not.toHaveProperty('permissions');
+  });
+  it('carries skills and permissions through', () => {
+    const t = botTurnParams([mk('lead1', { skills: ['a'], permissions: { read: true, write: false, net: true } })], 'bot-lead1');
+    expect(t).toMatchObject({ skills: ['a'], permissions: { write: false } });
+  });
+  it('a non-admin turn can never regain write', () => {
+    const t = botTurnFor([mk('lead1', { permissions: { read: true, write: true, net: true } })], 'bot-lead1', undefined, 'student');
+    expect(t?.permissions?.write).toBe(false);
+    expect(t?.profile).toBe('restricted');
+  });
+});
+
 describe('memory block in the bot prompt', () => {
   const mem = (agents: string[], body = 'Tom caloroso.') => ({ id: 'm1', title: 'Marca', body, agents, updatedAt: 1, updatedBy: 'user' });
 

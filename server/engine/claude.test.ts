@@ -802,3 +802,21 @@ describe('explainExit', () => {
     expect(explainExit(1, 'API Error: 500')).toBeNull();
   });
 });
+
+describe('buildArgs bot tool permissions', () => {
+  const bot = { prompt: 'x', botId: 'abcd1', profile: 'full' as const };
+  it('no deny rules: args identical to a turn without the fields', () => {
+    expect(argsOf({ ...bot, disallowedSkills: [] })).toEqual(argsOf(bot));
+    expect(valAfter(argsOf(bot), '--disallowedTools')).toBe(valAfter(argsOf({ ...bot, disallowedSkills: undefined }), '--disallowedTools'));
+  });
+  it('write off denies exactly Edit/Write/NotebookEdit/Bash', () => {
+    const deny = valAfter(argsOf({ ...bot, disallowedSkills: ['Edit', 'Write', 'NotebookEdit', 'Bash'] }), '--disallowedTools')!.split(' ');
+    expect(deny).toEqual([...new Set([...deny])].sort());
+    for (const t of ['Edit', 'Write', 'NotebookEdit', 'Bash']) expect(deny).toContain(t);
+    expect(deny).not.toContain('WebFetch');
+  });
+  it('net off denies WebFetch/WebSearch and a restricted bot keeps its own deny list', () => {
+    const deny = valAfter(argsOf({ ...bot, profile: 'restricted', disallowedSkills: ['WebFetch', 'WebSearch'] }), '--disallowedTools')!.split(' ');
+    expect(deny).toEqual(expect.arrayContaining(['WebFetch', 'WebSearch', 'Bash', 'Agent']));
+  });
+});

@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import type { ModelInfo, TeamBot, TeamBotInput } from '../../shared/protocol';
+import { useEffect, useState } from 'react';
+import type { ModelInfo, SkillMeta, TeamBot, TeamBotInput } from '../../shared/protocol';
 import { EmptyState, SkeletonCards, Tabs, toast, type TabItem } from '../components/primitives';
 import type { TermApi } from '../cockpit/useTerminals';
 import type { AgentTab } from '../useRoute';
@@ -18,6 +18,8 @@ export interface AgentePageApi extends CronApi, BotFilesApi, BotComputerApi {
   bots: TeamBot[];
   models: ModelInfo[];
   teamLoaded: boolean;
+  skills?: SkillMeta[];
+  onSkillList?: () => void;
   term: TermApi;
   onTeamSave: (bot: TeamBotInput) => void;
   onTeamDelete: (id: string) => void;
@@ -43,6 +45,8 @@ function RoutinesTab({ botId, api, connected }: { botId: string; api: CronApi; c
 
 export function Agente({ agentId, tab, views, api, connected, isAdmin, isMobile, onTab, onList, onChat }: AgenteProps) {
   const [formKey, setFormKey] = useState(0);
+  const { onSkillList } = api;
+  useEffect(() => { if (connected && agentId) onSkillList?.(); }, [connected, agentId, onSkillList]);
   const shell = (children: React.ReactNode) => (
     <div className="scroll-thin min-h-0 flex-1 overflow-y-auto">
       <div className="mx-auto w-full max-w-240 px-4 pb-8 pt-6 sm:px-8">{children}</div>
@@ -53,7 +57,7 @@ export function Agente({ agentId, tab, views, api, connected, isAdmin, isMobile,
     return shell(
       <div className="max-w-95">
         <h1 className="pb-5 text-[22px] font-semibold tracking-[-0.02em] text-neutral-100">Novo agente</h1>
-        <AgentForm bot={null} bots={api.bots} models={api.models} locked={!isAdmin} onSave={api.onTeamSave}
+        <AgentForm bot={null} bots={api.bots} models={api.models} skills={api.skills} locked={!isAdmin} onSave={api.onTeamSave}
           onSaved={(id) => onTab(id, 'perfil')} onCancel={onList} />
       </div>,
     );
@@ -77,7 +81,7 @@ export function Agente({ agentId, tab, views, api, connected, isAdmin, isMobile,
       <Tabs items={tabs} active={tab} onChange={(t) => onTab(bot.id, t)} className="mb-6 overflow-x-auto" />
       {tab === 'perfil' && (
         <div className="max-w-95">
-          <AgentForm key={`${bot.id}:${bot.updatedAt}:${formKey}`} bot={bot} bots={api.bots} models={api.models} locked={!isAdmin}
+          <AgentForm key={`${bot.id}:${bot.updatedAt}:${formKey}`} bot={bot} bots={api.bots} models={api.models} skills={api.skills} locked={!isAdmin}
             onSave={api.onTeamSave} onSaved={() => toast('Agente salvo')} onCancel={() => setFormKey((k) => k + 1)}
             onDelete={(id) => { api.onTeamDelete(id); onList(); }} />
         </div>

@@ -24,7 +24,7 @@ import { scheduleValid } from '../../shared/cron-schedule';
 import { fireCron, type CronFire } from './runs';
 import { getTeam, saveBot, deleteBot } from '../team';
 import { getMemories, saveMemory, deleteMemory, validateMemoryInput, readMemoriesSafe } from '../memories';
-import { botTurnFor } from '../team-prompt';
+import { botTurnFor, botDenyRules } from '../team-prompt';
 import { sendTeamMessages, sendTeamPaused, setTeamPause } from './team-frames';
 import { clearBotQuestion, sendTeamPending } from './team-pending-frames';
 import { sendBotComputer, sendBotFile, sendBotFiles } from './team-files-frames';
@@ -1111,8 +1111,8 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     case 'send': {
       // Skills selecionadas pela UI viram regras de negação das NÃO-selecionadas
       // (Skill(id)). Resolvido aqui (async) e passado adiante; vazio = todas ativas.
-      const disallowedSkills = await resolveSkillDeny(msg.skills);
       const bot = botTurnFor(await getTeam(), msg.sessionKey, msg.sessionId, role, await readMemoriesSafe());
+      const disallowedSkills = [...new Set([...(await resolveSkillDeny(msg.skills)), ...(await botDenyRules(bot))])];
       // The human's next message in the bot's thread is the answer, picked or typed.
       if (bot && msg.auto !== true) clearBotQuestion(bot.botId);
       const resumeId = bot?.resumeId ?? msg.sessionId;
@@ -1242,8 +1242,8 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     // depender do browser aberto. Mesma resolução de skills do 'send'. Broadcast do
     // snapshot pra todos os aparelhos verem a fila mudar ao vivo.
     case 'queue-add': {
-      const disallowedSkills = await resolveSkillDeny(msg.skills);
       const bot = botTurnFor(await getTeam(), msg.sessionKey, msg.sessionId, role, await readMemoriesSafe());
+      const disallowedSkills = [...new Set([...(await resolveSkillDeny(msg.skills)), ...(await botDenyRules(bot))])];
       const r = addParked(msg.sessionKey, {
         prompt: msg.text,
         resumeId: bot?.resumeId ?? msg.sessionId,
