@@ -8,6 +8,10 @@
 // GITHUB_APP_PRIVATE_KEY must be PKCS#8 (WebCrypto cannot import PKCS#1). GitHub
 // issues PKCS#1 ("BEGIN RSA PRIVATE KEY"), so convert before setting the secret:
 //   openssl pkcs8 -topk8 -nocrypt -in github-key.pem -out github-key-pkcs8.pem
+//
+// Deploy with --no-verify-jwt: /token is called by boxes that hold no Supabase JWT
+// (they sign with their Ed25519 identity). User routes validate the JWT themselves.
+//   supabase functions deploy github-app --project-ref ikxtdssxmcgipyfpwmar --no-verify-jwt
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import {
   TOKEN_PERMISSIONS,
