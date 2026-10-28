@@ -104,6 +104,7 @@ export function createRelay(cfg: RelayConfig) {
   const revision = cfg.revision ?? 'unknown';
   const opsSecret = cfg.opsToken || cfg.statusToken;
   const telemetryThrottle = slidingWindow(30, 60_000);
+  const telemetryGlobal = slidingWindow(600, 60_000);
   const originHost = (o: string | undefined): string => {
     if (!o) return 'none';
     try { return new URL(o).host.replace(/[^A-Za-z0-9.:-]/g, '?').slice(0, 60); } catch { return 'invalid'; }
@@ -211,7 +212,7 @@ export function createRelay(cfg: RelayConfig) {
   const handleTelemetry = (req: IncomingMessage, res: import('node:http').ServerResponse) => {
     const end = (code: number) => { if (!res.headersSent) { res.writeHead(code); res.end(); } };
     if (!originAllowed(origins, req.headers.origin)) { end(403); return; }
-    if (!telemetryThrottle(clientIp(req))) { end(429); return; }
+    if (!telemetryThrottle(clientIp(req)) || !telemetryGlobal('all')) { end(429); return; }
     const MAX = 2048;
     const declared = Number(req.headers['content-length']);
     if (Number.isFinite(declared) && declared > MAX) { end(413); req.resume(); return; }
