@@ -1,0 +1,16 @@
+[Unit]
+Description=Deck triage: diag reports -> checks -> Telegram
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/cockpit
+ExecStart=/usr/bin/node scripts/deck-triage/main.ts
+Restart=always
+RestartSec=10
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+MemoryMax=300M
+
+[Install]
+WantedBy=default.target
