@@ -110,7 +110,7 @@ export function ChatHeader({ session, messages, isEmpty, contextTokens, contextM
         ) : fresh ? (
           <span className="min-w-0 flex-1 truncate text-[15px] font-medium text-neutral-100">Deck</span>
         ) : (
-          <div className="min-w-0 flex-1"><EditableTitle id={session?.id} title={title} editable={saved} onRename={onRename} startSignal={renameSignal} /></div>
+          <div className="min-w-0 flex-1 overflow-hidden"><EditableTitle id={session?.id} title={title} editable={saved} onRename={onRename} startSignal={renameSignal} /></div>
         )}
         {agent?.actions}
         {usage && <UsageDock {...usage} />}
