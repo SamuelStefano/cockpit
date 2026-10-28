@@ -15,8 +15,6 @@ import { interleaveByTime } from './chat/interleave';
 import type { ShownMessage } from './chat/shown';
 import { useCompacting } from './chat/useCompacting';
 import { TurnBanners } from './chat/TurnBanners';
-import { ClaudeAuthBanner } from './chat/ClaudeAuthBanner';
-import { ProviderOnboarding } from './chat/ProviderOnboarding';
 import { OrchestratorSessionBanner } from './chat/OrchestratorSessionBanner';
 import { isOrchestratorSession } from './chat/orchestrator-banner';
 import { SaturationBanner } from './chat/SaturationBanner';
@@ -31,7 +29,7 @@ import { BotThreadContext, BOT_ANSWER_PLACEHOLDER } from './chat/bot-thread-cont
 
 export type { Phase };
 
-export function ChatPanel({ session, messages, phase, terminalBusy = false, draft, setDraft, onSend, onPrompt, onApproveWorkflow, onStop, mode, setMode, caps, claudeReady = true, claudeLogin, agents, onClaudeLoginStart, onClaudeLoginCode, onClaudeLoginCancel, bypass, setBypass, model, setModel, modelLocked, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, slashCommands, contextTokens, contextModel = null, sendCost, liveTurnTokens, turnStartedAt, bgAgents, lastTurn, lastEnd, onNew, onHandoff, handoffBusy = false, attachments, onUpload, onRemoveAttachment, attPreview = null, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser, onQuote, onMemorize, onRename, onDelete, onOpenFull, onLoadOlder, onOpenSummary, truncated, onShowHelp, focusSignal = 0, onTerminal, terminalRunning, isMobile = false, onMenu, keyboardOpen = false, quotaPaused = false, quotaResetsAt = null, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueReleaseAt = 0, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce, resumeOffer = null, resumeRun, orchestratorSessionId, turnStatus, botDecor, conn, call }: ChatPanelProps) {
+export function ChatPanel({ session, messages, phase, terminalBusy = false, draft, setDraft, onSend, onPrompt, onApproveWorkflow, onStop, mode, setMode, caps, claudeReady = true, bypass, setBypass, model, setModel, modelLocked, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, slashCommands, contextTokens, contextModel = null, sendCost, liveTurnTokens, turnStartedAt, bgAgents, lastTurn, lastEnd, onNew, onHandoff, handoffBusy = false, attachments, onUpload, onRemoveAttachment, attPreview = null, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser, onQuote, onMemorize, onRename, onDelete, onOpenFull, onLoadOlder, onOpenSummary, truncated, onShowHelp, focusSignal = 0, onTerminal, terminalRunning, isMobile = false, onMenu, keyboardOpen = false, quotaPaused = false, quotaResetsAt = null, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueReleaseAt = 0, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce, resumeOffer = null, resumeRun, orchestratorSessionId, turnStatus, botDecor, conn, call }: ChatPanelProps) {
   const c = useChatPanel({ session, messages, phase, models, model, lastEnd, onSend, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queueRetry, queueRunBg, queueRunNow });
   // Modo iterativo: um refino pedido de dentro de um live preview vira o próximo
   // prompt (o card não tem acesso ao compositor — publica no [[refine-bus]]).
@@ -94,15 +92,12 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, draf
         agent={botDecor && { name: botDecor.name, avatar: botDecor.avatar, ...botDecor.header }}
       />
 
-      {!claudeReady && !isAgentModel(model) && (agents
-        ? <ProviderOnboarding agents={agents} claudeReady={claudeReady} login={claudeLogin} onStart={onClaudeLoginStart} onCode={onClaudeLoginCode} onCancel={onClaudeLoginCancel} />
-        : <ClaudeAuthBanner login={claudeLogin} onStart={onClaudeLoginStart} onCode={onClaudeLoginCode} onCancel={onClaudeLoginCancel} />)}
       {isOrchestratorSession(session?.id, orchestratorSessionId) && <OrchestratorSessionBanner />}
 
       {/* Wrapper relativo: as afordâncias de scroll ancoram no fim da ÁREA DE
           SCROLL, não do painel — antes (bottom fixo no painel) um composer alto
           engolia os botões pra dentro do input. */}
-      {hero ? <ChatEmpty onPrompt={onPrompt} onSeed={setDraft}>{composer}</ChatEmpty> : (
+      {hero ? <ChatEmpty onPrompt={onPrompt} onSeed={setDraft} needsProvider={!claudeReady && !isAgentModel(model)}>{composer}</ChatEmpty> : (
       <div className="relative flex min-h-0 flex-1 flex-col">
       <div ref={c.scrollRef} onScroll={c.onScroll} className="print-thread scroll-thin flex-1 overflow-y-auto overflow-x-hidden overscroll-contain">
         {c.isEmpty && phase === 'idle' && !botDecor?.extras.length ? (
