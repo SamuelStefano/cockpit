@@ -30,14 +30,20 @@ const HEADER: Placement = { side: 'bottom', tip: 'bottom', size: 20, box: 'h-8 w
 
 // The plan-usage ring, in the chat header: no number on screen, the reading is in the hover label and
 // the click opens the full panel plus the VPS meters (the old StatusBar).
-export function UsageDock({ usageAgent = 'claude', planUsage, planBlockedUntil = null, planReadAt = null, planNextReadAt = null, onRefreshPlanUsage, grokUsage, onRefreshGrokUsage, quotaWarn = false, quotaPaused = false, quotaResetsAt = null, stats }: UsageDockProps) {
-  const [open, setOpen] = useState(false);
+export function readUsage({ usageAgent = 'claude', planUsage, planBlockedUntil = null, planReadAt = null, planNextReadAt = null, grokUsage, quotaWarn = false, quotaPaused = false, quotaResetsAt = null }: UsageDockProps) {
   const chip = usageChip(usageAgent, { usage: planUsage, blockedUntil: planBlockedUntil, readAt: planReadAt, nextReadAt: planNextReadAt }, grokUsage);
-  useOpenRefresh(open, chip.agent === 'grok' ? onRefreshGrokUsage : onRefreshPlanUsage);
   const warn = chip.gate && quotaWarn;
   const paused = chip.gate && quotaPaused;
   const gateResetAt = chip.gate ? quotaResetsAt : null;
   const s = usageSummary({ usage: chip.usage, agent: chip.agent, readAt: chip.readAt, warn, paused, quotaResetsAt: gateResetAt });
+  return { chip, warn, paused, gateResetAt, s };
+}
+
+export function UsageDock(props: UsageDockProps) {
+  const { onRefreshPlanUsage, onRefreshGrokUsage, stats } = props;
+  const [open, setOpen] = useState(false);
+  const { chip, warn, paused, gateResetAt, s } = readUsage(props);
+  useOpenRefresh(open, chip.agent === 'grok' ? onRefreshGrokUsage : onRefreshPlanUsage);
   const p = HEADER;
   const title = chip.agent === 'grok' ? 'Uso do Grok' : 'Uso do plano';
 

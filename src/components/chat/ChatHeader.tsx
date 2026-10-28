@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { IconButton, Popover } from '../primitives';
 import { ConfirmArchive } from '../sessions/ConfirmArchive';
 import { ChatHeaderCompact } from './ChatHeaderCompact';
@@ -11,7 +11,7 @@ import { ranOnOtherModel } from '../../cockpit/session-model';
 import { contextMeter, turnStatParts } from './toolbar-format';
 import type { TurnStats } from '../../../shared/protocol';
 import type { ChatAgentHeader } from './chat-panel-props';
-import { UsageDock, type UsageDockProps } from '../chrome/sidebar/UsageDock';
+import { UsageDock, readUsage, type UsageDockProps } from '../chrome/sidebar/UsageDock';
 
 export type ChatHeaderAgent = ChatAgentHeader & { name: string };
 
@@ -43,9 +43,10 @@ interface ChatHeaderProps {
   agent?: ChatHeaderAgent;
   // Phone: the single top bar owns the drawer button (☰ · title · one action).
   onMenu?: () => void;
+  teamSlot?: ReactNode;
 }
 
-export function ChatHeader({ session, messages, isEmpty, contextTokens, contextModel = null, lastTurn, onNew, fullLoaded, truncated, onOpenFull, onLoadOlder, onOpenSummary, setFullLoaded, beforeGrow, onTerminal, terminalRunning, terminalOpen = false, usage, onRename, onDelete, keyboardOpen = false, selectedModel, agent, onMenu }: ChatHeaderProps) {
+export function ChatHeader({ session, messages, isEmpty, contextTokens, contextModel = null, lastTurn, onNew, fullLoaded, truncated, onOpenFull, onLoadOlder, onOpenSummary, setFullLoaded, beforeGrow, onTerminal, terminalRunning, terminalOpen = false, usage, onRename, onDelete, keyboardOpen = false, selectedModel, agent, onMenu, teamSlot }: ChatHeaderProps) {
   const menu = useHeaderMenu();
   const [renameSignal, setRenameSignal] = useState(0);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -62,7 +63,18 @@ export function ChatHeader({ session, messages, isEmpty, contextTokens, contextM
   const canRename = saved && !agent && !!onRename;
   const canDelete = saved && !agent && !!onDelete;
   const ctx = contextMeter(contextTokens, contextModel);
-  const hasMenu = !!ctx || !!turnStatParts(lastTurn) || !!ranOn || !!history || canExport || !!profile || !!agent?.pause || canRename || canDelete;
+  const phoneMenu = !!onMenu;
+  const reading = phoneMenu && usage ? readUsage(usage) : null;
+  const usageHot = !!reading && (reading.paused || reading.warn || (reading.s.pct ?? 0) >= 85);
+  const ctxHot = (ctx?.pct ?? 0) >= 85;
+  const phone = phoneMenu
+    ? {
+        usage: reading ? { text: reading.s.pct === null ? 'Uso do plano: lendo' : `Uso do plano ${reading.s.pct}%`, hot: usageHot } : undefined,
+        onTerminal, terminalOpen,
+        onRestart: ctx && ctx.pct >= 70 ? onNew : undefined,
+      }
+    : undefined;
+  const hasMenu = phoneMenu || !!ctx || !!turnStatParts(lastTurn) || !!ranOn || !!history || canExport || !!profile || !!agent?.pause || canRename || canDelete;
 
   const moreMenu = hasMenu && (
     <Popover
@@ -70,7 +82,7 @@ export function ChatHeader({ session, messages, isEmpty, contextTokens, contextM
       content={
         <ChatHeaderMenu
           title={session?.title || 'sessao'} messages={messages} lastTurn={lastTurn} ranOn={ranOn}
-          selectedModel={selectedModel} history={history} canExport={canExport} profile={profile} pause={agent?.pause} onDone={menu.close}
+          selectedModel={selectedModel} history={history} canExport={canExport} profile={profile} pause={agent?.pause} onDone={menu.close} phone={phone}
           contextPct={ctx?.pct ?? null} onRename={canRename ? () => setRenameSignal((n) => n + 1) : undefined}
           onDelete={canDelete ? () => setConfirmDelete(true) : undefined}
         />
@@ -78,6 +90,7 @@ export function ChatHeader({ session, messages, isEmpty, contextTokens, contextM
     >
       <span className="relative inline-flex">
         <IconButton icon="ellipsis" label="Mais ações da conversa" side="bottom" aria-expanded={menu.open} aria-haspopup="dialog" onClick={menu.toggle} />
+        {(ctxHot || usageHot) && phoneMenu && <span aria-hidden className="pointer-events-none absolute right-1 top-1 h-2 w-2 rounded-full bg-red-400 ring-2 ring-neutral-950" />}
       </span>
     </Popover>
   );
@@ -103,20 +116,19 @@ export function ChatHeader({ session, messages, isEmpty, contextTokens, contextM
       <div className="flex h-[52px] shrink-0 items-center gap-1 px-2">
         <IconButton icon="menu" label="Menu" side="bottom" onClick={onMenu} className="pointer-coarse:h-11 pointer-coarse:w-11" />
         {agent ? (
-          <span className="flex min-w-0 flex-1 items-center gap-2">
+          <span className="flex min-w-[40%] flex-1 items-center gap-2">
             {agent.avatar}
             <span className="truncate text-[15px] font-medium text-neutral-100">{agent.name}</span>
           </span>
         ) : fresh ? (
           <span className="min-w-0 flex-1 truncate text-[15px] font-medium text-neutral-100">Deck</span>
         ) : (
-          <div className="min-w-0 flex-1 overflow-hidden"><EditableTitle id={session?.id} title={title} editable={saved} onRename={onRename} startSignal={renameSignal} /></div>
+          <div className="min-w-[40%] flex-1 overflow-hidden"><EditableTitle id={session?.id} title={title} editable={saved} onRename={onRename} startSignal={renameSignal} /></div>
         )}
         {agent?.actions}
-        {usage && <UsageDock {...usage} />}
-        {terminalButton}
-        {!fresh && <ContextRing tokens={contextTokens} model={contextModel} />}
-        {fresh ? <IconButton icon="plus" label="Nova conversa" side="bottom" onClick={onNew} className="pointer-coarse:h-11 pointer-coarse:w-11" /> : moreMenu}
+        {teamSlot}
+        <IconButton icon="plus" label="Nova conversa" side="bottom" onClick={onNew} className="pointer-coarse:h-11 pointer-coarse:w-11" />
+        {!fresh && moreMenu}
         {confirm}
       </div>
     );
@@ -134,6 +146,7 @@ export function ChatHeader({ session, messages, isEmpty, contextTokens, contextM
       )}
       <div className="ml-auto flex shrink-0 items-center gap-2 pointer-coarse:gap-3">
         {agent?.actions}
+        {teamSlot}
         <ContextRing tokens={contextTokens} model={contextModel} onNew={onNew} />
         {usage && <UsageDock {...usage} />}
         {terminalButton}

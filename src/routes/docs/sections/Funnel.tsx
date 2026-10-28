@@ -7,7 +7,7 @@ export function Funnel() {
         desc="A lista de sessões cresce sozinha e vira ruído. O botão Afunilar manda um agente ler as sessões que ninguém reabre, destilar tudo num contexto só e então arquivá-las — o que importava fica, a rolagem some." />
       <div className="grid gap-3 sm:grid-cols-2">
         <InfoCard icon="sparkles" iconClass="text-orange-300" title="Onde fica">
-          Abaixo de <span className="font-medium text-neutral-300">Nova sessão</span>, no painel de sessões — e só aparece quando há
+          Abaixo de <span className="font-medium text-neutral-300">Nova conversa</span>, no painel de conversas — e só aparece quando há
           pelo menos 3 candidatas. O rótulo já diz quantas: "Afunilar 12 paradas".
         </InfoCard>
         <InfoCard icon="clock" iconClass="text-sky-300" title="Quem é candidata">

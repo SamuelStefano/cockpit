@@ -30,9 +30,11 @@ interface ChatHeaderMenuProps {
   onRename?: () => void;
   onDelete?: () => void;
   onDone: () => void;
+  // Phone: the header keeps only the essentials, the rest lives here.
+  phone?: { usage?: { text: string; hot: boolean }; onTerminal?: () => void; terminalOpen?: boolean; onRestart?: () => void };
 }
 
-export function ChatHeaderMenu({ title, messages, lastTurn, ranOn, selectedModel, history, canExport, profile, pause, contextPct = null, onRename, onDelete, onDone }: ChatHeaderMenuProps) {
+export function ChatHeaderMenu({ title, messages, lastTurn, ranOn, selectedModel, history, canExport, profile, pause, contextPct = null, onRename, onDelete, onDone, phone }: ChatHeaderMenuProps) {
   const turn = turnStatParts(lastTurn);
   const turns = lastTurn?.numTurns ? ` · ${lastTurn.numTurns} turno${lastTurn.numTurns === 1 ? '' : 's'}` : '';
   const hasActions = !!onRename || canExport || !!history;
@@ -51,6 +53,14 @@ export function ChatHeaderMenu({ title, messages, lastTurn, ranOn, selectedModel
             <MenuSeparator />
           </>
         )}
+        {phone?.usage && (
+          <p className={`flex items-center gap-2.5 px-2.5 py-2 text-[13px] ${phone.usage.hot ? 'text-amber-300' : 'text-neutral-300'}`}>
+            <Icon name="clock" size={14} className="text-neutral-400" />
+            <span>{phone.usage.text}</span>
+          </p>
+        )}
+        {phone?.onRestart && <MenuItem icon="rotate" label="Recomeçar com contexto limpo" onClick={phone.onRestart} />}
+        {phone?.onTerminal && <MenuItem icon="terminal" label="Abrir terminais" aria-pressed={phone.terminalOpen} onClick={phone.onTerminal} />}
         {profile && <MenuItem icon="user" label="Perfil do agente" aria-pressed={profile.open} onClick={profile.toggle} />}
         {pause && <MenuItem icon={pause.paused ? 'play' : 'pause'} label={pause.paused ? 'Retomar agentes' : 'Pausar agentes'} aria-pressed={pause.paused} onClick={() => pause.onSet(!pause.paused)} />}
         {onRename && <MenuItem icon="pencil" label="Renomear" onClick={onRename} />}

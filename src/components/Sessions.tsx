@@ -63,9 +63,6 @@ function SessionsPanelImpl({ sessions, loading, activeId, onSelect, onNew, marat
               </button>
             )}
           </div>
-          <Button variant="outline" icon="plus" className="w-full" onClick={() => { onNew(); onCloseMobile?.(); }}>
-            Nova conversa
-          </Button>
         </div>
       )}
 

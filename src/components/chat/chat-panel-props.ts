@@ -37,6 +37,8 @@ export interface ChatPanelProps {
   call: CallApi;
   // Live line under the thread while a turn runs (Equipe's rotating bot status).
   turnStatus?: ReactNode;
+  // Header chip for the team (stack + sheet) when the rail does not fit.
+  teamSlot?: ReactNode;
   botDecor?: ChatBotDecor;
   // Link to the agent; a dead one puts the chat's Bit to sleep.
   conn?: LinkState;

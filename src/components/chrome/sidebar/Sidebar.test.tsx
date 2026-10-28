@@ -19,7 +19,7 @@ function setup(over: Partial<SidebarProps> = {}) {
 describe('Sidebar', () => {
   it('starts expanded with text labels and keeps the palette aria-label', () => {
     const p = setup();
-    expect(screen.getByRole('complementary', { name: 'Navegação principal' }).className).toContain('w-66');
+    expect(screen.getByRole('complementary', { name: 'Navegação principal' }).className).toContain('w-75');
     expect(screen.getByText('Nova conversa')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: /^Comandos \((⌘K|Ctrl\+K)\)$/ }));
     expect(p.onPalette).toHaveBeenCalledOnce();
@@ -88,21 +88,11 @@ describe('Sidebar', () => {
     expect(screen.queryByText('lista de conversas')).toBeNull();
   });
 
-  it('shows the agents section in both modes', () => {
-    const onOpen = vi.fn();
-    const views = ['ana01', 'bia02'].map((id) => ({ bot: { id, name: id.toUpperCase(), mascot: { shape: 'drop', color: '#fff' } }, key: id, preview: '', unread: false, state: 'idle' })) as never;
-    setup({ agents: { views, activeId: null, onOpen, onNew: vi.fn() } });
-    fireEvent.click(screen.getByRole('button', { name: 'BIA02' }));
-    expect(onOpen).toHaveBeenCalledWith('bia02');
-    fireEvent.click(screen.getByRole('button', { name: 'Recolher barra lateral' }));
-    expect(screen.getByRole('button', { name: 'ANA01' })).toBeTruthy();
-  });
-
   it('drawer mode stays expanded, fills its container and the header button closes it', () => {
     const onClose = vi.fn();
     setup({ drawer: { onClose } });
     expect(screen.getByRole('complementary').className).toContain('w-full');
-    expect(screen.getByText('Nova conversa')).toBeTruthy();
+    expect(screen.queryByText('Nova conversa')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Recolher barra lateral' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Fechar menu' }));
     expect(onClose).toHaveBeenCalledOnce();

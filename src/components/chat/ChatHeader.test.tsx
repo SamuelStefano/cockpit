@@ -57,9 +57,9 @@ describe('ChatHeader', () => {
     expect(screen.getAllByLabelText('Abrir terminais')).toHaveLength(1);
   });
 
-  it('always renders the context ring and nova sessão, even with no context yet', () => {
+  it('always renders the context ring, and the clean-context action only near the limit', () => {
     setup({ contextTokens: 0 });
-    expect(screen.getByRole('button', { name: /nova sessão/ })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Recomeçar com contexto limpo' })).toBeNull();
     expect(screen.getByLabelText(/^Contexto da conversa: 0%/)).toBeTruthy();
   });
 
@@ -94,7 +94,7 @@ describe('ChatHeader', () => {
   it('surfaces the new-session action over the context limit', () => {
     const onNew = vi.fn();
     setup({ contextTokens: 900_000, contextModel: 'claude-opus-4-8', onNew });
-    fireEvent.click(screen.getByText('nova sessão'));
+    fireEvent.click(screen.getByRole('button', { name: 'Recomeçar com contexto limpo' }));
     expect(onNew).toHaveBeenCalledTimes(1);
   });
 
@@ -127,13 +127,15 @@ describe('ChatHeader', () => {
 describe('ChatHeader phone bar', () => {
   const base = { session: { id: 's1', title: 'Relatório' } as never, messages: [], isEmpty: false, isMobile: true, contextTokens: 0, onNew: vi.fn(), fullLoaded: false, setFullLoaded: vi.fn() };
 
-  it('shows ☰ · title · one "…" action, the terminal button, no "…" duplicate', () => {
+  it('shows ☰ · title · "+" · one "…" menu that holds the terminal row', () => {
     const onMenu = vi.fn();
     render(<ChatHeader {...base} onMenu={onMenu} onTerminal={vi.fn()} />);
     fireEvent.click(screen.getByRole('button', { name: 'Menu' }));
     expect(onMenu).toHaveBeenCalledOnce();
     expect(screen.getByRole('button', { name: 'Mais ações da conversa' })).toBeTruthy();
-    expect(screen.getAllByRole('button', { name: 'Abrir terminais' })).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: 'Abrir terminais' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Mais ações da conversa' }));
+    expect(screen.getAllByRole('menuitem', { name: 'Abrir terminais' })).toHaveLength(1);
   });
 
   it('on a fresh chat the action is "+" and the title is Deck', () => {
