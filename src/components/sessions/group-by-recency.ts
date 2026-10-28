@@ -24,12 +24,12 @@ export function groupByRecency(list: Session[], { now, pinned, running, dismisse
   const buckets: { label: string; items: Session[] }[] = [
     { label: RUNNING_LABEL, items: [] },
     { label: WAITING_LABEL, items: [] },
-    { label: 'Fixadas', items: [] },
+    { label: 'Fixados', items: [] },
     { label: 'Hoje', items: [] },
     { label: 'Ontem', items: [] },
-    { label: '7 dias', items: [] },
-    { label: '30 dias', items: [] },
-    { label: 'Anteriores', items: [] },
+    { label: 'Últimos 7 dias', items: [] },
+    { label: 'Últimos 30 dias', items: [] },
+    { label: 'Mais antigos', items: [] },
   ];
   for (const s of list) {
     // Rodando vence "aguardando": o turno voltou a andar, a pergunta de antes já

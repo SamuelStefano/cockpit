@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Bit } from '../bit/Bit';
+import { Icon, type IconName } from '../primitives';
 import { isVirtualKeyboardOnly } from './touch';
 import { navigateTo } from '../../lib/route-nav';
 import { DECK_GUIDE_PROMPT } from '../../lib/deck-guide-prompt';
@@ -21,14 +21,16 @@ const FALLBACK_SUGGESTIONS = [
   'Revisar um texto que vou colar',
 ];
 
+const SUGGESTION_ICONS: IconName[] = ['clipboard', 'pencil', 'eye'];
+
 export function ChatEmpty({ onPrompt, onSeed, suggestions = FALLBACK_SUGGESTIONS, children, needsProvider = false }: ChatEmptyProps) {
   const pick = (text: string) => (onSeed && isVirtualKeyboardOnly() ? onSeed(text) : onPrompt(text));
   return (
-    <div className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto px-3 pb-10 text-center">
-      <Bit state="wave" size={72} className="fade-up mb-5" />
-      <h2 className="fade-up mb-6 px-3 text-[26px] font-semibold tracking-tight text-neutral-100 pointer-coarse:text-[22px]">Em que vamos trabalhar?</h2>
+    <div className="flex min-h-0 flex-1 flex-col items-center overflow-y-auto px-3 pb-10">
+      <div className="min-h-6 flex-[6]" />
+      <h2 className="fade-up mb-7 px-3 text-center text-[28px] font-normal tracking-tight text-neutral-100 pointer-coarse:text-[24px]">O que vamos trabalhar hoje?</h2>
       {needsProvider && (
-        <p className="fade-up -mt-3 mb-5 text-[13px] text-neutral-400">
+        <p className="fade-up -mt-3 mb-5 text-center text-[13px] text-neutral-400">
           Nenhum provedor conectado ainda.{' '}
           <a
             href="/onboarding" onClick={(e) => { e.preventDefault(); navigateTo('/onboarding'); }}
@@ -39,15 +41,16 @@ export function ChatEmpty({ onPrompt, onSeed, suggestions = FALLBACK_SUGGESTIONS
         </p>
       )}
       {children && <div className="w-full">{children}</div>}
-      <div className="stagger-fade mt-2 flex max-w-[760px] flex-wrap justify-center gap-2 px-3">
-        {suggestions.slice(0, 3).map((text) => (
+      <div className="stagger-fade mt-5 flex w-full max-w-[760px] flex-col px-1">
+        {suggestions.slice(0, 3).map((text, i) => (
           <button
             key={text}
             type="button"
             onClick={() => pick(text)}
-            className="inline-flex h-8 items-center rounded-full border border-neutral-700 px-3 text-[13px] text-neutral-400 transition-colors hover:bg-neutral-800 hover:text-neutral-100 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-orange-500/40"
+            className="flex h-12 items-center gap-3.5 rounded-xl px-4 text-left text-[15px] text-neutral-400 transition-colors hover:bg-neutral-800/60 hover:text-neutral-100 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-orange-500/40"
           >
-            {text}
+            <Icon name={SUGGESTION_ICONS[i % SUGGESTION_ICONS.length]} size={16} className="shrink-0 text-neutral-500" />
+            <span className="min-w-0 truncate">{text}</span>
           </button>
         ))}
       </div>
@@ -60,6 +63,7 @@ export function ChatEmpty({ onPrompt, onSeed, suggestions = FALLBACK_SUGGESTIONS
           Pergunte ao Deck como configurar
         </button>
       )}
+      <div className="min-h-0 flex-[4]" />
     </div>
   );
 }

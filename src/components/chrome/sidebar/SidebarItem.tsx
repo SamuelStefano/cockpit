@@ -28,12 +28,12 @@ export function SidebarItem({ icon, label, onClick, expanded, active = false, ar
         aria-current={active ? 'page' : undefined}
         aria-expanded={expandedControl}
         aria-haspopup={haspopup ? 'dialog' : undefined}
-        className={`flex h-10 items-center rounded-lg text-[13px] transition pointer-coarse:h-11 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-orange-500/40
+        className={`flex h-9.5 items-center rounded-lg text-[14px] transition pointer-coarse:h-11 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-orange-500/40
           ${expanded ? 'w-full pr-2' : 'w-10'}
-          ${active ? 'bg-orange-500/15 text-orange-300' : 'text-neutral-400 hover:bg-neutral-800/70 hover:text-neutral-100'}`}
+          ${active ? 'bg-neutral-800/90 text-neutral-50' : 'text-neutral-400 hover:bg-neutral-800/50 hover:text-neutral-100'}`}
       >
-        <span className="relative flex h-10 w-10 shrink-0 items-center justify-center">
-          <Icon name={icon} size={18} />
+        <span className="relative flex h-9.5 w-10 shrink-0 items-center justify-center">
+          <Icon name={icon} size={16} />
           {!expanded && !!count && (
             <span role="img" aria-label={`${count} esperando você`} className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-orange-500 ring-2 ring-neutral-950" />
           )}

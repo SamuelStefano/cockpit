@@ -28,7 +28,7 @@ describe('groupByRecency', () => {
       ],
       opts(),
     );
-    expect(groups.map((g) => g.label)).toEqual(['Hoje', 'Ontem', '7 dias', '30 dias', 'Anteriores']);
+    expect(groups.map((g) => g.label)).toEqual(['Hoje', 'Ontem', 'Últimos 7 dias', 'Últimos 30 dias', 'Mais antigos']);
     expect(groups.map((g) => g.items.map((s) => s.id))).toEqual([['today'], ['yest'], ['week'], ['month'], ['old']]);
   });
 
@@ -40,9 +40,9 @@ describe('groupByRecency', () => {
     expect(groups).toEqual([{ label: 'Trabalhando agora', items: [session('r', startOfToday - 90 * DAY)] }]);
   });
 
-  it('puts pinned (non-running) sessions in the Fixadas bucket', () => {
+  it('puts pinned (non-running) sessions in the Fixados bucket', () => {
     const groups = groupByRecency([session('p', startOfToday + 1000)], opts({ pinned: new Set(['p']) }));
-    expect(groups.map((g) => g.label)).toEqual(['Fixadas']);
+    expect(groups.map((g) => g.label)).toEqual(['Fixados']);
   });
 
   it('prefers running over pinned when a session is both', () => {
@@ -95,16 +95,16 @@ describe('groupByRecency', () => {
       [{ ...session('velha', now - WAITING_WINDOW_MS - 60_000), waiting: true }],
       opts(),
     );
-    expect(groups.map((g) => g.label)).toEqual(['7 dias']);
+    expect(groups.map((g) => g.label)).toEqual(['Últimos 7 dias']);
     expect(groups[0].items.map((s) => s.id)).toEqual(['velha']);
   });
 
-  it('pergunta velha fixada volta a cair em Fixadas', () => {
+  it('pergunta velha fixada volta a cair em Fixados', () => {
     const groups = groupByRecency(
       [{ ...session('velha', now - 10 * DAY), waiting: true }],
       opts({ pinned: new Set(['velha']) }),
     );
-    expect(groups.map((g) => g.label)).toEqual(['Fixadas']);
+    expect(groups.map((g) => g.label)).toEqual(['Fixados']);
   });
 
   it('não agrupa a pergunta que o usuário mandou ignorar', () => {

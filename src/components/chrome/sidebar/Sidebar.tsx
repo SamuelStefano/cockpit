@@ -51,16 +51,16 @@ export function Sidebar({ route, nav, role, navCounts, onNew, onPalette, bitStat
       </div>
 
       <div className="flex shrink-0 flex-col gap-0.5 px-2 pb-2">
-        {!drawer && <SidebarItem icon="plus" label="Nova conversa" expanded={expanded} onClick={onNew} />}
+        {!drawer && <SidebarItem icon="squarePen" label="Nova conversa" expanded={expanded} onClick={onNew} />}
         <SidebarItem
           icon="search" label="Buscar" ariaLabel={`Comandos (${k})`} tip={`Buscar · ${k}`} expanded={expanded} onClick={onPalette}
-          trailing={<kbd className="font-mono text-[12px] text-neutral-600">{k}</kbd>}
+          trailing={<kbd className="font-mono text-[12px] text-neutral-600 pointer-coarse:hidden">{k}</kbd>}
         />
       </div>
 
       <div className={`flex min-h-0 flex-1 flex-col ${list ? '' : 'scroll-thin overflow-y-auto'}`}>
         {list ? <div className="min-h-0 flex-1">{sessions}</div> : <div className="flex-1" />}
-        <div className="mx-2 shrink-0 border-t border-neutral-800/80 py-2">
+        <div className="mx-2 shrink-0 py-2">
           <SidebarNav route={route} nav={nav} role={role} counts={navCounts} expanded={expanded} />
         </div>
       </div>

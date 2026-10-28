@@ -6,23 +6,27 @@ import { SessionGroupHeader } from './SessionGroupHeader';
 afterEach(cleanup);
 
 describe('SessionGroupHeader', () => {
-  it('destaca "Aguardando você" no violeta do ponto de pergunta, com a contagem', () => {
+  it('highlights "Aguardando você" in violet, without a count', () => {
     const { container } = render(<SessionGroupHeader label="Aguardando você" count={3} />);
     expect(screen.getByText('Aguardando você')).toBeTruthy();
-    expect(screen.getByText('3')).toBeTruthy();
+    expect(screen.queryByText('3')).toBeNull();
     expect(container.querySelector('.text-violet-300')).toBeTruthy();
   });
 
-  it('no modo inset larga o sticky e as margens negativas (fica dentro do bloco)', () => {
-    const { container } = render(<SessionGroupHeader label="Aguardando você" count={1} inset />);
+  it('inset mode drops the sticky positioning and negative margins', () => {
+    const { container } = render(<SessionGroupHeader label="Aguardando você" inset />);
     const head = container.firstElementChild as HTMLElement;
     expect(head.className).not.toContain('sticky');
-    expect(head.className).not.toContain('-mx-2.5');
+    expect(head.className).not.toContain('-mx-2');
   });
 
-  it('mantém o grupo comum em cinza, sem ícone', () => {
+  it('plain group is sentence-case neutral text: no mono, no uppercase, no rule, no icon', () => {
     const { container } = render(<SessionGroupHeader label="Hoje" count={1} />);
-    expect(container.querySelector('.text-neutral-500')).toBeTruthy();
+    const head = container.firstElementChild as HTMLElement;
+    expect(head.className).toContain('text-neutral-500');
+    expect(head.className).toContain('text-[13px]');
+    expect(head.className).not.toMatch(/font-mono|uppercase/);
     expect(container.querySelector('svg')).toBeNull();
+    expect(container.querySelector('.h-px')).toBeNull();
   });
 });
