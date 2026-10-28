@@ -28,14 +28,14 @@ describe('skits', () => {
   it('the thief stands below the line and on the side facing the middle', () => {
     expect(thiefFeet(stage)).toMatchObject({ side: 1 });
     expect(thiefFeet({ ...stage, letter: { x: 600, y: 200, h: 22 } }).side).toBe(-1);
-    expect(thiefFeet(stage).y).toBeGreaterThan(200 + stage.size * 0.5);
+    expect(thiefFeet(stage).y).toBeGreaterThan(200 + stage.size * 0.8);
   });
 
   it('the peek only ever shows its upper body over the composer', () => {
     const s = buildSkit('peek', stage);
     for (let t = 0; t <= s.duration; t += 50) {
       const f = s.actor.sample(t);
-      expect(f.y - stage.size * f.sy).toBeGreaterThan(stage.h - stage.size * 0.8);
+      expect(f.y - stage.size * f.sy).toBeGreaterThan(stage.h - stage.size * 0.95);
     }
   });
 

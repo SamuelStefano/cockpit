@@ -33,12 +33,14 @@ export interface Skit {
 const frame = (x: number, y: number, flip: 1 | -1): ActorFrame => ({ x, y, rot: 0, sx: 1, sy: 1, flip });
 const home = (l: NonNullable<Stage['letter']>): PropFrame => ({ x: l.x, y: l.y, rot: 0, s: 1, o: 1 });
 
+export const THIEF_DROP = 0.84;
+
 // The thief stands beside the word, one head below the line, so the lifted letter
 // travels up into its hands instead of through its face.
 export function thiefFeet(s: Stage): { x: number; y: number; side: 1 | -1 } {
   const l = s.letter!;
   const side: 1 | -1 = l.x > s.w / 2 ? -1 : 1;
-  return { x: l.x - side * s.size * 0.46, y: Math.min(s.h - 4, l.y + l.h / 2 + s.size * 0.6), side };
+  return { x: l.x - side * s.size * 0.46, y: Math.min(s.h - 4, l.y + l.h / 2 + s.size * THIEF_DROP), side };
 }
 
 function thief(s: Stage): Skit {
@@ -62,7 +64,7 @@ function thief(s: Stage): Skit {
   const put = a.duration - 340;
   a.hold(260).cue({ face: 'wave', pose: '' }).hold(700)
     .cue({ face: 'happy', pose: 'bit-walking' }).move(enterX, RUN * 0.7);
-  const letter = new PropTrack(home(l), { actor: a, size: s.size })
+  const letter = new PropTrack(home(l), { actor: a, size: s.size, heldScale: 1.7 })
     .holdUntil(grab).lift(380).carry(trip).toss(560, 70, 2).carry(trip + 560 + 60)
     .toss(360, 42).toss(360, 42, -1).carry(put).place(home(l), 400).holdUntil(a.duration);
   return { id: 'thief', duration: a.duration, actor: a, letter };
@@ -71,7 +73,7 @@ function thief(s: Stage): Skit {
 function peek(s: Stage): Skit {
   const x = Math.min(s.w - s.size, Math.max(s.size, s.w * 0.62));
   const hidden = s.h + s.size * 1.05;
-  const up = s.h + s.size * 0.42;
+  const up = s.h + s.size * 0.24;
   const a = new ActorTrack(frame(x, hidden, -1));
   a.cue({ face: 'idle', pose: '' }).hold(200).tween({ y: up + 14 }, 500, easeOut)
     .cue({ gaze: [-4, -2] }).hold(450).tween({ y: up }, 260, backOut)

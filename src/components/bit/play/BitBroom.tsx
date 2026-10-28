@@ -1,7 +1,7 @@
 // A tiny broom held low in front of Bit, plus the dust it kicks up (bit-play.css).
 export function BitBroom() {
   return (
-    <svg viewBox="0 0 60 60" width="60%" height="60%" className="pointer-events-none absolute overflow-visible" style={{ left: '62%', top: '46%' }}>
+    <svg viewBox="0 0 60 60" width="78%" height="78%" className="pointer-events-none absolute overflow-visible" style={{ left: '58%', top: '34%' }}>
       <g fill="#d6d3d1">
         <circle className="bit-dust" cx={34} cy={52} r={4} />
         <circle className="bit-dust" cx={40} cy={50} r={3} />

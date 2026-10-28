@@ -82,7 +82,8 @@ export class ActorTrack extends Track<ActorFrame> {
   }
 }
 
-export interface HeldBy { actor: ActorTrack; size: number }
+// heldScale: a stolen glyph is drawn bigger in Bit's hands so it reads as a prize.
+export interface HeldBy { actor: ActorTrack; size: number; heldScale?: number }
 
 // Where a carried thing sits: over Bit's head, lifted a bit by the raised arms.
 export function headPoint(f: ActorFrame, size: number): { x: number; y: number } {
@@ -93,7 +94,7 @@ export class PropTrack extends Track<PropFrame> {
   constructor(start: PropFrame, private by: HeldBy) { super(start); }
   private held(t: number, extra: Partial<PropFrame> = {}): PropFrame {
     const p = headPoint(this.by.actor.sample(t), this.by.size);
-    return { x: p.x, y: p.y, rot: 0, s: 1, o: 1, ...extra };
+    return { x: p.x, y: p.y, rot: 0, s: this.by.heldScale ?? 1, o: 1, ...extra };
   }
   // Arc from wherever it is now into Bit's hands; follows the actor while it moves.
   lift(ms: number, peak = 26): this {
@@ -102,7 +103,7 @@ export class PropTrack extends Track<PropFrame> {
     return this.add(ms, (u) => {
       const h = this.held(t0 + u * ms);
       const e = easeInOut(u);
-      return { x: lerp(a.x, h.x, e), y: lerp(a.y, h.y, e) - peak * 4 * u * (1 - u), rot: lerp(a.rot, 0, e) + 360 * e, s: lerp(a.s, 1.15, Math.sin(u * Math.PI)), o: 1 };
+      return { x: lerp(a.x, h.x, e), y: lerp(a.y, h.y, e) - peak * 4 * u * (1 - u), rot: lerp(a.rot, 0, e) + 360 * e, s: lerp(a.s, h.s, e) + 0.2 * Math.sin(u * Math.PI), o: 1 };
     });
   }
   carry(until: number, bob = 2.5): this {

@@ -1,3 +1,5 @@
+import { THIEF_DROP } from './skits';
+
 export interface Box { left: number; top: number; width: number; height: number }
 
 export interface LetterPick {
@@ -14,8 +16,19 @@ const WORD = /[A-Za-zÀ-ÖØ-öø-ÿ]{4,}/g;
 // A glyph is usable when Bit fits beside and below it, and there is headroom for
 // the letter to ride over its head, all inside the visible stage.
 export function fitsStage(box: Box, stageW: number, stageH: number, size: number): boolean {
-  const feetY = box.top + box.height + size * 0.6;
-  return box.top >= size * 0.9 && feetY <= stageH - 4 && box.left >= size && box.left + box.width <= stageW - size && box.width > 2;
+  const feetY = box.top + box.height + size * THIEF_DROP;
+  return box.top >= size * 0.7 && feetY <= stageH - 4 && box.left >= size && box.left + box.width <= stageW - size && box.width > 2;
+}
+
+// Thin glyphs (i, l, t…) vanish in Bit's hands; take the chunkiest one nearest the
+// middle of the word.
+const THIN = /[iljtfrIJ.,]/;
+export function chunkyIndex(word: string): number {
+  const mid = Math.floor(word.length / 2);
+  for (let d = 0; d < word.length; d++) {
+    for (const i of [mid - d, mid + d]) if (i >= 0 && i < word.length && !THIN.test(word[i])) return i;
+  }
+  return mid;
 }
 
 export function findLetter(root: HTMLElement, layer: HTMLElement, size: number, rnd = Math.random): LetterPick | null {
@@ -26,7 +39,7 @@ export function findLetter(root: HTMLElement, layer: HTMLElement, size: number, 
     const parent = n.parentElement;
     if (!parent || parent.closest(SKIP)) continue;
     for (const m of n.data.matchAll(WORD)) {
-      const index = (m.index ?? 0) + Math.floor(m[0].length / 2);
+      const index = (m.index ?? 0) + chunkyIndex(m[0]);
       const r = document.createRange();
       r.setStart(n, index);
       r.setEnd(n, index + 1);
