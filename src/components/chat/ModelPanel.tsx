@@ -152,8 +152,7 @@ export function ModelPanel(p: ModelPanelProps) {
       <div className="flex items-center gap-1 border-t border-neutral-800 p-1.5">
         <button type="button" onClick={p.onAdd} className={`flex min-h-[38px] flex-1 items-center gap-2 rounded-lg px-2 text-left text-[13px] text-neutral-200 hover:bg-neutral-800/60 ${tokens.focusRing}`}>
           <Icon name="plus" size={14} className="text-neutral-500" />
-          <span className="flex-1">Adicionar modelo ou provedor</span>
-          <span className="text-[12px] text-neutral-500">Conexões</span>
+          <span className="flex-1 whitespace-nowrap">Adicionar modelo ou provedor</span>
           <Icon name="chevronRight" size={12} className="text-neutral-600" />
         </button>
         {p.onManage && (

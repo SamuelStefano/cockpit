@@ -61,7 +61,7 @@ function ModelSelect({ model, setModel, models, onRefreshModels, canManage, comp
   const close = () => setOpen(false);
 
   return (
-    <span className={`relative shrink-0 items-center gap-1 ${compact ? 'hidden sm:inline-flex' : 'inline-flex'}`} title="Versão do agente do próximo prompt">
+    <span className="relative inline-flex shrink-0 items-center gap-1" title="Versão do agente do próximo prompt">
       {!compact && <span className={tag}>versão</span>}
       <Sheet open={open} onClose={close} label="Escolher modelo" side="top" align="end" className="w-[380px]"
         content={
