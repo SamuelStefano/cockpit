@@ -329,7 +329,9 @@ export function drainParked(): void {
     // se aquele transcript não existe mais, roda como turno novo em vez de morrer.
     const resume = resumableId(item.resumeId);
     if (item.resumeId && !resume) recordIncident({ kind: 'parked-resume-morto', sessionKey, sessionId: item.resumeId, detail: `item ${item.id} disparado como turno novo` });
-    const delivered = startRun({ ...runParams(item), ws: null, sessionKey, prompt: item.prompt, resumeId: resume, queued: true });
+    // msgId = the item id: startRun echoes the prompt as the user bubble. Without it a
+    // drained prompt only showed up after a transcript reload.
+    const delivered = startRun({ ...runParams(item), ws: null, sessionKey, prompt: item.prompt, resumeId: resume, queued: true, msgId: item.id });
     if (delivered === 'pane') { fired++; broadcastQueue(); continue; }
     // Refused for capacity: not the item's fault, so no attempt is counted (three
     // memory refusals in a row used to mark it `held` and freeze the session's queue).
@@ -519,7 +521,11 @@ export function runParkedNow(sessionKey: string, id: string, role?: Role): { ok:
   stopSession(liveKey);
   const resume = resumableId(item.resumeId);
   if (item.resumeId && !resume) recordIncident({ kind: 'parked-resume-morto', sessionKey, sessionId: item.resumeId, detail: `item ${item.id} disparado como turno novo` });
-  const delivered = startRun({ ...runParams(item), ws: null, sessionKey: liveKey, prompt: item.prompt, resumeId: resume, queued: true });
+  // Same frame the 'priority' triage sends: the client drops the interrupted turn's
+  // bubble latch, so the new 'started' opens a fresh bubble instead of streaming into
+  // the dead one. msgId on startRun echoes the forced prompt as the user bubble.
+  broadcast({ t: 'triage', sessionKey: liveKey, action: 'priority', reason: 'enviado agora da fila' });
+  const delivered = startRun({ ...runParams(item), ws: null, sessionKey: liveKey, prompt: item.prompt, resumeId: resume, queued: true, msgId: item.id });
   if (delivered === 'pane') { broadcastQueue(); return { ok: true }; }
   const th = threads.get(liveKey);
   if (!th) { unshiftParked(sessionKey, item, false); broadcastQueue(); return { reject: 'falhou' }; }

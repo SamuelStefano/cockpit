@@ -77,6 +77,20 @@ describe('runParkedNow — furar a fila', () => {
     expect(snaps.at(-1)).toMatchObject({ items: [{ text: 'A' }, { text: 'C' }] });
   });
 
+  // The forced prompt must show in the thread right away: release the dead turn's
+  // bubble (triage priority), echo the prompt as the user bubble, then start.
+  it('echoes the forced prompt and frees the interrupted bubble, in that order', () => {
+    const [, b] = fill();
+    startRun({ ws: null, sessionKey: 's1', prompt: 'turno em andamento' });
+    vi.mocked(broadcast).mockClear();
+    runParkedNow('s1', b);
+    const frames = vi.mocked(broadcast).mock.calls.map((c) => c[0] as { t: string });
+    const order = frames.map((f) => f.t).filter((t) => t === 'triage' || t === 'user' || t === 'started');
+    expect(order).toEqual(['triage', 'user', 'started']);
+    expect(frames.find((f) => f.t === 'triage')).toMatchObject({ sessionKey: 's1', action: 'priority' });
+    expect(frames.find((f) => f.t === 'user')).toMatchObject({ sessionKey: 's1', id: b, text: 'B' });
+  });
+
   // O item fica amarrado ao turno: se ele morrer sem consumir o prompt (teto de
   // tokens, crash), o onClose devolve pra fila em vez de queimar o prompt.
   it('amarra o item ao turno que subiu', () => {
