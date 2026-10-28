@@ -45,6 +45,8 @@ import { startCliAutoUpdate } from './engine/cli-update';
 import { startNodeUpgrade } from './node-upgrade';
 import { ensureBundledSkills } from './bundled-skills';
 import { agentDir, bootConfirmer, CONFIRM_UPTIME_MS, realFs } from './self-update-boot';
+import { captureErrors, diagFrame, noteCleanExit, takePending, writePending } from './agent-diag';
+import { execFileSync } from 'node:child_process';
 
 // Entrypoint do AGENTE T3 (DR-023): em vez de escutar (attachWs), DISCA pro relay
 // e serve o MESMO protocolo pelo socket de saída. O relay encaminha os frames do
@@ -253,6 +255,7 @@ function connect(relayUrl: string, id: Identity, onOpen: () => void, onClose: (c
       // o relay sozinho não sabe disso e força false. Reporta a real pro relay casar
       // com o papel do browser — o bypass continua aplicado SÓ aqui (bypassAllowed).
       ws.send(JSON.stringify({ t: 'agent-caps', canBypass: capsFor(AGENT_ROLE, CONFIG).canBypass }));
+      sendPendingDiag(ws);
       // Listener adicional (coexiste com o do serveConnection): os frames de presença
       // do relay alternam os loops periódicos. São control-only — o dispatch os ignora
       // como tipo desconhecido, então não há conflito em receberem nos dois listeners.
@@ -375,6 +378,7 @@ export function runAgent(relayUrl: string): void {
     process.exit(1);
   }
   if (!E2E_REQUIRED) console.error('[agent] DECK_E2E=off: serving PLAINTEXT relay frames — whoever controls the relay controls this box');
+  const diag = captureErrors(realFs, agentDir());
   startHealthGuard();
   void loadManagedEnv(); // tokens gerenciados (#162) p/ o spawn herdar
   // Loops periódicos (telemetria/usage/modelos) que o modo listen roda no attachWs.
@@ -465,7 +469,20 @@ export function runAgent(relayUrl: string): void {
   startNodeUpgrade({ cwd: process.cwd(), busy: () => threads.size > 0, restart: restartForUpdate });
   process.on('SIGTERM', () => gracefulShutdown(0));
   process.on('SIGINT', () => gracefulShutdown(0));
-  installCrashBackstop(process, gracefulShutdown);
+  installCrashBackstop(process, gracefulShutdown, (err) => {
+    diag.flush();
+    writePending(realFs, agentDir(), 'crash', String((err as Error)?.stack ?? err).split('\n').slice(0, 15));
+  });
+}
+
+// What went wrong on the previous run (crash, unclean exit, rolled-back update)
+// goes to the relay once, right after auth; the relay files it for the admin.
+function sendPendingDiag(ws: WebSocket): void {
+  const p = takePending(realFs, agentDir());
+  if (!p) return;
+  let version: string | undefined;
+  try { version = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8', timeout: 5_000, stdio: ['ignore', 'pipe', 'ignore'] }).trim(); } catch { /* not a checkout */ }
+  try { ws.send(diagFrame(p, version)); relayLog('diag_report_sent', { kind: p.kind }); } catch { /* next boot has no copy; the relay log has the event */ }
 }
 
 // Planned restart (self-update, Node upgrade): tell the open tabs first so they show
@@ -479,9 +496,14 @@ export function restartForUpdate(): void {
 // Node exit on its default path: no killAllRuns, the detached `claude` children
 // kept running as orphans, and 15s after run-agent.sh restarted us
 // resumeOrphanRuns started a second `--resume` on the same sessions.
-export function installCrashBackstop(proc: NodeJS.EventEmitter, shutdown: (code: number) => void): void {
-  proc.on('uncaughtException', (err) => { console.error('[agent] uncaughtException', err); shutdown(1); });
-  proc.on('unhandledRejection', (reason) => { console.error('[agent] unhandledRejection', reason); shutdown(1); });
+export function installCrashBackstop(proc: NodeJS.EventEmitter, shutdown: (code: number) => void, onCrash: (err: unknown) => void = () => {}): void {
+  const crash = (label: string, err: unknown) => {
+    console.error(`[agent] ${label}`, err);
+    try { onCrash(err); } catch { /* the shutdown must still run */ }
+    shutdown(1);
+  };
+  proc.on('uncaughtException', (err) => crash('uncaughtException', err));
+  proc.on('unhandledRejection', (reason) => crash('unhandledRejection', reason));
 }
 
 // SIGTERM/SIGINT matam o processo inteiro (deploy, doctor, restart manual) — mas
@@ -503,6 +525,7 @@ function gracefulShutdown(code = 0): void {
   // preserveLive: mantém os turnos no live-runs.json pra o boot retomá-los. Sem isto
   // o onClose que chega dentro dos 300ms apaga o registro e o turno morre de vez.
   killAllRuns({ preserveLive: true });
+  noteCleanExit(realFs, agentDir());
   setTimeout(() => process.exit(code), 300);
 }
 

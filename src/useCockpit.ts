@@ -76,7 +76,7 @@ export interface AttachmentPreview { path: string; name: string; dataB64?: strin
 export type QueueItem = ParkedView & { key: string };
 export type { TermApi };
 import type { ConnState } from './components/primitives';
-import { recordClose } from './app/connectionTelemetry';
+import { recordClose, recordConnEvent } from './app/connectionTelemetry';
 import { toast } from './components/primitives/toast-bus';
 import { benchDispatch, failAllBenchPending, setBenchSender } from './components/primitives/livepreview/bench-bus';
 import type { Phase } from './components/Chat';
@@ -146,7 +146,7 @@ export interface Cockpit extends LeafApis {
   draft: string;
   setDraft: (v: string) => void;
   conn: { ws: ConnState; sse: ConnState };
-  reconnectNow: () => void;
+  reconnectNow: (opts?: { force?: boolean }) => void;
   authRequired: boolean;
   agentOnline: boolean;
   submitToken: (token: string) => void;
@@ -1430,6 +1430,7 @@ export function useCockpit(): Cockpit {
     }
     if (heartbeat.current) { clearInterval(heartbeat.current); heartbeat.current = null; }
     setConn((c) => ({ ...c, ws: 'reconnecting', sse: 'reconnecting' }));
+    recordConnEvent('dial', { relay: SUPABASE_ENABLED, box: !!boxStore.get().pref });
     let ws: WebSocket;
     const dialRelay = () => {
       const box = boxStore.get().pref ?? undefined;
@@ -1445,6 +1446,7 @@ export function useCockpit(): Cockpit {
     const isCurrent = () => wsRef.current === ws;
     ws.onopen = () => {
       if (!isCurrent()) return;
+      recordConnEvent('open');
       retryDelay.current = 1500; // reconectou — zera o backoff
       setAuthRequired(false); // token válido (ou gate desligado)
       // Pedidos de thumb que morreram com o socket anterior podem re-pedir.
@@ -1538,8 +1540,8 @@ export function useCockpit(): Cockpit {
     // usage, cada um varrendo o diretório de sessões e o SQLite síncrono).
     const delay = retryDelay.current;
     retryDelay.current = Math.min(delay * 2, 30_000);
-    retry.current = setTimeout(() => { retry.current = null; connect(); }, delay);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // connectRef, not the first render's connect: this callback is created once.
+    retry.current = setTimeout(() => { retry.current = null; connectRef.current(); }, delay);
   }, []);
 
   // Re-lê o estado durável no (re)connect: sem isto um blip de socket (aba
@@ -1577,12 +1579,29 @@ export function useCockpit(): Cockpit {
   // socket meio-aberto ainda diz OPEN, o reconcile() sai por ele sem erro nem
   // resposta, e o watchdog só derrubava ~30s depois. Um socket de verdade recebe
   // stats a cada 2s — 5s mudo já é morto.
-  const reconnectNow = useCallback(() => {
+  // `force` (the "Reconectar agora" button): always a fresh socket, no backoff and
+  // no 4401 wait. Redialing with a token the relay already refused was a silent
+  // no-op (same 4401 at once), so that case refreshes the session first.
+  const reconnectNow = useCallback((opts?: { force?: boolean }) => {
     retryDelay.current = 1500;
+    const force = opts?.force === true;
     const ws = wsRef.current;
     const alive = ws && ws.readyState === ws.OPEN && Date.now() - lastRecvAt.current <= 5_000;
-    if (alive) { reconcile(); return; }
+    if (alive && !force) { reconcile(); return; }
     if (retry.current) { clearTimeout(retry.current); retry.current = null; }
+    if (force) {
+      recordConnEvent('manual_reconnect', { authBackoff: authBackoffUntil.current > Date.now() });
+      authBackoffUntil.current = 0;
+      if (SUPABASE_ENABLED && supabase && tokenRef.current && rejectedToken.current === tokenRef.current) {
+        setConn((c) => ({ ...c, ws: 'reconnecting', sse: 'reconnecting' }));
+        lastRelayRefresh.current = Date.now();
+        // A new token reaches submitToken (onAuthStateChange), which dials itself.
+        void supabase.auth.refreshSession().catch(() => {}).finally(() => {
+          if (rejectedToken.current === tokenRef.current) connectRef.current();
+        });
+        return;
+      }
+    }
     connect();
   }, [connect, reconcile]);
 

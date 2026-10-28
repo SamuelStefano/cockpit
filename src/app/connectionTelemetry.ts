@@ -1,4 +1,7 @@
 import { wsBase } from '../cockpit/session';
+import { recordConnEvent, resetConnEvents } from './connEvents';
+
+export { CONN_EVENTS_MAX, noteRelayFrame, recentConnEvents, recordConnEvent, relayAnsweredSinceDial, type ConnEvent } from './connEvents';
 
 export type ReportKind = 'ws_offline' | 'ws_recovered' | 'auth_rejected';
 export type UaFamily = 'chrome' | 'firefox' | 'safari' | 'edge' | 'other';
@@ -24,6 +27,7 @@ const MAX_APP = 24;
 let lastClose: { code: number; reason: string; at: number } | null = null;
 export function recordClose(code: number, reason: string): void {
   lastClose = { code, reason: reason ?? '', at: Date.now() };
+  recordConnEvent('close', { code, reason: (reason ?? '').slice(0, MAX_REASON) });
 }
 export function getLastClose(): { code: number; reason: string; at: number } | null { return lastClose; }
 
@@ -72,7 +76,7 @@ export function telemetryUrl(base: string = wsBase()): string | null {
 
 let sent = 0;
 let offlineSentForEpisode = false;
-export function resetTelemetryForTests(): void { sent = 0; offlineSentForEpisode = false; lastClose = null; }
+export function resetTelemetryForTests(): void { sent = 0; offlineSentForEpisode = false; lastClose = null; resetConnEvents(); }
 export function endOfflineEpisode(): void { offlineSentForEpisode = false; }
 
 export function sendConnectionReport(report: ConnectionReport, url: string | null = telemetryUrl()): boolean {

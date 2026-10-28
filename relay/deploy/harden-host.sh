@@ -53,6 +53,7 @@ log "code: root-owned, read-only to relay"
 mkdir -p "$APP" && chown root:root "$APP" && chmod 755 "$APP"
 install -o root -g root -m 0644 "$SRC/main.mjs" "$APP/main.mjs.new"
 install -o root -g root -m 0644 "$SRC/REVISION" "$APP/REVISION"
+if [ -f "$SRC/diag-reports.mjs" ]; then install -o root -g root -m 0644 "$SRC/diag-reports.mjs" "$APP/diag-reports.mjs"; fi
 mv "$APP/main.mjs.new" "$APP/main.mjs"
 
 log "env: root:relay 0640"

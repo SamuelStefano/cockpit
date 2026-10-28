@@ -12,6 +12,8 @@ import type { DropApi } from '../cockpit/useDrops';
 import { usePersisted } from '../lib/persist';
 import { SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT, GROUP_NOTES_KEY, GROUP_NOTES_DEFAULT, NOTIFY_SOUND_KEY, NOTIFY_SOUND_DEFAULT } from '../lib/prefs';
 import { isIOS } from '../lib/platform';
+import { SUPABASE_ENABLED } from '../lib/supabase';
+import { SendDiagButton } from './chrome/SendDiagButton';
 
 interface ProfileMenuProps {
   userId?: string;
@@ -156,6 +158,8 @@ export function ProfileMenu({ userId, onSignOut, onChangePassword, drops, conn, 
           {drops && <DropButton api={drops} />}
 
           {onChangePassword && <ChangePasswordForm onSubmit={onChangePassword} />}
+
+          {SUPABASE_ENABLED && <SendDiagButton className="mt-3 w-full" />}
 
           {onSignOut && (
             <div className="mt-3 border-t border-neutral-800 pt-3">
