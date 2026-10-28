@@ -36,7 +36,7 @@ export function RouteHeader({ title, subtitle, badge, actions, icon, variant = '
           <div className="flex min-w-0 items-center gap-2">
             <AccentBar />
             {icon && <Icon name={icon} size={15} className="shrink-0 text-orange-400" />}
-            <span className="truncate font-mono text-[15px] font-semibold lowercase tracking-tight text-neutral-100">{title}</span>
+            <span className="truncate font-display text-[22px] font-bold tracking-wide text-neutral-50">{title}</span>
             {badge}
           </div>
           {actions && <div className="flex shrink-0 items-center gap-1.5">{actions}</div>}
@@ -49,7 +49,7 @@ export function RouteHeader({ title, subtitle, badge, actions, icon, variant = '
   return (
     <header className={`${phone}mb-4 flex flex-wrap items-start justify-between gap-3 ${className}`}>
       <div className="min-w-0">
-        <h1 className="flex items-center gap-2 text-[19px] font-semibold tracking-tight text-neutral-100">
+        <h1 className="flex items-center gap-2 font-display text-[30px] font-bold leading-none tracking-wide text-neutral-50">
           <AccentBar tall />
           {icon && <Icon name={icon} size={17} className="shrink-0 text-orange-400" />}
           {title}

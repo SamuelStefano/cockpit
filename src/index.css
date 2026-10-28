@@ -102,10 +102,15 @@ h1, h2 { font-family: var(--font-display); font-weight: 700; letter-spacing: 0; 
 .btn-chunk:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 1px 0 0 var(--lip); }
 .btn-chunk-red { --lip: #991b1b; }
 @media (prefers-reduced-motion: reduce) { .btn-chunk { transition: none; } }
+/* Chunky card: a darker bottom lip, lifts on hover, squashes on press. */
+.card-chunk { box-shadow: 0 3px 0 0 #1c1c1c; transition: transform 120ms ease-out, box-shadow 120ms ease-out, border-color 120ms, background-color 120ms; }
+.card-chunk-hover:hover { transform: translateY(-2px); border-color: rgba(249,115,22,0.4); box-shadow: 0 5px 0 0 #7c2d12; }
+.card-chunk-hover:active { transform: translateY(1px); box-shadow: 0 1px 0 0 #7c2d12; }
+@media (prefers-reduced-motion: reduce) { .card-chunk { transition: none; } .card-chunk-hover:hover, .card-chunk-hover:active { transform: none; } }
 /* Subtle Itera-like grid on the main canvas: pure CSS, painted once, no animation. */
 .bg-doodle { isolation: isolate; overflow: hidden; }
-.bg-doodle::before { content: ''; position: absolute; z-index: -1; top: -400px; left: -400px; right: 0; bottom: 0; pointer-events: none; background: url(/doodles.svg) 0 0 / 400px 400px; animation: doodle-drift 90s linear infinite; will-change: transform; }
-@keyframes doodle-drift { to { transform: translate3d(400px, 400px, 0); } }
+.bg-doodle::before { content: ''; position: absolute; z-index: -1; top: -800px; left: -800px; right: 0; bottom: 0; pointer-events: none; background: url(/doodles.svg) 0 0 / 800px 800px; animation: doodle-drift 90s linear infinite; will-change: transform; }
+@keyframes doodle-drift { to { transform: translate3d(800px, 800px, 0); } }
 @media (prefers-reduced-motion: reduce) { .bg-doodle::before { animation: none; } }
 .bg-grid-soft { background-image: linear-gradient(to right, rgba(255,255,255,0.025) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.025) 1px, transparent 1px); background-size: 32px 32px; }
 .btn-jewel { box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.22), 0 1px 2px rgba(0, 0, 0, 0.3), 0 2px 8px -2px rgba(249,115,22, 0.35); }

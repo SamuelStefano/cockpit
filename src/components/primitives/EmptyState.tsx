@@ -20,15 +20,15 @@ export function EmptyState({ icon, bit, title, description, children, className 
   return (
     <div className={`flex flex-col items-center text-center ${sm ? 'px-6 py-6' : 'h-full justify-center px-6'} ${className}`}>
       {bit ? (
-        <Bit state={bit} size={sm ? 40 : 56} className="mb-3" />
+        <Bit state={bit} size={sm ? 64 : 88} className="bit-pop mb-3" />
       ) : icon && (
         <div className={`flex items-center justify-center rounded-full border border-neutral-800 bg-neutral-900/60 text-neutral-500 ${sm ? 'mb-3 h-10 w-10' : 'mb-4 h-12 w-12'}`}>
           <Icon name={icon} size={sm ? 18 : 22} />
         </div>
       )}
-      <h2 className={`font-semibold text-neutral-200 ${sm ? 'text-[15px]' : 'text-[17px]'}`}>{title}</h2>
+      <h2 className={`font-display font-bold tracking-wide text-neutral-100 ${sm ? 'text-[24px]' : 'text-[28px]'}`}>{title}</h2>
       {description && (
-        <p className="mt-1.5 max-w-sm text-[13px] leading-relaxed text-neutral-500">{description}</p>
+        <p className="mt-1.5 max-w-sm text-[15px] leading-relaxed text-neutral-400">{description}</p>
       )}
       {children && <div className={`flex w-full max-w-sm flex-col gap-2 ${sm ? 'mt-4' : 'mt-5'}`}>{children}</div>}
     </div>

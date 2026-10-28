@@ -21,6 +21,8 @@ export { RadioCardGroup, type RadioCardItem } from './RadioCardGroup';
 export { Switch } from './Switch';
 export { ToggleChip } from './ToggleChip';
 export { EmptyState } from './EmptyState';
+export { IconTile, toneFor, type TileTone } from './IconTile';
+export { PageTitle } from './PageTitle';
 export { RouteHeader } from './RouteHeader';
 export { Modal } from './Modal';
 export { tokens, type ToneColor } from './tokens';
