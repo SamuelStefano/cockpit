@@ -3,7 +3,6 @@ import { basename, join, resolve } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { inflateRawSync } from 'node:zlib';
 import { CONFIG } from './config';
-import { uploadToS3 } from './s3';
 
 // Content-type por extensão (imagens principalmente) — o S3 precisa do mime certo
 // pra o navegador renderizar inline em vez de baixar. Sem match → octet-stream.
@@ -173,9 +172,6 @@ const MAX_ACTIVE_UPLOADS = 8;
 const MAX_INFLIGHT_BYTES = CONFIG.maxUploadBytes * 2;
 // O cliente manda ~700KB de base64 por chunk; bem acima disso é frame forjado.
 const MAX_CHUNK_B64 = 4_000_000;
-// O espelho S3 (edge fn) é best-effort e foi dimensionado pro teto antigo; acima
-// disso só gastava banda e os 30s do timeout antes de cair no fluxo local.
-const S3_MIRROR_MAX_BYTES = 15_000_000;
 // Pré-visualização manda o arquivo inteiro num frame WS de volta; acima disto o
 // anexo continua indo pro agente, só não abre no modal.
 const PREVIEW_MAX_BYTES = 15_000_000;
@@ -221,8 +217,8 @@ export async function addUploadChunk(
   u.parts = [];
   const r = await persistBuffer(sessionKey, name, buf);
   if ('error' in r) return r;
-  const s3 = buf.length <= S3_MIRROR_MAX_BYTES ? await uploadToS3(buf, name, mimeOf(name)) : null;
-  return { ...r, s3url: s3?.url };
+  // Attachments stay on the box: mirroring them to the shared DFL bucket leaked private files.
+  return r;
 }
 
 // Lê um anexo salvo pra preview no chat. Aceita só paths relativos no formato que
