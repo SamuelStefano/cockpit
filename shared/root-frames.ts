@@ -13,7 +13,7 @@ export const ROOT_ONLY: ReadonlySet<ClientMsg['t']> = new Set<ClientMsg['t']>([
   'pontos-agent-tasks', 'drafts-get', 'drafts-op',
   'admin-env-set', 'admin-env-unset', 'admin-mcp-add', 'admin-mcp-remove',
   'admin-cli-install', 'admin-cli-update', 'admin-deck-restart',
-  'agent-add-custom', 'agent-probe-draft',
+  'agent-add-custom', 'agent-probe-draft', 'provider-probe',
 ]);
 
 // A frame whose own prefix says it belongs to the owner, even if a future one is

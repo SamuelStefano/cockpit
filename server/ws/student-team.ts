@@ -9,6 +9,7 @@ export function coerceBotForRole(bot: TeamBotInput, role: Role | undefined): Tea
   if (role === 'admin') return bot;
   const out: TeamBotInput = { ...bot, profile: 'restricted', mode: 'auto' };
   if (isAgentModel(out.model)) delete out.model;
+  if (isAgentModel(out.fallbackModel)) delete out.fallbackModel;
   if (out.permissions) out.permissions = { ...out.permissions, write: false };
   return out;
 }

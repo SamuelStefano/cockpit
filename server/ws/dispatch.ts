@@ -44,6 +44,7 @@ import { send, broadcast } from './broadcast';
 import { claudeLogin } from '../claude-login';
 import { dflMcpsState, addDflMcps } from '../dfl-mcps';
 import { listConnections } from '../connections';
+import { probe } from '../providers';
 import { detach } from './detach';
 import { startRun, routeSend, drainParked, runParkedInBackground, runParkedNow, acceptResumeOffer, refreshBusyElsewhere, orchestratorPaneTarget, type BgRunReject, type NowRunReject } from './runs';
 import { threads, stopSession, resolveThreadKey, runningSessionIds } from './threads';
@@ -939,6 +940,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     case 'claude-login-cancel': { claudeLogin.cancel(); return; }
     case 'dfl-mcps-get': { send(ws, { t: 'dfl-mcps', state: await dflMcpsState() }); return; }
     case 'connections-get': { send(ws, { t: 'connections', items: await listConnections() }); return; }
+    case 'provider-probe': { send(ws, { t: 'provider-probe', result: await probe(msg.endpoint, msg.key) }); return; }
     case 'dfl-mcps-add': { send(ws, { t: 'dfl-mcps', state: await addDflMcps(msg.hosts) }); return; }
     case 'box-health-get': {
       send(ws, healthFrame(await boxHealth.refresh()));
