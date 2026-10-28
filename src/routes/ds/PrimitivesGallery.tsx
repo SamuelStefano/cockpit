@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Avatar, Button, Badge, BrandMark, IconButton, Input, ListRow, Menu, MenuItem, MenuLabel, MenuSeparator, PageTitle, Popover, RiskBadge, SectionTitle, Sheet, Switch, ToggleChip, Tooltip, UsageRing, toast } from '../../components/primitives';
+import { Avatar, Button, Badge, BrandMark, IconButton, Input, ListRow, Menu, MenuItem, MenuLabel, MenuSeparator, Popover, RiskBadge, SectionTitle, Sheet, Switch, ToggleChip, Tooltip, UsageRing, toast } from '../../components/primitives';
 import { Section } from './Section';
 import { Row } from './Row';
 
@@ -33,7 +33,6 @@ export function PrimitivesGallery() {
           <ListRow label="Notificações" leading={<Avatar name="Ana Lima" size={32} />} onClick={() => toast('clicou')} />
         </div></Row>
         <Row label="SectionTitle"><div><SectionTitle>Conta</SectionTitle></div></Row>
-        <Row label="PageTitle"><PageTitle icon="sparkles" tone="violet">Skills</PageTitle><PageTitle icon="link" tone="emerald">Conexões</PageTitle><PageTitle icon="users" tone="sky">Equipe</PageTitle></Row>
         <Row label="RiskBadge"><RiskBadge risk="read" /><RiskBadge risk="write" /><RiskBadge risk="net" /></Row>
       </Section>
 

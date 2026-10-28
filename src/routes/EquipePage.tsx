@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Button, PageTitle, IconButton, Tabs, type TabItem } from '../components/primitives';
+import { Button, IconButton, Tabs, type TabItem } from '../components/primitives';
 import { useIsMobile } from '../app/useIsMobile';
 import { TopBarAction } from '../components/chrome/sidebar/TopBarSlot';
 import type { Memory, MemoryInput, TeamBot, UsageStats } from '../../shared/protocol';
@@ -58,7 +58,7 @@ export function EquipePage(p: EquipePageProps) {
     <div className="scroll-thin min-h-0 flex-1 overflow-y-auto">
       <div className="mx-auto w-full max-w-[960px] p-4 max-lg:pt-1 md:p-8">
         <header className="mb-5 flex flex-wrap items-center gap-3 max-lg:hidden">
-          <PageTitle icon="users" tone="sky">Equipe</PageTitle>
+          <h1 className="text-[22px] font-semibold tracking-tight text-neutral-100">Equipe</h1>
           <div className="ml-auto flex gap-2">
             {isAdmin && tab !== 'rotinas' && views.length > 1 && (
               <Button variant="ghost" size="sm" icon="pause" onClick={() => p.onPauseSet(!p.paused)}>

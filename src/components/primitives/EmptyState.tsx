@@ -22,11 +22,11 @@ export function EmptyState({ icon, bit, title, description, children, className 
       {bit ? (
         <Bit state={bit} size={sm ? 40 : 56} className="mb-3" />
       ) : icon && (
-        <div className={`flex items-center justify-center rounded-xl bg-orange-500/15 text-orange-300 shadow-[0_3px_0_0_rgba(194,65,12,0.5)] ${sm ? 'mb-3 h-10 w-10' : 'mb-4 h-12 w-12'}`}>
+        <div className={`flex items-center justify-center rounded-full border border-neutral-800 bg-neutral-900/60 text-neutral-500 ${sm ? 'mb-3 h-10 w-10' : 'mb-4 h-12 w-12'}`}>
           <Icon name={icon} size={sm ? 18 : 22} />
         </div>
       )}
-      <h2 className={`font-bold text-neutral-100 ${sm ? 'text-[20px]' : 'text-[24px]'}`}>{title}</h2>
+      <h2 className={`font-semibold text-neutral-200 ${sm ? 'text-[15px]' : 'text-[17px]'}`}>{title}</h2>
       {description && (
         <p className="mt-1.5 max-w-sm text-[13px] leading-relaxed text-neutral-500">{description}</p>
       )}

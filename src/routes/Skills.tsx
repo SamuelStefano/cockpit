@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Badge, Button, PageTitle, EmptyState, IconButton, SkeletonCards, Tabs } from '../components/primitives';
+import { Badge, Button, EmptyState, IconButton, SkeletonCards, Tabs } from '../components/primitives';
 import { useIsMobile } from '../app/useIsMobile';
 import { TopBarAction } from '../components/chrome/sidebar/TopBarSlot';
 import { useLoadStalled } from '../lib/useLoadStalled';
@@ -82,7 +82,7 @@ export function Skills(p: Props) {
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-neutral-950">
       <header className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 px-4 pt-5 max-lg:hidden md:px-6">
-        <PageTitle icon="sparkles" tone="violet">Skills</PageTitle>
+        <h1 className="text-[22px] font-semibold tracking-tight text-neutral-100">Skills</h1>
         <Badge tone="neutral">{skills.length}</Badge>
         <p className="text-[13px] text-neutral-500">O que cada agente sabe fazer. Ligue por agente na página dele.</p>
         {!phone && <div className="ml-auto"><SkillsSearch value={v.query} onChange={v.setQuery} inputRef={v.searchRef} /></div>}

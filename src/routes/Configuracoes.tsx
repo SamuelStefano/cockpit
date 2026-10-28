@@ -41,7 +41,7 @@ export function Configuracoes({ route, role, nav, isMobile, connected, cockpit: 
             {items.map((i) => (
               <button
                 key={i.id} type="button" aria-current={i.id === section ? 'page' : undefined} onClick={() => nav(SECTION_ROUTE[i.id])}
-                className={`flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-lg px-3 text-[13px] font-medium lift focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-orange-500/40 ${i.id === section ? 'bg-orange-500/15 text-orange-200 shadow-[inset_0_0_0_1px_rgba(249,115,22,0.35)]' : 'text-neutral-400 hover:bg-neutral-800/60 hover:text-neutral-200'}`}
+                className={`flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-lg px-3 text-[13px] font-medium transition focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-orange-500/40 ${i.id === section ? 'bg-neutral-800 text-neutral-100' : 'text-neutral-400 hover:bg-neutral-800/60 hover:text-neutral-200'}`}
               >
                 <Icon name={i.icon} size={14} />{i.label}
               </button>

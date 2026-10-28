@@ -35,6 +35,16 @@ describe('Sidebar', () => {
     expect(JSON.parse(localStorage.getItem(Object.keys(localStorage).find((k) => k.includes(SIDEBAR_COLLAPSED_KEY))!)!)).toBe(true);
   });
 
+  it('on the rail puts the toggle first, then new chat, then the chat tiles', () => {
+    setup({ rail: <button aria-label="Chat X">X</button> });
+    fireEvent.click(screen.getByRole('button', { name: 'Recolher barra lateral' }));
+    const names = screen.getAllByRole('button').map((b) => b.getAttribute('aria-label'));
+    const at = (n: string) => names.indexOf(n);
+    expect(at('Expandir barra lateral')).toBe(0);
+    expect(at('Nova conversa')).toBeLessThan(at('Chat X'));
+    expect(at('Chat X')).toBeLessThan(at('Ir pro chat'));
+  });
+
   it('restores the collapsed state from storage', () => {
     cleanup();
     setup();
