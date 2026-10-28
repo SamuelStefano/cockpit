@@ -15,11 +15,20 @@ const row = (props: Partial<Parameters<typeof SessionRow>[0]> = {}) =>
   render(<SessionRow s={s} active={false} onSelect={() => {}} onRename={() => {}} onClose={() => {}} {...props} />).container;
 
 describe('SessionRow', () => {
-  it('shows the title and nothing else: no snippet, no time', () => {
-    row();
-    expect(screen.getByText('Nova sessão')).toBeTruthy();
-    expect(screen.queryByText('há 3m')).toBeNull();
+  it('shows the title on one line plus the relative time, no snippet', () => {
+    const c = row();
+    const title = screen.getByText('Nova sessão');
+    expect(title.className).toContain('truncate');
+    expect(title.className).not.toContain('line-clamp');
+    expect(c.querySelector('[data-row-meta]')?.textContent).toBe('há 3m');
     expect(screen.queryByText('Pegue o contexto')).toBeNull();
+  });
+
+  it('active row gets the orange indicator and stronger background', () => {
+    const c = row({ active: true });
+    const el = c.firstElementChild as HTMLElement;
+    expect(el.className).toContain('before:bg-orange-500');
+    expect(el.className).toContain('bg-neutral-800 ');
   });
 
   it('running: green dot', () => {

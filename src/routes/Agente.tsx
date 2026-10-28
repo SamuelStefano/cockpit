@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { ModelInfo, SkillMeta, TeamBot, TeamBotInput } from '../../shared/protocol';
 import { EmptyState, SkeletonCards, Tabs, toast, type TabItem } from '../components/primitives';
 import type { TermApi } from '../cockpit/useTerminals';
+import type { AgentBuildRequest, AgentBuildResult } from '../cockpit/useTeam';
 import type { AgentTab } from '../useRoute';
 import { BotComputer } from './equipe/BotComputer';
 import { BotFiles } from './equipe/BotFiles';
@@ -23,6 +24,8 @@ export interface AgentePageApi extends CronApi, BotFilesApi, BotComputerApi {
   term: TermApi;
   onTeamSave: (bot: TeamBotInput) => void;
   onTeamDelete: (id: string) => void;
+  agentBuild?: AgentBuildResult | null;
+  onAgentBuild?: (req: AgentBuildRequest) => boolean;
 }
 
 interface AgenteProps {
@@ -58,7 +61,7 @@ export function Agente({ agentId, tab, views, api, connected, isAdmin, isMobile,
       <div className="max-w-95">
         <h1 className="pb-5 text-[22px] font-semibold tracking-[-0.02em] text-neutral-100">Novo agente</h1>
         <AgentForm bot={null} bots={api.bots} models={api.models} skills={api.skills} locked={!isAdmin} onSave={api.onTeamSave}
-          onSaved={(id) => onTab(id, 'perfil')} onCancel={onList} />
+          agentBuild={api.agentBuild} onAgentBuild={api.onAgentBuild} onSaved={(id) => onTab(id, 'perfil')} onCancel={onList} />
       </div>,
     );
   }
@@ -82,7 +85,7 @@ export function Agente({ agentId, tab, views, api, connected, isAdmin, isMobile,
       {tab === 'perfil' && (
         <div className="max-w-95">
           <AgentForm key={`${bot.id}:${bot.updatedAt}:${formKey}`} bot={bot} bots={api.bots} models={api.models} skills={api.skills} locked={!isAdmin}
-            onSave={api.onTeamSave} onSaved={() => toast('Agente salvo')} onCancel={() => setFormKey((k) => k + 1)}
+            agentBuild={api.agentBuild} onAgentBuild={api.onAgentBuild} onSave={api.onTeamSave} onSaved={() => toast('Agente salvo')} onCancel={() => setFormKey((k) => k + 1)}
             onDelete={(id) => { api.onTeamDelete(id); onList(); }} />
         </div>
       )}

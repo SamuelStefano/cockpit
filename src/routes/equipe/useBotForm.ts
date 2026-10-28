@@ -78,6 +78,7 @@ export function useBotForm(bot: TeamBot | null, bots: TeamBot[], onSave: (b: Tea
     onSave(toInput(id, draft));
     onDone();
   };
+  const patch = (p: Partial<BotDraft>) => setDraft((d) => ({ ...d, ...p }));
   const parents = bots.filter((b) => b.id !== id && !wouldCycle(bots, id, b.id));
-  return { id, draft, set, error: touched ? error : null, submit, parents };
+  return { id, draft, set, patch, error: touched ? error : null, submit, parents };
 }

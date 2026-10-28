@@ -134,3 +134,13 @@ export async function quickAnswer(newPrompt: string, sessionKey = '_'): Promise<
   const p = 'Responda de forma curta e direta. A pessoa fez esta pergunta enquanto outra tarefa roda em paralelo, então seja conciso:\n\n' + newPrompt;
   return (await oneShot(p, 60000, 262144, sessionKey, [...QUICK_ANSWER_ARGS])).trim();
 }
+
+const BUILDER_TIMEOUT_MS = 90_000;
+const BUILDER_CAP = 262144;
+
+// The agent builder is a text-only conversation: lean args are forced on whatever
+// CONFIG.leanOneShots says, so the model never gets tools while it reads a stranger's template text.
+export async function agentBuilderTurn(system: string, prompt: string, sessionKey = '_'): Promise<string> {
+  const args = ['--model', 'sonnet', ...leanOneShotArgs(system, true)];
+  return (await oneShot(prompt, BUILDER_TIMEOUT_MS, BUILDER_CAP, sessionKey, args)).trim();
+}
