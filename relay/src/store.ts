@@ -1,5 +1,5 @@
 import { randomBytes, createHash } from 'node:crypto';
-import type { RelayStore } from './index';
+import type { DiagReportRow, RelayStore } from './index';
 
 const PAIRING_TTL_MIN = 10;
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
@@ -156,6 +156,15 @@ export function supabaseStore(cfg: StoreConfig): RelayStore {
       return Array.isArray(rows) && rows.length === 1 ? rows[0].account_id : null;
     },
 
+    async insertDiagReport(row: DiagReportRow) {
+      const res = await req('/diag_reports', {
+        method: 'POST',
+        headers: { prefer: 'return=minimal' },
+        body: JSON.stringify(row),
+      });
+      return res.ok;
+    },
+
     // Registra o agente pareado (pubkey nascida na VPS). Devolve o agentId gerado.
     async createAgent(accountId, publicKey, label = '') {
       const res = await req('/agent', {
@@ -168,4 +177,29 @@ export function supabaseStore(cfg: StoreConfig): RelayStore {
       return Array.isArray(rows) && rows.length === 1 ? rows[0].id : null;
     },
   };
+}
+
+export interface DiagReport {
+  id: string;
+  created_at: string;
+  account_id: string;
+  source: string;
+  kind: string;
+  box_id: string | null;
+  app_version: string | null;
+  user_agent: string | null;
+  payload: unknown;
+}
+
+// Operator read path (relay/scripts/diag-reports.ts): service role, newest first.
+export async function listDiagReports(cfg: StoreConfig, opts: { limit: number; accountId?: string }): Promise<DiagReport[]> {
+  const f = cfg.fetchImpl ?? fetch;
+  const limit = Math.max(1, Math.min(500, Math.floor(opts.limit)));
+  const filter = opts.accountId ? `&account_id=eq.${encodeURIComponent(opts.accountId)}` : '';
+  const res = await f(`${cfg.url.replace(/\/$/, '')}/rest/v1/diag_reports?select=*&order=created_at.desc&limit=${limit}${filter}`, {
+    headers: { apikey: cfg.serviceKey, authorization: `Bearer ${cfg.serviceKey}` },
+    signal: AbortSignal.timeout(REQ_TIMEOUT_MS),
+  });
+  if (!res.ok) throw new Error(`diag_reports: HTTP ${res.status}`);
+  return (await res.json()) as DiagReport[];
 }

@@ -13,6 +13,7 @@ import { parseCsvSet, clientIp, originAllowed, tokenFromSubprotocol, pickSubprot
 import { parseRootEmails, canSeeAllAccounts, canGrantAdmin, canListAccounts, type AccountRole } from '../../shared/identity';
 import { isRootOnlyFrame } from '../../shared/root-frames';
 import { isBoxId, sanitizeBoxLabel, type BoxesFrame } from '../../shared/boxes';
+import { parseAgentDiag } from '../../shared/diag';
 
 // Relay T3 (DR-023): roteador WS stateless e autenticado. NÃO spawna nada (a
 // fronteira é garantida pelo boundary.test) e NÃO guarda chave de assinatura — só
@@ -47,6 +48,18 @@ export interface RelayStore {
   // Scoped to the account: false when the box is not one of its live boxes.
   renameBox(accountId: string, agentId: string, label: string): Promise<boolean>;
   revokeBox(accountId: string, agentId: string): Promise<boolean>;
+  // Service-role insert into diag_reports (migration 0008). Optional so a store
+  // without the table keeps working: the frame is then dropped.
+  insertDiagReport?(row: DiagReportRow): Promise<boolean>;
+}
+
+export interface DiagReportRow {
+  account_id: string;
+  source: 'agent' | 'relay';
+  kind: string;
+  box_id: string | null;
+  app_version: string | null;
+  payload: Record<string, unknown>;
 }
 
 export interface RelayConfig {
@@ -123,6 +136,10 @@ export function createRelay(cfg: RelayConfig) {
   const AGENT_PREAUTH_MAX = 16 * 1024;
   const jwks: JwksFn = makeJwks(cfg.jwksUrl);
   const pairThrottle = slidingWindow(5, 60_000);
+  // Agent diag reports write the DB with the service role: a crash-looping box
+  // must not turn into an insert storm.
+  const diagPerBox = slidingWindow(6, 3600_000);
+  const diagGlobal = slidingWindow(120, 3600_000);
   // Sealed channels (T5) are per tab: each browser socket gets a routing id the
   // agent addresses its encrypted frames to. Random, never derived from the JWT.
   const conns = new Map<string, { ws: WebSocket; accountId: string }>();
@@ -492,6 +509,21 @@ export function createRelay(cfg: RelayConfig) {
     });
   });
 
+  // Agent → relay: a short report after a crash or a failed self-update. Never
+  // forwarded to the browsers; validated, redacted and rate limited before the insert.
+  async function handleAgentDiag(st: AgentState, raw: unknown): Promise<void> {
+    const parsed = parseAgentDiag(raw);
+    const box = obs.hid(st.agentId);
+    if (!parsed) { obs.event('agent_diag', { box, ok: false, why: 'invalid' }); return; }
+    if (!cfg.store.insertDiagReport) { obs.event('agent_diag', { box, ok: false, why: 'no store' }); return; }
+    if (!diagPerBox(st.agentId) || !diagGlobal('all')) { obs.event('agent_diag', { box, ok: false, why: 'rate' }); return; }
+    const ok = await cfg.store.insertDiagReport({
+      account_id: st.accountId, source: 'agent', kind: parsed.kind, box_id: st.agentId,
+      app_version: parsed.payload.version ?? null, payload: parsed.payload,
+    }).catch(() => false);
+    obs.event('agent_diag', { box, ok, kind: parsed.kind });
+  }
+
   // ── Agent path: challenge-signature (Ed25519). Pubkey/conta vêm do Store.
   wssAgent.on('connection', (ws: WebSocket) => {
     const st: AgentState = { agentId: '', accountId: '', challenge: '', authed: false };
@@ -590,6 +622,14 @@ export function createRelay(cfg: RelayConfig) {
       // É consumido aqui (não repassado) e reemite caps pra cada aba já conectada,
       // casando o papel privilegiado dela com a capacidade real do agente.
       const s = raw.toString();
+      if (s.length <= DIAG_FRAME_MAX && s.startsWith('{"t":"diag-report"')) {
+        let m: unknown = null;
+        try { m = JSON.parse(s); } catch { /* not ours */ }
+        if ((m as { t?: unknown } | null)?.t === 'diag-report') {
+          await handleAgentDiag(st, m);
+          return;
+        }
+      }
       if (maybeControlFrame(s, 'agent-caps')) {
         let m: { t?: string; canBypass?: boolean } = {};
         try { m = JSON.parse(s); } catch { /* repassa abaixo */ }
@@ -714,6 +754,9 @@ export function createRelay(cfg: RelayConfig) {
 // um punhado de frames de controle — que têm dezenas de bytes — sairia caro. O teto
 // descarta os grandes sem varrer a string; quem passa daqui ainda tem o `t` conferido.
 const CONTROL_FRAME_MAX = 4096;
+// An agent diag report carries up to 80 log lines: larger than a control frame,
+// still far below a data frame. Anything bigger is not parsed.
+const DIAG_FRAME_MAX = 72 * 1024;
 
 export function maybeControlFrame(s: string, ...types: string[]): boolean {
   if (s.length > CONTROL_FRAME_MAX) return false;
