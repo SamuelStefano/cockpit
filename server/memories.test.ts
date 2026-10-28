@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync, utimesSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync, mkdirSync, utimesSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -41,24 +41,18 @@ describe('migration from the old /contextos files', () => {
     expect(m.agents).toEqual(['bot1']);
   });
 
-  it('writes an edit back into the original file, keeping its frontmatter', async () => {
+  it('never writes to memoryDir: mem-save only changes readers, mem-delete is a no-op', async () => {
     writeFileSync(join(memDir, 'a.md'), OLD_MD);
+    writeFileSync(join(memDir, 'MEMORY.md'), 'index');
     await getMemories();
-    await saveMemory({ id: 'ctx-a', title: 'Outro título', body: 'Corpo editado.', agents: [] });
-    const raw = readFileSync(join(memDir, 'a.md'), 'utf8');
-    expect(raw).toContain('name: Outro título');
-    expect(raw).toContain('type: feedback');
-    expect(raw.trim().endsWith('Corpo editado.')).toBe(true);
-    const [m] = await getMemories();
-    expect(m.body).toBe('Corpo editado.');
-  });
-
-  it('does not bring a deleted memory back and keeps the file', async () => {
-    writeFileSync(join(memDir, 'a.md'), OLD_MD);
-    await getMemories();
-    expect(await deleteMemory('ctx-a')).toEqual([]);
-    expect(await getMemories()).toEqual([]);
-    expect(readFileSync(join(memDir, 'a.md'), 'utf8')).toBe(OLD_MD);
+    const before = readdirSync(memDir).map((f) => [f, readFileSync(join(memDir, f), 'utf8')]);
+    const r = await saveMemory({ id: 'ctx-a', title: 'Hack', body: 'Hack', agents: ['bot1'] });
+    expect(r.ok && r.items[0]).toMatchObject({ title: 'Regra antiga', agents: ['bot1'], fromDisk: true });
+    expect(r.ok && r.items[0].body).toContain('Nunca prometa nota.');
+    const after = await deleteMemory('ctx-a');
+    expect(after).toHaveLength(1);
+    expect(readdirSync(memDir).map((f) => [f, readFileSync(join(memDir, f), 'utf8')])).toEqual(before);
+    expect((await getMemories()).some((m) => m.title === 'MEMORY')).toBe(false);
   });
 
   it('reads a bare-array memories.json from before the versioned format', async () => {

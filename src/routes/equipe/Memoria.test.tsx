@@ -45,6 +45,18 @@ describe('Memoria', () => {
     expect(screen.getByText(/Lia lê mais de 8 KB/)).toBeTruthy();
   });
 
+  it('shows Claude memories read-only: no autosave, no delete, readers still assignable', () => {
+    const p = props([mem({ fromDisk: true })]);
+    render(<Memoria {...p} />);
+    expect(screen.getByText('Memória do Claude (só leitura)')).toBeTruthy();
+    expect((screen.getByLabelText('Texto da memória') as HTMLTextAreaElement).readOnly).toBe(true);
+    expect(screen.queryByRole('button', { name: 'Apagar memória' })).toBeNull();
+    act(() => { vi.advanceTimersByTime(2000); });
+    expect(p.onSave).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Redator' }));
+    expect(p.onSave).toHaveBeenCalledTimes(1);
+  });
+
   it('asks before deleting', () => {
     const p = props([mem()]);
     render(<Memoria {...p} />);

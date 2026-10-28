@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Memory, MemoryInput, TeamBot } from '../../../../shared/protocol';
-import { Button, IconButton } from '../../../components/primitives';
+import { Button, Icon, IconButton } from '../../../components/primitives';
 import { Readers } from './Readers';
 import { savedLabel } from './memory-view';
 
@@ -19,7 +19,8 @@ export function MemoryEditor({ memory, memories, bots, now, onSave, onDelete }: 
   const [title, setTitle] = useState(memory.title);
   const [body, setBody] = useState(memory.body);
   const [confirming, setConfirming] = useState(false);
-  const dirty = title !== memory.title || body !== memory.body;
+  const locked = !!memory.fromDisk;
+  const dirty = !locked && (title !== memory.title || body !== memory.body);
   const latest = useRef({ title, body, memory, onSave });
   latest.current = { title, body, memory, onSave };
 
@@ -47,12 +48,13 @@ export function MemoryEditor({ memory, memories, bots, now, onSave, onDelete }: 
   return (
     <div className="overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900/45">
       <div className="flex items-center gap-2 border-b border-neutral-800 px-3.5 py-2.5">
+        {locked && <Icon name="lock" size={14} className="shrink-0 text-neutral-500" />}
         <input
-          value={title} onChange={(e) => setTitle(e.target.value)} aria-label="Título da memória" maxLength={120}
+          readOnly={locked} value={title} onChange={(e) => setTitle(e.target.value)} aria-label="Título da memória" maxLength={120}
           className="min-w-0 flex-1 bg-transparent text-[15px] font-medium text-neutral-100 outline-hidden"
         />
-        <span className="shrink-0 text-[12px] text-neutral-600" role="status">{dirty ? 'salvando…' : savedLabel(memory.updatedAt, now)}</span>
-        {confirming ? (
+        <span className="shrink-0 text-[12px] text-neutral-600" role="status">{locked ? 'só leitura' : dirty ? 'salvando…' : savedLabel(memory.updatedAt, now)}</span>
+        {locked ? null : confirming ? (
           <>
             <Button size="xs" variant="danger" onClick={() => onDelete(memory.id)}>Apagar mesmo</Button>
             <Button size="xs" variant="ghost" onClick={() => setConfirming(false)}>Cancelar</Button>
@@ -62,7 +64,7 @@ export function MemoryEditor({ memory, memories, bots, now, onSave, onDelete }: 
         )}
       </div>
       <textarea
-        value={body} onChange={(e) => setBody(e.target.value)} aria-label="Texto da memória" spellCheck
+        readOnly={locked} value={body} onChange={(e) => setBody(e.target.value)} aria-label="Texto da memória" spellCheck
         placeholder="Escreva aqui o que a equipe precisa saber."
         className="block min-h-80 w-full resize-none bg-transparent px-4.5 py-4 text-[14px] leading-[1.65] text-neutral-100 outline-hidden placeholder:text-neutral-600"
       />

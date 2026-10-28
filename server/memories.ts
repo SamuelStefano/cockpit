@@ -1,12 +1,11 @@
 import { randomBytes } from 'node:crypto';
 import { homedir } from 'node:os';
-import { join, dirname, resolve } from 'node:path';
-import { readFile, writeFile, mkdir, rename, stat } from 'node:fs/promises';
+import { join, dirname } from 'node:path';
+import { readFile, writeFile, mkdir, rename } from 'node:fs/promises';
 import type { Memory, MemoryInput } from '../shared/protocol';
 import { MAX_MEMORY_BODY_BYTES } from '../shared/memory';
 import { withFileLockAsync } from './ws/file-lock';
 import { listContexts, readContext } from './contexts';
-import { CONFIG } from './config';
 
 export const MAX_MEMORIES = 200;
 const ID_RE = /^[a-zA-Z0-9_-]{1,80}$/;
@@ -52,8 +51,8 @@ function serialize<T>(fn: () => Promise<T>): Promise<T> {
 
 const diskId = (slug: string) => `ctx-${slug}`;
 
-// The agent's own memory files (what /contextos used to list) become memories the
-// first time they are seen; the .md stays untouched. Linked by id, so an agent
+// The agent's own memory files (what /contextos used to list) become READ-ONLY
+// memories the first time they are seen; nothing here ever writes to memoryDir. Linked by id, so an agent
 // rewrite later refreshes title and body but never the readers the user chose.
 async function syncFromDisk(store: Store): Promise<boolean> {
   let changed = false;
@@ -106,23 +105,6 @@ export function validateMemoryInput(raw: unknown): MemoryInputResult {
   return { ok: true, input: { id: m.id, title, body: m.body, agents, ...(fileName ? { fileName } : {}) } };
 }
 
-async function writeBackToDisk(slug: string, title: string, body: string): Promise<number | undefined> {
-  const dir = resolve(CONFIG.memoryDir);
-  const full = resolve(join(dir, `${slug}.md`));
-  if (!full.startsWith(dir + '/')) return undefined;
-  let head = '';
-  try {
-    const raw = await readFile(full, 'utf8');
-    const m = /^---\r?\n[\s\S]*?\r?\n---\r?\n?/.exec(raw);
-    head = m ? m[0] : '';
-  } catch { return undefined; }
-  if (head) head = head.replace(/^(name:).*$/m, `$1 ${title}`);
-  try {
-    await writeFile(full, `${head}${head ? '\n' : ''}${body}`, 'utf8');
-    return (await stat(full)).mtimeMs;
-  } catch { return undefined; }
-}
-
 export function saveMemory(input: NonNullable<Extract<MemoryInputResult, { ok: true }>['input']>, by = 'user', now = Date.now()): Promise<{ ok: true; items: Memory[] } | { ok: false; error: string }> {
   return serialize(async () => {
     const store = await readStore();
@@ -136,10 +118,7 @@ export function saveMemory(input: NonNullable<Extract<MemoryInputResult, { ok: t
       ...(input.fileName ? { fileName: input.fileName } : {}),
     };
     if (!next.deleted) delete next.deleted;
-    if (prev?.fromDisk && id.startsWith('ctx-')) {
-      const mtime = await writeBackToDisk(id.slice(4), input.title, input.body);
-      if (mtime !== undefined) next.diskMtime = mtime;
-    }
+    if (prev?.fromDisk) { next.title = prev.title; next.body = prev.body; next.updatedAt = prev.updatedAt; next.updatedBy = prev.updatedBy; }
     if (i >= 0) store.items[i] = next; else store.items.push(next);
     await writeStore(store);
     return { ok: true as const, items: store.items.filter((m) => !m.deleted).map(publicView).sort((a, b) => b.updatedAt - a.updatedAt) };
@@ -151,9 +130,10 @@ export function deleteMemory(id: string): Promise<Memory[]> {
     const store = await readStore();
     const cur = store.items.find((m) => m.id === id);
     if (cur) {
-      if (cur.fromDisk) cur.deleted = true;
-      else store.items = store.items.filter((m) => m.id !== id);
-      await writeStore(store);
+      if (!cur.fromDisk) {
+        store.items = store.items.filter((m) => m.id !== id);
+        await writeStore(store);
+      }
     }
     return store.items.filter((m) => !m.deleted).map(publicView).sort((a, b) => b.updatedAt - a.updatedAt);
   });
