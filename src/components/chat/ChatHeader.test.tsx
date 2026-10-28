@@ -99,6 +99,18 @@ describe('ChatHeader', () => {
     fireEvent.click(item);
     expect(onProfile).toHaveBeenCalledOnce();
   });
+
+  it('puts "Pausar agentes" in the agent menu and flips it to "Retomar agentes"', () => {
+    const onSet = vi.fn();
+    setup({ agent: { name: 'Capo', avatar: <span>m</span>, pause: { paused: false, onSet } } });
+    fireEvent.click(screen.getByLabelText('Mais ações da conversa'));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Pausar agentes' }));
+    expect(onSet).toHaveBeenCalledWith(true);
+    cleanup();
+    setup({ agent: { name: 'Capo', avatar: <span>m</span>, pause: { paused: true, onSet } } });
+    fireEvent.click(screen.getByLabelText('Mais ações da conversa'));
+    expect(screen.getByRole('menuitem', { name: 'Retomar agentes' })).toBeTruthy();
+  });
 });
 
 describe('ChatHeader phone bar', () => {

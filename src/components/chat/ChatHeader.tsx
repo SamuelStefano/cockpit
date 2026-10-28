@@ -59,7 +59,7 @@ export function ChatHeader({ session, messages, isEmpty, contextTokens, contextM
   const canRename = saved && !agent && !!onRename;
   const canDelete = saved && !agent && !!onDelete;
   const ctx = contextMeter(contextTokens, contextModel);
-  const hasMenu = !!ctx || !!turnStatParts(lastTurn) || !!ranOn || !!history || canExport || !!profile || !!onTerminal || canRename || canDelete;
+  const hasMenu = !!ctx || !!turnStatParts(lastTurn) || !!ranOn || !!history || canExport || !!profile || !!agent?.pause || !!onTerminal || canRename || canDelete;
 
   const moreMenu = hasMenu && (
     <Popover
@@ -67,7 +67,7 @@ export function ChatHeader({ session, messages, isEmpty, contextTokens, contextM
       content={
         <ChatHeaderMenu
           title={session?.title || 'sessao'} messages={messages} lastTurn={lastTurn} ranOn={ranOn}
-          selectedModel={selectedModel} history={history} canExport={canExport} profile={profile} onDone={menu.close}
+          selectedModel={selectedModel} history={history} canExport={canExport} profile={profile} pause={agent?.pause} onDone={menu.close}
           contextPct={ctx?.pct ?? null} onRename={canRename ? () => setRenameSignal((n) => n + 1) : undefined}
           onTerminal={onTerminal} terminalRunning={terminalRunning} onDelete={canDelete ? () => setConfirmDelete(true) : undefined}
         />

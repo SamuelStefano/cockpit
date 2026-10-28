@@ -49,14 +49,10 @@ describe('SidebarAgents', () => {
     expect(screen.getByRole('img', { name: 'esperando você' })).toBeTruthy();
   });
 
-  it('offers to pause the team only when it can', () => {
-    const onPauseSet = vi.fn();
-    setup([view('capo1'), view('ana22')], true, { onPauseSet });
-    fireEvent.click(screen.getByRole('button', { name: 'Pausar equipe' }));
-    expect(onPauseSet).toHaveBeenCalledWith(true);
-    cleanup();
-    setup([view('capo1'), view('ana22')]);
-    expect(screen.queryByRole('button', { name: 'Pausar equipe' })).toBeNull();
+  it('no longer carries the pause switch, only the paused notice', () => {
+    setup([view('capo1'), view('ana22')], true, { paused: true });
+    expect(screen.queryByRole('button', { name: /equipe/ })).toBeNull();
+    expect(screen.getByText('Mensagens entre agentes pausadas.')).toBeTruthy();
   });
 
   it('shows at most five mascots in the rail and nothing with no agents', () => {
