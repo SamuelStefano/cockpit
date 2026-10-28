@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { connectionsTabFromHash } from '../lib/admin-nav';
 import type { Connection } from '../../shared/connections';
 import type { TeamBot } from '../../shared/protocol';
-import { Button, Modal, Tabs, type TabItem } from '../components/primitives';
+import { Button, IconButton, Modal, Tabs, type TabItem } from '../components/primitives';
+import { TopBarAction } from '../components/chrome/sidebar/TopBarSlot';
 import { useSealState } from '../components/auth/useEnrollDevice';
 import { useDevices } from '../cockpit/useDevices';
 import { useDeviceLink } from '../components/profile/useDeviceLink';
@@ -97,13 +98,18 @@ export function Conexoes({ connected, items, loaded, bots, dflMcpsState, dflMcps
 
   return (
     <div className="scroll-thin min-h-0 flex-1 overflow-y-auto">
-      <div className="mx-auto w-full max-w-[1000px] p-4 md:p-8">
-        <header className="mb-5 flex flex-wrap items-center gap-x-3 gap-y-1">
+      <div className="mx-auto w-full max-w-[1000px] p-4 max-lg:pt-1 md:p-8">
+        <header className="mb-5 flex flex-wrap items-center gap-x-3 gap-y-1 max-lg:hidden">
           <h1 className="text-[22px] font-semibold tracking-tight text-neutral-100">Conexões</h1>
           <p className="text-[13px] text-neutral-500">Tudo que o Deck usa de fora e como está agora.</p>
           {canConnect && <Button size="sm" icon="plus" className="ml-auto" onClick={connectFlow}>Conectar</Button>}
         </header>
-        <Tabs items={tabItems} active={active} onChange={setTab} className="mb-5" />
+        {canConnect && (
+          <TopBarAction>
+            <IconButton icon="plus" label="Conectar" side="bottom" onClick={connectFlow} className="pointer-coarse:h-11 pointer-coarse:w-11" />
+          </TopBarAction>
+        )}
+        <Tabs items={tabItems} active={active} onChange={setTab} className="mb-2.5 lg:mb-5" />
         {notice && <Notice {...notice} onResolve={resolve} />}
         {!loaded ? (
           <p className="py-10 text-center text-[13px] text-neutral-500">carregando…</p>

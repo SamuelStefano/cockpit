@@ -76,7 +76,7 @@ function join(parts: string[]): string {
   return `${parts.slice(0, -1).join(', ')} e ${parts[parts.length - 1]}`;
 }
 
-export function noticeOf(items: Connection[], bots: TeamBot[]): { title: string; body: string } | null {
+export function noticeOf(items: Connection[], bots: TeamBot[]): { title: string; body: string; short: string } | null {
   const bad = problems(items);
   if (!bad.length) return null;
   const title = bad.length === 1 ? '1 conexão precisa de você.' : `${bad.length} conexões precisam de você.`;
@@ -86,7 +86,7 @@ export function noticeOf(items: Connection[], bots: TeamBot[]): { title: string;
   const tail = names.length
     ? ` — ${join(names)} ${names.length === 1 ? 'não consegue' : 'não conseguem'} usar isso até você resolver.`
     : '.';
-  return { title, body: `${what}${tail}` };
+  return { title, body: `${what}${tail}`, short: bad.map((c) => c.label).join(', ') };
 }
 
 const MIN = 60_000;

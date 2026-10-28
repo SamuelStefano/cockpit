@@ -11,7 +11,7 @@ export function BotFiles({ botId, api, connected }: BotFilesProps) {
   if (t.openPath) return <BotFilePreview path={t.openPath} data={t.openData} onBack={t.close} />;
   if (!t.loaded) return <div className="p-3"><SkeletonCards /></div>;
   if (!t.groups.length) {
-    return <EmptyState icon="file" title="Nenhum arquivo ainda" description="O que o bot salvar no espaço de trabalho dele aparece aqui." />;
+    return <EmptyState size="sm" icon="file" title="Nenhum arquivo ainda" description="O que o bot salvar no espaço de trabalho dele aparece aqui." />;
   }
   return (
     <div className="flex flex-col gap-3 px-2 py-3">

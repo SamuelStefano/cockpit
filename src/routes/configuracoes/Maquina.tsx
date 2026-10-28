@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
-import { Button, SectionTitle } from '../../components/primitives';
+import { Button, IconButton, SectionTitle } from '../../components/primitives';
 import { VpsMeters } from '../../components/chrome/sidebar/VpsMeters';
+import { TopBarAction } from '../../components/chrome/sidebar/TopBarSlot';
 import { AdminHostOps } from '../AdminHostOps';
 import { AdminDeckUpdate } from '../AdminDeckUpdate';
 import { AdminInventory } from '../AdminInventory';
@@ -37,10 +38,13 @@ export function Maquina(p: MaquinaProps) {
 
   return (
     <>
-      <div className="flex items-center">
+      <div className="flex items-center max-lg:hidden">
         <SectionTitle className="flex-1">Máquina</SectionTitle>
         <Button variant="secondary" size="sm" icon="rotate" title="Atualizar agora" onClick={onHealthList}>Atualizar</Button>
       </div>
+      <TopBarAction>
+        <IconButton icon="rotate" label="Atualizar agora" side="bottom" onClick={onHealthList} className="pointer-coarse:h-11 pointer-coarse:w-11" />
+      </TopBarAction>
       <div className="overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900/60 hairline [&>div]:border-t-0">
         <VpsMeters stats={p.stats} />
       </div>

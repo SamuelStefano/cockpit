@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Badge, Button, Icon, ProgressBar } from '../../components/primitives';
 import type { RegistryRef } from '../../../shared/protocol';
 import type { PackView } from '../../lib/skill-packs';
@@ -14,9 +15,11 @@ interface Props {
 export function PackPanel({ view, installing, compact, onInstall, onOpen }: Props) {
   const { pack, members, installedCount, missing, missingSuggested, complete } = view;
   const key = `pack:${pack.source}/${pack.slug}`;
+  const [open, setOpen] = useState(false);
+  const hide = open ? '' : 'max-lg:hidden';
   return (
     <section className="rounded-xl border border-orange-500/25 bg-gradient-to-br from-orange-500/[0.06] to-transparent p-4">
-      <header className="mb-3 flex flex-wrap items-start justify-between gap-3">
+      <header className={`flex flex-wrap items-start justify-between gap-3 lg:mb-3 ${open ? 'mb-3' : ''}`}>
         <div className="min-w-0">
           <div className="mb-1 flex items-center gap-1.5">
             <span className="flex h-5 w-5 items-center justify-center rounded-md bg-orange-500/15 text-orange-400"><Icon name="layers" size={12} /></span>
@@ -34,9 +37,13 @@ export function PackPanel({ view, installing, compact, onInstall, onOpen }: Prop
             ? <Badge tone="green" dot>completo</Badge>
             : <Button size="sm" icon="download" loading={installing} onClick={() => onInstall(key, missing)}>Instalar {missing.length} faltando</Button>}
         </div>
+        <button type="button" aria-expanded={open} aria-label={open ? 'Recolher pack' : 'Expandir pack'} onClick={() => setOpen((o) => !o)}
+          className="-mr-1 flex h-8 w-8 items-center justify-center rounded-lg text-neutral-400 hover:bg-neutral-800 lg:hidden">
+          <Icon name="chevronRight" size={14} className={open ? 'rotate-90 transition' : 'transition'} />
+        </button>
       </header>
-      <ProgressBar segments={[{ value: installedCount, tone: complete ? 'green' : 'orange' }, { value: members.length - installedCount, tone: 'track' }]} className="mb-3" />
-      <div className="flex flex-wrap gap-1.5">
+      <ProgressBar segments={[{ value: installedCount, tone: complete ? 'green' : 'orange' }, { value: members.length - installedCount, tone: 'track' }]} className={`mb-3 ${hide}`} />
+      <div className={`flex flex-wrap gap-1.5 ${hide}`}>
         {members.map((m) => <PackMemberChip key={m.slug} m={m} onOpen={onOpen} />)}
       </div>
     </section>

@@ -35,7 +35,7 @@ export function Configuracoes({ route, role, nav, isMobile, connected, cockpit: 
 
   return (
     <div className="scroll-thin min-h-0 flex-1 overflow-y-auto">
-      <div className="mx-auto flex w-full max-w-[980px] flex-col gap-4 px-4 py-5 md:flex-row md:gap-8 md:px-8 md:py-7">
+      <div className="mx-auto flex w-full max-w-[980px] flex-col gap-4 px-4 py-5 max-lg:pt-1 md:flex-row md:gap-8 md:px-8 md:py-7">
         {items.length > 1 && (
           <nav aria-label="Seções de configurações" className="scroll-thin flex shrink-0 gap-1 overflow-x-auto md:w-44 md:flex-col md:overflow-visible">
             {items.map((i) => (

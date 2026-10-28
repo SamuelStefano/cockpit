@@ -10,7 +10,7 @@ interface Props {
 
 export function DiscoverView({ skills, installing, onInstall }: Props) {
   if (skills.length === 0) {
-    return <EmptyState icon="check" title="Nada novo por aqui" description="Você já tem tudo do catálogo que bate com a busca." />;
+    return <EmptyState size="sm" icon="check" title="Nada novo por aqui" description="Você já tem tudo do catálogo que bate com a busca." />;
   }
   return (
     <div className="overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900/60">

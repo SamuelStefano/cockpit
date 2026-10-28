@@ -29,7 +29,7 @@ function Detail({ k, v, mono }: { k: string; v: string; mono?: boolean }) {
 export function SkillPage({ skill, doc, skillId, bots, loaded, onBack, onToggleAgent }: Props) {
   if (loaded && !skill) {
     return (
-      <EmptyState icon="search" title="Skill não encontrada" description="Ela pode ter sido removida desta máquina.">
+      <EmptyState size="sm" icon="search" title="Skill não encontrada" description="Ela pode ter sido removida desta máquina.">
         <Button icon="chevronLeft" onClick={onBack}>Voltar para Skills</Button>
       </EmptyState>
     );
@@ -39,12 +39,12 @@ export function SkillPage({ skill, doc, skillId, bots, loaded, onBack, onToggleA
   return (
     <div className="mx-auto w-full max-w-240">
       <nav className="mb-2.5 flex items-center gap-1.5 text-[13px] text-neutral-500" aria-label="Trilha">
-        <button type="button" onClick={onBack} className="text-neutral-400 hover:text-neutral-200">Skills</button>
-        <Icon name="chevronRight" size={12} />
-        <span className="truncate">{title}</span>
+        <button type="button" onClick={onBack} className="flex items-center gap-1 text-neutral-400 hover:text-neutral-200"><Icon name="chevronLeft" size={14} className="lg:hidden" />Skills</button>
+        <Icon name="chevronRight" size={12} className="max-lg:hidden" />
+        <span className="truncate max-lg:hidden">{title}</span>
       </nav>
       <div className="mb-2 flex flex-wrap items-center gap-2">
-        <h1 className="text-[22px] font-semibold tracking-[-0.02em] text-neutral-100">{title}</h1>
+        <h1 className="text-[22px] font-semibold tracking-[-0.02em] text-neutral-100 max-lg:hidden">{title}</h1>
         {skill && risksOf(skill).map((r) => <RiskBadge key={r} risk={r} />)}
         {skill && <Badge>{sourceLabel(sourceOf(skill))}</Badge>}
         {body && (

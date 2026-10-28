@@ -4,6 +4,7 @@ import { TeamStack } from './components/team/TeamStack';
 import type { TeamRailProps } from './components/team/TeamRail';
 import { Sidebar } from './components/chrome/sidebar/Sidebar';
 import { MobileTopBar } from './components/chrome/sidebar/MobileTopBar';
+import { TopBarSlotContext } from './components/chrome/sidebar/TopBarSlot';
 import { MobileNavDrawer } from './components/chrome/sidebar/MobileNavDrawer';
 import { SessionsPanel } from './components/Sessions';
 import { QuotaBanner } from './components/chrome/QuotaBanner';
@@ -109,6 +110,7 @@ function CockpitBody() {
   const seal = useSealState();
   const ejectPairing = usePairingEject(agentOnline, sbAuth.session?.user.id, conn.ws === 'connected');
   const isMobile = useIsMobile();
+  const [topBarSlot, setTopBarSlot] = useState<HTMLElement | null>(null);
   // Só o celular tem teclado por cima da tela; num desktop de janela baixa a
   // heurística acertaria pelo motivo errado e mutilaria o chat à toa.
   const keyboardOpen = useKeyboardOpen() && isMobile;
@@ -196,7 +198,10 @@ function CockpitBody() {
     />
   ) : null;
   const chatSurface = route === '/';
-  const pageTitle = FOOTER_NAV.find((i) => i.to === route || route.startsWith(`${i.to}/`))?.label ?? NAV.find((n) => n.to === route)?.label ?? 'Deck';
+  const pageTitle = route === '/agentes'
+    ? (agentId === 'novo' ? 'Novo agente' : agentId ? agent.views.find((v) => v.bot.id === agentId)?.bot.name ?? 'Agente' : 'Agentes')
+    : route === '/skills' && skillId ? skills.find((x) => x.id === skillId)?.name ?? skillId
+    : FOOTER_NAV.find((i) => i.to === route || route.startsWith(`${i.to}/`))?.label ?? NAV.find((n) => n.to === route)?.label ?? 'Deck';
 
   const connectionsCtx = useMemo(() => ({ connections: cockpit.connections, loaded: cockpit.connectionsLoaded, refresh: cockpit.onConnectionsGet }), [cockpit.connections, cockpit.connectionsLoaded, cockpit.onConnectionsGet]);
   const gate = resolveAuthGate({ sbAuth, seal, ejectPairing, authRequired, submitToken });
@@ -204,6 +209,7 @@ function CockpitBody() {
 
   return (
     <ConnectionsContext.Provider value={connectionsCtx}>
+    <TopBarSlotContext.Provider value={topBarSlot}>
     {/* Safe-area nos quatro lados: com `viewport-fit=cover` o notch em landscape
         come a lateral, e sem left/right o header e o composer ficam sob o entalhe. */}
     <div
@@ -236,7 +242,7 @@ function CockpitBody() {
         )}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {isMobile && !chatSurface && (
-            <MobileTopBar onMenu={() => setDrawer(!drawer)} menuOpen={drawer} title={pageTitle} />
+            <MobileTopBar onMenu={() => setDrawer(!drawer)} menuOpen={drawer} title={pageTitle} slotRef={setTopBarSlot} />
           )}
           {/* Âncora de altura zero no fluxo: o aviso pende daqui, logo abaixo do topo da coluna. */}
           <div className="relative z-40">
@@ -270,9 +276,10 @@ function CockpitBody() {
         <MobileNavDrawer open={drawer} onClose={() => setDrawer(false)}>{drawerNav}</MobileNavDrawer>
       )}
       <BoxHealthHost />
-      <Toaster />
+      <Toaster phoneTop={isMobile && chatSurface} />
       <ConfettiHost />
     </div>
+    </TopBarSlotContext.Provider>
     </ConnectionsContext.Provider>
   );
 }

@@ -31,7 +31,7 @@ export function Uso({ dock, connected, usageStats, onUsageList, sessions, rate, 
 
   return (
     <>
-      <SectionTitle>Uso</SectionTitle>
+      <SectionTitle className="max-lg:hidden">Uso</SectionTitle>
       <div className="rounded-xl border border-neutral-800 bg-neutral-900/60 hairline [&>div]:w-full">
         <UsagePanel inline rows={usageRows(chip.usage)} reset={resetAt ? relReset(resetAt) : ''} warn={warn || paused} blockedUntil={chip.blockedUntil} readAt={chip.readAt} nextReadAt={chip.nextReadAt} title={title} secondary={chip.secondary} />
       </div>

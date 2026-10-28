@@ -116,14 +116,14 @@ export function ChatHeader({ session, messages, isEmpty, contextTokens, contextM
       <div className="flex h-[52px] shrink-0 items-center gap-1 px-2">
         <IconButton icon="menu" label="Menu" side="bottom" onClick={onMenu} className="pointer-coarse:h-11 pointer-coarse:w-11" />
         {agent ? (
-          <span className="flex min-w-[40%] flex-1 items-center gap-2">
+          <span className="flex min-w-0 flex-1 items-center gap-2">
             {agent.avatar}
             <span className="truncate text-[15px] font-medium text-neutral-100">{agent.name}</span>
           </span>
         ) : fresh ? (
           <span className="min-w-0 flex-1 truncate text-[15px] font-medium text-neutral-100">Deck</span>
         ) : (
-          <div className="min-w-[40%] flex-1 overflow-hidden"><EditableTitle id={session?.id} title={title} editable={saved} onRename={onRename} startSignal={renameSignal} /></div>
+          <div className="min-w-0 flex-1 overflow-hidden"><EditableTitle id={session?.id} title={title} editable={saved} onRename={onRename} startSignal={renameSignal} /></div>
         )}
         {agent?.actions}
         {teamSlot}

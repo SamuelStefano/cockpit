@@ -17,7 +17,7 @@ export function Pessoas({ accounts, loaded, onAccountsList, onSetAdmin, adminOp 
   useEffect(() => { if (adminOp?.ok) onAccountsList(); }, [adminOp, onAccountsList]);
   return (
     <>
-      <SectionTitle>Pessoas</SectionTitle>
+      <SectionTitle className="max-lg:hidden">Pessoas</SectionTitle>
       <AdminAccounts accounts={accounts} loaded={loaded} onAccountsList={onAccountsList} onSetAdmin={onSetAdmin} canGrant />
     </>
   );

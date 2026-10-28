@@ -1,5 +1,7 @@
-import { useEffect } from 'react';
-import { Badge, Button, EmptyState, SkeletonCards, RouteHeader, Tabs } from '../components/primitives';
+import { useEffect, useState } from 'react';
+import { Badge, Button, EmptyState, IconButton, SkeletonCards, Tabs } from '../components/primitives';
+import { useIsMobile } from '../app/useIsMobile';
+import { TopBarAction } from '../components/chrome/sidebar/TopBarSlot';
 import { useLoadStalled } from '../lib/useLoadStalled';
 import type { RegistryCatalog, RegistryRef, SkillMeta, TeamBot } from '../../shared/protocol';
 import type { SkillDoc } from '../useCockpit';
@@ -39,6 +41,9 @@ interface Props {
 export function Skills(p: Props) {
   const { connected, skills, loaded, registry, registryLoading, registryError, skillId, onSkillList, onSkillOpen, onSkillClose, onRegistryGet } = p;
   const v = useSkillsView(skills, registry);
+  const phone = useIsMobile();
+  const [searchOpen, setSearchOpen] = useState(false);
+  const showSearch = searchOpen || v.query !== '';
 
   useEffect(() => { if (connected) onSkillList(); }, [connected, onSkillList]);
   useEffect(() => { if (connected && !registry && !registryLoading && !registryError) onRegistryGet(); }, [connected, registry, registryLoading, registryError, onRegistryGet]);
@@ -71,14 +76,21 @@ export function Skills(p: Props) {
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-neutral-950">
-      <RouteHeader variant="bar" title="skills" badge={<Badge tone="neutral">{skills.length}</Badge>}
-        subtitle="O que cada agente sabe fazer. Ligue por agente na página dele."
-        actions={<SkillsSearch value={v.query} onChange={v.setQuery} inputRef={v.searchRef} />} />
+      <header className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 px-4 pt-5 max-lg:hidden md:px-6">
+        <h1 className="text-[22px] font-semibold tracking-tight text-neutral-100">Skills</h1>
+        <Badge tone="neutral">{skills.length}</Badge>
+        <p className="text-[13px] text-neutral-500">O que cada agente sabe fazer. Ligue por agente na página dele.</p>
+        {!phone && <div className="ml-auto"><SkillsSearch value={v.query} onChange={v.setQuery} inputRef={v.searchRef} /></div>}
+      </header>
+      <TopBarAction>
+        <IconButton icon="search" label="Filtrar skills" side="bottom" aria-pressed={showSearch} onClick={() => setSearchOpen((o) => !o)} className="pointer-coarse:h-11 pointer-coarse:w-11" />
+      </TopBarAction>
+      {phone && showSearch && <div className="shrink-0 px-4 pt-1"><SkillsSearch value={v.query} onChange={v.setQuery} inputRef={v.searchRef} /></div>}
       {!connected ? (
         <SkillsOffline />
       ) : (
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          <Tabs items={tabs} active={v.tab} onChange={v.setTab} className="overflow-x-auto px-4" compact
+          <Tabs items={tabs} active={v.tab} onChange={v.setTab} className="mt-2 overflow-x-auto px-4 lg:mt-3" compact
             right={registry && <Button variant="ghost" size="sm" icon="rotate" loading={registryLoading} onClick={() => onRegistryGet(true)}
               aria-label="Atualizar o registro" title="Atualizar o registro" className="max-sm:w-7 max-sm:gap-0 max-sm:px-0"><span className="max-sm:sr-only">Registro</span></Button>} />
           <div className="scroll-thin flex-1 overflow-y-auto p-4">
@@ -86,7 +98,7 @@ export function Skills(p: Props) {
               {v.tab === 'installed' ? (
                 !loaded ? (
                   stalled ? (
-                    <EmptyState icon="x" title="Não deu pra carregar as skills" description="O servidor não respondeu com a lista. Tente de novo.">
+                    <EmptyState size="sm" icon="x" title="Não deu pra carregar as skills" description="O servidor não respondeu com a lista. Tente de novo.">
                       <Button icon="rotate" onClick={() => { retry(); onSkillList(); }}>Tentar de novo</Button>
                     </EmptyState>
                   ) : <SkeletonCards />
