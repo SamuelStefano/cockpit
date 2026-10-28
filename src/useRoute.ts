@@ -2,9 +2,9 @@ import { useState, useEffect, useCallback } from 'react';
 
 // Router minúsculo (sem dep): só troca a VIEW principal. useCockpit fica ACIMA
 // deste switch no App, então o WebSocket/terminais nunca desmontam ao navegar.
-export type Route = '/' | '/equipe/memoria' | '/skills' | '/pontos' | '/equipe' | '/equipe/rotinas' | '/uso' | '/graph' | '/canvas' | '/painel' | '/docs' | '/ds' | '/onboarding' | '/agentes';
+export type Route = '/' | '/equipe/memoria' | '/skills' | '/pontos' | '/equipe' | '/equipe/rotinas' | '/uso' | '/graph' | '/canvas' | '/painel' | '/conexoes' | '/docs' | '/ds' | '/onboarding' | '/agentes';
 
-const ROUTES: Route[] = ['/', '/equipe/memoria', '/skills', '/pontos', '/equipe', '/equipe/rotinas', '/uso', '/graph', '/canvas', '/painel', '/docs', '/ds', '/onboarding', '/agentes'];
+const ROUTES: Route[] = ['/', '/equipe/memoria', '/skills', '/pontos', '/equipe', '/equipe/rotinas', '/uso', '/graph', '/canvas', '/painel', '/conexoes', '/docs', '/ds', '/onboarding', '/agentes'];
 
 // Old URLs (bookmarks, deep links) keep working: /admin became /painel (the hash
 // picks the sub-tab, so it rides along) and the retired screens fall back to chat.

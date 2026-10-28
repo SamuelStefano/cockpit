@@ -20,3 +20,4 @@ export const Docs = lazy(() => import('../routes/Docs').then((m) => ({ default: 
 export const DesignSystem = lazy(() => import('../routes/DesignSystem').then((m) => ({ default: m.DesignSystem })));
 export const Agente = lazy(() => import('../routes/Agente').then((m) => ({ default: m.Agente })));
 export const Onboarding = lazy(() => import('../routes/Onboarding').then((m) => ({ default: m.Onboarding })));
+export const Conexoes = lazy(() => import('../routes/Conexoes').then((m) => ({ default: m.Conexoes })));
