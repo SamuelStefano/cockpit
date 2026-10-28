@@ -18,11 +18,11 @@ describe('SessionRow', () => {
   it('shows the title on one line, no time and no snippet', () => {
     const c = row();
     const title = screen.getByText('Nova sessão');
-    expect(title.className).toContain('truncate');
+    expect(title.className).toContain('whitespace-nowrap');
     expect(title.className).not.toContain('line-clamp');
     expect(c.querySelector('[data-row-meta]')).toBeNull();
     expect(screen.queryByText('há 3m')).toBeNull();
-    expect(title.parentElement?.className).toContain('text-[14px]');
+    expect(title.parentElement?.className).toContain('text-[13.5px]');
     expect(screen.queryByText('Pegue o contexto')).toBeNull();
   });
 
@@ -31,7 +31,7 @@ describe('SessionRow', () => {
     const el = c.firstElementChild as HTMLElement;
     expect(el.className).not.toContain('bg-orange');
     expect(el.className).not.toContain('before:');
-    expect(el.className).toContain('bg-neutral-800/90');
+    expect(el.className).toContain('bg-neutral-800/80');
   });
 
   it('running: green dot', () => {

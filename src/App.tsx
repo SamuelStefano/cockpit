@@ -8,6 +8,8 @@ import { TopBarSlotContext } from './components/chrome/sidebar/TopBarSlot';
 import { MobileNavDrawer } from './components/chrome/sidebar/MobileNavDrawer';
 import { SessionsPanel } from './components/Sessions';
 import { QuotaBanner } from './components/chrome/QuotaBanner';
+import { BodyFooter } from './components/chrome/BodyFooter';
+import { readUsage } from './components/chrome/sidebar/UsageDock';
 import { OfflineNotice } from './components/chrome/OfflineNotice';
 import { RestartNotice } from './components/chrome/RestartNotice';
 import { UpdateNotice } from './components/chrome/UpdateNotice';
@@ -253,14 +255,6 @@ function CockpitBody() {
             <UpdateNotice show={updateReady && !updateClosed && !showOffline && !restarting} onApply={applyUpdate} onDismiss={() => setUpdateClosed(true)} />
           </div>
 
-          {/* O aviso de cota do desktop: no celular quem avisa é o anel de uso no topo,
-              então nada flutua sobre o thread (A1). */}
-          {!isMobile && quotaGate.warn && !quotaClosed && rate && (
-            <div className="flex shrink-0 justify-end px-3 pt-1.5">
-              <QuotaBanner reset={relReset(rate.resetsAt)} onClose={() => setQuotaClosed(true)} />
-            </div>
-          )}
-
           <RouteContent
             route={route} agentRoute={{ id: agentId, tab: agentTab, open: navAgent }} skillRoute={{ id: skillId, open: navSkill }} isMobile={isMobile} isAdmin={isAdmin} isRoot={isRoot} connected={conn.ws === 'connected'}
             cockpit={cockpit} chatProps={chatWithTeam} termProps={termProps}
@@ -270,6 +264,12 @@ function CockpitBody() {
             mobile={{ drawer, setDrawer, termSheet, setTermSheet, runningTerm, drawerNav }}
             role={role} team={teamProps} nav={nav} account={account} usageDock={usageDock}
           />
+          {!isMobile && (
+            <BodyFooter
+              userId={account.userId}
+              end={quotaGate.warn && !quotaClosed && rate && <QuotaBanner pct={readUsage(usageDock).s.pct} reset={relReset(rate.resetsAt)} onClose={() => setQuotaClosed(true)} />}
+            />
+          )}
         </div>
       </div>
       {isMobile && !chatSurface && (

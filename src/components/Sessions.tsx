@@ -50,9 +50,12 @@ function SessionsPanelImpl({ sessions, loading, activeId, onSelect, onNew, marat
 
   return (
     <div className="flex h-full flex-col bg-neutral-950">
-      <div className="shrink-0 px-2.5 pt-1">
-        <BoxSwitcher userId={userId} />
-      </div>
+      {/* Desktop keeps the machine switcher in the body footer; only the phone drawer carries it. */}
+      {onCloseMobile && (
+        <div className="shrink-0 px-2.5 pt-1">
+          <BoxSwitcher userId={userId} />
+        </div>
+      )}
       {!embedded && (
         <div className="shrink-0 space-y-2 px-2.5 pt-2.5">
           <div className="flex items-center justify-between gap-2 px-0.5">
