@@ -35,17 +35,22 @@ export function TeamRail({ views, activeId, onOpen, onNew, onAll, canManage, pau
   const scroll = views.length >= SCROLL_FROM;
   const canPause = canManage && views.length > 1 && !!onPauseSet;
   return (
-    <aside aria-label="Equipe" className={`relative shrink-0 ${pinned ? 'w-60' : 'w-14'} transition-[width] duration-200 motion-reduce:transition-none`}>
+    // Hover lives on the aside, not the overlay: the open overlay starts below the header
+    // (top-12), so with the pointer in that strip it left the overlay, closed, grew back
+    // under the pointer and reopened — a flicker loop. The aside spans the full height.
+    <aside
+      aria-label="Equipe"
+      onMouseEnter={() => { if (!muted) setHover(true); }}
+      onMouseLeave={() => { setHover(false); setMuted(false); }}
+      onFocus={() => { if (!muted) setHover(true); }}
+      onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setHover(false); }}
+      className={`relative shrink-0 ${pinned ? 'w-60' : 'w-14'} transition-[width] duration-200 motion-reduce:transition-none`}>
       {open && !pinned && (
         <div aria-hidden className="absolute right-0 top-0 flex h-12 w-14 items-center justify-center border-l border-neutral-800 bg-neutral-950 text-neutral-500">
           <Icon name="users" size={16} />
         </div>
       )}
       <div
-        onMouseEnter={() => { if (!muted) setHover(true); }}
-        onMouseLeave={() => { setHover(false); setMuted(false); }}
-        onFocus={() => { if (!muted) setHover(true); }}
-        onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setHover(false); }}
         data-open={open}
         className={`absolute right-0 z-30 flex flex-col border-l border-neutral-800 bg-neutral-950 transition-[width] duration-200 motion-reduce:transition-none ${open && !pinned ? 'top-12 bottom-0 elev-2' : 'inset-y-0'} ${open ? 'w-60' : 'w-14'}`}
       >
