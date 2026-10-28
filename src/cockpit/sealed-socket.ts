@@ -339,6 +339,7 @@ export class SealedSocket {
       // sent on open is still in flight: a second hello would make the first
       // accept arrive against the wrong handshake and read as a refused key.
       if (t === 'agent-offline' && this.handshake) { this.handshake = null; this.clearTimer(); }
+      if (t === 'agent-online' && m.plain === true && !this.plain && !this.channel && !this.enrolling && !this.preauthing) this.goPlain();
       if (t === 'agent-online' && !this.plain && !this.channel && !this.handshake && !this.starting && !this.enrolling && !this.preauthing && this.seal !== 'enroll') void this.start();
       this.deliver(s);
       return;

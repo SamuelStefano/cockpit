@@ -162,6 +162,21 @@ describe('SealedSocket against an agent from before the sealed channel', () => {
     await flush();
     expect(got).toContain('{"t":"sessions","items":[]}');
   });
+
+  it('goes plain at once when the relay says the agent serves no sealed channel', async () => {
+    relay.hub = { handle: () => {} } as unknown as typeof relay.hub;
+    const s = new SealedSocket('wss://relay/ws', 'jwt', { main: true, box: '44444444-4444-4444-8444-444444444444', handshakeMs: 60_000 });
+    let opened = false;
+    s.onopen = () => { opened = true; };
+    await flush();
+    expect(opened).toBe(false);
+    relay.browser!.receive('{"t":"agent-online","box":"44444444-4444-4444-8444-444444444444","plain":true}');
+    await flush();
+    expect(opened).toBe(true);
+    expect(sealState.get()).toBe('sealed');
+    s.send('{"t":"list"}');
+    expect(relay.browser!.sent).toContain('{"t":"list"}');
+  });
 });
 
 describe('SealedSocket against the real agent hub', () => {

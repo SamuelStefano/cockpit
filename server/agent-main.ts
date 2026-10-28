@@ -254,7 +254,7 @@ function connect(relayUrl: string, id: Identity, onOpen: () => void, onClose: (c
       // canBypass é capacidade LOCAL do agente (allowBypass + localOnly + role admin):
       // o relay sozinho não sabe disso e força false. Reporta a real pro relay casar
       // com o papel do browser — o bypass continua aplicado SÓ aqui (bypassAllowed).
-      ws.send(JSON.stringify({ t: 'agent-caps', canBypass: capsFor(AGENT_ROLE, CONFIG).canBypass }));
+      ws.send(JSON.stringify({ t: 'agent-caps', canBypass: capsFor(AGENT_ROLE, CONFIG).canBypass, sealed: hub !== null && activeWs === ws }));
       sendPendingDiag(ws);
       // Listener adicional (coexiste com o do serveConnection): os frames de presença
       // do relay alternam os loops periódicos. São control-only — o dispatch os ignora
