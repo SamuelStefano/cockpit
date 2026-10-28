@@ -121,4 +121,24 @@ describe('useRoute', () => {
     });
     expect(result.current.route).toBe('/docs');
   });
+
+  it('parses /agentes/:id with its tab, and the bare list', () => {
+    history.replaceState(null, '', '/agentes/ana01?aba=rotinas');
+    const { result } = renderHook(() => useRoute());
+    expect(result.current).toMatchObject({ route: '/agentes', agentId: 'ana01', agentTab: 'rotinas' });
+    act(() => result.current.navAgent(''));
+    expect(location.pathname).toBe('/agentes');
+    expect(result.current).toMatchObject({ route: '/agentes', agentId: '' });
+  });
+
+  it('navAgent writes the tab in the query and falls back to perfil on a bad one', () => {
+    const { result } = renderHook(() => useRoute());
+    act(() => result.current.navAgent('novo'));
+    expect(location.pathname + location.search).toBe('/agentes/novo');
+    act(() => result.current.navAgent('ana01', 'arquivos'));
+    expect(location.pathname + location.search).toBe('/agentes/ana01?aba=arquivos');
+    history.replaceState(null, '', '/agentes/ana01?aba=zzz');
+    const again = renderHook(() => useRoute());
+    expect(again.result.current.agentTab).toBe('perfil');
+  });
 });

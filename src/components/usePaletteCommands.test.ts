@@ -14,7 +14,7 @@ const navIds = (role: NavRole) => renderHook(() => usePaletteCommands({ ...base,
 describe('usePaletteCommands navigation', () => {
   it('offers every route the header offers', () => {
     expect(navIds('student')).toHaveLength(navFor('student').length);
-    expect(navIds('student')).toEqual(['go-chat', 'go-equipe']);
+    expect(navIds('student')).toEqual(['go-chat', 'go-equipe', 'go-agentes']);
     expect(navIds('root')).toEqual(expect.arrayContaining(['go-chat', 'go-pontos', 'go-crons', 'go-equipe']));
   });
 

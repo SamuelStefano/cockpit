@@ -2,9 +2,9 @@ import { useState, useEffect, useCallback } from 'react';
 
 // Router minúsculo (sem dep): só troca a VIEW principal. useCockpit fica ACIMA
 // deste switch no App, então o WebSocket/terminais nunca desmontam ao navegar.
-export type Route = '/' | '/contextos' | '/skills' | '/pontos' | '/crons' | '/equipe' | '/uso' | '/graph' | '/canvas' | '/painel' | '/docs' | '/ds' | '/onboarding';
+export type Route = '/' | '/contextos' | '/skills' | '/pontos' | '/crons' | '/equipe' | '/uso' | '/graph' | '/canvas' | '/painel' | '/docs' | '/ds' | '/onboarding' | '/agentes';
 
-const ROUTES: Route[] = ['/', '/contextos', '/skills', '/pontos', '/crons', '/equipe', '/uso', '/graph', '/canvas', '/painel', '/docs', '/ds', '/onboarding'];
+const ROUTES: Route[] = ['/', '/contextos', '/skills', '/pontos', '/crons', '/equipe', '/uso', '/graph', '/canvas', '/painel', '/docs', '/ds', '/onboarding', '/agentes'];
 
 // Old URLs (bookmarks, deep links) keep working: /admin became /painel (the hash
 // picks the sub-tab, so it rides along) and the retired screens fall back to chat.
@@ -26,18 +26,36 @@ function redirectLegacy(): void {
 // só alimenta a sessão ativa — nada remonta ao trocar de chat.
 const CHAT = '/c/';
 
-export interface RouteState { route: Route; chatId: string }
+export type AgentTab = 'perfil' | 'rotinas' | 'arquivos' | 'computador';
+const AGENT_TABS: readonly AgentTab[] = ['perfil', 'rotinas', 'arquivos', 'computador'];
+const AGENTS = '/agentes/';
+
+export interface RouteState { route: Route; chatId: string; agentId: string; agentTab: AgentTab }
 
 export const chatPath = (id: string) => CHAT + encodeURIComponent(id);
+
+export function agentPath(id: string, tab: AgentTab = 'perfil'): string {
+  if (!id) return '/agentes';
+  return AGENTS + encodeURIComponent(id) + (tab === 'perfil' ? '' : `?aba=${tab}`);
+}
+
+const plain = (route: Route, chatId = ''): RouteState => ({ route, chatId, agentId: '', agentTab: 'perfil' });
 
 function current(): RouteState {
   redirectLegacy();
   const p = location.pathname;
   if (p.startsWith(CHAT)) {
     const id = decodeURIComponent(p.slice(CHAT.length));
-    if (id) return { route: '/', chatId: id };
+    if (id) return plain('/', id);
   }
-  return { route: ROUTES.includes(p as Route) ? (p as Route) : '/', chatId: '' };
+  if (p.startsWith(AGENTS)) {
+    const id = decodeURIComponent(p.slice(AGENTS.length).split('/')[0]);
+    if (id) {
+      const aba = new URLSearchParams(location.search).get('aba') as AgentTab | null;
+      return { route: '/agentes', chatId: '', agentId: id, agentTab: aba && AGENT_TABS.includes(aba) ? aba : 'perfil' };
+    }
+  }
+  return plain(ROUTES.includes(p as Route) ? (p as Route) : '/');
 }
 
 export function useRoute() {
@@ -50,7 +68,7 @@ export function useRoute() {
   const nav = useCallback((to: Route) => {
     if (location.pathname === to) return;
     history.pushState(null, '', to);
-    setState({ route: to, chatId: '' });
+    setState(plain(to));
   }, []);
   // replace=true pros ajustes DERIVADOS (rascunho new-xxx que virou sessionId
   // real, F5 restaurando a última sessão): corrige a URL sem empilhar history.
@@ -59,7 +77,15 @@ export function useRoute() {
     if (location.pathname === path) return;
     if (replace) history.replaceState(null, '', path);
     else history.pushState(null, '', path);
-    setState({ route: '/', chatId: id });
+    setState(plain('/', id));
   }, []);
-  return { route: state.route, chatId: state.chatId, nav, navChat };
+  const navAgent = useCallback((id: string, tab: AgentTab = 'perfil', replace = false) => {
+    const path = agentPath(id, tab);
+    if (location.pathname + location.search !== path) {
+      if (replace) history.replaceState(null, '', path);
+      else history.pushState(null, '', path);
+    }
+    setState({ route: '/agentes', chatId: '', agentId: id, agentTab: tab });
+  }, []);
+  return { route: state.route, chatId: state.chatId, agentId: state.agentId, agentTab: state.agentTab, nav, navChat, navAgent };
 }

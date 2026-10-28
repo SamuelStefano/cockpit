@@ -21,6 +21,7 @@ export const NAV: { to: Route; label: string; student?: true; root?: true }[] = 
   { to: '/pontos', label: 'pontos', root: true },
   { to: '/crons', label: 'crons' },
   { to: '/equipe', label: 'equipe', student: true },
+  { to: '/agentes', label: 'Agentes', student: true },
   { to: '/uso', label: 'uso' },
   { to: '/canvas', label: 'canvas' },
   { to: '/graph', label: 'graph' },
