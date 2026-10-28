@@ -40,6 +40,8 @@ import { useIsMobile } from './app/useIsMobile';
 import { useKeyboardOpen } from './app/useKeyboardOpen';
 import { useTabTitle } from './app/useTabTitle';
 import { useOfflineLatch } from './app/useOfflineLatch';
+import { useReconnectAction } from './app/useReconnectAction';
+import { useDiagReporter } from './app/diag/useDiagReporter';
 import { useAppUpdate } from './app/useAppUpdate';
 import { usePairingEject } from './app/usePairingEject';
 import { useLiveConnection } from './app/useLiveConnection';
@@ -106,6 +108,8 @@ function CockpitBody() {
 
   useLiveConnection({ wsState: conn.ws, reconnectNow });
   const { showOffline, restarting, offlineSince } = useOfflineLatch(conn.ws, authRequired);
+  const reconnect = useReconnectAction(reconnectNow, conn.ws);
+  const diag = useDiagReporter({ conn: conn.ws, authRejected: SUPABASE_ENABLED && authRequired, agentOnline, showOffline, offlineSince });
   const [updateClosed, setUpdateClosed] = useState(false);
   const { updateReady, applyUpdate } = useAppUpdate(conn.ws === 'connected');
   const seal = useSealState();
@@ -249,7 +253,7 @@ function CockpitBody() {
           )}
           {/* Âncora de altura zero no fluxo: o aviso pende daqui, logo abaixo do topo da coluna. */}
           <div className="relative z-40">
-            <OfflineNotice show={showOffline} onReconnect={reconnectNow} authRejected={SUPABASE_ENABLED && authRequired} offlineSince={offlineSince} />
+            <OfflineNotice show={showOffline} cause={diag.cause} box={diag.box} reconnect={reconnect} offlineSince={offlineSince} />
             {/* Um de cada vez na mesma âncora, e offline ganha: sem servidor não há
                 versão nova pra buscar, e recarregar ali só daria página em branco. */}
             <RestartNotice show={restarting && !showOffline} />

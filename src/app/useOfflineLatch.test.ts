@@ -17,7 +17,7 @@ describe('useOfflineLatch', () => {
     const { result, rerender } = setup();
     rerender({ c: 'down' });
     act(() => { vi.advanceTimersByTime(5900); });
-    expect(result.current).toEqual({ showOffline: false, restarting: false });
+    expect(result.current).toMatchObject({ showOffline: false, restarting: false });
     act(() => { vi.advanceTimersByTime(200); });
     expect(result.current.showOffline).toBe(true);
   });
@@ -26,11 +26,11 @@ describe('useOfflineLatch', () => {
     const { result, rerender } = setup();
     markAgentRestarting();
     rerender({ c: 'down' });
-    expect(result.current).toEqual({ showOffline: false, restarting: true });
+    expect(result.current).toMatchObject({ showOffline: false, restarting: true });
     act(() => { vi.advanceTimersByTime(44_000); });
-    expect(result.current).toEqual({ showOffline: false, restarting: true });
+    expect(result.current).toMatchObject({ showOffline: false, restarting: true });
     act(() => { vi.advanceTimersByTime(1500); });
-    expect(result.current).toEqual({ showOffline: true, restarting: false });
+    expect(result.current).toMatchObject({ showOffline: true, restarting: false });
   });
 
   it('ignores an announcement older than 60s', () => {
@@ -45,6 +45,6 @@ describe('useOfflineLatch', () => {
     markAgentRestarting();
     rerender({ c: 'down' });
     rerender({ c: 'connected' });
-    expect(result.current).toEqual({ showOffline: false, restarting: false });
+    expect(result.current).toMatchObject({ showOffline: false, restarting: false });
   });
 });

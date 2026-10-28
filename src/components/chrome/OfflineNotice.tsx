@@ -1,8 +1,14 @@
 import { useEffect, useState } from 'react';
-import { Icon } from '../primitives';
+import { Button, Icon } from '../primitives';
 import { VpsConnectForm } from '../VpsConnectForm';
 import { wsBase } from '../../cockpit/session';
 import { getLastClose } from '../../app/connectionTelemetry';
+import { causeMessage, type ConnCause } from '../../app/diag/connectionCause';
+import type { ReconnectStatus } from '../../app/useReconnectAction';
+import type { BoxInfo } from '../../../shared/boxes';
+import { SUPABASE_ENABLED } from '../../lib/supabase';
+import { BoxRecoverySteps } from './BoxRecoverySteps';
+import { SendDiagButton } from './SendDiagButton';
 
 // The host the socket really dials: a saved ws.url override or VITE_WS_URL, not
 // necessarily the page's own host (the front on Vercel, the backend elsewhere).
@@ -17,13 +23,18 @@ export function diagnosticLine(code: number | undefined, offlineSince: number | 
   return parts.join(' · ');
 }
 
-// Aviso honesto quando o backend não responde por alguns segundos (caso clássico:
-// front no Vercel sem túnel pro backend loopback). Evita a sensação de "app quebrado".
-// Ancora no wrapper de altura zero que o App monta logo abaixo do header: o `top`
-// mágico de 58px saía do lugar quando a safe-area do iPhone empurrava o header.
-// `authRejected`: the relay answered 4401. The backend is up; the login was
-// refused (expired or unresolved identity).
-export function OfflineNotice({ show, onReconnect, authRejected = false, offlineSince }: { show: boolean; onReconnect?: () => void; authRejected?: boolean; offlineSince?: number | null }) {
+interface Props {
+  show: boolean;
+  cause?: ConnCause | null;
+  box?: BoxInfo | null;
+  reconnect?: { status: ReconnectStatus; trigger: () => void };
+  offlineSince?: number | null;
+}
+
+// One message per cause (login refused, no internet, relay down, box offline,
+// agent silent), each with its next step. Anchored in the zero-height wrapper the
+// App mounts under the header.
+export function OfflineNotice({ show, cause, box = null, reconnect, offlineSince }: Props) {
   const [showConnect, setShowConnect] = useState(false);
   const [, tick] = useState(0);
   useEffect(() => {
@@ -32,38 +43,36 @@ export function OfflineNotice({ show, onReconnect, authRejected = false, offline
     return () => clearInterval(id);
   }, [show]);
   if (!show) return null;
+  const msg = causeMessage(cause ?? 'relay-unreachable', { box, host: backendHost() });
   const diag = diagnosticLine(getLastClose()?.code, offlineSince);
+  const network = !cause || cause === 'relay-unreachable' || cause === 'no-internet';
   return (
     <div className="fade-up pointer-events-none absolute left-1/2 top-2.5 z-40 w-[min(92vw,30rem)] -translate-x-1/2">
-      <div className="pointer-events-auto rounded-lg border border-red-500/30 bg-red-500/12 px-3 py-2 shadow-2xl shadow-black/40 backdrop-blur-md">
+      <div role="alert" className="pointer-events-auto max-h-[80vh] overflow-y-auto rounded-lg border border-red-500/30 bg-red-500/12 px-3 py-2 shadow-2xl shadow-black/40 backdrop-blur-md">
         <div className="flex items-start gap-2.5">
           <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-red-500/15 text-red-400">
             <Icon name="circle" size={13} />
           </span>
-          <div className="leading-tight">
-            <p className="text-[13px] font-medium text-red-200">{authRejected ? 'Login recusado pelo relay' : 'Backend não acessível'}</p>
-            <p className="text-[12px] text-red-200/70">
-              {authRejected
-                ? <>O relay em <span className="font-mono">{backendHost()}</span> não aceitou a sua sessão. Se não voltar sozinho em alguns segundos, saia e entre de novo.</>
-                : <>O Deck não alcança o servidor em <span className="font-mono">{backendHost()}</span>. Confira se o backend está rodando (ou o túnel/Tailscale). Tentando reconectar…</>}
-            </p>
-            {diag && <p className="text-[12px] text-red-200/50">{diag}</p>}
-            {onReconnect && (
-              <button
-                type="button"
-                onClick={onReconnect}
-                className="mt-1.5 mr-3 inline-flex items-center gap-1.5 text-[12px] font-medium text-red-100 transition hover:text-white"
-              >
-                <Icon name="rotate" size={12} /> Reconectar agora
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => setShowConnect((v) => !v)}
-              className="mt-1.5 inline-flex items-center gap-1.5 text-[12px] font-medium text-red-200/80 transition hover:text-red-100"
-            >
-              <Icon name={showConnect ? 'chevronDown' : 'chevronRight'} size={12} /> Configurar endereço do backend
-            </button>
+          <div className="min-w-0 flex-1 leading-tight">
+            <p className="text-[13px] font-medium text-red-200">{msg.title}</p>
+            <p className="text-[12px] text-red-200/70">{msg.body}</p>
+            <p className="mt-0.5 text-[12px] text-red-100">{msg.step}</p>
+            {msg.commands && <BoxRecoverySteps />}
+            {diag && <p className="mt-1 text-[12px] text-red-200/50">{diag}</p>}
+            {reconnect?.status === 'failed' && <p className="mt-1 text-[12px] text-red-200">Ainda sem conexão. {msg.step}</p>}
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              {reconnect && (
+                <Button variant="secondary" size="xs" icon="rotate" loading={reconnect.status === 'trying'} disabled={reconnect.status === 'trying'} onClick={reconnect.trigger}>
+                  {reconnect.status === 'trying' ? 'Reconectando…' : 'Reconectar agora'}
+                </Button>
+              )}
+              {SUPABASE_ENABLED && <SendDiagButton />}
+              {network && (
+                <Button variant="ghost" size="xs" icon={showConnect ? 'chevronDown' : 'chevronRight'} onClick={() => setShowConnect((v) => !v)}>
+                  Configurar endereço do backend
+                </Button>
+              )}
+            </div>
           </div>
         </div>
         {showConnect && (

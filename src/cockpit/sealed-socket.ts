@@ -13,7 +13,7 @@ import { dropPreauth, pendingPreauths } from './preauth-store';
 import { defaultDeviceLabel } from './device-label';
 import { toast } from '../components/primitives/toast-bus';
 import { boxStore } from './boxes-store';
-import { noteRelayFrame, recordConnEvent } from '../app/connectionTelemetry';
+import { noteRelayFrame, recordConnEvent } from '../app/connEvents';
 
 // Relay-mode socket (T5). Same surface useCockpit uses on a WebSocket, but it
 // reports "open" only once a sealed channel to a pinned agent exists, and from

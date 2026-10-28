@@ -1,4 +1,7 @@
 import { wsBase } from '../cockpit/session';
+import { recordConnEvent, resetConnEvents } from './connEvents';
+
+export { CONN_EVENTS_MAX, noteRelayFrame, recentConnEvents, recordConnEvent, relayAnsweredSinceDial, type ConnEvent } from './connEvents';
 
 export type ReportKind = 'ws_offline' | 'ws_recovered' | 'auth_rejected';
 export type UaFamily = 'chrome' | 'firefox' | 'safari' | 'edge' | 'other';
@@ -20,29 +23,6 @@ export interface ConnectionReport {
 export const MAX_REPORTS_PER_PAGE = 10;
 const MAX_REASON = 40;
 const MAX_APP = 24;
-
-// Ring of recent connection events for the identified diag report (diag_reports).
-// Never sent by the anonymous beacon above; the report redacts it before it leaves.
-export interface ConnEvent { at: number; ev: string; [field: string]: unknown }
-export const CONN_EVENTS_MAX = 200;
-let events: ConnEvent[] = [];
-let lastDialAt = 0;
-let lastRelayFrameAt = 0;
-
-export function recordConnEvent(ev: string, fields: Record<string, unknown> = {}): void {
-  const at = Date.now();
-  if (ev === 'dial') lastDialAt = at;
-  events.push({ ...fields, at, ev });
-  if (events.length > CONN_EVENTS_MAX) events = events.slice(-CONN_EVENTS_MAX);
-}
-export function recentConnEvents(): ConnEvent[] { return events.slice(); }
-
-// A relay-owned frame (agent-online/offline, boxes) proves the relay answered.
-export function noteRelayFrame(t: string, fields: Record<string, unknown> = {}): void {
-  lastRelayFrameAt = Date.now();
-  recordConnEvent(`relay:${t}`, fields);
-}
-export function relayAnsweredSinceDial(): boolean { return lastRelayFrameAt > 0 && lastRelayFrameAt >= lastDialAt; }
 
 let lastClose: { code: number; reason: string; at: number } | null = null;
 export function recordClose(code: number, reason: string): void {
@@ -96,7 +76,7 @@ export function telemetryUrl(base: string = wsBase()): string | null {
 
 let sent = 0;
 let offlineSentForEpisode = false;
-export function resetTelemetryForTests(): void { sent = 0; offlineSentForEpisode = false; lastClose = null; events = []; lastDialAt = 0; lastRelayFrameAt = 0; }
+export function resetTelemetryForTests(): void { sent = 0; offlineSentForEpisode = false; lastClose = null; resetConnEvents(); }
 export function endOfflineEpisode(): void { offlineSentForEpisode = false; }
 
 export function sendConnectionReport(report: ConnectionReport, url: string | null = telemetryUrl()): boolean {
