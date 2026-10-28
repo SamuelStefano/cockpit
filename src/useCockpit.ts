@@ -712,7 +712,7 @@ export function useCockpit(): Cockpit {
   const onNew = useCallback(() => {
     const id = newId('new-');
     ownNew.current.add(id);
-    const s: Session = { id, title: 'Nova sessão', relative: 'agora', snippet: 'Sem mensagens ainda', mtime: Date.now(), hasTerminal: false, active: true };
+    const s: Session = { id, title: 'Nova conversa', relative: 'agora', snippet: 'Sem mensagens ainda', mtime: Date.now(), hasTerminal: false, active: true };
     setSessions((prev) => [s, ...prev.map((x) => ({ ...x, active: false }))]);
     setThreads((prev) => ({ ...prev, [id]: [] }));
     focusSession(id);

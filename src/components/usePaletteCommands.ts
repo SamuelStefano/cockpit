@@ -43,7 +43,7 @@ export function usePaletteCommands(args: PaletteCommandsArgs): Cmd[] {
       run: go(n.to),
     }));
     const actions: Cmd[] = [
-      { id: 'new', label: 'Nova sessão', icon: 'plus', group: 'Ações', run: () => { onNew(); onClose(); } },
+      { id: 'new', label: 'Nova conversa', icon: 'plus', group: 'Ações', run: () => { onNew(); onClose(); } },
       { id: 'focus', label: 'Focar campo de mensagem', hint: '↵', icon: 'pencil', group: 'Ações', run: () => { nav('/'); onFocusComposer(); onClose(); } },
       { id: 'help', label: 'Mostrar atalhos de teclado', hint: '?', icon: 'command', group: 'Ações', run: () => { onClose(); onShowHelp(); } },
     ];

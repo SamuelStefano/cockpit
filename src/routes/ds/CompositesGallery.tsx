@@ -119,7 +119,7 @@ export function CompositesGallery() {
             title="Nenhuma sessão encontrada"
             description="Ajuste os filtros ou comece uma nova conversa com o agente."
           >
-            <Button icon="plus">Nova sessão</Button>
+            <Button icon="plus">Nova conversa</Button>
           </EmptyState>
         </div>
         <div className="mt-3 h-64 rounded-xl border border-neutral-800 bg-neutral-900/40">
