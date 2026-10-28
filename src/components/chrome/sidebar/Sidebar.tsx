@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { useWidthTransition } from './useWidthTransition';
 import { Button, IconButton, Tooltip, type ConnState } from '../../primitives';
 import { Bit } from '../../bit/Bit';
 import { BIT_STATE_LABEL, type BitState } from '../../bit/bit-state';
@@ -33,6 +34,7 @@ const SETTINGS_TO = FOOTER_NAV.find((i) => i.id === 'configuracoes')!.to;
 export function Sidebar({ route, nav, role, navCounts, onNew, onPalette, bitState, conn, account, sessions, rail, drawer }: SidebarProps) {
   const { collapsed, toggle } = useSidebarCollapsed();
   const expanded = drawer ? true : !collapsed;
+  const animating = useWidthTransition(expanded);
   const k = comboLabel(['⌘', 'K']);
   const toggleLabel = drawer ? 'Fechar menu' : expanded ? 'Recolher barra lateral' : 'Expandir barra lateral';
   const list = expanded && sessions;
@@ -47,8 +49,9 @@ export function Sidebar({ route, nav, role, navCounts, onNew, onPalette, bitStat
   return (
     <aside
       aria-label="Navegação principal"
-      className={`relative z-30 flex h-full shrink-0 flex-col bg-neutral-950 ${drawer ? 'w-full' : `border-r border-neutral-800 transition-[width] duration-200 ${expanded ? 'w-75' : 'w-14'}`}`}
+      className={`relative z-30 flex h-full shrink-0 flex-col bg-neutral-950 ${drawer ? 'w-full' : `border-r border-neutral-800 transition-[width] duration-200 motion-reduce:transition-none ${expanded ? 'w-75' : 'w-14'} ${animating ? 'overflow-hidden' : ''}`}`}
     >
+      <div className={`flex h-full min-h-0 shrink-0 flex-col ${drawer ? 'w-full' : expanded ? 'w-[calc(18.75rem-1px)]' : 'w-[calc(3.5rem-1px)]'}`}>
       <div className={`flex shrink-0 p-2 ${expanded ? 'h-14 items-center gap-0.5' : 'flex-col items-center gap-1'}`}>
         {bitButton}
         {!drawer && !expanded && <IconButton icon="panelLeft" label={toggleLabel} side="right" aria-expanded={expanded} onClick={toggle} />}
@@ -77,6 +80,7 @@ export function Sidebar({ route, nav, role, navCounts, onNew, onPalette, bitStat
       </div>}
 
       <SidebarFooter expanded={expanded} onSettings={footerNav(role).some((i) => i.id === 'configuracoes') ? () => nav(SETTINGS_TO) : undefined} onDevices={() => { nav('/conexoes'); history.replaceState(null, '', '/conexoes#aparelhos'); window.dispatchEvent(new PopStateEvent('popstate')); }} account={account} conn={conn} role={role} />
+      </div>
     </aside>
   );
 }
