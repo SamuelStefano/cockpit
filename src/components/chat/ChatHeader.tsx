@@ -134,21 +134,17 @@ export function ChatHeader({ session, messages, isEmpty, contextTokens, contextM
     );
   }
 
-  // Three columns, the outer two equal: the title sits on the body's center line, not after the actions.
   return (
-    <div className="grid h-12 shrink-0 grid-cols-[1fr_minmax(0,auto)_1fr] items-center gap-2 px-4">
-      <span />
-      <div className="flex min-w-0 max-w-[min(560px,50vw)] justify-center">
-        {agent ? (
-          <span className="flex min-w-0 items-center gap-2">
-            {agent.avatar}
-            <span className="truncate text-[14px] font-medium text-neutral-100">{agent.name}</span>
-          </span>
-        ) : (
-          <EditableTitle id={session?.id} title={title} editable={saved} onRename={onRename} startSignal={renameSignal} />
-        )}
-      </div>
-      <div className="flex shrink-0 items-center justify-end gap-2 pointer-coarse:gap-3">
+    <div className="flex h-12 shrink-0 items-center gap-2 px-4">
+      {agent ? (
+        <span className="flex min-w-0 items-center gap-2">
+          {agent.avatar}
+          <span className="truncate text-[14px] font-medium text-neutral-100">{agent.name}</span>
+        </span>
+      ) : (
+        <EditableTitle id={session?.id} title={title} editable={saved} onRename={onRename} startSignal={renameSignal} />
+      )}
+      <div className="ml-auto flex shrink-0 items-center gap-2 pointer-coarse:gap-3">
         {agent?.actions}
         {teamSlot}
         <ContextRing tokens={contextTokens} model={contextModel} onNew={onNew} />

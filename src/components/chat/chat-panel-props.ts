@@ -39,6 +39,9 @@ export interface ChatPanelProps {
   turnStatus?: ReactNode;
   // Header chip for the team (stack + sheet) when the rail does not fit.
   teamSlot?: ReactNode;
+  // Slim line under the composer (machine chip, quota reset): lives in the chat column so it
+  // tracks the team rail instead of sliding under it.
+  footer?: ReactNode;
   botDecor?: ChatBotDecor;
   // Link to the agent; a dead one puts the chat's Bit to sleep.
   conn?: LinkState;
