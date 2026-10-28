@@ -1,4 +1,0 @@
-/* Working ring around a collapsed-rail chat tile: a slow pulse, static for reduced motion. */
-@keyframes railBusy { 0%, 100% { box-shadow: 0 0 0 1.5px rgba(249, 115, 22, 0.25); } 50% { box-shadow: 0 0 0 1.5px rgba(249, 115, 22, 0.9); } }
-.rail-busy-ring { animation: railBusy 1.6s ease-in-out infinite; }
-@media (prefers-reduced-motion: reduce) { .rail-busy-ring { animation: none; box-shadow: 0 0 0 1.5px rgba(249, 115, 22, 0.7); } }
