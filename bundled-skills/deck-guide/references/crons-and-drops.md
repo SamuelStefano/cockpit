@@ -2,7 +2,7 @@
 
 ## Crons
 
-Scheduled prompts that start an autonomous turn. Page **crons**. Stored in
+Scheduled prompts that start an autonomous turn. Page **Equipe › Rotinas** (`/equipe/rotinas`). Stored in
 `~/.cockpit/crons.json` on the machine, so the machine must be on and the agent running.
 
 Three schedules:

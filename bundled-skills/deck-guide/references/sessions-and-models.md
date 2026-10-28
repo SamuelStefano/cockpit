@@ -20,7 +20,7 @@ from `~/.cockpit-local.env`.
 
 ## Other agents (ACP)
 
-The **painel → Agentes** tab connects other AI agents to the Deck in 3 steps each; the Deck
+The **Agentes** page (`/agentes`) connects other AI agents to the Deck in 3 steps each; the Deck
 runs the terminal commands and tests them. Connected agents appear in the model picker
 under a separate group from Claude models.
 
@@ -45,6 +45,6 @@ Per chat, the composer has a model picker and an effort picker.
 
 ## Other pages
 
-contextos (curated notes that improve over chats), crons, equipe (team bots and pending
-questions), canvas (kanban of tasks run by sessions), graph (repo graph), painel (admin),
-docs, pontos (owner-only ledger).
+The sidebar footer opens Equipe (team bots, with Rotinas = crons and Memória under it),
+Skills, Conexões (providers, keys, tools and devices) and Configurações. Also: canvas
+(kanban of tasks run by sessions), graph (repo graph), docs, pontos (owner-only ledger).
