@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { MIN_NODE_MAJOR } from '../shared/box-health';
-import { isSupervised } from './self-update';
+import { isSupervised, QUIET_MS } from './self-update';
 import { agentDir } from './self-update-boot';
 
 // Boxes self-update their code but not the Node the setup put in ~/.deck-node.
@@ -179,6 +179,16 @@ function realDeps(cwd: string, busy: () => boolean): UpgradeDeps {
 const BUSY_RECHECK_MS = 60_000;
 const FIRST_RUN_MS = 45_000;
 
+// Busy until the agent has had no turn in flight for QUIET_MS in a row.
+export function quietBusy(busy: () => boolean, now: () => number = Date.now, quietMs = QUIET_MS): () => boolean {
+  let idleSince: number | null = null;
+  return () => {
+    if (busy()) { idleSince = null; return true; }
+    idleSince ??= now();
+    return now() - idleSince < quietMs;
+  };
+}
+
 export function startNodeUpgrade(p: { cwd: string; busy: () => boolean; restart: () => void }): void {
   const home = homedir();
   let execPath = process.execPath;
@@ -191,7 +201,7 @@ export function startNodeUpgrade(p: { cwd: string; busy: () => boolean; restart:
   });
   if (plan === 'current') return;
   if (plan !== 'upgrade') { console.error(`[agent] node ${process.version} is below ${MIN_NODE_MAJOR}; not upgrading (${plan})`); return; }
-  const deps = realDeps(p.cwd, p.busy);
+  const deps = realDeps(p.cwd, quietBusy(p.busy));
   const run = async () => {
     const r = await upgradeNode(deps).catch((e): UpgradeResult => { console.error('[agent] node upgrade:', (e as Error).message); return 'failed'; });
     if (r === 'swapped') p.restart();

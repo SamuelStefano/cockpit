@@ -6,6 +6,7 @@ import { MobileNavDrawer } from './components/chrome/sidebar/MobileNavDrawer';
 import { SessionsPanel } from './components/Sessions';
 import { QuotaBanner } from './components/chrome/QuotaBanner';
 import { OfflineNotice } from './components/chrome/OfflineNotice';
+import { RestartNotice } from './components/chrome/RestartNotice';
 import { UpdateNotice } from './components/chrome/UpdateNotice';
 import { CommandPalette } from './components/CommandPalette';
 import { ShortcutsHelp } from './components/ShortcutsHelp';
@@ -99,7 +100,7 @@ function CockpitBody() {
   useEffect(() => { setQuotaClosed(false); }, [quotaWindow]);
 
   useLiveConnection({ wsState: conn.ws, reconnectNow });
-  const showOffline = useOfflineLatch(conn.ws);
+  const { showOffline, restarting } = useOfflineLatch(conn.ws);
   const [updateClosed, setUpdateClosed] = useState(false);
   const { updateReady, applyUpdate } = useAppUpdate(conn.ws === 'connected');
   const seal = useSealState();
@@ -237,7 +238,8 @@ function CockpitBody() {
             <OfflineNotice show={showOffline} onReconnect={reconnectNow} authRejected={SUPABASE_ENABLED && authRequired} />
             {/* Um de cada vez na mesma âncora, e offline ganha: sem servidor não há
                 versão nova pra buscar, e recarregar ali só daria página em branco. */}
-            <UpdateNotice show={updateReady && !updateClosed && !showOffline} onApply={applyUpdate} onDismiss={() => setUpdateClosed(true)} />
+            <RestartNotice show={restarting && !showOffline} />
+            <UpdateNotice show={updateReady && !updateClosed && !showOffline && !restarting} onApply={applyUpdate} onDismiss={() => setUpdateClosed(true)} />
           </div>
 
           {/* O aviso de cota do desktop: no celular quem avisa é o anel de uso no topo,
