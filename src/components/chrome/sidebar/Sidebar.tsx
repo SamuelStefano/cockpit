@@ -68,7 +68,7 @@ export function Sidebar({ route, nav, role, navCounts, onNew, onPalette, bitStat
         </div>
       </div>
 
-      <SidebarFooter expanded={expanded} onSettings={footerNav(role).some((i) => i.id === 'configuracoes') ? () => nav(SETTINGS_TO) : undefined} onDevices={() => { nav('/conexoes'); location.hash = 'aparelhos'; }} account={account} conn={conn} role={role} />
+      <SidebarFooter expanded={expanded} onSettings={footerNav(role).some((i) => i.id === 'configuracoes') ? () => nav(SETTINGS_TO) : undefined} onDevices={() => { nav('/conexoes'); history.replaceState(null, '', '/conexoes#aparelhos'); window.dispatchEvent(new PopStateEvent('popstate')); }} account={account} conn={conn} role={role} />
     </aside>
   );
 }
