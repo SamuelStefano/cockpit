@@ -29,21 +29,21 @@ describe('useRoleLanding', () => {
     expect(nav).not.toHaveBeenCalled();
   });
   it('a route outside the student menu always goes to the Equipe', () => {
-    for (const route of ['/painel', '/canvas', '/pontos', '/equipe/rotinas'] as Route[]) {
+    for (const route of ['/configuracoes/uso', '/canvas', '/pontos', '/equipe/rotinas'] as Route[]) {
       expect(mount({ route, chatId: '', capsKnown: true, role: 'student' }).nav).toHaveBeenCalledWith('/equipe');
     }
   });
   it('admin stays on its own routes', () => {
     expect(mount({ route: '/', chatId: '', capsKnown: true, role: 'admin' }).nav).not.toHaveBeenCalled();
     expect(mount({ route: '/canvas', chatId: '', capsKnown: true, role: 'admin' }).nav).not.toHaveBeenCalled();
-    expect(mount({ route: '/painel', chatId: '', capsKnown: true, role: 'admin' }).nav).not.toHaveBeenCalled();
+    expect(mount({ route: '/conexoes', chatId: '', capsKnown: true, role: 'admin' }).nav).not.toHaveBeenCalled();
     expect(mount({ route: '/ds', chatId: '', capsKnown: true, role: 'admin' }).nav).not.toHaveBeenCalled();
   });
   it('admin opening /pontos goes to chat (root only)', () => {
     expect(mount({ route: '/pontos', chatId: '', capsKnown: true, role: 'admin' }).nav).toHaveBeenCalledWith('/');
   });
   it('root is never moved', () => {
-    for (const route of ['/', '/pontos', '/painel', '/ds'] as Route[]) {
+    for (const route of ['/', '/pontos', '/conexoes', '/ds'] as Route[]) {
       expect(mount({ route, chatId: '', capsKnown: true, role: 'root' }).nav).not.toHaveBeenCalled();
     }
   });

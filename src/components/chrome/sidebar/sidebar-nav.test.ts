@@ -8,8 +8,8 @@ describe('footerNav', () => {
     }
   });
 
-  it('keeps a student on the Equipe only: navFor still gates every entry', () => {
-    expect(footerNav('student').map((i) => i.id)).toEqual(['equipe']);
+  it('keeps a student on Equipe and Configurações: navFor still gates every entry', () => {
+    expect(footerNav('student').map((i) => i.id)).toEqual(['equipe', 'configuracoes']);
   });
 
   it('gives every entry its own route so only one is active at a time', () => {

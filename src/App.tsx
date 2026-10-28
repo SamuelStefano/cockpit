@@ -193,7 +193,7 @@ function CockpitBody() {
     />
   ) : null;
   const chatSurface = route === '/';
-  const pageTitle = FOOTER_NAV.find((i) => i.to === route)?.label ?? NAV.find((n) => n.to === route)?.label ?? 'Deck';
+  const pageTitle = FOOTER_NAV.find((i) => i.to === route || route.startsWith(`${i.to}/`))?.label ?? NAV.find((n) => n.to === route)?.label ?? 'Deck';
 
   const connectionsCtx = useMemo(() => ({ connections: cockpit.connections, loaded: cockpit.connectionsLoaded, refresh: cockpit.onConnectionsGet }), [cockpit.connections, cockpit.connectionsLoaded, cockpit.onConnectionsGet]);
   const gate = resolveAuthGate({ sbAuth, seal, ejectPairing, authRequired, submitToken });
@@ -258,6 +258,7 @@ function CockpitBody() {
             onOpenAgentChat={(m) => { handleNew(); setModel(m); nav('/'); }}
             layout={{ rowRef }}
             mobile={{ drawer, setDrawer, termSheet, setTermSheet, runningTerm, drawerNav }}
+            role={role} nav={nav} account={account} usageDock={usageDock}
           />
         </div>
       </div>
