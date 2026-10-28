@@ -9,6 +9,9 @@ import { usePersisted } from '../../lib/persist';
 import { SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT, GROUP_NOTES_KEY, GROUP_NOTES_DEFAULT, NOTIFY_SOUND_KEY, NOTIFY_SOUND_DEFAULT } from '../../lib/prefs';
 import { isIOS } from '../../lib/platform';
 import { SwitchRow } from './SwitchRow';
+import { DevicesSection } from '../../components/profile/DevicesSection';
+import { SendDiagButton } from '../../components/chrome/SendDiagButton';
+import { SUPABASE_ENABLED } from '../../lib/supabase';
 
 export interface AccountProps {
   userId?: string;
@@ -57,6 +60,10 @@ export function Conta({ account, role }: { account: AccountProps; role: NavRole 
         )}
         {account.onChangePassword && (
           <div className="border-t border-neutral-800 px-4 py-3"><ChangePasswordForm onSubmit={account.onChangePassword} bare /></div>
+        )}
+        {account.onSignOut && <div className="border-t border-neutral-800 px-4 pb-3"><DevicesSection /></div>}
+        {SUPABASE_ENABLED && (
+          <ListRow label="Diagnóstico" hint="Manda o log da conexão pro admin" trailing={<SendDiagButton />} />
         )}
         {account.onSignOut && (
           <ListRow label="Sair desta conta" trailing={<Button variant="danger" size="sm" icon="x" onClick={account.onSignOut}>Desconectar conta</Button>} />
