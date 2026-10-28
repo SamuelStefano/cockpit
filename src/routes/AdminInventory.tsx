@@ -6,7 +6,7 @@ import { Dot, Chip, Inv } from './adminPrimitives';
 export function AdminInventory({ health }: { health: AdminHealth }) {
   return (
     <>
-      <div className="mb-5 rounded-xl border border-neutral-800 bg-neutral-900/40 p-4 hairline">
+      <div className="mb-5 rounded-xl border border-neutral-800 bg-neutral-900/40 p-4 hairline max-lg:mb-0 max-lg:rounded-none max-lg:border-0 max-lg:border-t max-lg:bg-transparent max-lg:px-0 max-lg:py-4 max-lg:shadow-none">
         <h2 className="mb-3 text-[13px] font-semibold uppercase tracking-wide text-neutral-400">Vínculos</h2>
         <ul className="space-y-2 text-[13px]">
           <li className="flex items-center justify-between">
@@ -36,7 +36,7 @@ export function AdminInventory({ health }: { health: AdminHealth }) {
 
       {/* grid-cols-1 = minmax(0,1fr): an implicit column grew to the widest chip
           and pushed every card past the viewport on a phone. */}
-      <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div className="mb-5 grid grid-cols-1 gap-3 max-lg:mb-0 max-lg:gap-0 sm:grid-cols-2">
         <Inv icon="terminal" title="CLIs no PATH" count={health.clis.filter((c) => c.present).length}>
           {health.clis.map((c) => <Chip key={c.name} label={c.name} on={c.present} />)}
         </Inv>

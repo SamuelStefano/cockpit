@@ -45,12 +45,12 @@ export function Maquina(p: MaquinaProps) {
       <TopBarAction>
         <IconButton icon="rotate" label="Atualizar agora" side="bottom" onClick={onHealthList} className="pointer-coarse:h-11 pointer-coarse:w-11" />
       </TopBarAction>
-      <div className="overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900/60 hairline [&>div]:border-t-0">
+      <div className="overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900/60 hairline [&>div]:border-t-0 max-lg:rounded-none max-lg:border-0 max-lg:bg-transparent [&>div]:max-lg:px-0">
         <VpsMeters stats={p.stats} />
       </div>
       {p.health && <Collapsible title="Inventário"><AdminInventory health={p.health} /></Collapsible>}
       {p.isRoot && (
-        <div className="mt-6">
+        <div className="mt-6 max-lg:mt-0">
           <AdminDeckUpdate health={p.health} adminOp={p.adminOp} onCliUpdate={p.onCliUpdate} onDeckRestart={p.onDeckRestart} />
           <AdminHostOps health={p.health} adminOp={p.adminOp} onEnvSet={p.onEnvSet} onEnvUnset={p.onEnvUnset} onMcpAdd={p.onMcpAdd} onMcpRemove={p.onMcpRemove} onCliInstall={p.onCliInstall} />
         </div>

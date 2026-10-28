@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { EquipePage } from './EquipePage';
 import type { BotView } from './equipe/team-view';
@@ -7,6 +7,8 @@ import type { Cron, TeamBot } from '../../shared/protocol';
 import { navFor } from '../components/chrome/nav-routes';
 
 afterEach(cleanup);
+const media = (matches: boolean) => vi.stubGlobal('matchMedia', (q: string) => ({ matches, media: q, addEventListener: () => {}, removeEventListener: () => {} }));
+beforeEach(() => media(false));
 const v = (id: string, over: Partial<BotView['bot']> = {}, state: BotView['state'] = 'idle'): BotView => ({
   bot: { id, name: id, label: `cargo ${id}`, instructions: '', mascot: { shape: 'blob', color: '#fff' }, profile: 'full', createdAt: 0, updatedAt: 0, ...over },
   key: id, preview: '', unread: false, state,
@@ -20,6 +22,15 @@ const base = () => ({
 });
 
 describe('EquipePage', () => {
+  it('on phones shows a one-line summary and a tappable list instead of the org chart', () => {
+    media(true);
+    const p = base();
+    render(<EquipePage {...p} />);
+    expect(screen.getByLabelText('Resumo da equipe').textContent).toBe('1 trabalhando · 1 esperando você');
+    expect(screen.queryByLabelText('Organograma da equipe')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir growth' }));
+    expect(p.onOpenAgent).toHaveBeenCalledWith('growth');
+  });
   it('shows only numbers it can compute and opens an agent from its node', () => {
     const p = base();
     render(<EquipePage {...p} />);

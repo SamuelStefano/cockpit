@@ -18,7 +18,7 @@ const field = 'w-full rounded-lg border border-neutral-800 bg-neutral-950 px-3 p
 
 function Field({ label, help, children }: { label: string; help?: string; children: ReactNode }) {
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className="flex flex-col gap-1.5 max-lg:gap-1">
       <label className="text-[12px] font-medium text-neutral-400">{label}</label>
       {children}
       {help && <p className="text-[12px] text-neutral-500">{help}</p>}
@@ -51,7 +51,7 @@ export function AgentForm({ bot, bots, models, locked, skills = [], onSave, onSa
   const b = useBuilderPanels(patch);
   return (
     <>
-      <form className="flex flex-col gap-5" onSubmit={(e) => { e.preventDefault(); submit(); }}>
+      <form className="flex flex-col gap-5 max-lg:gap-3" onSubmit={(e) => { e.preventDefault(); submit(); }}>
         {onAgentBuild && !locked && (
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant="secondary" size="sm" icon="sparkles" onClick={() => b.setPanel('builder')}>{bot ? 'Ajustar conversando' : 'Criar conversando'}</Button>
@@ -69,7 +69,7 @@ export function AgentForm({ bot, bots, models, locked, skills = [], onSave, onSa
           <Input aria-label="Cargo" placeholder="cargo (ex: levanta fatos e fontes pra equipe)" value={draft.label} onChange={(e) => set('label', e.target.value)} />
         </Field>
         <Field label="Instruções" help="Em português, como se explicasse pra uma pessoa nova no time.">
-          <textarea aria-label="Instruções" placeholder="O que esse agente faz, como fala, o que nunca faz…" rows={7}
+          <textarea aria-label="Instruções" placeholder="O que esse agente faz, como fala, o que nunca faz…" rows={6}
             value={draft.instructions} onChange={(e) => set('instructions', e.target.value)} className={`${field} resize-y`} />
         </Field>
         <Field label="Modelo">
@@ -92,7 +92,7 @@ export function AgentForm({ bot, bots, models, locked, skills = [], onSave, onSa
           </select>
         </Field>
         {!locked && <Switch checked={draft.primary} onChange={() => set('primary', !draft.primary)} icon="star" label="Agente principal" hint="O primeiro da equipe, que fala com você por padrão" />}
-        <div className="sticky bottom-0 -mx-1 flex items-center gap-2 bg-neutral-950 px-1 py-3">
+        <div className="sticky bottom-0 z-10 -mx-1 flex items-center gap-2 bg-neutral-950 px-1 py-3 max-sm:-mx-4 max-lg:border-t max-lg:border-neutral-800 max-sm:px-4 max-lg:pb-[max(12px,env(safe-area-inset-bottom))]">
           {onDelete && bot && (
             <Button type="button" variant="danger" size="md" icon="trash" onClick={() => del.fire(() => onDelete(bot.id))}>
               {del.armed ? 'Confirmar remoção?' : 'Remover'}
