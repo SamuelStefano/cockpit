@@ -9,7 +9,7 @@ export const SECURITY_HEADERS: Record<string, string> = {
   'content-security-policy': "default-src 'none'; style-src 'self'; img-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
   'x-frame-options': 'DENY',
   'x-content-type-options': 'nosniff',
-  'referrer-policy': 'no-referrer',
+  'referrer-policy': 'same-origin',
   'strict-transport-security': 'max-age=31536000; includeSubDomains',
   'cross-origin-opener-policy': 'same-origin',
   'cross-origin-resource-policy': 'same-origin',
@@ -21,6 +21,7 @@ export interface AppDeps {
   sessionSecret: string;
   adminIds: Set<string>;
   publicOrigin: string;
+  allowedOrigins?: string[];
   login: LoginDeps;
   data: OpsData;
   health: () => Promise<Health>;
@@ -42,11 +43,11 @@ export function clientIp(req: IncomingMessage): string {
   return last || req.socket.remoteAddress || 'unknown';
 }
 
-function sameOrigin(req: IncomingMessage, origin: string): boolean {
+function sameOrigin(req: IncomingMessage, origins: string[]): boolean {
   const o = req.headers.origin;
-  if (o) return o === origin;
+  if (o) return origins.includes(o);
   const ref = req.headers.referer;
-  return typeof ref === 'string' && (ref === origin || ref.startsWith(`${origin}/`));
+  return typeof ref === 'string' && origins.some((origin) => ref === origin || ref.startsWith(`${origin}/`));
 }
 
 async function readBody(req: IncomingMessage): Promise<string | null> {
@@ -84,7 +85,7 @@ export function createHandler(deps: AppDeps): (req: IncomingMessage, res: Server
     if (path === '/ops.css' && method === 'GET') return send(res, 200, CSS, { 'content-type': 'text/css; charset=utf-8' });
 
     if (method === 'POST') {
-      if (!sameOrigin(req, deps.publicOrigin)) return send(res, 403, errorPage(403, 'Origem recusada.', null));
+      if (!sameOrigin(req, deps.allowedOrigins ?? [deps.publicOrigin])) return send(res, 403, errorPage(403, 'Origem recusada.', null));
       if (path === '/logout') return redirect(res, '/login', { 'set-cookie': clearedCookie() });
       if (path === '/login') {
         const raw = await readBody(req);

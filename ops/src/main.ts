@@ -17,6 +17,7 @@ const handler = createHandler({
   sessionSecret: cfg.sessionSecret,
   adminIds: cfg.adminIds,
   publicOrigin: cfg.publicOrigin,
+  allowedOrigins: cfg.allowedOrigins,
   login: {
     supabaseUrl: cfg.supabaseUrl,
     anonKey: cfg.anonKey,
