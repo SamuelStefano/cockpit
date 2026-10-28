@@ -15,20 +15,23 @@ const row = (props: Partial<Parameters<typeof SessionRow>[0]> = {}) =>
   render(<SessionRow s={s} active={false} onSelect={() => {}} onRename={() => {}} onClose={() => {}} {...props} />).container;
 
 describe('SessionRow', () => {
-  it('shows the title on one line plus the relative time, no snippet', () => {
+  it('shows the title on one line, no time and no snippet', () => {
     const c = row();
     const title = screen.getByText('Nova sessão');
     expect(title.className).toContain('truncate');
     expect(title.className).not.toContain('line-clamp');
-    expect(c.querySelector('[data-row-meta]')?.textContent).toBe('há 3m');
+    expect(c.querySelector('[data-row-meta]')).toBeNull();
+    expect(screen.queryByText('há 3m')).toBeNull();
+    expect(title.parentElement?.className).toContain('text-[14px]');
     expect(screen.queryByText('Pegue o contexto')).toBeNull();
   });
 
-  it('active row gets the orange indicator and stronger background', () => {
+  it('active row gets a soft neutral background and no orange bar', () => {
     const c = row({ active: true });
     const el = c.firstElementChild as HTMLElement;
-    expect(el.className).toContain('before:bg-orange-500');
-    expect(el.className).toContain('bg-neutral-800 ');
+    expect(el.className).not.toContain('bg-orange');
+    expect(el.className).not.toContain('before:');
+    expect(el.className).toContain('bg-neutral-800/90');
   });
 
   it('running: green dot', () => {
@@ -46,9 +49,9 @@ describe('SessionRow', () => {
     expect(c.querySelectorAll('.bg-violet-400').length).toBe(1);
   });
 
-  it('idle with new output: single orange dot', () => {
+  it('idle with new output: no dot', () => {
     const c = row({ updated: true });
-    expect(c.querySelectorAll('.bg-orange-400').length).toBe(1);
+    expect(c.querySelectorAll('.bg-orange-400').length).toBe(0);
   });
 
   it('idle without signals: no dot at all', () => {

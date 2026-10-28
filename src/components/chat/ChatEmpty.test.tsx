@@ -9,7 +9,7 @@ import { ChatEmpty } from './ChatEmpty';
 
 afterEach(cleanup);
 
-describe('ChatEmpty suggestion chips', () => {
+describe('ChatEmpty suggestion rows', () => {
   it('send on desktop', () => {
     touch.virtual = false;
     const onPrompt = vi.fn(); const onSeed = vi.fn();
@@ -46,7 +46,16 @@ describe('ChatEmpty layout', () => {
     const { getAllByRole, getByText } = render(<ChatEmpty onPrompt={vi.fn()}><div>composer</div></ChatEmpty>);
     expect(getAllByRole('button')).toHaveLength(3);
     expect(getByText('composer')).toBeTruthy();
-    expect(getByText('Em que vamos trabalhar?')).toBeTruthy();
+    expect(getByText('O que vamos trabalhar hoje?')).toBeTruthy();
+  });
+
+  it('has no mascot and renders rows without borders', () => {
+    const { container, getAllByRole } = render(<ChatEmpty onPrompt={vi.fn()} />);
+    expect(container.querySelector('[data-bit]')).toBeNull();
+    for (const b of getAllByRole('button')) {
+      expect(b.className).not.toMatch(/\bborder\b/);
+      expect(b.querySelector('svg')).toBeTruthy();
+    }
   });
 });
 
