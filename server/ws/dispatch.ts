@@ -23,6 +23,7 @@ import { botRoutineError } from '../../shared/bot-routine';
 import { scheduleValid } from '../../shared/cron-schedule';
 import { fireCron, type CronFire } from './runs';
 import { getTeam, saveBot, deleteBot } from '../team';
+import { getMemories, saveMemory, deleteMemory, validateMemoryInput, readMemoriesSafe } from '../memories';
 import { botTurnFor } from '../team-prompt';
 import { sendTeamMessages, sendTeamPaused, setTeamPause } from './team-frames';
 import { clearBotQuestion, sendTeamPending } from './team-pending-frames';
@@ -591,6 +592,23 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       send(ws, { t: 'contexts', items: await listContexts() });
       return;
     }
+    case 'mem-list': {
+      send(ws, { t: 'memories', items: await getMemories() });
+      return;
+    }
+    case 'mem-save': {
+      const v = validateMemoryInput(msg.memory);
+      if (!v.ok) { send(ws, { t: 'error', message: v.error }); return; }
+      const r = await saveMemory(v.input);
+      if (!r.ok) { send(ws, { t: 'error', message: r.error }); return; }
+      send(ws, { t: 'memories', items: r.items });
+      return;
+    }
+    case 'mem-delete': {
+      if (typeof msg.id !== 'string') { send(ws, { t: 'error', message: 'memória inválida' }); return; }
+      send(ws, { t: 'memories', items: await deleteMemory(msg.id) });
+      return;
+    }
     case 'ctx-open': {
       const c = await readContext(msg.id);
       // A missing id used to get no reply at all, and the UI waited forever.
@@ -1094,7 +1112,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       // Skills selecionadas pela UI viram regras de negação das NÃO-selecionadas
       // (Skill(id)). Resolvido aqui (async) e passado adiante; vazio = todas ativas.
       const disallowedSkills = await resolveSkillDeny(msg.skills);
-      const bot = botTurnFor(await getTeam(), msg.sessionKey, msg.sessionId, role);
+      const bot = botTurnFor(await getTeam(), msg.sessionKey, msg.sessionId, role, await readMemoriesSafe());
       // The human's next message in the bot's thread is the answer, picked or typed.
       if (bot && msg.auto !== true) clearBotQuestion(bot.botId);
       const resumeId = bot?.resumeId ?? msg.sessionId;
@@ -1225,7 +1243,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     // snapshot pra todos os aparelhos verem a fila mudar ao vivo.
     case 'queue-add': {
       const disallowedSkills = await resolveSkillDeny(msg.skills);
-      const bot = botTurnFor(await getTeam(), msg.sessionKey, msg.sessionId, role);
+      const bot = botTurnFor(await getTeam(), msg.sessionKey, msg.sessionId, role, await readMemoriesSafe());
       const r = addParked(msg.sessionKey, {
         prompt: msg.text,
         resumeId: bot?.resumeId ?? msg.sessionId,

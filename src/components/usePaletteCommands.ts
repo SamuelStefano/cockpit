@@ -7,7 +7,7 @@ import { UI_SEEDS } from './paletteSeeds';
 import { navFor, type NavRole } from './chrome/nav-routes';
 
 const NAV_ICON: Partial<Record<Route, IconName>> = {
-  '/': 'message', '/contextos': 'sparkles', '/skills': 'zap', '/uso': 'arrowUp', '/docs': 'file',
+  '/': 'message', '/equipe/memoria': 'sparkles', '/skills': 'zap', '/uso': 'arrowUp', '/docs': 'file',
 };
 
 const MODE_LABEL: Record<PermMode, string> = { plan: 'Planejar', auto: 'Auto', acceptEdits: 'Executar' };
