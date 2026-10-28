@@ -10,6 +10,8 @@ interface BitProps {
   title?: string;
   className?: string;
   still?: boolean;
+  // Extra motion classes (bit-walking, bit-carry…) layered over the state; see bit-play.css.
+  pose?: string;
 }
 
 const BODY = '#f97316';
@@ -21,7 +23,7 @@ const LOW_ARM = 'M96 70q12 4 12 16';
 
 // The Deck's mascot: a little terminal with a screen for a face, drawn in code
 // so every state is just CSS on named parts (see bit.css).
-export function Bit({ state = 'idle', size = 64, title, className = '', still = false }: BitProps) {
+export function Bit({ state = 'idle', size = 64, title, className = '', still = false, pose = '' }: BitProps) {
   const uid = useId().replace(/:/g, '');
   const clipId = `bit-scr-${uid}`;
   const gradId = `bit-body-${uid}`;
@@ -30,7 +32,7 @@ export function Bit({ state = 'idle', size = 64, title, className = '', still = 
   return (
     <svg
       role="img" aria-label={title ?? BIT_STATE_LABEL[state]} viewBox="0 0 120 120" width={size} height={size}
-      className={`bit bit-${state}${still ? ' bit-still' : ''} shrink-0 overflow-visible ${className}`}
+      className={`bit bit-${state}${still ? ' bit-still' : ''}${pose ? ` ${pose}` : ''} shrink-0 overflow-visible ${className}`}
     >
       <defs>
         <clipPath id={clipId}><rect x={32} y={40} width={56} height={50} rx={13} /></clipPath>
@@ -54,7 +56,8 @@ export function Bit({ state = 'idle', size = 64, title, className = '', still = 
           </g>
           <path className="bit-armL" d="M24 70q-12 4-12 16" stroke={LIMB} strokeWidth={7} strokeLinecap="round" fill="none" />
           <path className="bit-armR" d={state === 'wave' ? RAISED_ARM : LOW_ARM} stroke={LIMB} strokeWidth={7} strokeLinecap="round" fill="none" />
-          <path d="M44 101v8M76 101v8" stroke={LIMB} strokeWidth={7} strokeLinecap="round" />
+          <path className="bit-legL" d="M44 101v8" stroke={LIMB} strokeWidth={7} strokeLinecap="round" />
+          <path className="bit-legR" d="M76 101v8" stroke={LIMB} strokeWidth={7} strokeLinecap="round" />
           <rect x={20} y={28} width={80} height={76} rx={22} fill={`url(#${gradId})`} />
           <rect x={20} y={28} width={80} height={76} rx={22} fill="none" stroke={LIMB} strokeWidth={2.4} opacity={0.55} />
           <path d="M31 36q29-8 58 0" stroke="#fff" strokeOpacity={0.3} strokeWidth={3} strokeLinecap="round" fill="none" />

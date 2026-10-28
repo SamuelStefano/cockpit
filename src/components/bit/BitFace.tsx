@@ -21,6 +21,32 @@ function Eyes({ state }: { state: BitState }) {
       </g>
     );
   }
+  if (state === 'sneaky') {
+    return (
+      <g className="bit-pupils">
+        <path d="M41 56h13M66 56h13" stroke={GLOW} strokeWidth={2.6} strokeLinecap="round" />
+        <rect x={44} y={57} width={9} height={7} rx={3.5} fill={GLOW} />
+        <rect x={68} y={57} width={9} height={7} rx={3.5} fill={GLOW} />
+      </g>
+    );
+  }
+  if (state === 'surprised') {
+    return (
+      <g className="bit-pupils">
+        <circle cx={48} cy={58} r={8} fill="none" stroke={GLOW} strokeWidth={2.6} />
+        <circle cx={72} cy={58} r={8} fill="none" stroke={GLOW} strokeWidth={2.6} />
+        <circle cx={48} cy={58} r={3} fill={GLOW} />
+        <circle cx={72} cy={58} r={3} fill={GLOW} />
+      </g>
+    );
+  }
+  if (state === 'dizzy') {
+    return (
+      <g stroke={GLOW} strokeWidth={3} strokeLinecap="round">
+        <path d="M43 53l10 10M53 53l-10 10M67 53l10 10M77 53l-10 10" />
+      </g>
+    );
+  }
   if (state === 'error') {
     return (
       <g>
@@ -66,6 +92,12 @@ function Mouth({ state, clipId }: { state: BitState; clipId: string }) {
       return null;
     case 'error':
       return <path d="M51 81q4.5-4 9 0t9 0" stroke={SAD} strokeWidth={3} strokeLinecap="round" fill="none" />;
+    case 'surprised':
+      return <ellipse cx={60} cy={80} rx={4} ry={5} fill={GLOW} />;
+    case 'sneaky':
+      return <path d="M48 74q12 9 24-2" stroke={GLOW} strokeWidth={3.2} strokeLinecap="round" fill="none" />;
+    case 'dizzy':
+      return <path d="M51 80q4.5-4 9 0t9 0" stroke={GLOW} strokeWidth={3} strokeLinecap="round" fill="none" />;
     case 'happy':
     case 'wave':
       return <path d="M50 73q10 10 20 0" stroke={GLOW} strokeWidth={3.4} strokeLinecap="round" fill="none" />;
@@ -77,8 +109,10 @@ function Mouth({ state, clipId }: { state: BitState; clipId: string }) {
 export function BitFace({ state, clipId }: { state: BitState; clipId: string }) {
   return (
     <>
-      <g className="bit-eyes">
-        <Eyes state={state} />
+      <g className="bit-gaze">
+        <g className="bit-eyes">
+          <Eyes state={state} />
+        </g>
       </g>
       <Mouth state={state} clipId={clipId} />
     </>

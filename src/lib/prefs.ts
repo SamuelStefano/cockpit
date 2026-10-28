@@ -37,3 +37,8 @@ export const WAITING_DISMISSED_KEY = 'waitingDismissed';
 // já é sessão que ninguém reabre, e ainda deixa a semana corrente inteira de fora.
 export const FUNNEL_IDLE_KEY = 'sessions.funnelIdleDays';
 export const FUNNEL_IDLE_DEFAULT = 7;
+
+// "Bit brincalhão": o mascote apronta no chat parado e brinca na tela de conversa
+// nova. Ligado por padrão; prefers-reduced-motion desliga de qualquer jeito.
+export const BIT_PLAYFUL_KEY = 'bit.playful';
+export const BIT_PLAYFUL_DEFAULT = true;

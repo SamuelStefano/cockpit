@@ -6,7 +6,7 @@ import { ChangePasswordForm } from '../../components/profile/ChangePasswordForm'
 import { DropButton } from '../../components/drop/DropButton';
 import type { DropApi } from '../../cockpit/useDrops';
 import { usePersisted } from '../../lib/persist';
-import { SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT, GROUP_NOTES_KEY, GROUP_NOTES_DEFAULT, NOTIFY_SOUND_KEY, NOTIFY_SOUND_DEFAULT } from '../../lib/prefs';
+import { SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT, GROUP_NOTES_KEY, GROUP_NOTES_DEFAULT, NOTIFY_SOUND_KEY, NOTIFY_SOUND_DEFAULT, BIT_PLAYFUL_KEY, BIT_PLAYFUL_DEFAULT } from '../../lib/prefs';
 import { isIOS } from '../../lib/platform';
 import { SwitchRow } from './SwitchRow';
 import { DevicesSection } from '../../components/profile/DevicesSection';
@@ -25,6 +25,7 @@ export function Conta({ account, role }: { account: AccountProps; role: NavRole 
   const [showTools, setShowTools] = usePersisted<boolean>(SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT);
   const [groupNotes, setGroupNotes] = usePersisted<boolean>(GROUP_NOTES_KEY, GROUP_NOTES_DEFAULT);
   const [notifySound, setNotifySound] = usePersisted<boolean>(NOTIFY_SOUND_KEY, NOTIFY_SOUND_DEFAULT);
+  const [bitPlayful, setBitPlayful] = usePersisted<boolean>(BIT_PLAYFUL_KEY, BIT_PLAYFUL_DEFAULT);
   const badge = roleBadge(role);
 
   return (
@@ -55,6 +56,7 @@ export function Conta({ account, role }: { account: AccountProps; role: NavRole 
           hint={isIOS() ? 'No iPhone/iPad o app em segundo plano fica pausado: o aviso só sai ao voltar' : 'Beep curto, só com a aba fora de foco'}
           checked={notifySound} onChange={() => setNotifySound((v) => !v)}
         />
+        <SwitchRow label="Bit brincalhão" hint="O mascote apronta no chat parado e brinca na conversa nova" checked={bitPlayful} onChange={() => setBitPlayful((v) => !v)} />
         {account.drops && (
           <ListRow label="Drop privado" hint="Entrega segredo ou script ao agente sem passar pelo chat" trailing={<DropButton api={account.drops} bare />} />
         )}
