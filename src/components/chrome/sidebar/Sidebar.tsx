@@ -7,7 +7,6 @@ import type { Route } from '../../../useRoute';
 import type { NavRole } from '../nav-routes';
 import { SidebarItem } from './SidebarItem';
 import { SidebarNav } from './SidebarNav';
-import { SidebarAgents, type SidebarAgentsProps } from './SidebarAgents';
 import { SidebarFooter, type AccountProps } from './SidebarFooter';
 import { FOOTER_NAV, footerNav } from './sidebar-nav';
 import { useSidebarCollapsed } from './useSidebarCollapsed';
@@ -22,7 +21,6 @@ export interface SidebarProps {
   bitState: BitState;
   conn: ConnState;
   account: AccountProps;
-  agents?: SidebarAgentsProps;
   // The conversations list (SessionsPanel), shown only when expanded.
   sessions?: ReactNode;
   // Phone drawer: always expanded, fills its container, and the header button closes it.
@@ -31,7 +29,7 @@ export interface SidebarProps {
 
 const SETTINGS_TO = FOOTER_NAV.find((i) => i.id === 'configuracoes')!.to;
 
-export function Sidebar({ route, nav, role, navCounts, onNew, onPalette, bitState, conn, account, agents, sessions, drawer }: SidebarProps) {
+export function Sidebar({ route, nav, role, navCounts, onNew, onPalette, bitState, conn, account, sessions, drawer }: SidebarProps) {
   const { collapsed, toggle } = useSidebarCollapsed();
   const expanded = drawer ? true : !collapsed;
   const k = comboLabel(['⌘', 'K']);
@@ -61,7 +59,6 @@ export function Sidebar({ route, nav, role, navCounts, onNew, onPalette, bitStat
       </div>
 
       <div className={`flex min-h-0 flex-1 flex-col ${list ? '' : 'scroll-thin overflow-y-auto'}`}>
-        {agents && <div className="shrink-0 px-2 pb-2"><SidebarAgents {...agents} expanded={expanded} /></div>}
         {list ? <div className="min-h-0 flex-1">{sessions}</div> : <div className="flex-1" />}
         <div className="mx-2 shrink-0 border-t border-neutral-800/80 py-2">
           <SidebarNav route={route} nav={nav} role={role} counts={navCounts} expanded={expanded} />

@@ -1,5 +1,7 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { memorizePrompt } from './components/chat/memorize';
+import { TeamStack } from './components/team/TeamStack';
+import type { TeamRailProps } from './components/team/TeamRail';
 import { Sidebar } from './components/chrome/sidebar/Sidebar';
 import { MobileTopBar } from './components/chrome/sidebar/MobileTopBar';
 import { MobileNavDrawer } from './components/chrome/sidebar/MobileNavDrawer';
@@ -176,11 +178,11 @@ function CockpitBody() {
     bots: cockpit.bots, teamLoaded: cockpit.teamLoaded, sessions, running, activeId: activeSessionId, phase, interrupted: cockpit.interrupted, runStart,
     pendingQuestions: cockpit.pendingQuestions, teamMessages: cockpit.teamMessages, connected: conn.ws === 'connected', onTeamGet: cockpit.onTeamGet, onOpenBot: cockpit.onOpenBot,
   }, route, nav, navAgent);
-  const agentsProps = {
-    views: agent.views, activeId: agent.active?.bot.id ?? null, onNew: agent.openNew,
-    onOpen: (id: string) => { agent.open(id); setDrawer(false); },
-    paused: cockpit.teamPaused,
+  const teamProps: TeamRailProps = {
+    views: agent.views, activeId: agent.active?.bot.id ?? null, onNew: agent.openNew, onAll: () => nav('/equipe'),
+    onOpen: agent.open, canManage: isAdmin, paused: cockpit.teamPaused, onPauseSet: cockpit.onTeamPauseSet,
   };
+  const chatWithTeam = { ...chatProps, teamSlot: <TeamStack {...teamProps} /> };
   const openPalette = () => { setDrawer(false); setPalette(true); };
   const account = { userId: sbAuth.session?.user.id, onSignOut: SUPABASE_ENABLED ? sbAuth.signOut : undefined, onChangePassword: SUPABASE_ENABLED ? sbAuth.changePassword : undefined, drops: dropApi };
 
@@ -189,7 +191,7 @@ function CockpitBody() {
       route={route} nav={(to) => { setDrawer(false); nav(to); }} role={role}
       onNew={handleNew} onPalette={openPalette}
       bitState={bitState} conn={conn.ws} account={account}
-      agents={agentsProps} sessions={<SessionsPanel {...sessionsProps} embedded onCloseMobile={() => setDrawer(false)} />}
+      sessions={<SessionsPanel {...sessionsProps} embedded onCloseMobile={() => setDrawer(false)} />}
       drawer={{ onClose: () => setDrawer(false) }}
     />
   ) : null;
@@ -229,7 +231,7 @@ function CockpitBody() {
           <Sidebar
             route={route} nav={nav} role={role} onNew={handleNew} onPalette={() => setPalette(true)}
             bitState={bitState} conn={conn.ws} account={account}
-            agents={agentsProps} sessions={<SessionsPanel {...sessionsProps} embedded />}
+            sessions={<SessionsPanel {...sessionsProps} embedded />}
           />
         )}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -255,12 +257,12 @@ function CockpitBody() {
 
           <RouteContent
             route={route} agentRoute={{ id: agentId, tab: agentTab, open: navAgent }} skillRoute={{ id: skillId, open: navSkill }} isMobile={isMobile} isAdmin={isAdmin} isRoot={isRoot} connected={conn.ws === 'connected'}
-            cockpit={cockpit} chatProps={chatProps} termProps={termProps}
+            cockpit={cockpit} chatProps={chatWithTeam} termProps={termProps}
             onOpenSession={selectSession} agent={agent}
             onOpenAgentChat={(m) => { handleNew(); setModel(m); nav('/'); }}
             layout={{ rowRef }}
             mobile={{ drawer, setDrawer, termSheet, setTermSheet, runningTerm, drawerNav }}
-            role={role} nav={nav} account={account} usageDock={usageDock}
+            role={role} team={teamProps} nav={nav} account={account} usageDock={usageDock}
           />
         </div>
       </div>

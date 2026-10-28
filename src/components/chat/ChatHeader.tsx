@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { IconButton, Popover } from '../primitives';
 import { ConfirmArchive } from '../sessions/ConfirmArchive';
 import { ChatHeaderCompact } from './ChatHeaderCompact';
@@ -43,9 +43,10 @@ interface ChatHeaderProps {
   agent?: ChatHeaderAgent;
   // Phone: the single top bar owns the drawer button (☰ · title · one action).
   onMenu?: () => void;
+  teamSlot?: ReactNode;
 }
 
-export function ChatHeader({ session, messages, isEmpty, contextTokens, contextModel = null, lastTurn, onNew, fullLoaded, truncated, onOpenFull, onLoadOlder, onOpenSummary, setFullLoaded, beforeGrow, onTerminal, terminalRunning, terminalOpen = false, usage, onRename, onDelete, keyboardOpen = false, selectedModel, agent, onMenu }: ChatHeaderProps) {
+export function ChatHeader({ session, messages, isEmpty, contextTokens, contextModel = null, lastTurn, onNew, fullLoaded, truncated, onOpenFull, onLoadOlder, onOpenSummary, setFullLoaded, beforeGrow, onTerminal, terminalRunning, terminalOpen = false, usage, onRename, onDelete, keyboardOpen = false, selectedModel, agent, onMenu, teamSlot }: ChatHeaderProps) {
   const menu = useHeaderMenu();
   const [renameSignal, setRenameSignal] = useState(0);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -113,6 +114,7 @@ export function ChatHeader({ session, messages, isEmpty, contextTokens, contextM
           <div className="min-w-0 flex-1 overflow-hidden"><EditableTitle id={session?.id} title={title} editable={saved} onRename={onRename} startSignal={renameSignal} /></div>
         )}
         {agent?.actions}
+        {teamSlot}
         {usage && <UsageDock {...usage} />}
         {terminalButton}
         {!fresh && <ContextRing tokens={contextTokens} model={contextModel} />}
@@ -134,6 +136,7 @@ export function ChatHeader({ session, messages, isEmpty, contextTokens, contextM
       )}
       <div className="ml-auto flex shrink-0 items-center gap-2 pointer-coarse:gap-3">
         {agent?.actions}
+        {teamSlot}
         <ContextRing tokens={contextTokens} model={contextModel} onNew={onNew} />
         {usage && <UsageDock {...usage} />}
         {terminalButton}

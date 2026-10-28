@@ -88,16 +88,6 @@ describe('Sidebar', () => {
     expect(screen.queryByText('lista de conversas')).toBeNull();
   });
 
-  it('shows the agents section in both modes', () => {
-    const onOpen = vi.fn();
-    const views = ['ana01', 'bia02'].map((id) => ({ bot: { id, name: id.toUpperCase(), mascot: { shape: 'drop', color: '#fff' } }, key: id, preview: '', unread: false, state: 'idle' })) as never;
-    setup({ agents: { views, activeId: null, onOpen, onNew: vi.fn() } });
-    fireEvent.click(screen.getByRole('button', { name: 'BIA02' }));
-    expect(onOpen).toHaveBeenCalledWith('bia02');
-    fireEvent.click(screen.getByRole('button', { name: 'Recolher barra lateral' }));
-    expect(screen.getByRole('button', { name: 'ANA01' })).toBeTruthy();
-  });
-
   it('drawer mode stays expanded, fills its container and the header button closes it', () => {
     const onClose = vi.fn();
     setup({ drawer: { onClose } });

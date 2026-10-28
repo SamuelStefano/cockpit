@@ -19,6 +19,7 @@ import { ManageProviders, ManageTools } from '../routes/conexoes/Manage';
 import { requestTerminal } from '../lib/terminal-request';
 import type { NavRole } from '../components/chrome/nav-routes';
 import type { UsageDockProps } from '../components/chrome/sidebar/UsageDock';
+import { TeamRail, type TeamRailProps } from '../components/team/TeamRail';
 import type { AccountProps } from '../routes/configuracoes/Conta';
 
 // The DFL snapshot is root-only on the server: the Canvas of a plain admin skips it.
@@ -54,12 +55,13 @@ interface RouteContentProps {
   layout: LayoutState;
   mobile: MobileState;
   role: NavRole;
+  team: TeamRailProps;
   nav: (to: Route) => void;
   account: AccountProps;
   usageDock: UsageDockProps;
 }
 
-export function RouteContent({ route, agentRoute, skillRoute, isMobile, isAdmin, isRoot, connected, cockpit, chatProps, termProps, onOpenSession, agent, onOpenAgentChat, layout, mobile, role, nav, account, usageDock }: RouteContentProps) {
+export function RouteContent({ route, agentRoute, skillRoute, isMobile, isAdmin, isRoot, connected, cockpit, chatProps, termProps, onOpenSession, agent, onOpenAgentChat, layout, mobile, role, team, nav, account, usageDock }: RouteContentProps) {
   const c = cockpit;
   const view = (() => {
     if (route === '/equipe' || route === '/equipe/rotinas' || route === '/equipe/memoria') {
@@ -171,6 +173,7 @@ export function RouteContent({ route, agentRoute, skillRoute, isMobile, isAdmin,
     return (
       <DesktopLayout
         chatProps={chatProps} termProps={termProps} center={center} hideTerminals={agent.profileOpen}
+        rail={<TeamRail {...team} />}
         rowRef={layout.rowRef}
       />
     );
