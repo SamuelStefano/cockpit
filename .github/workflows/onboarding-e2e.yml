@@ -1,0 +1,80 @@
+name: Onboarding E2E
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+    inputs:
+      deck_url:
+        description: Public Deck URL for the browser steps
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Run onboarding E2E (docker target)
+        env:
+          DECK_URL: ${{ inputs.deck_url || vars.DECK_URL }}
+          DECK_E2E_EMAIL: ${{ secrets.DECK_E2E_EMAIL }}
+          DECK_E2E_PASSWORD: ${{ secrets.DECK_E2E_PASSWORD }}
+        run: node scripts/e2e-onboarding/run.mjs --target docker --out e2e-onboarding-runs
+      - name: Publish report to the job summary
+        if: always()
+        run: cat e2e-onboarding-runs/*/report.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: onboarding-e2e-docker
+          path: e2e-onboarding-runs
+          retention-days: 30
+
+  hetzner:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
+    steps:
+      - name: Skip without HCLOUD_TOKEN
+        id: gate
+        run: echo "enabled=${{ env.HCLOUD_TOKEN != '' }}" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        if: steps.gate.outputs.enabled == 'true'
+      - uses: actions/setup-node@v4
+        if: steps.gate.outputs.enabled == 'true'
+        with:
+          node-version: 22
+          cache: npm
+      - if: steps.gate.outputs.enabled == 'true'
+        run: npm ci
+      - if: steps.gate.outputs.enabled == 'true'
+        run: npx playwright install --with-deps chromium
+      - name: Run onboarding E2E (hetzner target)
+        if: steps.gate.outputs.enabled == 'true'
+        env:
+          DECK_URL: ${{ inputs.deck_url || vars.DECK_URL }}
+          DECK_E2E_EMAIL: ${{ secrets.DECK_E2E_EMAIL }}
+          DECK_E2E_PASSWORD: ${{ secrets.DECK_E2E_PASSWORD }}
+          E2E_MAX_LIFETIME_MIN: '45'
+        run: node scripts/e2e-onboarding/run.mjs --target hetzner --out e2e-onboarding-runs
+      - name: Publish report to the job summary
+        if: always() && steps.gate.outputs.enabled == 'true'
+        run: cat e2e-onboarding-runs/*/report.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.gate.outputs.enabled == 'true'
+        with:
+          name: onboarding-e2e-hetzner
+          path: e2e-onboarding-runs
+          retention-days: 30
