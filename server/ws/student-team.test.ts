@@ -36,3 +36,16 @@ describe('cron rules for a non-admin', () => {
     expect(coerceCronForRole(free, undefined, 'admin')).toEqual({ cron: free });
   });
 });
+
+describe('coerceBotForRole permissions', () => {
+  const perms = { read: true, write: true, net: true };
+  it('a non-admin cannot grant write', () => {
+    expect(coerceBotForRole({ ...bot, permissions: perms }, 'student').permissions).toEqual({ read: true, write: false, net: true });
+  });
+  it('leaves absent permissions absent', () => {
+    expect(coerceBotForRole(bot, 'student').permissions).toBeUndefined();
+  });
+  it('admin keeps what was sent', () => {
+    expect(coerceBotForRole({ ...bot, permissions: perms }, 'admin').permissions).toEqual(perms);
+  });
+});

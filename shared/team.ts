@@ -1,5 +1,6 @@
 import type { Effort, MascotShape, PermMode, TeamBot, TeamBotInput, TeamProfile } from './protocol';
 import { isAgentModel } from './agents';
+import { parsePermissions, parseSkillIds, profileFromPermissions } from './bot-access';
 
 export const MAX_BOTS = 50;
 export const MAX_NAME = 40;
@@ -52,7 +53,12 @@ export function validateBotInput(raw: unknown): BotValidation {
   const color = str(m?.color);
   if (!shape || !SHAPES.has(shape)) return { ok: false, error: 'forma do mascote inválida' };
   if (!color || !HEX_RE.test(color)) return { ok: false, error: 'cor do mascote inválida' };
-  const profile = str(r.profile) as TeamProfile | undefined;
+  let profile = str(r.profile) as TeamProfile | undefined;
+  const permissions = r.permissions === undefined ? undefined : parsePermissions(r.permissions);
+  if (permissions === null) return { ok: false, error: 'permissões inválidas' };
+  const skills = r.skills === undefined ? undefined : parseSkillIds(r.skills);
+  if (skills === null) return { ok: false, error: 'skills inválidas' };
+  if (permissions) profile = profileFromPermissions(permissions);
   if (!profile || !PROFILES.has(profile)) return { ok: false, error: 'perfil inválido' };
   const parentId = str(r.parentId) || undefined;
   if (parentId !== undefined && !ID_RE.test(parentId)) return { ok: false, error: 'chefe inválido' };
@@ -71,6 +77,8 @@ export function validateBotInput(raw: unknown): BotValidation {
   if (model) bot.model = model;
   if (mode) bot.mode = mode;
   if (effort) bot.effort = effort;
+  if (permissions) bot.permissions = permissions;
+  if (skills && skills.length) bot.skills = skills;
   return { ok: true, bot };
 }
 

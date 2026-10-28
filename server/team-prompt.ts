@@ -1,4 +1,6 @@
-import type { TeamBot } from '../shared/protocol';
+import type { BotPermissions, TeamBot } from '../shared/protocol';
+import { toolsDeniedBy } from '../shared/bot-access';
+import { resolveSkillDeny } from './skills';
 import { botIdFromKey } from '../shared/team';
 import type { Role } from './auth';
 
@@ -54,6 +56,15 @@ export interface BotTurn {
   mode?: TeamBot['mode'];
   effort?: TeamBot['effort'];
   profile: TeamBot['profile'];
+  skills?: string[];
+  permissions?: BotPermissions;
+}
+
+// Deny rules a bot adds to its turn: tools switched off by its permissions plus
+// every skill outside its list. Empty for a bot with neither field.
+export async function botDenyRules(turn: Pick<BotTurn, 'skills' | 'permissions'> | undefined): Promise<string[]> {
+  if (!turn) return [];
+  return [...(turn.permissions ? toolsDeniedBy(turn.permissions) : []), ...(await resolveSkillDeny(turn.skills))];
 }
 
 // What a bot imposes on a turn. The bound session wins over the frame's sessionId:
@@ -63,7 +74,8 @@ export interface BotTurn {
 // stored there must not be what unlocks Bash.
 export function botTurnFor(team: TeamBot[], sessionKey: string, sessionId: string | undefined, role: Role | undefined): BotTurn | undefined {
   const turn = botTurnParams(team, sessionKey, sessionId);
-  return turn && role !== 'admin' ? { ...turn, profile: 'restricted' } : turn;
+  if (!turn || role === 'admin') return turn;
+  return { ...turn, profile: 'restricted', ...(turn.permissions ? { permissions: { ...turn.permissions, write: false } } : {}) };
 }
 
 export function botTurnParams(team: TeamBot[], sessionKey: string, sessionId?: string): BotTurn | undefined {
@@ -77,5 +89,7 @@ export function botTurnParams(team: TeamBot[], sessionKey: string, sessionId?: s
     ...(bot.model ? { model: bot.model } : {}),
     ...(bot.mode ? { mode: bot.mode } : {}),
     ...(bot.effort ? { effort: bot.effort } : {}),
+    ...(bot.skills ? { skills: bot.skills } : {}),
+    ...(bot.permissions ? { permissions: bot.permissions } : {}),
   };
 }

@@ -3,6 +3,7 @@ import { toast } from '../../components/primitives/toast-bus';
 import { stripFrontmatter } from '../../../shared/frontmatter';
 import type { SkillMeta, TeamBot } from '../../../shared/protocol';
 import type { SkillDoc } from '../../useCockpit';
+import { botRunsSkill } from '../../../shared/bot-access';
 import { risksOf, sourceLabel, sourceOf } from '../../lib/skill-view';
 import { UsedBy } from './UsedBy';
 
@@ -61,7 +62,7 @@ export function SkillPage({ skill, doc, skillId, bots, loaded, onBack, onToggleA
         </div>
         <div className="min-w-0">
           <SectionTitle>Usada por</SectionTitle>
-          <UsedBy skillId={skillId} bots={bots} usedBy={skill?.usedBy ?? []} onToggle={onToggleAgent && ((botId, on) => onToggleAgent(skillId, botId, on))} />
+          <UsedBy skillId={skillId} bots={bots} usedBy={bots.filter((b) => botRunsSkill(b, skillId)).map((b) => b.id)} onToggle={onToggleAgent && ((botId, on) => onToggleAgent(skillId, botId, on))} />
           <SectionTitle>Detalhes</SectionTitle>
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 rounded-xl border border-neutral-800 bg-neutral-900/60 px-3.5 py-3 text-[13px]">
             <Detail k="Fonte" v={skill ? sourceLabel(sourceOf(skill)) : '—'} />

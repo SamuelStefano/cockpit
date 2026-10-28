@@ -82,3 +82,15 @@ describe('team store: files written before the hierarchy fields', () => {
     expect(r.ok && r.bots[1].parentId).toBe('aaaa1');
   });
 });
+
+describe('team store access fields', () => {
+  it('loads a file written before skills/permissions existed, unchanged', async () => {
+    const old = [{ ...bot('capo1'), createdAt: 1, updatedAt: 1, primary: true }];
+    writeFileSync(process.env.COCKPIT_TEAM!, JSON.stringify(old));
+    expect(await getTeam()).toEqual(old);
+  });
+  it('persists skills and permissions', async () => {
+    await saveBot(bot('capo1', { skills: ['a'], permissions: { read: true, write: false, net: true } }), 1);
+    expect((await getTeam())[0]).toMatchObject({ skills: ['a'], permissions: { read: true, write: false, net: true } });
+  });
+});

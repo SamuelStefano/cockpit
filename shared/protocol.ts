@@ -413,6 +413,7 @@ export interface Cron {
 export type MascotShape = 'drop' | 'blob' | 'tri' | 'bean';
 export interface TeamMascot { shape: MascotShape; color: string }
 export type TeamProfile = 'full' | 'restricted';
+export interface BotPermissions { read: boolean; write: boolean; net: boolean }
 export interface TeamBot {
   id: string;
   name: string;
@@ -426,6 +427,9 @@ export interface TeamBot {
   model?: string;
   mode?: PermMode;
   effort?: Effort;
+  // Absent = every skill / today's tool set. Empty skills also means every skill.
+  skills?: string[];
+  permissions?: BotPermissions;
   createdAt: number;
   updatedAt: number;
 }
