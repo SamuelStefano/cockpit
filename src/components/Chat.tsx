@@ -76,6 +76,7 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, draf
       onDragEnter={panelDnd.onDragEnter} onDragOver={panelDnd.onDragOver}
       onDragLeave={panelDnd.onDragLeave} onDrop={panelDnd.onDrop}
     >
+      <div aria-hidden className="chat-backdrop" />
       {panelDnd.dragging && (
         <div className="pointer-events-none absolute inset-2 z-50 flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-orange-500/60 bg-neutral-950/85 text-[14px] font-medium text-orange-300 backdrop-blur-xs">
           <Icon name="paperclip" size={22} /> Solte os arquivos pra anexar
