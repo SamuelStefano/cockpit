@@ -17,10 +17,9 @@ function setup(over: Partial<SidebarProps> = {}) {
 }
 
 describe('Sidebar', () => {
-  it('starts expanded with new and search as header icons and keeps the palette aria-label', () => {
+  it('starts expanded with a big new-chat button and search as header icon and keeps the palette aria-label', () => {
     const p = setup();
     expect(screen.getByRole('complementary', { name: 'Navegação principal' }).className).toContain('w-75');
-    expect(screen.queryByText('Nova conversa')).toBeNull();
     expect(screen.queryByText('Buscar')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: /^Comandos \((⌘K|Ctrl\+K)\)$/ }));
     expect(p.onPalette).toHaveBeenCalledOnce();

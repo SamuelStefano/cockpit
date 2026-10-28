@@ -101,6 +101,8 @@
    would compete with the one live turn for attention. */
 .bit.bit-still *, .bit.bit-still .bit-tip, .bit.bit-still .bit-cursor { animation: none !important; }
 
+.bit-greet:hover .bit-idle .bit-armR { animation: bitCheer 0.9s ease-in-out 2; }
+
 @media (prefers-reduced-motion: reduce) {
   .bit *, .bit .bit-tip, .bit .bit-cursor { animation: none !important; }
 }

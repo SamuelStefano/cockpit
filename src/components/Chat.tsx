@@ -18,7 +18,6 @@ import { TurnBanners } from './chat/TurnBanners';
 import { OrchestratorSessionBanner } from './chat/OrchestratorSessionBanner';
 import { isOrchestratorSession } from './chat/orchestrator-banner';
 import { SaturationBanner } from './chat/SaturationBanner';
-import { SendCostNotice } from './chat/SendCostNotice';
 import { useChatPanel, type Phase } from './chat/useChatPanel';
 import { useFileDrop } from './chat/useFileDrop';
 import { useTurnBit } from './chat/useTurnBit';
@@ -128,14 +127,11 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, draf
           e aviso de saturação saem de cena até fechar. */}
       {!keyboardOpen && <BackgroundAgents agents={bgAgents} />}
 
-      {!keyboardOpen && phase === 'idle' && onHandoff && (
-        <SaturationBanner sessionId={session?.id} contextTokens={contextTokens} contextModel={contextModel} busy={handoffBusy} onHandoff={onHandoff} />
+      {/* One chip answers both "is the session full?" and "what does the next send
+          cost?": only together do they explain the spend. */}
+      {!keyboardOpen && phase === 'idle' && (
+        <SaturationBanner sessionId={session?.id} contextTokens={contextTokens} contextModel={contextModel} busy={handoffBusy} onHandoff={onHandoff} cost={sendCost ?? null} />
       )}
-
-      {/* Preço do próximo envio. Fica em repouso e com o teclado fechado, junto do
-          banner de saturação: os dois respondem perguntas diferentes (a sessão está
-          cheia? / quanto custa mandar agora?) e só juntos explicam o gasto. */}
-      {!keyboardOpen && phase === 'idle' && <SendCostNotice cost={sendCost ?? null} />}
 
       {turnStatus}
 

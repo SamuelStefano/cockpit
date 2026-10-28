@@ -19,30 +19,30 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 interface Ink { id: number; x: number; y: number; d: number }
 
 const variants: Record<ButtonVariant, string> = {
-  // Primário como jóia: gradiente quente + highlight interno no topo (btn-jewel).
-  primary: 'btn-jewel bg-linear-to-b from-orange-500 to-orange-600 text-neutral-950 hover:from-orange-400 hover:to-orange-500',
-  secondary: 'bg-neutral-800 text-neutral-200 hover:bg-neutral-700 hairline',
-  outline: 'border border-neutral-800 bg-neutral-900 text-neutral-200 hover:border-orange-500/40 hover:bg-orange-500/6 hover:text-orange-300',
-  ghost: 'bg-transparent text-neutral-400 hover:bg-neutral-800 hover:text-neutral-100',
-  danger: 'bg-neutral-800 text-neutral-200 hover:bg-red-500/20 hover:text-red-400 hairline',
+  // Chunky primary: flat fill + darker bottom lip that squashes on press (btn-chunk).
+  primary: 'btn-chunk font-display font-bold tracking-wide bg-orange-500 text-neutral-950 hover:bg-orange-400',
+  secondary: 'font-medium bg-neutral-800 text-neutral-200 hover:bg-neutral-700 hairline',
+  outline: 'font-medium border border-neutral-800 bg-neutral-900 text-neutral-200 hover:border-orange-500/40 hover:bg-orange-500/6 hover:text-orange-300',
+  ghost: 'font-medium bg-transparent text-neutral-400 hover:bg-neutral-800 hover:text-neutral-100',
+  danger: 'font-medium bg-neutral-800 text-neutral-200 hover:bg-red-500/20 hover:text-red-400 hairline',
   // Destrutivo já CONFIRMADO (CTA de modal): peso visual de primário. O `danger`
   // discreto some entre os outros botões quando é a ação principal do diálogo.
-  dangerSolid: 'bg-red-500/90 text-white hover:bg-red-500',
+  dangerSolid: 'btn-chunk btn-chunk-red font-display font-bold tracking-wide bg-red-500 text-white hover:bg-red-400',
 };
 
 const sizes: Record<ButtonSize, string> = {
-  xs: 'h-6 gap-1 px-2 text-[12px]',
-  sm: 'h-7 gap-1.5 px-2.5 text-[13px]',
-  md: 'h-8 gap-2 px-3 text-[13px]',
+  xs: 'h-7 gap-1 px-2.5 text-[13px]',
+  sm: 'h-9 gap-1.5 px-3.5 text-[14px]',
+  md: 'h-11 gap-2 px-5 text-[16px]',
 };
 
 const squareSizes: Record<ButtonSize, string> = {
-  xs: 'h-6 w-6',
-  sm: 'h-7 w-7',
-  md: 'h-8 w-8',
+  xs: 'h-7 w-7',
+  sm: 'h-9 w-9',
+  md: 'h-11 w-11',
 };
 
-const iconSize: Record<ButtonSize, number> = { xs: 12, sm: 13, md: 15 };
+const iconSize: Record<ButtonSize, number> = { xs: 13, sm: 15, md: 18 };
 
 export function Button({
   children,
@@ -76,7 +76,7 @@ export function Button({
     <button
       disabled={disabled || loading}
       onPointerDown={spawnInk}
-      className={`inline-flex max-w-full shrink-0 items-center justify-center whitespace-nowrap rounded-lg font-medium leading-none transition focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-orange-500/40 disabled:opacity-50 disabled:pointer-events-none ${ripple ? 'relative overflow-hidden' : ''} ${variants[variant]} ${square ? squareSizes[size] : sizes[size]} ${className}`}
+      className={`inline-flex max-w-full shrink-0 items-center justify-center whitespace-nowrap rounded-xl leading-none transition focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-orange-500/40 disabled:opacity-50 disabled:pointer-events-none ${ripple ? 'relative overflow-hidden' : ''} ${variants[variant]} ${square ? squareSizes[size] : sizes[size]} ${className}`}
       {...rest}
     >
       {glyph && !iconRight && glyph}

@@ -14,8 +14,9 @@ interface ComposerActionsProps {
 }
 
 // 44px on touch: the one primary action must be an easy target.
-const btn = 'flex h-9 w-9 pointer-coarse:h-11 pointer-coarse:w-11 shrink-0 items-center justify-center rounded-full transition focus-visible:outline-hidden focus-visible:ring-2';
+const btn = 'flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition focus-visible:outline-hidden focus-visible:ring-2';
 const idle = 'bg-neutral-800 text-neutral-600';
+const chunk = 'btn-chunk bg-orange-500 text-neutral-950 hover:bg-orange-400';
 
 function BusyActions({ hasText, hasAtt, attUploading, onSubmit, onStop }: ComposerActionsProps) {
   // Stop comes BEFORE and enqueue sits in the right slot, where send lives at rest.
@@ -63,8 +64,8 @@ function PrimaryAction({ paused, hasText, hasAtt, attUploading, onSubmit, onCall
   const canSend = hasText || hasAtt;
   if (!canSend && !attUploading && onCall) {
     return (
-      <button type="button" onClick={onCall} aria-label="Ligar" title="Conversar por voz com a sessão, sem as mãos" className={`${btn} bg-orange-500 text-neutral-950 hover:bg-orange-400 focus-visible:ring-orange-500/40`}>
-        <Icon name="audio" size={17} />
+      <button type="button" onClick={onCall} aria-label="Ligar" title="Conversar por voz com a sessão, sem as mãos" className={`${btn} ${chunk} focus-visible:ring-orange-500/40`}>
+        <Icon name="audio" size={19} />
       </button>
     );
   }

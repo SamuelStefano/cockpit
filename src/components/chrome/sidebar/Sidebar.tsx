@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { IconButton, Tooltip, type ConnState } from '../../primitives';
+import { Button, IconButton, Tooltip, type ConnState } from '../../primitives';
 import { Bit } from '../../bit/Bit';
 import { BIT_STATE_LABEL, type BitState } from '../../bit/bit-state';
 import { comboLabel } from '../../../lib/platform';
@@ -39,18 +39,24 @@ export function Sidebar({ route, nav, role, navCounts, onNew, onPalette, bitStat
       aria-label="Navegação principal"
       className={`relative z-30 flex h-full shrink-0 flex-col bg-neutral-950 ${drawer ? 'w-full' : `border-r border-neutral-800 transition-[width] duration-200 ${expanded ? 'w-75' : 'w-14'}`}`}
     >
-      <div className={`flex shrink-0 p-2 ${expanded ? 'h-12 items-center gap-0.5' : 'flex-col items-center gap-1'}`}>
+      <div className={`flex shrink-0 p-2 ${expanded ? 'h-14 items-center gap-0.5' : 'flex-col items-center gap-1'}`}>
         <Tooltip label={`Ir pro chat · ${BIT_STATE_LABEL[bitState]}`} side="right" disabled={!!drawer}>
-          <button type="button" onClick={() => nav('/')} aria-label="Ir pro chat" className="flex h-10 items-center gap-2 rounded-lg px-1 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-orange-500/40">
-            <Bit state={bitState} size={30} />
-            {expanded && <span className="font-mono text-[14px] font-semibold lowercase tracking-tight text-neutral-100">Deck</span>}
+          <button type="button" onClick={() => nav('/')} aria-label="Ir pro chat" className="bit-greet flex h-11 items-center gap-2 rounded-xl px-1 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-orange-500/40">
+            <Bit state={bitState} size={expanded ? 36 : 30} />
+            {expanded && <span className="font-display text-[28px] font-bold lowercase leading-none tracking-tight text-neutral-50">deck</span>}
           </button>
         </Tooltip>
         {expanded && <span className="flex-1" />}
-        {!drawer && <IconButton icon="squarePen" label="Nova conversa" side={expanded ? 'bottom' : 'right'} onClick={onNew} />}
+        {!drawer && !expanded && <IconButton icon="squarePen" label="Nova conversa" side="right" onClick={onNew} />}
         <IconButton icon="search" label={`Comandos (${k})`} tip={`Buscar · ${k}`} side={expanded ? 'bottom' : 'right'} onClick={onPalette} />
         <IconButton icon="panelLeft" label={toggleLabel} side={expanded ? 'bottom' : 'right'} aria-expanded={expanded} onClick={drawer ? drawer.onClose : toggle} />
       </div>
+
+      {!drawer && expanded && (
+        <div className="shrink-0 px-2 pb-2">
+          <Button icon="plus" onClick={onNew} className="w-full">Nova conversa</Button>
+        </div>
+      )}
 
       {/* Routes sit above the conversations (ChatGPT-style), so the list starts lower and a rule
           separates the two instead of the list running from the top to the account. */}
