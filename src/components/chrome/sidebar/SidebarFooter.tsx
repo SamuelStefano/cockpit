@@ -25,7 +25,7 @@ export function SidebarFooter({ expanded, onSettings, account, conn, role, onDev
   return (
     <div className={`flex shrink-0 items-center border-t border-neutral-800/80 px-2 pb-2 pt-2 ${expanded ? 'flex-row gap-1' : 'flex-col gap-1'}`}>
       <div className={expanded ? 'min-w-0 flex-1' : ''}>
-        <ProfileMenu {...account} conn={conn} role={role} placement="up-start" variant={expanded ? 'row' : 'rail'} onDevices={onDevices} />
+        <ProfileMenu {...account} conn={conn} role={role} placement="up-start" variant={expanded ? 'row' : 'rail'} onDevices={onDevices} onAccount={onSettings} />
       </div>
       {onSettings && <IconButton icon="sliders" label="Configurações" side={expanded ? 'top' : 'right'} onClick={onSettings} />}
     </div>

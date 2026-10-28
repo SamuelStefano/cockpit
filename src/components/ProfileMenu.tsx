@@ -1,19 +1,12 @@
-import { Avatar, Badge, Button, Input, Switch, Tooltip, tokens } from './primitives';
+import { Avatar, Badge, Button, Tooltip, tokens } from './primitives';
 import { connStateColor, connStateLabel, type ConnState } from './primitives/ConnDot';
 import { roleBadge } from './chrome/role-badge';
 import type { NavRole } from './chrome/nav-routes';
 import { AvatarFace } from './avatar/AvatarFace';
 import { useProfileMenu } from './avatar/useProfileMenu';
-import { ChangePasswordForm } from './profile/ChangePasswordForm';
 import { AccountDevices } from './profile/AccountDevices';
-import { DevicesSection } from './profile/DevicesSection';
 import { DropButton } from './drop/DropButton';
 import type { DropApi } from '../cockpit/useDrops';
-import { usePersisted } from '../lib/persist';
-import { SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT, GROUP_NOTES_KEY, GROUP_NOTES_DEFAULT, NOTIFY_SOUND_KEY, NOTIFY_SOUND_DEFAULT } from '../lib/prefs';
-import { isIOS } from '../lib/platform';
-import { SUPABASE_ENABLED } from '../lib/supabase';
-import { SendDiagButton } from './chrome/SendDiagButton';
 
 interface ProfileMenuProps {
   userId?: string;
@@ -28,6 +21,8 @@ interface ProfileMenuProps {
   // 'row' = the sidebar account line (avatar + name), 'rail' = its avatar-only form; 'icon' = the bare round avatar.
   variant?: 'icon' | 'row' | 'rail';
   onDevices?: () => void;
+  // Name, image, chat toggles, password and paired devices live in Configurações → Conta.
+  onAccount?: () => void;
 }
 
 const PANEL_PLACEMENT = {
@@ -38,11 +33,8 @@ const PANEL_PLACEMENT = {
 // Menu de perfil no header: define nome (usado nas iniciais do chat), faz
 // upload/limpa o avatar e, com conta Supabase, troca a senha. Perfil e toggles
 // vão pro cache local e sobem pra conta (ver lib/profile e lib/account-prefs).
-export function ProfileMenu({ userId, onSignOut, onChangePassword, drops, conn, role, placement = 'down-end', variant = 'icon', onDevices }: ProfileMenuProps = {}) {
-  const { name, avatar, setName, setAvatar, synced, syncFailed, open, setOpen, uploadError, uploading, fileRef, wrapRef, onFile } = useProfileMenu(userId);
-  const [showTools, setShowTools] = usePersisted<boolean>(SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT);
-  const [groupNotes, setGroupNotes] = usePersisted<boolean>(GROUP_NOTES_KEY, GROUP_NOTES_DEFAULT);
-  const [notifySound, setNotifySound] = usePersisted<boolean>(NOTIFY_SOUND_KEY, NOTIFY_SOUND_DEFAULT);
+export function ProfileMenu({ userId, onSignOut, onChangePassword, drops, conn, role, placement = 'down-end', variant = 'icon', onDevices, onAccount }: ProfileMenuProps = {}) {
+  const { name, avatar, synced, syncFailed, open, setOpen, wrapRef } = useProfileMenu(userId);
 
   const badge = role ? roleBadge(role) : null;
   return (
@@ -104,62 +96,13 @@ export function ProfileMenu({ userId, onSignOut, onChangePassword, drops, conn, 
           </div>
           <AccountDevices onDone={() => setOpen(false)} onManage={onDevices} />
 
-          <label htmlFor="profile-name" className="mt-3 block text-[12px] font-medium text-neutral-500">Nome</label>
-          <Input
-            id="profile-name"
-            size="sm"
-            className="mt-1"
-            value={name}
-            maxLength={40}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Seu nome"
-          />
-          <div className="mt-2.5 flex gap-2">
-            <Button variant="outline" size="sm" icon="paperclip" className="grow" loading={uploading} onClick={() => fileRef.current?.click()}>
-              Trocar imagem
-            </Button>
-            {avatar && (
-              <Button variant="danger" size="sm" onClick={() => setAvatar('')}>
-                Limpar
-              </Button>
-            )}
-          </div>
-          {uploadError && <p role="alert" className="mt-1.5 text-[12px] text-red-400">{uploadError}</p>}
-          <input ref={fileRef} type="file" accept="image/*" onChange={onFile} className="hidden" />
-
-          <div className="mt-3 space-y-1.5 border-t border-neutral-800 pt-3">
-            <Switch
-              checked={showTools}
-              onChange={() => setShowTools((v) => !v)}
-              icon="terminal"
-              label="Mostrar ferramentas"
-              hint="Bash, Read, Grep… no chat"
-            />
-            <Switch
-              checked={groupNotes}
-              onChange={() => setGroupNotes((v) => !v)}
-              icon="sparkles"
-              label="Agrupar notas do agente"
-              hint="Só a resposta final fica solta"
-            />
-            <Switch
-              checked={notifySound}
-              onChange={() => setNotifySound((v) => !v)}
-              icon="volume"
-              label="Som ao terminar o turno"
-              // iOS suspends a backgrounded tab or PWA: the beep and the
-              // notification only fire once it is back in front.
-              hint={isIOS() ? 'No iPhone/iPad o app em segundo plano fica pausado: o aviso só sai ao voltar' : 'Beep curto, só com a aba fora de foco'}
-            />
-          </div>
-
-          {onSignOut && <DevicesSection />}
-
           {drops && <DropButton api={drops} />}
 
-          {onChangePassword && <ChangePasswordForm onSubmit={onChangePassword} />}
-
-          {SUPABASE_ENABLED && <SendDiagButton className="mt-3 w-full" />}
+          {onAccount && (
+            <Button variant="ghost" size="sm" icon="sliders" className="mt-3 w-full justify-start" onClick={() => { setOpen(false); onAccount(); }}>
+              Editar perfil e preferências
+            </Button>
+          )}
 
           {onSignOut && (
             <div className="mt-3 border-t border-neutral-800 pt-3">
