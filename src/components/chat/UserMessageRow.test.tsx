@@ -2,7 +2,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, cleanup, fireEvent } from '@testing-library/react';
 import { UserMessageRow } from './UserMessageRow';
-import { TaskTraySheet } from './TaskTraySheet';
 
 afterEach(cleanup);
 
@@ -20,11 +19,9 @@ describe('UserMessageRow edit', () => {
   });
 });
 
-describe('TaskTraySheet', () => {
-  it('closes on Escape', () => {
-    const onClose = vi.fn();
-    render(<TaskTraySheet todos={[]} onClose={onClose} />);
-    fireEvent.keyDown(window, { key: 'Escape' });
-    expect(onClose).toHaveBeenCalled();
+describe('UserMessageRow body', () => {
+  it('renders @mentions highlighted', () => {
+    const { getByText } = render(<UserMessageRow msg={{ id: 'm2', role: 'user', text: 'pede pro @Redator' } as never} />);
+    expect(getByText('@Redator').className).toContain('text-orange-400');
   });
 });

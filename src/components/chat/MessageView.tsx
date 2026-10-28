@@ -8,11 +8,12 @@ import { usePersisted } from '../../lib/persist';
 import { SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT } from '../../lib/prefs';
 import { hasVisibleAssistantContent } from './visible-blocks';
 import { AssistantBlocks } from './AssistantBlocks';
-import { ThinkingDots, LiveStatsLine, type LiveTurn } from './Thinking';
+import type { LiveTurn } from './Thinking';
+import { LiveLine } from './LiveLine';
 import { QuoteButton, CopyMessageButton, RegenerateButton, SpeakButton, MemorizeButton } from './MessageActions';
 import { UserMessageRow } from './UserMessageRow';
 import { CompactDivider } from './CompactDivider';
-import { ToolGroupCard } from './ToolGroupCard';
+import { ActivityRow } from './ActivityRow';
 import { NarrationGroupCard } from './NarrationGroupCard';
 import type { ShownMessage } from './shown';
 import { fmtTokens, fmtDuration, fmtClock } from './message-format';
@@ -61,8 +62,8 @@ export const MessageRow = memo(function MessageRow({ msg, avatar, bit, caretOnLa
   if (msg.digest) {
     return (
       <div data-mid={msg.id} className="fade-up">
-        <ToolGroupCard tools={msg.digest} />
-        {thinking && <ThinkingDots live={live} bit={bit} />}
+        <ActivityRow tools={msg.digest} />
+        {thinking && <LiveLine live={live} bit={bit} />}
       </div>
     );
   }
@@ -72,7 +73,7 @@ export const MessageRow = memo(function MessageRow({ msg, avatar, bit, caretOnLa
     return (
       <div data-mid={msg.id} className="fade-up">
         <NarrationGroupCard notes={msg.narration} />
-        {thinking && <ThinkingDots live={live} bit={bit} />}
+        {thinking && <LiveLine live={live} bit={bit} />}
       </div>
     );
   }
@@ -86,23 +87,25 @@ export const MessageRow = memo(function MessageRow({ msg, avatar, bit, caretOnLa
     // data-mid em toda linha (não só nas do usuário): é a âncora que o
     // "carregar antigas" usa pra reposicionar o scroll. Uma resposta longa pode
     // ocupar a viewport inteira — sem âncora ali, a leitura saltava.
-    <div data-mid={msg.id} className="fade-up group/msg flex gap-2.5">
-      <div className="mt-0.5" title={showModelLabel ? undefined : modelLabel}>
-        {avatar ?? <Bit state={bit ?? 'idle'} still={!bit} size={28} />}
-      </div>
-      <div className="min-w-0 flex-1 pt-0.5">
-        {showModelLabel && <span className="mb-0.5 block max-w-[260px] truncate px-0.5 font-mono text-[12px] font-medium tracking-tight text-orange-300/90">{modelLabel || 'Claude'}</span>}
+    <div data-mid={msg.id} className="fade-up group/msg flex flex-col gap-2">
+      {showModelLabel && (
+        <div className="flex min-w-0 items-center gap-2 text-[13px] font-medium text-neutral-300">
+          {avatar ?? <Bit state={bit ?? 'idle'} still={!bit} size={24} />}
+          <span className="max-w-[260px] truncate">{modelLabel || 'Claude'}</span>
+        </div>
+      )}
+      <div className="min-w-0 flex-1">
         {msg.quick && (
           <div className="mb-1 inline-flex items-center gap-1 rounded-full bg-sky-500/15 px-2 py-0.5 text-[12px] font-medium text-sky-300">
             <Icon name="zap" size={10} /> resposta rápida (paralela)
           </div>
         )}
         <AssistantBlocks blocks={msg.blocks} caretOnLast={caretOnLast} answerable={answerable} onAnswer={onAnswer} reviewable={reviewable} onApproveWorkflow={onApproveWorkflow} />
-        {thinking && <ThinkingDots live={live} />}
+        {thinking && <LiveLine live={live} bit={bit} avatar={avatar} bare={showModelLabel} />}
         {!caretOnLast && !thinking && msg.stats?.durationMs ? <ThoughtFor ms={msg.stats.durationMs} /> : null}
         {hasText && !caretOnLast && (
-          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
-            <div className="flex flex-wrap items-center gap-x-2 opacity-100 transition group-hover/msg:opacity-100 sm:pointer-fine:opacity-0 sm:focus-within:opacity-100 sm:group-hover/msg:opacity-100">
+          <div className="-ml-1.5 mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 opacity-100 transition sm:pointer-fine:opacity-0 sm:focus-within:opacity-100 sm:group-hover/msg:opacity-100">
+            <div className="flex flex-wrap items-center gap-x-2">
               <CopyMessageButton blocks={msg.blocks} />
               <SpeakButton blocks={msg.blocks} />
               {onRegenerate && <RegenerateButton onClick={onRegenerate} />}

@@ -1,14 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Icon, tokens } from '../primitives';
 import { isVirtualKeyboardOnly } from './touch';
-import { UserAvatar } from '../UserAvatar';
-import { usePersisted } from '../../lib/persist';
 import type { UserMessage } from '../../data/types';
 import { CopyTextButton, QuoteButton } from './MessageActions';
 import { TriageBadge } from './TriageBadge';
 import { fmtClock } from './message-format';
 import { parseAttachments } from '../../../shared/parse-attachments';
 import { AttachmentChip } from './AttachmentChip';
+import { renderMentions } from './mentions';
 
 interface UserMessageRowProps {
   msg: UserMessage;
@@ -22,7 +21,6 @@ interface UserMessageRowProps {
 // Bolha do usuário. A edição é inline (substitui no lugar) e o reenvio é tratado
 // pelo onEditUser do cockpit — não enfileira nova bolha no fim do thread.
 export function UserMessageRow({ msg, onEditUser, onQuote, onOpenAttachment, attThumbs, onAttThumb }: UserMessageRowProps) {
-  const [userName] = usePersisted<string>('user.name', '');
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(msg.text);
   // Eco do servidor pode substituir o texto otimista com o editor já aberto —
@@ -91,7 +89,7 @@ export function UserMessageRow({ msg, onEditUser, onQuote, onOpenAttachment, att
   const { attachments, body } = parseAttachments(msg.text);
 
   return (
-    <div data-mid={msg.id} className="fade-up group/u flex flex-wrap items-start justify-end gap-2.5 sm:flex-nowrap">
+    <div data-mid={msg.id} className="fade-up group/u flex flex-wrap items-start justify-end gap-2 sm:flex-nowrap">
       {/* No mobile as ações vão pra linha própria ABAIXO da bolha (order-3): o
           thread tem overflow-x-hidden e ao lado da bolha elas eram clipadas. */}
       <div className="order-3 mt-1 flex w-full shrink-0 items-center justify-end gap-0.5 opacity-100 transition group-hover/u:opacity-100 sm:order-0 sm:w-auto sm:pointer-fine:opacity-0 sm:focus-within:opacity-100 sm:group-hover/u:opacity-100">
@@ -109,8 +107,7 @@ export function UserMessageRow({ msg, onEditUser, onQuote, onOpenAttachment, att
           </button>
         )}
       </div>
-      <div className="flex max-w-[82%] flex-col items-end gap-1">
-        <span className="max-w-[200px] truncate px-1 text-[12px] font-medium text-neutral-500" title={userName || 'Você'}>{userName || 'Você'}</span>
+      <div className="flex max-w-[85%] flex-col items-end gap-1 sm:max-w-[72%]">
         {attachments.length > 0 && (
           <div className="flex flex-wrap justify-end gap-1.5">
             {attachments.map((a) => (
@@ -119,14 +116,11 @@ export function UserMessageRow({ msg, onEditUser, onQuote, onOpenAttachment, att
           </div>
         )}
         {body && (
-          <div className="hairline w-full whitespace-pre-wrap wrap-break-word rounded-2xl rounded-br-md border border-neutral-700/60 bg-neutral-800 px-4 py-2.5 text-[15px] leading-7 text-neutral-100 shadow-xs shadow-black/20">
-            {body}
+          <div className="w-full whitespace-pre-wrap wrap-break-word rounded-[18px] bg-neutral-800 px-4 py-2.5 text-[15px] leading-normal text-neutral-100">
+            {renderMentions(body)}
           </div>
         )}
         {msg.triage && <TriageBadge action={msg.triage.action} reason={msg.triage.reason} />}
-      </div>
-      <div className="mt-0.5">
-        <UserAvatar size={28} />
       </div>
     </div>
   );
