@@ -18,6 +18,7 @@ dashboard (Samuel é o único com acesso ao projeto).
 | `0004_account_prefs.sql` | `prefs jsonb` na `account` (modo, modelo, esforço, toggles de UI), com teto de 16 KB e checagem de objeto. Aditivo. **Ainda não aplicado.** |
 | `0008_diag_reports.sql` | Tabela `diag_reports` (relatórios de diagnóstico identificados): RLS ligada, usuário logado só faz INSERT da própria conta com `source='browser'`, sem SELECT/UPDATE/DELETE pra `anon`/`authenticated` (admin lê com service role). Payload ≤ 64 KB, índices em `created_at desc` e `(account_id, created_at desc)`. Aditivo. **Ainda não aplicado.** |
 | `0009_shares_bucket.sql` | Bucket de Storage público `shares` (JSON ≤ 2 MB) pro "Compartilhar link"; usuário logado só faz INSERT/DELETE na pasta `<uid>/`. Aditivo. |
+| `0010_github_installation.sql` | Tabela `github_installation` (instalações do GitHub App vinculadas à conta): RLS ligada, `authenticated` só faz SELECT/DELETE das próprias linhas, sem policy de INSERT/UPDATE (só a edge fn `github-app`, via service role, grava depois de verificar a posse), `anon` sem acesso. Aditivo. |
 
 Cada arquivo é idempotente sozinho (`if not exists` / `create or replace` / `drop
 trigger if exists`), mas **rerodar um arquivo antigo depois de um mais novo não é
