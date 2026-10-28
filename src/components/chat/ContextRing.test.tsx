@@ -8,7 +8,7 @@ afterEach(cleanup);
 describe('ContextRing', () => {
   it('stays rendered and dimmed without context', () => {
     render(<ContextRing tokens={0} onNew={vi.fn()} />);
-    expect(screen.getByLabelText('Contexto 0%')).toBeTruthy();
+    expect(screen.getByLabelText('Contexto da conversa: 0%')).toBeTruthy();
     expect(screen.getByText('nova sessão')).toBeTruthy();
   });
 

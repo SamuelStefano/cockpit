@@ -60,7 +60,7 @@ describe('ChatHeader', () => {
   it('always renders the context ring and nova sessão, even with no context yet', () => {
     setup({ contextTokens: 0 });
     expect(screen.getByRole('button', { name: /nova sessão/ })).toBeTruthy();
-    expect(screen.getByLabelText(/^Contexto 0%/)).toBeTruthy();
+    expect(screen.getByLabelText(/^Contexto da conversa: 0%/)).toBeTruthy();
   });
 
   it('shows the plan usage ring in the header', () => {
