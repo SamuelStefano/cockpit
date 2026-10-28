@@ -1,11 +1,13 @@
-import { EmptyState } from '../../components/primitives';
+import { Button, EmptyState } from '../../components/primitives';
 
-export function SkillsEmpty({ query }: { query: string }) {
+export function SkillsEmpty({ query, onDiscover }: { query: string; onDiscover?: () => void }) {
   return (
     <EmptyState
       icon="sparkles"
-      title={query ? 'Nada encontrado' : 'Nenhuma skill ainda'}
-      description={query ? <>Nada para «{query}»</> : 'As skills do agente aparecem aqui assim que forem criadas.'}
-    />
+      title={query ? 'Nada encontrado' : 'Nenhuma skill instalada ainda'}
+      description={query ? <>Nada para «{query}»</> : 'Escolha skills no catálogo para os agentes usarem.'}
+    >
+      {!query && onDiscover && <Button icon="search" onClick={onDiscover}>Descobrir skills</Button>}
+    </EmptyState>
   );
 }

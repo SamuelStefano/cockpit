@@ -141,4 +141,14 @@ describe('useRoute', () => {
     const again = renderHook(() => useRoute());
     expect(again.result.current.agentTab).toBe('perfil');
   });
+
+  it('/skills/<id> abre a página da skill', () => {
+    history.replaceState(null, '', '/skills/deck-ops');
+    const { result } = renderHook(() => useRoute());
+    expect(result.current.route).toBe('/skills');
+    expect(result.current.skillId).toBe('deck-ops');
+    act(() => result.current.navSkill(''));
+    expect(location.pathname).toBe('/skills');
+    expect(result.current.skillId).toBe('');
+  });
 });

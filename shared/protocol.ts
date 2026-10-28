@@ -207,11 +207,19 @@ export interface Memory {
 export type MemoryInput = Pick<Memory, 'title' | 'body' | 'agents'> & { id?: string; fileName?: string };
 
 // Skill do agente (dir com SKILL.md) surfaceada read-only na rota Skills.
+export type SkillRisk = 'read' | 'write' | 'net';
 export interface SkillMeta {
   id: string;
   name: string;
   description: string;
   mtime: number;
+  // Frontmatter `source:`; absent on the wire = a skill of the Deck itself. Any
+  // other value is the name of the host MCP that ships it.
+  source?: string;
+  // Frontmatter `risk:`; absent = the UI shows `read`.
+  risk?: SkillRisk[];
+  // Ids of the team bots that can run it (a bot without a skill list runs all).
+  usedBy?: string[];
 }
 
 // DFL Skills registry (skills.devfellowship.com), read server-side with the

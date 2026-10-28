@@ -3,7 +3,7 @@
 // possivelmente entre aspas). O regex tolera indentação de propósito — assim
 // `type:` aninhado sob `metadata:` é lido sem precisar de YAML completo.
 
-export interface Fm { name?: string; description?: string; type?: string }
+export interface Fm { name?: string; description?: string; type?: string; source?: string; risk?: string }
 
 export function parseFrontmatter(text: string): Fm {
   if (!text.startsWith('---')) return {};
@@ -28,6 +28,8 @@ export function parseFrontmatter(text: string): Fm {
     if (key === 'name' && !fm.name) fm.name = val;
     else if (key === 'description' && !fm.description) fm.description = val;
     else if (key === 'type' && !fm.type) fm.type = val;
+    else if (key === 'source' && !fm.source) fm.source = val;
+    else if (key === 'risk' && !fm.risk) fm.risk = val;
   }
   return fm;
 }
