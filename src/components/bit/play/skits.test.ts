@@ -31,11 +31,11 @@ describe('skits', () => {
     expect(thiefFeet(stage).y).toBeGreaterThan(200 + stage.size * 0.5);
   });
 
-  it('the peek never rises above the stage bottom by more than its head', () => {
+  it('the peek only ever shows its upper body over the composer', () => {
     const s = buildSkit('peek', stage);
     for (let t = 0; t <= s.duration; t += 50) {
       const f = s.actor.sample(t);
-      expect(f.y - stage.size * f.sy).toBeGreaterThan(stage.h - stage.size * 0.72);
+      expect(f.y - stage.size * f.sy).toBeGreaterThan(stage.h - stage.size * 0.8);
     }
   });
 

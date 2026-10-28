@@ -53,9 +53,13 @@ export function useSkitStage(layerRef: RefObject<HTMLElement | null>, textRootRe
     let changed: Partial<StageLook> | null = null;
     while (r.cue < cues.length && cues[r.cue].at <= t) {
       const c = cues[r.cue++];
-      changed = { ...changed, ...(c.face && { face: c.face }), ...(c.pose !== undefined && { pose: c.pose }), ...(c.gaze && { gaze: c.gaze }) };
+      const next: Partial<StageLook> = changed ?? {};
+      if (c.face) next.face = c.face;
+      if (c.pose !== undefined) next.pose = c.pose;
+      if (c.gaze) next.gaze = c.gaze;
+      changed = next;
     }
-    if (changed) setLook((l) => (l ? { ...l, ...changed } : l));
+    if (changed) { const ch = changed; setLook((l) => (l ? { ...l, ...ch } : l)); }
     const a = actorRef.current;
     if (a) a.style.transform = actorTransform(skit.actor.sample(t), stage.size);
     const el = letterRef.current;
