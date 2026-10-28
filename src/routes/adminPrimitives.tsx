@@ -38,7 +38,7 @@ export function Chip({ label, on = true, muted }: { label: string; on?: boolean;
 
 export function Inv({ icon, title, count, children }: { icon: Parameters<typeof Icon>[0]['name']; title: string; count: number; children: ReactNode }) {
   return (
-    <div className="min-w-0 rounded-xl border border-neutral-800 bg-neutral-900/40 p-4 hairline">
+    <div className="min-w-0 rounded-xl border border-neutral-800 bg-neutral-900/40 p-4 hairline max-lg:rounded-none max-lg:border-0 max-lg:border-t max-lg:bg-transparent max-lg:px-0 max-lg:py-3 max-lg:shadow-none">
       <h3 className="mb-2.5 flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-wider text-neutral-500">
         <Icon name={icon} size={12} /> {title} <span className="text-neutral-600">· {count}</span>
       </h3>

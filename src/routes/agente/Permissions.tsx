@@ -15,13 +15,13 @@ interface PermissionsProps {
 
 export function Permissions({ value, onChange, disabled = false }: PermissionsProps) {
   return (
-    <div role="group" aria-label="Permissões" className="flex gap-2">
+    <div role="group" aria-label="Permissões" className="flex gap-2 max-lg:gap-1.5">
       {ITEMS.map((it) => {
         const on = value[it.key];
         return (
           <button key={it.key} type="button" role="switch" aria-checked={on} aria-label={it.label} disabled={disabled}
             onClick={() => onChange({ ...value, [it.key]: !on })}
-            className={`flex h-10 flex-1 items-center justify-center gap-2 rounded-lg border text-[13px] transition disabled:cursor-not-allowed disabled:opacity-60 ${tokens.focusRing} ${
+            className={`flex h-10 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg max-lg:px-1 border text-[13px] transition disabled:cursor-not-allowed disabled:opacity-60 ${tokens.focusRing} ${
               on ? 'border-neutral-700 bg-neutral-800/60 text-neutral-100' : 'border-neutral-800 text-neutral-500 hover:border-neutral-700'}`}>
             <Icon name={it.icon} size={13} />
             {it.label}

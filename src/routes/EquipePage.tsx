@@ -1,9 +1,11 @@
 import { useEffect } from 'react';
 import { Button, IconButton, Tabs, type TabItem } from '../components/primitives';
+import { useIsMobile } from '../app/useIsMobile';
 import { TopBarAction } from '../components/chrome/sidebar/TopBarSlot';
 import type { Memory, MemoryInput, TeamBot, UsageStats } from '../../shared/protocol';
 import type { BotView } from './equipe/team-view';
 import { OrgTree } from './equipe/OrgTree';
+import { OrgList } from './equipe/OrgList';
 import { TodayNumbers } from './equipe/TodayNumbers';
 import { todayCounts } from './equipe/org-tree';
 import { Rotinas } from './equipe/Rotinas';
@@ -43,6 +45,8 @@ export function EquipePage(p: EquipePageProps) {
   const { views, isAdmin, connected, onUsageList } = p;
   useEffect(() => { if (connected && isAdmin) onUsageList(); }, [connected, isAdmin, onUsageList]);
   const tab = p.tab ?? 'agentes';
+  const phone = useIsMobile();
+  const counts = todayCounts(views, p.usageStats?.series);
   const r = useRotinas({ ...p.cron, bots: p.bots, connected });
   const items: TabItem<Tab>[] = [
     { id: 'agentes', label: 'Agentes', count: views.length },
@@ -79,8 +83,17 @@ export function EquipePage(p: EquipePageProps) {
           <Rotinas r={r} bots={p.bots} loaded={p.cron.loaded} connected={connected} isAdmin={isAdmin} onChat={p.onOpenChat} onReload={p.cron.onCronsGet} />
         ) : (
           <>
-            <TodayNumbers counts={todayCounts(views, p.usageStats?.series)} />
-            <OrgTree views={views} onOpen={p.onOpenAgent} />
+            {phone ? (
+              <>
+                <p aria-label="Resumo da equipe" className="mb-2 text-[13px] text-neutral-400">{counts.working} trabalhando · {counts.waiting} esperando você</p>
+                <OrgList views={views} onOpen={p.onOpenAgent} />
+              </>
+            ) : (
+              <>
+                <TodayNumbers counts={counts} />
+                <OrgTree views={views} onOpen={p.onOpenAgent} />
+              </>
+            )}
           </>
         )}
       </div>

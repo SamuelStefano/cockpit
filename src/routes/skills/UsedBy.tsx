@@ -11,11 +11,11 @@ interface Props {
 export function UsedBy({ skillId, bots, usedBy, onToggle }: Props) {
   if (bots.length === 0) return <p className="rounded-xl border border-neutral-800 bg-neutral-900/60 px-4 py-3 text-[13px] text-neutral-500">Nenhum agente na equipe ainda.</p>;
   return (
-    <div className="overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900/60">
+    <div className="overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900/60 max-lg:rounded-none max-lg:border-0 max-lg:bg-transparent">
       {bots.map((b) => {
         const on = usedBy.includes(b.id);
         return (
-          <div key={b.id} className="flex min-h-13 items-center gap-3 border-t border-neutral-800 px-4 py-2 first:border-t-0">
+          <div key={b.id} className="flex min-h-13 items-center gap-3 border-t border-neutral-800 px-4 py-2 first:border-t-0 max-lg:h-13 max-lg:px-0">
             <Mascot mascot={b.mascot} size={24} name={b.name} />
             <span className="min-w-0 flex-1 truncate text-[14px] text-neutral-100">{b.name}</span>
             {onToggle ? (
