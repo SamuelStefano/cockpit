@@ -38,3 +38,17 @@ describe('ChatEmpty layout', () => {
     expect(getByText('Em que vamos trabalhar?')).toBeTruthy();
   });
 });
+
+describe('ChatEmpty provider hint', () => {
+  it('shows nothing when a provider is ready', () => {
+    const { queryByText } = render(<ChatEmpty onPrompt={vi.fn()} />);
+    expect(queryByText('Conectar um provedor')).toBeNull();
+  });
+
+  it('links to /onboarding when no provider is ready', () => {
+    const push = vi.spyOn(history, 'pushState');
+    const { getByText } = render(<ChatEmpty onPrompt={vi.fn()} needsProvider />);
+    fireEvent.click(getByText('Conectar um provedor'));
+    expect(push).toHaveBeenCalledWith(null, '', '/onboarding');
+  });
+});
