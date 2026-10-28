@@ -245,3 +245,20 @@ describe('useCanvas — canvas-board from an older server', () => {
     expect(result.current.canvasBoard.hiddenSessions).toEqual([]);
   });
 });
+
+describe('useCanvas — writes while the socket is down', () => {
+  it('queues a card save and replays it on reconnect instead of dropping it', () => {
+    const sent: unknown[] = [];
+    let online = false;
+    const s = vi.fn((m: unknown) => { if (!online) return false; sent.push(m); return true; });
+    const { result } = renderHook(() => useCanvas(s as never));
+    const unsub = subscribeToast(() => {});
+    const card = { id: 'card-1', title: 'Novo', prompt: 'faz X', status: 'todo', createdAt: 1 } as never;
+    act(() => result.current.onCanvasCardSave(card));
+    expect(sent).toEqual([]);
+    online = true;
+    act(() => result.current.onOrchestratorReconnect());
+    expect(sent).toContainEqual({ t: 'canvas-card-save', card });
+    unsub();
+  });
+});
