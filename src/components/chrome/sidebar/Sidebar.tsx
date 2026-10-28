@@ -54,7 +54,7 @@ export function Sidebar({ route, nav, role, navCounts, onNew, onPalette, bitStat
         {!drawer && <SidebarItem icon="squarePen" label="Nova conversa" expanded={expanded} onClick={onNew} />}
         <SidebarItem
           icon="search" label="Buscar" ariaLabel={`Comandos (${k})`} tip={`Buscar · ${k}`} expanded={expanded} onClick={onPalette}
-          trailing={<kbd className="font-mono text-[12px] text-neutral-600">{k}</kbd>}
+          trailing={<kbd className="font-mono text-[12px] text-neutral-600 pointer-coarse:hidden">{k}</kbd>}
         />
       </div>
 

@@ -27,7 +27,7 @@ export function ChatEmpty({ onPrompt, onSeed, suggestions = FALLBACK_SUGGESTIONS
   const pick = (text: string) => (onSeed && isVirtualKeyboardOnly() ? onSeed(text) : onPrompt(text));
   return (
     <div className="flex min-h-0 flex-1 flex-col items-center overflow-y-auto px-3 pb-10">
-      <div className="min-h-6 flex-[4]" />
+      <div className="min-h-6 flex-[6]" />
       <h2 className="fade-up mb-7 px-3 text-center text-[28px] font-normal tracking-tight text-neutral-100 pointer-coarse:text-[24px]">O que vamos trabalhar hoje?</h2>
       {needsProvider && (
         <p className="fade-up -mt-3 mb-5 text-center text-[13px] text-neutral-400">
@@ -63,7 +63,7 @@ export function ChatEmpty({ onPrompt, onSeed, suggestions = FALLBACK_SUGGESTIONS
           Pergunte ao Deck como configurar
         </button>
       )}
-      <div className="min-h-0 flex-[6]" />
+      <div className="min-h-0 flex-[4]" />
     </div>
   );
 }
