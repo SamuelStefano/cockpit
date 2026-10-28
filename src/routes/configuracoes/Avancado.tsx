@@ -22,7 +22,7 @@ export function Avancado({ caps, bypass, setBypass, isRoot, isMobile, adminOp, o
   const u = useDeckUpdate(adminOp, onCliUpdate, onDeckRestart);
   return (
     <>
-      <SectionTitle>Avançado</SectionTitle>
+      <SectionTitle className="max-lg:hidden">Avançado</SectionTitle>
       <div className="overflow-hidden rounded-xl border border-red-500/25 bg-neutral-900/60 hairline">
         {caps?.canBypass && (
           <SwitchRow

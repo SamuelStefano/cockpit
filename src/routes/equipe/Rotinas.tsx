@@ -30,14 +30,14 @@ export function Rotinas({ r, bots, loaded, connected, isAdmin, onChat, onReload 
   const { stalled, retry } = useLoadStalled(loaded, connected);
   if (!loaded) {
     return stalled
-      ? <EmptyState icon="x" title="Não deu pra carregar as rotinas" description="O servidor não respondeu. Tente de novo."><Button icon="rotate" onClick={() => { retry(); onReload(); }}>Tentar de novo</Button></EmptyState>
+      ? <EmptyState size="sm" icon="x" title="Não deu pra carregar as rotinas" description="O servidor não respondeu. Tente de novo."><Button icon="rotate" onClick={() => { retry(); onReload(); }}>Tentar de novo</Button></EmptyState>
       : <div className="space-y-2">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-xl" />)}</div>;
   }
   const modal = r.modal;
   return (
     <>
       {r.routines.length === 0
-        ? <EmptyState icon="clock" title="Nenhuma rotina ainda" description="Rotina é uma tarefa que um agente faz sozinho, no horário que você disser.">
+        ? <EmptyState size="sm" icon="clock" title="Nenhuma rotina ainda" description="Rotina é uma tarefa que um agente faz sozinho, no horário que você disser.">
             {isAdmin && <Button icon="plus" onClick={r.openNew}>Nova rotina</Button>}
           </EmptyState>
         : <>

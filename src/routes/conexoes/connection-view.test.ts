@@ -32,6 +32,7 @@ describe('connection-view', () => {
     const n = noticeOf([c({ label: 'Gmail', state: 'expired', usedBy: ['b1'] }), c({ id: 'y', label: 'Slack', state: 'error' })], bots);
     expect(n?.title).toBe('2 conexões precisam de você.');
     expect(n?.body).toBe('Gmail expirou e Slack deu erro — Redator não consegue usar isso até você resolver.');
+    expect(n?.short).toBe('Gmail, Slack');
     expect(noticeOf([c({})], bots)).toBeNull();
   });
 

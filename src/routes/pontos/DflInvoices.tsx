@@ -11,10 +11,10 @@ interface Props {
 // Every DFL invoice as one dense table; a row opens into its lines.
 export function DflInvoices({ invoices }: Props) {
   if (invoices === null) {
-    return <EmptyState icon="rotate" title="Sem dados do DFL" description="Ainda não há sincronização com o DFL. Use ⟳ no topo pra buscar as faturas." />;
+    return <EmptyState size="sm" icon="rotate" title="Sem dados do DFL" description="Ainda não há sincronização com o DFL. Use ⟳ no topo pra buscar as faturas." />;
   }
   if (!invoices.length) {
-    return <EmptyState icon="file" title="Nenhuma fatura" description="As faturas do DFL aparecem aqui após a sincronização." />;
+    return <EmptyState size="sm" icon="file" title="Nenhuma fatura" description="As faturas do DFL aparecem aqui após a sincronização." />;
   }
   const paid = invoices.filter((i) => i.status === 'paid').reduce((s, i) => s + i.totalAmountCents, 0);
   return (

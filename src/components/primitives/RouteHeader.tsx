@@ -14,6 +14,8 @@ interface RouteHeaderProps {
   // Linha extra dentro do bloco `bar` (ex: chips de filtro), abaixo do título.
   children?: ReactNode;
   className?: string;
+  // The phone top bar already shows the page title: drop this header there.
+  hideOnPhone?: boolean;
 }
 
 function AccentBar({ tall }: { tall?: boolean }) {
@@ -25,10 +27,11 @@ function AccentBar({ tall }: { tall?: boolean }) {
   );
 }
 
-export function RouteHeader({ title, subtitle, badge, actions, icon, variant = 'bar', children, className = '' }: RouteHeaderProps) {
+export function RouteHeader({ title, subtitle, badge, actions, icon, variant = 'bar', children, className = '', hideOnPhone = false }: RouteHeaderProps) {
+  const phone = hideOnPhone ? 'max-lg:hidden ' : '';
   if (variant === 'bar') {
     return (
-      <div className={`shrink-0 border-b border-neutral-800/80 px-4 py-3 ${className}`}>
+      <div className={`${phone}shrink-0 border-b border-neutral-800/80 px-4 py-3 ${className}`}>
         <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-center gap-2">
             <AccentBar />
@@ -44,7 +47,7 @@ export function RouteHeader({ title, subtitle, badge, actions, icon, variant = '
     );
   }
   return (
-    <header className={`mb-4 flex flex-wrap items-start justify-between gap-3 ${className}`}>
+    <header className={`${phone}mb-4 flex flex-wrap items-start justify-between gap-3 ${className}`}>
       <div className="min-w-0">
         <h1 className="flex items-center gap-2 text-[19px] font-semibold tracking-tight text-neutral-100">
           <AccentBar tall />

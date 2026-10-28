@@ -22,14 +22,14 @@ interface TabsProps<T extends string> {
 export function Tabs<T extends string>({ items, active, onChange, className = '', right, compact = false }: TabsProps<T>) {
   return (
     <div className={`flex items-center gap-1 border-b border-neutral-800 ${className}`}>
-      <div role="tablist" className="flex items-center gap-1">
+      <div role="tablist" className="-mb-px flex min-w-0 items-center gap-1 overflow-x-auto [scrollbar-width:none]">
         {items.map((it) => {
           const on = it.id === active;
           return (
             <button
               key={it.id} onClick={() => onChange(it.id)}
               type="button" role="tab" aria-selected={on}
-              className={`-mb-px flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2 text-[13px] font-medium transition ${compact ? 'max-sm:px-2' : ''} ${
+              className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2 text-[13px] font-medium transition ${compact ? 'max-sm:px-2' : ''} ${
                 on ? 'border-orange-500 text-neutral-100' : 'border-transparent text-neutral-500 hover:text-neutral-300'}`}
             >
               {it.icon && <Icon name={it.icon} size={13} className={compact ? 'max-sm:hidden' : undefined} />}

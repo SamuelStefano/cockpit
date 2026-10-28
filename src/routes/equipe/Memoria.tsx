@@ -63,11 +63,11 @@ export function Memoria({ bots, memories, loaded, connected, onList, onSave, onD
       </div>
       {fileError && <p role="alert" className="mb-3 text-[12px] text-amber-400">{fileError}</p>}
       {!connected ? (
-        <EmptyState icon="x" title="Sem conexão" description="Quando o Deck voltar, as memórias aparecem aqui." className="py-16" />
+        <EmptyState size="sm" icon="x" title="Sem conexão" description="Quando o Deck voltar, as memórias aparecem aqui." className="py-16" />
       ) : !loaded ? (
         <SkeletonCards />
       ) : memories.length === 0 && !selected ? (
-        <EmptyState icon="clipboard" title="Nenhuma memória ainda" description="Escreva o que a equipe precisa saber: a voz da marca, os produtos, o que nunca prometer." className="py-16">
+        <EmptyState size="sm" icon="clipboard" title="Nenhuma memória ainda" description="Escreva o que a equipe precisa saber: a voz da marca, os produtos, o que nunca prometer." className="py-16">
           <Button icon="plus" onClick={() => create()}>Escrever a primeira</Button>
         </EmptyState>
       ) : (

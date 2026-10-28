@@ -6,6 +6,8 @@ import type { SkillMeta } from '../../shared/protocol';
 
 afterEach(cleanup);
 
+window.matchMedia = ((q: string) => ({ matches: false, media: q, addEventListener: () => {}, removeEventListener: () => {} })) as unknown as typeof window.matchMedia;
+
 const skills: SkillMeta[] = [
   { id: 'resumir-pdf', name: 'Resumir PDF', description: 'Extrai texto de PDF', mtime: 0, usedBy: [] },
   { id: 'agendar', name: 'Agendar post', description: 'Fila de posts', mtime: 0, risk: ['write', 'net'], source: 'dfl-campaigns', usedBy: [] },

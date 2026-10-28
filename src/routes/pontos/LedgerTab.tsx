@@ -37,7 +37,7 @@ export function LedgerTab({ connected, loaded, points, total, now, glowing, add,
       {!loaded && connected
         ? <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-[132px] w-full rounded-xl" />)}</div>
         : points.length === 0
-        ? <EmptyState icon="star" title="Nenhum ponto ainda"
+        ? <EmptyState size="sm" icon="star" title="Nenhum ponto ainda"
             description="Quando o agente terminar uma task com pontuação, ela aparece aqui sozinha. Você também pode adicionar manualmente." />
         : <div className="grid grid-cols-1 items-start gap-2 sm:grid-cols-2 xl:grid-cols-3">
             {points.map((e) => (

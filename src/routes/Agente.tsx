@@ -52,14 +52,14 @@ export function Agente({ agentId, tab, views, api, connected, isAdmin, isMobile,
   useEffect(() => { if (connected && agentId) onSkillList?.(); }, [connected, agentId, onSkillList]);
   const shell = (children: React.ReactNode) => (
     <div className="scroll-thin min-h-0 flex-1 overflow-y-auto">
-      <div className="mx-auto w-full max-w-240 px-4 pb-8 pt-6 sm:px-8">{children}</div>
+      <div className="mx-auto w-full max-w-240 px-4 pb-8 pt-6 max-lg:pt-2 sm:px-8">{children}</div>
     </div>
   );
   if (!agentId) return shell(<AgentList views={views} bots={api.bots} onOpen={(id) => onTab(id, 'perfil')} onNew={() => onTab('novo', 'perfil')} />);
   if (agentId === 'novo') {
     return shell(
       <div className="max-w-95">
-        <h1 className="pb-5 text-[22px] font-semibold tracking-[-0.02em] text-neutral-100">Novo agente</h1>
+        <h1 className="pb-5 text-[22px] max-lg:hidden font-semibold tracking-[-0.02em] text-neutral-100">Novo agente</h1>
         <AgentForm bot={null} bots={api.bots} models={api.models} skills={api.skills} locked={!isAdmin} onSave={api.onTeamSave}
           agentBuild={api.agentBuild} onAgentBuild={api.onAgentBuild} onSaved={(id) => onTab(id, 'perfil')} onCancel={onList} />
       </div>,
@@ -68,7 +68,7 @@ export function Agente({ agentId, tab, views, api, connected, isAdmin, isMobile,
   const view = views.find((v) => v.bot.id === agentId);
   if (!view) {
     return shell(api.teamLoaded
-      ? <EmptyState icon="users" title="Agente não encontrado" description="Ele pode ter sido removido." />
+      ? <EmptyState size="sm" icon="users" title="Agente não encontrado" description="Ele pode ter sido removido." />
       : <SkeletonCards />);
   }
   const { bot, state } = view;
@@ -81,7 +81,7 @@ export function Agente({ agentId, tab, views, api, connected, isAdmin, isMobile,
   const body = (
     <>
       <AgentHeader bot={bot} bots={api.bots} state={state} onChat={() => onChat(bot.id)} onBack={onList} />
-      <Tabs items={tabs} active={tab} onChange={(t) => onTab(bot.id, t)} className="mb-6 overflow-x-auto" />
+      <Tabs items={tabs} active={tab} onChange={(t) => onTab(bot.id, t)} className="mb-6 max-lg:mb-3" />
       {tab === 'perfil' && (
         <div className="max-w-95">
           <AgentForm key={`${bot.id}:${bot.updatedAt}:${formKey}`} bot={bot} bots={api.bots} models={api.models} skills={api.skills} locked={!isAdmin}

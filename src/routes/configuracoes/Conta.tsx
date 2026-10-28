@@ -26,7 +26,7 @@ export function Conta({ account, role }: { account: AccountProps; role: NavRole 
 
   return (
     <>
-      <SectionTitle>Conta</SectionTitle>
+      <SectionTitle className="max-lg:hidden">Conta</SectionTitle>
       <div className="overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900/60 hairline">
         <ListRow
           leading={<Avatar name={name} src={avatar || undefined} size={36} />}

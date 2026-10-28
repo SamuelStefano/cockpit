@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import { Button, Tabs, type TabItem } from '../components/primitives';
+import { Button, IconButton, Tabs, type TabItem } from '../components/primitives';
+import { TopBarAction } from '../components/chrome/sidebar/TopBarSlot';
 import type { Memory, MemoryInput, TeamBot, UsageStats } from '../../shared/protocol';
 import type { BotView } from './equipe/team-view';
 import { OrgTree } from './equipe/OrgTree';
@@ -51,8 +52,8 @@ export function EquipePage(p: EquipePageProps) {
   const onTab = (t: Tab) => { if (t === 'rotinas') p.onGo('/equipe/rotinas'); else if (t === 'memoria') p.onGo('/equipe/memoria'); else p.onGo('/equipe'); };
   return (
     <div className="scroll-thin min-h-0 flex-1 overflow-y-auto">
-      <div className="mx-auto w-full max-w-[960px] p-4 md:p-8">
-        <header className="mb-5 flex flex-wrap items-center gap-3">
+      <div className="mx-auto w-full max-w-[960px] p-4 max-lg:pt-1 md:p-8">
+        <header className="mb-5 flex flex-wrap items-center gap-3 max-lg:hidden">
           <h1 className="text-[22px] font-semibold tracking-tight text-neutral-100">Equipe</h1>
           <div className="ml-auto flex gap-2">
             {isAdmin && tab !== 'rotinas' && views.length > 1 && (
@@ -64,7 +65,14 @@ export function EquipePage(p: EquipePageProps) {
             {isAdmin && tab !== 'rotinas' && <Button size="sm" icon="plus" onClick={p.onNew}>Novo agente</Button>}
           </div>
         </header>
-        <Tabs items={items} active={tab} onChange={onTab} className="mb-5" />
+        <TopBarAction>
+          {isAdmin && tab === 'agentes' && views.length > 1 && (
+            <IconButton icon="pause" label={p.paused ? 'Retomar equipe' : 'Pausar equipe'} side="bottom" onClick={() => p.onPauseSet(!p.paused)} className="pointer-coarse:h-11 pointer-coarse:w-11" />
+          )}
+          {isAdmin && tab === 'rotinas' && <IconButton icon="plus" label="Nova rotina" side="bottom" onClick={r.openNew} className="pointer-coarse:h-11 pointer-coarse:w-11" />}
+          {isAdmin && tab === 'agentes' && <IconButton icon="plus" label="Novo agente" side="bottom" onClick={p.onNew} className="pointer-coarse:h-11 pointer-coarse:w-11" />}
+        </TopBarAction>
+        <Tabs items={items} active={tab} onChange={onTab} className="mb-2.5 lg:mb-5" />
         {tab === 'memoria' && p.memory ? (
           <Memoria bots={views.map((v) => v.bot)} connected={connected} {...p.memory} />
         ) : tab === 'rotinas' ? (
