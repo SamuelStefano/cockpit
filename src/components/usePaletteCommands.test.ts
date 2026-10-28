@@ -14,13 +14,13 @@ const navIds = (role: NavRole) => renderHook(() => usePaletteCommands({ ...base,
 describe('usePaletteCommands navigation', () => {
   it('offers every route the header offers', () => {
     expect(navIds('student')).toHaveLength(navFor('student').length);
-    expect(navIds('student')).toEqual(['go-chat', 'go-equipe', 'go-agentes']);
-    expect(navIds('root')).toEqual(expect.arrayContaining(['go-chat', 'go-pontos', 'go-crons', 'go-equipe']));
+    expect(navIds('student')).toEqual(['go-chat', 'go-equipe', 'go-agentes', 'go-configuracoes']);
+    expect(navIds('root')).toEqual(expect.arrayContaining(['go-chat', 'go-pontos', 'go-equipe/rotinas', 'go-equipe']));
   });
 
   it('adds the admin-only routes only for admins', () => {
     expect(navIds('student')).not.toContain('go-canvas');
-    expect(navIds('admin')).toEqual(expect.arrayContaining(['go-canvas', 'go-graph', 'go-painel']));
+    expect(navIds('admin')).toEqual(expect.arrayContaining(['go-canvas', 'go-graph', 'go-conexoes']));
   });
 
   it('offers pontos to root only', () => {

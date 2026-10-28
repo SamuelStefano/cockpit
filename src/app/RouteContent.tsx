@@ -6,8 +6,8 @@ import type { AgentNav } from './useAgentNav';
 import { RouteFallback } from './RouteFallback';
 import { ChunkErrorBoundary } from './ChunkErrorBoundary';
 import {
-  Skills, Pontos, Observatorio,
-  Graph, Canvas, Admin, Conexoes, Docs, DesignSystem, Onboarding, EquipePage, Agente,
+  Skills, Pontos,
+  Graph, Canvas, Conexoes, Configuracoes, Docs, DesignSystem, Onboarding, EquipePage, Agente,
 } from './lazyRoutes';
 import type { ChatPanelProps } from '../components/chat/chat-panel-props';
 import type { TerminalsPanelProps } from '../components/Terminals';
@@ -15,6 +15,11 @@ import type { Terminal } from '../data/types';
 import type { useCockpit } from '../useCockpit';
 import type { AgentTab, Route } from '../useRoute';
 import { navigateTo } from '../lib/route-nav';
+import { ManageProviders, ManageTools } from '../routes/conexoes/Manage';
+import { requestTerminal } from '../lib/terminal-request';
+import type { NavRole } from '../components/chrome/nav-routes';
+import type { UsageDockProps } from '../components/chrome/sidebar/UsageDock';
+import type { AccountProps } from '../routes/configuracoes/Conta';
 
 // The DFL snapshot is root-only on the server: the Canvas of a plain admin skips it.
 const noop = () => {};
@@ -48,9 +53,13 @@ interface RouteContentProps {
   onOpenAgentChat: (model: string) => void;
   layout: LayoutState;
   mobile: MobileState;
+  role: NavRole;
+  nav: (to: Route) => void;
+  account: AccountProps;
+  usageDock: UsageDockProps;
 }
 
-export function RouteContent({ route, agentRoute, skillRoute, isMobile, isAdmin, isRoot, connected, cockpit, chatProps, termProps, onOpenSession, agent, onOpenAgentChat, layout, mobile }: RouteContentProps) {
+export function RouteContent({ route, agentRoute, skillRoute, isMobile, isAdmin, isRoot, connected, cockpit, chatProps, termProps, onOpenSession, agent, onOpenAgentChat, layout, mobile, role, nav, account, usageDock }: RouteContentProps) {
   const c = cockpit;
   const view = (() => {
     if (route === '/equipe' || route === '/equipe/rotinas' || route === '/equipe/memoria') {
@@ -84,10 +93,11 @@ export function RouteContent({ route, agentRoute, skillRoute, isMobile, isAdmin,
           drafts={c.drafts} draftsLoaded={c.draftsLoaded} onDraftsGet={c.onDraftsGet} onDraftOp={c.onDraftOp} />
       );
     }
-    if (route === '/uso') {
+    if (route === '/configuracoes' || route.startsWith('/configuracoes/')) {
       return (
-        <Observatorio connected={connected} usageStats={c.usageStats} onUsageList={c.onUsageList} sessions={c.sessions} rate={c.rate}
-          onOpenSession={onOpenSession} />
+        <Configuracoes
+          route={route} role={role} nav={nav} isMobile={isMobile} connected={connected} cockpit={c} account={account} usageDock={usageDock}
+          onOpenSession={onOpenSession} onOpenTerminal={() => { requestTerminal(); navigateTo('/'); }} />
       );
     }
     if (route === '/graph' && isAdmin) {
@@ -120,18 +130,12 @@ export function RouteContent({ route, agentRoute, skillRoute, isMobile, isAdmin,
           cvLiveSessionIds={c.cvLiveSessionIds} cvIdleSessionIds={c.cvIdleSessionIds} sessionPeeks={c.sessionPeeks} onSessionPeek={c.onSessionPeek} />
       );
     }
-    if (route === '/painel' && isAdmin) {
-      return (
-        <Admin health={c.health} stats={c.stats} onHealthList={c.onHealthList}
-          accounts={c.accounts} accountsLoaded={c.accountsLoaded} onAccountsList={c.onAccountsList} onSetAdmin={c.onSetAdmin} isRoot={isRoot}
-          adminOp={c.adminOp} onEnvSet={c.onEnvSet} onEnvUnset={c.onEnvUnset} onMcpAdd={c.onMcpAdd} onMcpRemove={c.onMcpRemove} onCliInstall={c.onCliInstall}
-          onCliUpdate={c.onCliUpdate} onDeckRestart={c.onDeckRestart} agents={c.agents} dflMcps={c} term={c.term} models={c.models} onOpenAgentChat={onOpenAgentChat} />
-      );
-    }
     if (route === '/conexoes' && isAdmin) {
+      const manage = { agents: c.agents, dflMcps: c, term: c.term, models: c.models, isRoot, onOpenAgentChat };
       return (
         <Conexoes connected={connected} items={c.connections} loaded={c.connectionsLoaded} bots={c.bots}
-          dflMcpsState={c.dflMcps} dflMcpsBusy={c.dflMcpsBusy} onGet={c.onConnectionsGet} onToolAdd={c.onDflMcpsAdd} onGo={navigateTo} />
+          dflMcpsState={c.dflMcps} dflMcpsBusy={c.dflMcpsBusy} onGet={c.onConnectionsGet} onToolAdd={c.onDflMcpsAdd} onGo={navigateTo}
+          manage={{ provedores: <ManageProviders {...manage} />, ferramentas: <ManageTools {...manage} /> }} />
       );
     }
     if (route === '/agentes' && agentRoute) {
