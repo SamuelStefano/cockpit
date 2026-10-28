@@ -39,6 +39,7 @@ export function ConnectionRow({ c, bots, now, onAction, busy, deviceBadge, canAc
           </span>
           {c.detail && !open && <small className="block truncate text-[12px] text-neutral-500">{c.detail}</small>}
         </span>
+        <span aria-hidden className="basis-full sm:hidden" />
         <span className={`flex items-center gap-1.5 text-[12.5px] ${STATE_TONE[c.state]}`}>
           <span aria-hidden className={`h-[7px] w-[7px] rounded-full ${STATE_DOT[c.state]}`} />
           {stateLabel(c)}
