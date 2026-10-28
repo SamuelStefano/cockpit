@@ -13,6 +13,7 @@ import { dropPreauth, pendingPreauths } from './preauth-store';
 import { defaultDeviceLabel } from './device-label';
 import { toast } from '../components/primitives/toast-bus';
 import { boxStore } from './boxes-store';
+import { noteRelayFrame, recordConnEvent } from '../app/connectionTelemetry';
 
 // Relay-mode socket (T5). Same surface useCockpit uses on a WebSocket, but it
 // reports "open" only once a sealed channel to a pinned agent exists, and from
@@ -328,6 +329,7 @@ export class SealedSocket {
     const t = m.t;
     if (typeof t !== 'string') return;
     if (FROM_RELAY.has(t)) {
+      if (this.main) noteRelayFrame(t, t === 'boxes' && Array.isArray(m.boxes) ? { n: m.boxes.length } : {});
       if (t === 'boxes' || t === 'box-error') {
         if (this.main) { if (t === 'boxes') boxStore.applyFrame(m); else boxStore.applyError(m); }
         return;
@@ -434,6 +436,7 @@ export class SealedSocket {
   private goPlain(): void {
     if (this.closed || this.channel) return;
     console.warn('[deck] agent did not answer the sealed hello; using the relay in clear');
+    if (this.main) recordConnEvent('seal_plain_fallback');
     this.plain = true;
     this.handshake = null;
     this.clearTimer();
@@ -443,6 +446,7 @@ export class SealedSocket {
   }
 
   private setSeal(s: SealState): void {
+    if (this.main && s !== this.seal) recordConnEvent('seal', { state: s, plain: this.plain });
     this.seal = s;
     if (this.main) setState(s);
   }
@@ -455,6 +459,7 @@ export class SealedSocket {
   // starts a fresh channel and hides the loss. Say so instead of reconnecting
   // silently, so an unconfirmed action gets checked.
   private fail(reason: string, next: SealState = 'connecting'): void {
+    if (this.main) recordConnEvent('seal_fail', { reason });
     if (this.channel && reason !== 'channel lifetime reached' && reason !== 'box forgotten') {
       toast('Conexão cifrada reiniciada — confira se a última ação chegou.', { tone: 'error' });
     }

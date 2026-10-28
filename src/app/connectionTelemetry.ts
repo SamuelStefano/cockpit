@@ -21,9 +21,33 @@ export const MAX_REPORTS_PER_PAGE = 10;
 const MAX_REASON = 40;
 const MAX_APP = 24;
 
+// Ring of recent connection events for the identified diag report (diag_reports).
+// Never sent by the anonymous beacon above; the report redacts it before it leaves.
+export interface ConnEvent { at: number; ev: string; [field: string]: unknown }
+export const CONN_EVENTS_MAX = 200;
+let events: ConnEvent[] = [];
+let lastDialAt = 0;
+let lastRelayFrameAt = 0;
+
+export function recordConnEvent(ev: string, fields: Record<string, unknown> = {}): void {
+  const at = Date.now();
+  if (ev === 'dial') lastDialAt = at;
+  events.push({ ...fields, at, ev });
+  if (events.length > CONN_EVENTS_MAX) events = events.slice(-CONN_EVENTS_MAX);
+}
+export function recentConnEvents(): ConnEvent[] { return events.slice(); }
+
+// A relay-owned frame (agent-online/offline, boxes) proves the relay answered.
+export function noteRelayFrame(t: string, fields: Record<string, unknown> = {}): void {
+  lastRelayFrameAt = Date.now();
+  recordConnEvent(`relay:${t}`, fields);
+}
+export function relayAnsweredSinceDial(): boolean { return lastRelayFrameAt > 0 && lastRelayFrameAt >= lastDialAt; }
+
 let lastClose: { code: number; reason: string; at: number } | null = null;
 export function recordClose(code: number, reason: string): void {
   lastClose = { code, reason: reason ?? '', at: Date.now() };
+  recordConnEvent('close', { code, reason: (reason ?? '').slice(0, MAX_REASON) });
 }
 export function getLastClose(): { code: number; reason: string; at: number } | null { return lastClose; }
 
@@ -72,7 +96,7 @@ export function telemetryUrl(base: string = wsBase()): string | null {
 
 let sent = 0;
 let offlineSentForEpisode = false;
-export function resetTelemetryForTests(): void { sent = 0; offlineSentForEpisode = false; lastClose = null; }
+export function resetTelemetryForTests(): void { sent = 0; offlineSentForEpisode = false; lastClose = null; events = []; lastDialAt = 0; lastRelayFrameAt = 0; }
 export function endOfflineEpisode(): void { offlineSentForEpisode = false; }
 
 export function sendConnectionReport(report: ConnectionReport, url: string | null = telemetryUrl()): boolean {
