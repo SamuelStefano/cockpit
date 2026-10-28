@@ -192,6 +192,20 @@ export interface ContextMeta {
   mtime: number;
 }
 
+// Memória da equipe: o que os agentes ligados a ela sabem antes da conversa
+// começar. `agents` = ids dos bots que a leem. Ligada a ninguém = só consulta.
+export interface Memory {
+  id: string;
+  title: string;
+  body: string;
+  agents: string[];
+  updatedAt: number;
+  updatedBy: string;
+  fileName?: string;
+  fromDisk?: boolean;
+}
+export type MemoryInput = Pick<Memory, 'title' | 'body' | 'agents'> & { id?: string; fileName?: string };
+
 // Skill do agente (dir com SKILL.md) surfaceada read-only na rota Skills.
 export type SkillRisk = 'read' | 'write' | 'net';
 export interface SkillMeta {
@@ -714,6 +728,9 @@ export type ClientMsg =
   | { t: 'search'; q: string }
   | { t: 'ctx-list' }
   | { t: 'ctx-open'; id: string }
+  | { t: 'mem-list' }
+  | { t: 'mem-save'; memory: MemoryInput }
+  | { t: 'mem-delete'; id: string }
   | { t: 'notes-get' }
   | { t: 'notes-save'; text: string }
   // Drop privado (admin-only, fora do STUDENT_ALLOWED): entrega segredo/script à
@@ -946,6 +963,7 @@ export type ServerMsg =
   | { t: 'search-results'; q: string; items: SessionMeta[] }
   | { t: 'session-summary'; sessionId: string; summary: string }
   | { t: 'contexts'; items: ContextMeta[] }
+  | { t: 'memories'; items: Memory[] }
   | { t: 'notes'; text: string }
   // `content` preenchido SÓ em resposta a drop-open. No put a referência viaja
   // sozinha (caminho/bytes/sha256) — o segredo não volta pro cliente.

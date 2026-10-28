@@ -83,3 +83,30 @@ describe('bot access on the turn', () => {
     expect(t?.profile).toBe('restricted');
   });
 });
+
+describe('memory block in the bot prompt', () => {
+  const mem = (agents: string[], body = 'Tom caloroso.') => ({ id: 'm1', title: 'Marca', body, agents, updatedAt: 1, updatedBy: 'user' });
+
+  it('is byte-identical to today without memories or readers', () => {
+    const base = buildBotIdentity(team[1], team);
+    expect(buildBotIdentity(team[1], team, [])).toBe(base);
+    expect(buildBotIdentity(team[1], team, [mem(['kid11'])])).toBe(base);
+  });
+
+  it('appends the memories the bot reads', () => {
+    const t = buildBotIdentity(team[1], team, [mem(['lead1'])]);
+    expect(t).toContain('## Marca\nTom caloroso.');
+    expect(t.startsWith(buildBotIdentity(team[1], team))).toBe(true);
+  });
+
+  it('caps the memory part at 8 KB and keeps the identity cap separate', () => {
+    const base = buildBotIdentity(team[1], team);
+    const t = buildBotIdentity(team[1], team, [mem(['lead1'], 'x'.repeat(50_000))]);
+    expect(new TextEncoder().encode(t).length - new TextEncoder().encode(base).length).toBeLessThanOrEqual(8 * 1024 + 2);
+  });
+
+  it('reaches botTurnParams and botTurnFor', () => {
+    expect(botTurnParams(team, 'bot-lead1', undefined, [mem(['lead1'])])?.appendSystemPrompt).toContain('Tom caloroso.');
+    expect(botTurnFor(team, 'bot-lead1', undefined, 'admin', [mem(['lead1'])])?.appendSystemPrompt).toContain('Tom caloroso.');
+  });
+});

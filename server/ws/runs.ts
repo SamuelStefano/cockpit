@@ -37,6 +37,7 @@ import { authHold, isAuthFailure, markAuthBroken, AUTH_MESSAGE } from './auth-he
 import { threadIsMarathon, MARATHON_AUTO_RESUME_CAP } from './marathon';
 import { bindBotSession, getTeam } from '../team';
 import { botTurnParams, botDenyRules } from '../team-prompt';
+import { readMemoriesSafe } from '../memories';
 import { botThreadKey } from '../../shared/team';
 import { clearBotQuestion } from './team-pending-frames';
 import { threads, admitRun, resolveThreadKey, stopSession, stopEpochOf, clearStopEpoch, shouldPreserveLive, runParams, sameParams, type Thread, type RunParams } from './threads';
@@ -1410,7 +1411,7 @@ async function fireBotRoutine(cron: Cron, botId: string): Promise<CronFire> {
   if (!bot) return 'bot-gone';
   if (bot.sessionId && (await readBusyElsewhereSessionIds().catch(() => [] as string[])).includes(bot.sessionId)) return 'bot-busy';
   const key = botThreadKey(botId);
-  const turn = botTurnParams(team, key);
+  const turn = botTurnParams(team, key, undefined, await readMemoriesSafe());
   if (!turn) return 'bot-gone';
   if (botLiveKey(botId, bot.sessionId)) return 'bot-busy';
   if (isAreaAdmissionBlocked(turn.resumeId, key)) return 'blocked';

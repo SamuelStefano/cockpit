@@ -17,7 +17,7 @@ export function SidebarNav({ route, nav, role, counts, expanded }: SidebarNavPro
   return (
     <nav aria-label="Rotas" className="flex flex-col gap-0.5">
       {items.map((i) => (
-        <SidebarItem key={i.id} icon={i.icon} label={i.label} expanded={expanded} active={route === i.to} count={counts?.[i.to]} onClick={() => nav(i.to)} />
+        <SidebarItem key={i.id} icon={i.icon} label={i.label} expanded={expanded} active={route === i.to || route.startsWith(`${i.to}/`)} count={counts?.[i.to]} onClick={() => nav(i.to)} />
       ))}
     </nav>
   );

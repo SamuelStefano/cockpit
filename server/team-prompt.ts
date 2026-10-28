@@ -1,4 +1,5 @@
-import type { BotPermissions, TeamBot } from '../shared/protocol';
+import type { BotPermissions, Memory, TeamBot } from '../shared/protocol';
+import { buildMemoryBlock } from '../shared/memory';
 import { toolsDeniedBy } from '../shared/bot-access';
 import { resolveSkillDeny } from './skills';
 import { botIdFromKey } from '../shared/team';
@@ -20,7 +21,7 @@ function rosterLine(b: TeamBot, byId: Map<string, TeamBot>, team: TeamBot[]): st
 // session without a recorded snapshot (older CLI, or one compacted since) still
 // gets it. The CLI's default --system-prompt-snapshot records the first launch's
 // text, so an instructions edit reaches an existing thread only after a compact.
-export function buildBotIdentity(bot: TeamBot, team: TeamBot[]): string {
+export function buildBotIdentity(bot: TeamBot, team: TeamBot[], memories?: Memory[]): string {
   const byId = new Map(team.map((b) => [b.id, b]));
   const lines = [
     `Você é ${bot.name}${bot.label ? `, ${bot.label}` : ''}, um bot da equipe do Deck. Fale sempre como ${bot.name}.`,
@@ -35,7 +36,9 @@ export function buildBotIdentity(bot: TeamBot, team: TeamBot[]): string {
   }
   const text = lines.join('\n');
   const bytes = new TextEncoder().encode(text);
-  return bytes.length <= MAX_IDENTITY_BYTES ? text : new TextDecoder().decode(bytes.slice(0, MAX_IDENTITY_BYTES));
+  const base = bytes.length <= MAX_IDENTITY_BYTES ? text : new TextDecoder().decode(bytes.slice(0, MAX_IDENTITY_BYTES));
+  const memory = buildMemoryBlock(memories, bot.id);
+  return memory ? `${base}\n\n${memory}` : base;
 }
 
 // A turn belongs to a bot when its key names the bot (first turn / server turns)
@@ -72,19 +75,19 @@ export async function botDenyRules(turn: Pick<BotTurn, 'skills' | 'permissions'>
 // A turn driven by anyone but admin is always restricted, whatever team.json says:
 // a non-admin account can reach that file through other means, the profile it
 // stored there must not be what unlocks Bash.
-export function botTurnFor(team: TeamBot[], sessionKey: string, sessionId: string | undefined, role: Role | undefined): BotTurn | undefined {
-  const turn = botTurnParams(team, sessionKey, sessionId);
+export function botTurnFor(team: TeamBot[], sessionKey: string, sessionId: string | undefined, role: Role | undefined, memories?: Memory[]): BotTurn | undefined {
+  const turn = botTurnParams(team, sessionKey, sessionId, memories);
   if (!turn || role === 'admin') return turn;
   return { ...turn, profile: 'restricted', ...(turn.permissions ? { permissions: { ...turn.permissions, write: false } } : {}) };
 }
 
-export function botTurnParams(team: TeamBot[], sessionKey: string, sessionId?: string): BotTurn | undefined {
+export function botTurnParams(team: TeamBot[], sessionKey: string, sessionId?: string, memories?: Memory[]): BotTurn | undefined {
   const bot = findTurnBot(team, sessionKey, sessionId);
   if (!bot) return undefined;
   return {
     botId: bot.id,
     resumeId: bot.sessionId ?? sessionId,
-    appendSystemPrompt: buildBotIdentity(bot, team),
+    appendSystemPrompt: buildBotIdentity(bot, team, memories),
     profile: bot.profile === 'full' ? 'full' : 'restricted',
     ...(bot.model ? { model: bot.model } : {}),
     ...(bot.mode ? { mode: bot.mode } : {}),
