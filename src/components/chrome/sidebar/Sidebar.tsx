@@ -50,7 +50,7 @@ export function Sidebar({ route, nav, role, navCounts, onNew, onPalette, bitStat
       className={`relative z-30 flex h-full shrink-0 flex-col bg-neutral-950 ${drawer ? 'w-full' : `border-r border-neutral-800 transition-[width] duration-200 ${expanded ? 'w-75' : 'w-14'}`}`}
     >
       <div className={`flex shrink-0 p-2 ${expanded ? 'h-14 items-center gap-0.5' : 'flex-col items-center gap-1'}`}>
-        {expanded && bitButton}
+        {bitButton}
         {!drawer && !expanded && <IconButton icon="panelLeft" label={toggleLabel} side="right" aria-expanded={expanded} onClick={toggle} />}
         {expanded && <span className="flex-1" />}
         {!drawer && !expanded && <IconButton icon="squarePen" label="Nova conversa" side="right" onClick={onNew} />}
@@ -65,7 +65,6 @@ export function Sidebar({ route, nav, role, navCounts, onNew, onPalette, bitStat
       )}
 
       {!expanded && (rail ?? <div className="flex-1" />)}
-      {!expanded && <div className="flex shrink-0 justify-center pb-1">{bitButton}</div>}
 
       {/* Routes sit above the conversations (ChatGPT-style), so the list starts lower and a rule
           separates the two instead of the list running from the top to the account. */}
