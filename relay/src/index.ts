@@ -150,6 +150,11 @@ export function createRelay(cfg: RelayConfig) {
   // bypass = RCE root). A aplicação real continua no agente (bypassAllowed).
   // Keyed by agent id: each box reports its own capability.
   const agentBypass = new Map<string, boolean>();
+  // Agents that reported caps without `sealed` (pre-T5, or DECK_E2E=off) never
+  // answer a sealed hello: the tab is told so and skips the 10 s handshake wait.
+  // A relay could already force that fallback by dropping the hello.
+  const agentPlain = new Set<string>();
+  const onlineFrame = (box: string) => JSON.stringify(agentPlain.has(box) ? { t: 'agent-online', box, plain: true } : { t: 'agent-online', box });
   type BrowserSock = WebSocket & { _role?: AccountRole };
   // Privilegiado = root/admin (canSeeAllAccounts). canBypass só pra esses E se o
   // agente reportou capacidade local; o agente reaplica o gate de qualquer forma.
@@ -411,7 +416,7 @@ export function createRelay(cfg: RelayConfig) {
     // Estado ATUAL do agente pra esta aba. Antes só mandava agent-offline; uma aba
     // que conectava com o agente JÁ online nunca recebia agent-online e ficava presa
     // na tela de pareamento (agentOnline inicia false no modo relay).
-    ws.send(JSON.stringify(target ? { t: 'agent-online', box: target } : { t: 'agent-offline', box: box || null }));
+    ws.send(target ? onlineFrame(target) : JSON.stringify({ t: 'agent-offline', box: box || null }));
     void sendBoxes(accountId, ws);
 
     const onFrame = async (s: string) => {
@@ -610,6 +615,7 @@ export function createRelay(cfg: RelayConfig) {
           ws.send(JSON.stringify({ t: 'agent-ready' }));
           void cfg.store.markAgentSeen(st.agentId).catch(() => { /* last-seen stamp only */ });
           // Avisa as abas que alcançam ESTE box que ele ficou online.
+          agentPlain.delete(st.agentId);
           registry.toBrowsers(st.accountId, st.agentId, JSON.stringify({ t: 'agent-online', box: st.agentId }));
           // Estado inicial de presença: liga os loops só se já houver aba olhando este box.
           flushPresence(st.accountId);
@@ -631,13 +637,15 @@ export function createRelay(cfg: RelayConfig) {
         }
       }
       if (maybeControlFrame(s, 'agent-caps')) {
-        let m: { t?: string; canBypass?: boolean } = {};
+        let m: { t?: string; canBypass?: boolean; sealed?: boolean } = {};
         try { m = JSON.parse(s); } catch { /* repassa abaixo */ }
         if (m.t === 'agent-caps') {
           agentBypass.set(st.agentId, !!m.canBypass);
+          if (m.sealed === true) agentPlain.delete(st.agentId); else agentPlain.add(st.agentId);
           for (const [b] of registry.tabsOf(st.accountId, st.agentId)) {
             const role = (b as BrowserSock)._role;
             if (role) b.send(capsFrame(role, st.agentId));
+            if (m.sealed !== true) b.send(onlineFrame(st.agentId));
           }
           return;
         }
@@ -673,6 +681,7 @@ export function createRelay(cfg: RelayConfig) {
       const tabs = registry.tabsOf(st.accountId, st.agentId);
       if (!registry.unbindAgent(st.accountId, st.agentId, ws)) return;
       agentBypass.delete(st.agentId);
+      agentPlain.delete(st.agentId);
       const next = registry.primary(st.accountId);
       for (const [tab, box] of tabs) {
         // A tab following the primary had its sealed channel with THIS box: when
