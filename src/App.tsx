@@ -105,7 +105,7 @@ function CockpitBody() {
   useEffect(() => { setQuotaClosed(false); }, [quotaWindow]);
 
   useLiveConnection({ wsState: conn.ws, reconnectNow });
-  const { showOffline, restarting } = useOfflineLatch(conn.ws);
+  const { showOffline, restarting, offlineSince } = useOfflineLatch(conn.ws, authRequired);
   const [updateClosed, setUpdateClosed] = useState(false);
   const { updateReady, applyUpdate } = useAppUpdate(conn.ws === 'connected');
   const seal = useSealState();
@@ -249,7 +249,7 @@ function CockpitBody() {
           )}
           {/* Âncora de altura zero no fluxo: o aviso pende daqui, logo abaixo do topo da coluna. */}
           <div className="relative z-40">
-            <OfflineNotice show={showOffline} onReconnect={reconnectNow} authRejected={SUPABASE_ENABLED && authRequired} />
+            <OfflineNotice show={showOffline} onReconnect={reconnectNow} authRejected={SUPABASE_ENABLED && authRequired} offlineSince={offlineSince} />
             {/* Um de cada vez na mesma âncora, e offline ganha: sem servidor não há
                 versão nova pra buscar, e recarregar ali só daria página em branco. */}
             <RestartNotice show={restarting && !showOffline} />
