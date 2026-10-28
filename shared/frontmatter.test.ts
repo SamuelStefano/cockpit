@@ -66,4 +66,10 @@ describe('parseFrontmatter block scalars', () => {
   it('reads a literal block (|) too', () => {
     expect(parseFrontmatter('---\ndescription: |\n  a\n  b\n---').description).toBe('a b');
   });
+
+  it('reads source and risk', () => {
+    const fm = parseFrontmatter('---\nname: x\nsource: dfl-campaigns\nrisk: write, net\n---');
+    expect(fm.source).toBe('dfl-campaigns');
+    expect(fm.risk).toBe('write, net');
+  });
 });

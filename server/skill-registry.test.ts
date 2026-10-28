@@ -1,8 +1,8 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { adaptPack, adaptSkill, token, validRef } from './skill-registry';
+import { adaptPack, adaptSkill, catalog, token, validRef } from './skill-registry';
 
 describe('token', () => {
   afterEach(() => { delete process.env.DFL_MCP_DIR; });
@@ -56,5 +56,22 @@ describe('adaptPack', () => {
     expect(p.members.map((m) => [m.slug, m.role, m.published, m.source])).toEqual([
       ['a', 'root', true, 'o/r'], ['b', 'required', true, 'o/r'], ['c', 'suggested', false, 'o/r'],
     ]);
+  });
+});
+
+describe('catalog without a DFL session', () => {
+  afterEach(() => { delete process.env.DFL_MCP_DIR; vi.unstubAllGlobals(); });
+  it('loads the public tier anonymously when ~/.dfl-mcp/credentials.json does not exist', async () => {
+    process.env.DFL_MCP_DIR = join(await mkdtemp(join(tmpdir(), 'reg-')), 'missing');
+    const calls: { url: string; auth: unknown }[] = [];
+    vi.stubGlobal('fetch', async (url: string, init: { headers: Record<string, string> }) => {
+      calls.push({ url, auth: init.headers.Authorization });
+      const body = url.includes('/packs') ? { packs: [] } : { scope: 'public', skills: [{ source: 'o/r', skill: 'brand-voice', name: 'Brand voice' }] };
+      return new Response(JSON.stringify(body), { status: 200 });
+    });
+    const c = await catalog();
+    expect(c.publicOnly).toBe(true);
+    expect(c.skills.map((s) => s.slug)).toEqual(['brand-voice']);
+    expect(calls.every((x) => x.auth === undefined)).toBe(true);
   });
 });

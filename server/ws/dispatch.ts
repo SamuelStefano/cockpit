@@ -862,7 +862,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       return;
     }
     case 'skill-list': {
-      send(ws, { t: 'skills', items: await listSkills() });
+      send(ws, { t: 'skills', items: await listSkills(await getTeam()) });
       return;
     }
     case 'skill-open': {
@@ -882,7 +882,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     case 'skill-install': {
       const r = await installSkill(msg.slug, msg.title, msg.body);
       send(ws, 'error' in r ? { t: 'install-result', kind: 'skill', ok: false, error: r.error } : { t: 'install-result', kind: 'skill', ok: true, id: r.id });
-      if (!('error' in r)) send(ws, { t: 'skills', items: await listSkills() });
+      if (!('error' in r)) send(ws, { t: 'skills', items: await listSkills(await getTeam()) });
       return;
     }
     // DFL Skills registry (admin-only via authz). The registry is read by a child
@@ -901,7 +901,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       } catch (e) {
         send(ws, { t: 'registry-install-result', reqId: msg.reqId, ok: false, installed: [], skipped: [], error: (e as Error).message });
       }
-      send(ws, { t: 'skills', items: await listSkills() });
+      send(ws, { t: 'skills', items: await listSkills(await getTeam()) });
       return;
     }
     case 'usage-list': {
