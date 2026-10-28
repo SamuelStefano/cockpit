@@ -76,6 +76,7 @@ export interface AttachmentPreview { path: string; name: string; dataB64?: strin
 export type QueueItem = ParkedView & { key: string };
 export type { TermApi };
 import type { ConnState } from './components/primitives';
+import { recordClose } from './app/connectionTelemetry';
 import { toast } from './components/primitives/toast-bus';
 import { benchDispatch, failAllBenchPending, setBenchSender } from './components/primitives/livepreview/bench-bus';
 import type { Phase } from './components/Chat';
@@ -1482,6 +1483,7 @@ export function useCockpit(): Cockpit {
     };
     ws.onclose = (ev) => {
       if (!isCurrent()) return;
+      recordClose(ev.code, ev.reason);
       // The retry schedule owns reconnection from here. A heartbeat left running
       // redialed on its own ~40s later, even after a 4401 had put up the token gate.
       if (heartbeat.current) { clearInterval(heartbeat.current); heartbeat.current = null; }

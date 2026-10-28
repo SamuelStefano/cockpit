@@ -199,8 +199,17 @@ export function boxLabel(env: NodeJS.ProcessEnv = process.env): string {
   return (env.DECK_BOX_LABEL ?? '').trim() || hostname();
 }
 
+export function relayLogLine(event: string, fields: Record<string, string | number> = {}): string {
+  return JSON.stringify({ ts: new Date().toISOString(), event, ...fields });
+}
+function relayLog(event: string, id: Identity, fields: Record<string, string | number> = {}): void {
+  console.log(relayLogLine(event, { hid: id.agentId.slice(0, 8), ...fields }));
+}
+
 function connect(relayUrl: string, id: Identity, onOpen: () => void, onClose: (code: number, reason: string) => void, onAuthed: () => void): WebSocket {
+  relayLog('relay_connect', id);
   const ws = new WebSocket(`${relayUrl.replace(/\/$/, '')}/agent`);
+  const openedAt = Date.now();
   let ready = false;
 
   const onHandshake = (raw: import('ws').RawData) => {
@@ -271,9 +280,9 @@ function connect(relayUrl: string, id: Identity, onOpen: () => void, onClose: (c
     }
   };
 
-  ws.on('open', () => { onOpen(); ws.send(JSON.stringify({ t: 'agent-hello', agentId: id.agentId })); });
+  ws.on('open', () => { relayLog('relay_open', id); onOpen(); ws.send(JSON.stringify({ t: 'agent-hello', agentId: id.agentId })); });
   ws.on('message', onHandshake);
-  ws.on('close', (code, reason) => { if (activeWs === ws) { setClientSource(null); activeWs = null; browsersPresent = true; } onClose(code, reason.toString()); });
+  ws.on('close', (code, reason) => { relayLog('relay_close', id, { code, reason: reason.toString().slice(0, 40), ms: Date.now() - openedAt }); if (activeWs === ws) { setClientSource(null); activeWs = null; browsersPresent = true; } onClose(code, reason.toString()); });
   ws.on('error', () => { /* o 'close' cuida do reconnect */ });
 
   // Health check do link: ping a cada 30s E checa o pong. Sem checar o pong um
@@ -442,6 +451,7 @@ export function runAgent(relayUrl: string): void {
         // wait long and don't count as a backoff step.
         const wait = redialWaitMs(code, reason, attempt++);
         if (wait === UNKNOWN_AGENT_WAIT_MS) console.error('[agent] o relay não reconhece esta máquina (revogada?). Pareie de novo com um código novo do Deck.');
+        relayLog('relay_reconnect_scheduled', id, { delayMs: wait, attempt });
         console.error(`[agent] desconectado; reconectando em ${Math.round(wait / 1000)}s`);
         setTimeout(loop, wait);
       },

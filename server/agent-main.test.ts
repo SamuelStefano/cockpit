@@ -1,6 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { EventEmitter } from 'node:events';
-import { generateIdentityKeys, signChallenge, challengeMessage, backoffMs, canvasLoopGate, installCrashBackstop } from './agent-main';
+import { describe, it, expect } from 'vitest';import { EventEmitter } from 'node:events';
+import { generateIdentityKeys, signChallenge, challengeMessage, backoffMs, canvasLoopGate, installCrashBackstop, relayLogLine } from './agent-main';
 import { verifyAgentSignature, makeChallenge } from '../relay/src/verify';
 
 const AID = 'agent-123';

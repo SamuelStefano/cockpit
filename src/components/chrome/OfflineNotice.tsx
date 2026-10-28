@@ -1,12 +1,20 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Icon } from '../primitives';
 import { VpsConnectForm } from '../VpsConnectForm';
 import { wsBase } from '../../cockpit/session';
+import { getLastClose } from '../../app/connectionTelemetry';
 
 // The host the socket really dials: a saved ws.url override or VITE_WS_URL, not
 // necessarily the page's own host (the front on Vercel, the backend elsewhere).
 export function backendHost(base = wsBase()): string {
   try { return new URL(base).host; } catch { return base; }
+}
+
+export function diagnosticLine(code: number | undefined, offlineSince: number | null | undefined, now = Date.now()): string | null {
+  if (code == null) return null;
+  const parts = [`código ${code}`];
+  if (offlineSince != null) parts.push(`offline há ${Math.max(0, Math.round((now - offlineSince) / 1000))} s`);
+  return parts.join(' · ');
 }
 
 // Aviso honesto quando o backend não responde por alguns segundos (caso clássico:
@@ -15,9 +23,16 @@ export function backendHost(base = wsBase()): string {
 // mágico de 58px saía do lugar quando a safe-area do iPhone empurrava o header.
 // `authRejected`: the relay answered 4401. The backend is up; the login was
 // refused (expired or unresolved identity).
-export function OfflineNotice({ show, onReconnect, authRejected = false }: { show: boolean; onReconnect?: () => void; authRejected?: boolean }) {
+export function OfflineNotice({ show, onReconnect, authRejected = false, offlineSince }: { show: boolean; onReconnect?: () => void; authRejected?: boolean; offlineSince?: number | null }) {
   const [showConnect, setShowConnect] = useState(false);
+  const [, tick] = useState(0);
+  useEffect(() => {
+    if (!show) return;
+    const id = setInterval(() => tick((n) => n + 1), 1000);
+    return () => clearInterval(id);
+  }, [show]);
   if (!show) return null;
+  const diag = diagnosticLine(getLastClose()?.code, offlineSince);
   return (
     <div className="fade-up pointer-events-none absolute left-1/2 top-2.5 z-40 w-[min(92vw,30rem)] -translate-x-1/2">
       <div className="pointer-events-auto rounded-lg border border-red-500/30 bg-red-500/12 px-3 py-2 shadow-2xl shadow-black/40 backdrop-blur-md">
@@ -32,6 +47,7 @@ export function OfflineNotice({ show, onReconnect, authRejected = false }: { sho
                 ? <>O relay em <span className="font-mono">{backendHost()}</span> não aceitou a sua sessão. Se não voltar sozinho em alguns segundos, saia e entre de novo.</>
                 : <>O Deck não alcança o servidor em <span className="font-mono">{backendHost()}</span>. Confira se o backend está rodando (ou o túnel/Tailscale). Tentando reconectar…</>}
             </p>
+            {diag && <p className="text-[11px] text-red-200/50">{diag}</p>}
             {onReconnect && (
               <button
                 type="button"
