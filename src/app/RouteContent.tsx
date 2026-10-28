@@ -7,7 +7,7 @@ import { RouteFallback } from './RouteFallback';
 import { ChunkErrorBoundary } from './ChunkErrorBoundary';
 import {
   Contextos, Skills, Pontos, Crons, Observatorio,
-  Graph, Canvas, Admin, Docs, DesignSystem, Onboarding,
+  Graph, Canvas, Admin, Docs, DesignSystem, Onboarding, EquipePage,
 } from './lazyRoutes';
 import type { ChatPanelProps } from '../components/chat/chat-panel-props';
 import type { TerminalsPanelProps } from '../components/Terminals';
@@ -55,6 +55,14 @@ export function RouteContent({ route, isMobile, isAdmin, isRoot, connected, cock
       return (
         <Contextos connected={connected} contexts={c.contexts} loaded={c.ctxLoaded} openContext={c.openContext}
           onCtxList={c.onCtxList} onCtxOpen={c.onCtxOpen} onCtxClose={c.onCtxClose} />
+      );
+    }
+    if (route === '/equipe') {
+      return (
+        <EquipePage
+          views={agent.views} connected={connected} isAdmin={isAdmin} usageStats={c.usageStats} paused={c.teamPaused}
+          cronCount={c.cronsLoaded ? c.crons.length : undefined}
+          onOpenAgent={agent.open} onNew={agent.openNew} onPauseSet={c.onTeamPauseSet} onUsageList={c.onUsageList} onGo={navigateTo} />
       );
     }
     if (route === '/skills') {
