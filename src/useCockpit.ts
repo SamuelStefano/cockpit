@@ -13,6 +13,7 @@ import { onAuthClose, tokenUnchangedAndLive, RELAY_AUTH_RETRY_MS, shouldRefreshS
 import { TOKEN_EXPIRED_CLOSE, TOKEN_EXPIRED_EVENT } from './lib/auth-events';
 import { requestNotifyPermission, notifyTurnDone, notifyTurnError } from './lib/notify';
 import { wsBase, withBox, wsUrlWithToken, newId, metaToSession, mergeServerSessions, adoptClaimedRow, dedupById, mergeSeen, isCronPing } from './cockpit/session';
+import { setTtsSender, handleTtsMsg } from './cockpit/tts-bus';
 import { computeStalled, computeUpdated } from './cockpit/signals';
 import { upsertTool, appendDelta, appendThinking } from './cockpit/blocks';
 import { selectEvictions, pruneRefs } from './cockpit/evict';
@@ -494,6 +495,7 @@ export function useCockpit(): Cockpit {
   // Domínios-folha: estado próprio, frames próprios e ações que só chamam `send`.
   // Nada aqui toca sessão/turno, então cada um vive num hook e o switch abaixo só
   // repassa o frame — `onMsg` devolve true quando reivindicou o tipo.
+  useEffect(() => { setTtsSender(send); return () => setTtsSender(null); }, [send]);
   const dropsApi = useDrops(send);
   const cronsApi = useCrons(send);
   const teamApi = useTeam(send);
@@ -521,7 +523,7 @@ export function useCockpit(): Cockpit {
   // O onServer é um callback estável (o socket guarda a 1ª referência); ler os
   // handlers por ref evita recriá-lo — e reabrir o WS — a cada render.
   const leafHandlers = useRef<((m: ServerMsg) => boolean)[]>([]);
-  leafHandlers.current = [dropsApi.onMsg, cronsApi.onMsg, teamApi.onMsg, botFilesApi.onMsg, botComputerApi.onMsg, grokUsageApi.onMsg, pointsApi.onMsg, contextsApi.onMsg, memoriesApi.onMsg, skillsApi.onMsg, graphsApi.onMsg, canvasApi.onMsg, adminApi.onMsg, dflMcpsApi.onMsg, claudeImportApi.onMsg, agentsApi.onMsg, connectionsApi.onMsg, probeApi.onMsg];
+  leafHandlers.current = [dropsApi.onMsg, cronsApi.onMsg, teamApi.onMsg, botFilesApi.onMsg, botComputerApi.onMsg, grokUsageApi.onMsg, pointsApi.onMsg, contextsApi.onMsg, memoriesApi.onMsg, skillsApi.onMsg, graphsApi.onMsg, canvasApi.onMsg, adminApi.onMsg, dflMcpsApi.onMsg, claudeImportApi.onMsg, agentsApi.onMsg, connectionsApi.onMsg, probeApi.onMsg, handleTtsMsg];
   // Domínios-folha que também entram na reconciliação de reconnect. Referências
   // estáveis (useCallback sobre `send`), então não recriam o `reconcile`.
   const { onUsageList } = adminApi;
