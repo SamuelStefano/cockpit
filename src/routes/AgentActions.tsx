@@ -8,9 +8,10 @@ interface AgentActionsProps {
   onConnect: () => void;
   onTest: () => void;
   onRemove: () => void;
+  onVersions?: () => void;
 }
 
-export function AgentActions({ card, testing, phrase, onConnect, onTest, onRemove }: AgentActionsProps) {
+export function AgentActions({ card, testing, phrase, onConnect, onTest, onRemove, onVersions }: AgentActionsProps) {
   const { item, status } = card;
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -18,7 +19,8 @@ export function AgentActions({ card, testing, phrase, onConnect, onTest, onRemov
       {item && status === 'ready' && <Button variant="secondary" size="sm" icon="play" loading={testing} onClick={onTest}>Testar de novo</Button>}
       {item && status !== 'ready' && card.activeStep < 2 && <Button variant="ghost" size="sm" icon="play" loading={testing} onClick={onTest}>Já fiz isso, testar</Button>}
       {testing && <span aria-live="polite" className="agent-phrase text-[13px] text-neutral-400">{phrase}</span>}
-      {item && <Button variant="ghost" size="sm" icon="trash" className="ml-auto" onClick={onRemove}>Remover</Button>}
+      {item && onVersions && <Button variant="ghost" size="sm" icon="clock" className="ml-auto" onClick={onVersions}>Versões</Button>}
+      {item && <Button variant="ghost" size="sm" icon="trash" className={onVersions ? '' : 'ml-auto'} onClick={onRemove}>Remover</Button>}
     </div>
   );
 }

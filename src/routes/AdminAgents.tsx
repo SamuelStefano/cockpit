@@ -2,6 +2,7 @@ import type { CSSProperties } from 'react';
 import { EmptyState } from '../components/primitives';
 import type { AgentsApi } from '../cockpit/useAgents';
 import type { TermApi } from '../cockpit/useTerminals';
+import { VersionsModal } from '../components/versions/VersionsModal';
 import { AgentCustomSheet } from './AgentCustomSheet';
 import { AgentPanel } from './AgentPanel';
 import { AgentTile } from './AgentTile';
@@ -39,12 +40,13 @@ export function AdminAgents({ agents, term, isRoot, onOpenChat }: AdminAgentsPro
               <AgentPanel
                 key={selected.preset.id} card={selected} term={term} testing={page.selectedTesting} celebrating={page.celebrating === selected.item?.id}
                 phrase={page.phrase} message={page.message}
-                onConnect={agents.connect} onTest={agents.test} onRemove={agents.remove} onOpenChat={page.openChat}
+                onConnect={agents.connect} onTest={agents.test} onRemove={agents.remove} onOpenChat={page.openChat} onVersions={agents.versions.open}
               />
             </div>
           )}
         </div>
       )}
+      <VersionsModal api={agents.versions} title={agents.items.find((a) => a.id === agents.versions.id)?.name ?? agents.versions.id ?? ''} canRestore={isRoot && agents.customAllowed} />
       {page.sheetOpen && <AgentCustomSheet agents={agents} gate={page.gate} term={term} onClose={page.closeSheet} onSaved={page.onSaved} />}
     </div>
   );

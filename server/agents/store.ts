@@ -3,6 +3,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { readJsonForWrite, writeJson } from '../admin-ops';
 import { AGENT_ID_RE, presetById, type AgentConfig } from '../../shared/agents';
+import { recordAgentChanges } from '../versions/agent-history';
 
 const DIR = join(homedir(), '.deck-agent');
 export const AGENTS_FILE = join(DIR, 'agents.json');
@@ -72,11 +73,20 @@ function serial<T>(fn: () => Promise<T>): Promise<T> {
   return next;
 }
 
-function saveAgents(mutate: (list: AgentConfig[]) => AgentConfig[]): Promise<void> {
+function saveAgents(mutate: (list: AgentConfig[]) => AgentConfig[], note?: string): Promise<void> {
   return serial(async () => {
     const cur = await readJsonForWrite<AgentsFile>(AGENTS_FILE, { agents: [] });
-    await writeJson(AGENTS_FILE, { agents: mutate(parseAgents(cur)) });
+    const before = parseAgents(cur);
+    const after = mutate(before);
+    await writeJson(AGENTS_FILE, { agents: after });
+    await recordAgentChanges(before, after, note);
   });
+}
+
+export function restoreAgent(agent: AgentConfig, note: string): Promise<void> {
+  const [clean] = parseAgents({ agents: [agent] });
+  if (!clean) return Promise.reject(new Error('invalid agent'));
+  return saveAgents((list) => [...list.filter((x) => x.id !== clean.id), clean], note);
 }
 
 export async function connectPreset(presetId: string): Promise<{ ok: boolean; message: string }> {
