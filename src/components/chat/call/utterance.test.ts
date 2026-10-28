@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Block } from '../../../data/types';
 import {
-  endOfUtteranceDelay, isBargeIn, isEcho, isSendable, SILENCE_AFTER_SENTENCE_MS, SILENCE_MID_SENTENCE_MS,
+  endOfUtteranceDelay, isBargeIn, isEcho, isSendable, nextStreak, SILENCE_AFTER_SENTENCE_MS, SILENCE_MID_SENTENCE_MS,
   splitForSpeech, toSpokenSummary,
 } from './utterance';
 
@@ -35,12 +35,31 @@ describe('echo and barge-in', () => {
   it('treats empty text as echo', () => {
     expect(isEcho('  ', spoken)).toBe(true);
   });
-  it('interrupts on different speech with at least two words', () => {
-    expect(isBargeIn('para um segundo', spoken)).toBe(true);
+  it('interrupts on a final result with at least three different words', () => {
+    expect(isBargeIn('para um segundo', spoken, { isFinal: true })).toBe(true);
   });
-  it('does not interrupt on a single word or on echo', () => {
-    expect(isBargeIn('para', spoken)).toBe(false);
-    expect(isBargeIn('os testes passaram', spoken)).toBe(false);
+  it('does not interrupt on noise, short phrases or echo', () => {
+    expect(isBargeIn('é', spoken, { isFinal: true })).toBe(false);
+    expect(isBargeIn('ah ah', spoken, { isFinal: true })).toBe(false);
+    expect(isBargeIn('para um', spoken, { isFinal: true, streak: 5 })).toBe(false);
+    expect(isBargeIn('os testes passaram', spoken, { isFinal: true })).toBe(false);
+  });
+  it('needs a persistent candidate to interrupt on interim results', () => {
+    expect(isBargeIn('para um segundo', spoken)).toBe(false);
+    expect(isBargeIn('para um segundo', spoken, { streak: 1 })).toBe(false);
+    expect(isBargeIn('para um segundo', spoken, { streak: 2 })).toBe(true);
+  });
+  it('ignores low-confidence results but accepts unreported confidence', () => {
+    expect(isBargeIn('para um segundo', spoken, { isFinal: true, confidence: 0.3 })).toBe(false);
+    expect(isBargeIn('para um segundo', spoken, { isFinal: true, confidence: 0.8 })).toBe(true);
+    expect(isBargeIn('para um segundo', spoken, { isFinal: true, confidence: 0 })).toBe(true);
+  });
+  it('counts interim results that keep or grow the candidate', () => {
+    expect(nextStreak(null, 'para um')).toBe(1);
+    expect(nextStreak({ text: 'para um', streak: 1 }, 'para um segundo')).toBe(2);
+    expect(nextStreak({ text: 'para um', streak: 2 }, 'Para um')).toBe(3);
+    expect(nextStreak({ text: 'para um', streak: 2 }, 'outra coisa')).toBe(1);
+    expect(nextStreak({ text: 'para um', streak: 2 }, '')).toBe(0);
   });
   it('ignores accents and punctuation when matching echo', () => {
     expect(isEcho('quer que eu abra o pr', spoken)).toBe(true);
