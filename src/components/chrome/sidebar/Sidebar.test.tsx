@@ -42,7 +42,8 @@ describe('Sidebar', () => {
     const at = (n: string) => names.indexOf(n);
     expect(at('Ir pro chat')).toBe(0);
     expect(at('Expandir barra lateral')).toBe(1);
-    expect(at('Nova conversa')).toBeLessThan(at('Chat X'));
+    expect(at('Nova conversa')).toBeLessThan(at('Equipe'));
+    expect(at('Equipe')).toBeLessThan(at('Chat X'));
   });
 
   it('restores the collapsed state from storage', () => {

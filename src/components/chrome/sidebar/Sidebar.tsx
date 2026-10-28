@@ -67,13 +67,13 @@ export function Sidebar({ route, nav, role, navCounts, onNew, onPalette, bitStat
         </div>
       )}
 
-      {!expanded && (rail ?? <div className="flex-1" />)}
-
       {/* Routes sit above the conversations (ChatGPT-style), so the list starts lower and a rule
           separates the two instead of the list running from the top to the account. */}
       <div className="mx-2 shrink-0 pb-2">
         <SidebarNav route={route} nav={nav} role={role} counts={navCounts} expanded={expanded} />
       </div>
+
+      {!expanded && (rail ?? <div className="flex-1" />)}
 
       {expanded && <div className={`flex min-h-0 flex-1 flex-col ${list ? 'mx-2 border-t border-neutral-800/80' : ''}`}>
         {list ? <div className="-mx-2 min-h-0 flex-1">{sessions}</div> : <div className="flex-1" />}
