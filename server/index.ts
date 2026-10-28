@@ -20,7 +20,6 @@ import { handleMcpRequest, isMcpPath } from './mcp/serve';
 import { CONFIG } from './config';
 import { ensureBundledSkills } from './bundled-skills';
 import { sandboxUpstream, proxySandbox } from './sandbox-proxy';
-import { handleTtsRequest, isTtsPath } from './tts';
 
 const distDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'dist');
 
@@ -60,12 +59,6 @@ async function main() {
     // desconhecido, e o cliente MCP receberia HTML no lugar de JSON-RPC.
     if (isMcpPath(req.url)) {
       handleMcpRequest(req, res).catch(() => { if (!res.headersSent) res.writeHead(500).end(); });
-      return;
-    }
-
-    // Natural voice for the call mode: bearer-gated inside the handler.
-    if (isTtsPath(req.url)) {
-      handleTtsRequest(req, res).catch(() => { if (!res.headersSent) res.writeHead(500).end(); });
       return;
     }
 
