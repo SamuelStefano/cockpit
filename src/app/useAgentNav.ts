@@ -1,8 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect } from 'react';
 import type { TeamBot } from '../../shared/protocol';
-import type { BotFormTarget } from '../routes/equipe/equipe-props';
 import type { BotView } from '../routes/equipe/team-view';
-import type { Route } from '../useRoute';
+import type { AgentTab, Route } from '../useRoute';
 import { agentIdForSession } from './agent-session';
 import { useAgentViews, type AgentViewsInput } from './useAgentViews';
 
@@ -17,10 +16,8 @@ export interface AgentNav {
   views: BotView[];
   active: BotView | null;
   open: (id: string) => void;
-  form: BotFormTarget;
   openNew: () => void;
   openEdit: () => void;
-  closeForm: () => void;
   profileOpen: boolean;
   toggleProfile: () => void;
   closeProfile: () => void;
@@ -28,7 +25,7 @@ export interface AgentNav {
 
 // Agents live in the same shell as every chat: opening one makes its thread the
 // open chat. `/equipe` is only a deep link that lands on the primary agent.
-export function useAgentNav(t: AgentNavInput, route: Route, nav: (to: Route) => void): AgentNav {
+export function useAgentNav(t: AgentNavInput, route: Route, nav: (to: Route) => void, navAgent: (id: string, tab?: AgentTab) => void): AgentNav {
   const { bots, activeId, teamLoaded, connected, onTeamGet, onOpenBot } = t;
   useEffect(() => { if (connected) onTeamGet(); }, [connected, onTeamGet]);
 
@@ -50,16 +47,13 @@ export function useAgentNav(t: AgentNavInput, route: Route, nav: (to: Route) => 
     if (route === '/equipe' && teamLoaded && !activeAgentId && primaryId) open(primaryId);
   }, [route, teamLoaded, activeAgentId, primaryId, open]);
 
-  const [form, setForm] = useState<BotFormTarget>(null);
-  const [profile, setProfile] = useState(false);
   const activeBot = active?.bot;
   return {
-    views, active, open, form,
-    openNew: useCallback(() => setForm({ mode: 'new' }), []),
-    openEdit: useCallback(() => { if (activeBot) setForm({ mode: 'edit', bot: activeBot }); }, [activeBot]),
-    closeForm: useCallback(() => setForm(null), []),
-    profileOpen: profile && !!active,
-    toggleProfile: useCallback(() => setProfile((o) => !o), []),
-    closeProfile: useCallback(() => setProfile(false), []),
+    views, active, open,
+    openNew: useCallback(() => navAgent('novo'), [navAgent]),
+    openEdit: useCallback(() => { if (activeBot) navAgent(activeBot.id); }, [activeBot, navAgent]),
+    profileOpen: false,
+    toggleProfile: useCallback(() => { if (activeBot) navAgent(activeBot.id); }, [activeBot, navAgent]),
+    closeProfile: useCallback(() => {}, []),
   };
 }

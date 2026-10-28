@@ -7,13 +7,13 @@ import { RouteFallback } from './RouteFallback';
 import { ChunkErrorBoundary } from './ChunkErrorBoundary';
 import {
   Contextos, Skills, Pontos, Crons, Observatorio,
-  Graph, Canvas, Admin, Docs, DesignSystem,
+  Graph, Canvas, Admin, Docs, DesignSystem, Agente,
 } from './lazyRoutes';
 import type { ChatPanelProps } from '../components/chat/chat-panel-props';
 import type { TerminalsPanelProps } from '../components/Terminals';
 import type { Terminal } from '../data/types';
 import type { useCockpit } from '../useCockpit';
-import type { Route } from '../useRoute';
+import type { AgentTab, Route } from '../useRoute';
 
 // The DFL snapshot is root-only on the server: the Canvas of a plain admin skips it.
 const noop = () => {};
@@ -33,6 +33,7 @@ interface MobileState {
 
 interface RouteContentProps {
   route: Route;
+  agentRoute?: { id: string; tab: AgentTab; open: (id: string, tab?: AgentTab) => void };
   isMobile: boolean;
   isAdmin: boolean;
   isRoot: boolean;
@@ -47,7 +48,7 @@ interface RouteContentProps {
   mobile: MobileState;
 }
 
-export function RouteContent({ route, isMobile, isAdmin, isRoot, connected, cockpit, chatProps, termProps, onOpenSession, agent, onOpenAgentChat, layout, mobile }: RouteContentProps) {
+export function RouteContent({ route, agentRoute, isMobile, isAdmin, isRoot, connected, cockpit, chatProps, termProps, onOpenSession, agent, onOpenAgentChat, layout, mobile }: RouteContentProps) {
   const c = cockpit;
   const view = (() => {
     if (route === '/contextos') {
@@ -124,6 +125,12 @@ export function RouteContent({ route, isMobile, isAdmin, isRoot, connected, cock
           accounts={c.accounts} accountsLoaded={c.accountsLoaded} onAccountsList={c.onAccountsList} onSetAdmin={c.onSetAdmin} isRoot={isRoot}
           adminOp={c.adminOp} onEnvSet={c.onEnvSet} onEnvUnset={c.onEnvUnset} onMcpAdd={c.onMcpAdd} onMcpRemove={c.onMcpRemove} onCliInstall={c.onCliInstall}
           onCliUpdate={c.onCliUpdate} onDeckRestart={c.onDeckRestart} agents={c.agents} dflMcps={c} term={c.term} models={c.models} onOpenAgentChat={onOpenAgentChat} />
+      );
+    }
+    if (route === '/agentes' && agentRoute) {
+      return (
+        <Agente agentId={agentRoute.id} tab={agentRoute.tab} views={agent.views} api={c} connected={connected} isAdmin={isAdmin} isMobile={isMobile}
+          onTab={agentRoute.open} onList={() => agentRoute.open('')} onChat={agent.open} />
       );
     }
     if (route === '/docs') return <Docs />;

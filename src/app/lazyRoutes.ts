@@ -19,4 +19,4 @@ export const Graph = lazy(() => import('../routes/Graph').then((m) => ({ default
 export const Admin = lazy(() => import('../routes/Admin').then((m) => ({ default: m.Admin })));
 export const Docs = lazy(() => import('../routes/Docs').then((m) => ({ default: m.Docs })));
 export const DesignSystem = lazy(() => import('../routes/DesignSystem').then((m) => ({ default: m.DesignSystem })));
-export const BotForm = lazy(() => import('../routes/equipe/BotForm').then((m) => ({ default: m.BotForm })));
+export const Agente = lazy(() => import('../routes/Agente').then((m) => ({ default: m.Agente })));

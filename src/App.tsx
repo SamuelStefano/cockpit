@@ -14,7 +14,6 @@ import { BoxHealthHost } from './components/health/BoxHealthHost';
 import { bitStateFor } from './components/bit/bit-state';
 import type { LinkState } from './components/bit/turn-bit-state';
 import { RouteContent } from './app/RouteContent';
-import { AgentFormHost } from './app/AgentFormHost';
 import { useAgentNav } from './app/useAgentNav';
 import { useCockpit } from './useCockpit';
 import { useBoxes } from './cockpit/useBoxes';
@@ -60,7 +59,7 @@ function CockpitBody() {
     drops, dropsLoaded, lastDrop, onDropList, onDropPut, onDropRm,
   } = cockpit;
 
-  const { route, chatId, nav, navChat } = useRoute();
+  const { route, chatId, agentId, agentTab, nav, navChat, navAgent } = useRoute();
   // Escolha explícita do usuário empilha history (voltar volta pro chat anterior);
   // trocas derivadas passam pelo useChatUrl com replace.
   const selectSession = useCallback((id: string) => {
@@ -173,7 +172,7 @@ function CockpitBody() {
   const agent = useAgentNav({
     bots: cockpit.bots, teamLoaded: cockpit.teamLoaded, sessions, running, activeId: activeSessionId, phase, interrupted: cockpit.interrupted, runStart,
     pendingQuestions: cockpit.pendingQuestions, teamMessages: cockpit.teamMessages, connected: conn.ws === 'connected', onTeamGet: cockpit.onTeamGet, onOpenBot: cockpit.onOpenBot,
-  }, route, nav);
+  }, route, nav, navAgent);
   const agentsProps = {
     views: agent.views, activeId: agent.active?.bot.id ?? null, onNew: agent.openNew,
     onOpen: (id: string) => { agent.open(id); setDrawer(false); },
@@ -250,7 +249,7 @@ function CockpitBody() {
           )}
 
           <RouteContent
-            route={route} isMobile={isMobile} isAdmin={isAdmin} isRoot={isRoot} connected={conn.ws === 'connected'}
+            route={route} agentRoute={{ id: agentId, tab: agentTab, open: navAgent }} isMobile={isMobile} isAdmin={isAdmin} isRoot={isRoot} connected={conn.ws === 'connected'}
             cockpit={cockpit} chatProps={chatProps} termProps={termProps}
             onOpenSession={selectSession} agent={agent}
             onOpenAgentChat={(m) => { handleNew(); setModel(m); nav('/'); }}
@@ -262,7 +261,6 @@ function CockpitBody() {
       {isMobile && !chatSurface && (
         <MobileNavDrawer open={drawer} onClose={() => setDrawer(false)}>{drawerNav}</MobileNavDrawer>
       )}
-      <AgentFormHost target={agent.form} bots={cockpit.bots} models={models} isAdmin={isAdmin} onSave={cockpit.onTeamSave} onClose={agent.closeForm} />
       <BoxHealthHost />
       <Toaster />
       <ConfettiHost />

@@ -52,5 +52,3 @@ export interface EquipeProps extends CronApi, TeamTrafficApi, BotFilesApi, BotCo
   onCloseProfile: () => void;
   onEdit: () => void;
 }
-
-export type BotFormTarget = { mode: 'new' } | { mode: 'edit'; bot: TeamBot } | null;
