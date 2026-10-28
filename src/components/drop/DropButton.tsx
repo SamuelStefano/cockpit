@@ -7,12 +7,12 @@ import type { DropApi } from '../../cockpit/useDrops';
 // Entrada do drop privado no menu de perfil. Caminho dedicado pra entregar
 // segredo/script ao agente sem colar no chat (que grava no JSONL e reenvia a cada
 // turno) nem anexar (que espelha no S3 e injeta o texto no prompt).
-export function DropButton({ api }: { api: DropApi }) {
+export function DropButton({ api, bare = false }: { api: DropApi; bare?: boolean }) {
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="mt-3 border-t border-neutral-800 pt-3">
-      <Button variant="outline" size="sm" icon="shield" className="w-full" onClick={() => setOpen(true)}>
+    <div className={bare ? '' : 'mt-3 border-t border-neutral-800 pt-3'}>
+      <Button variant="outline" size="sm" icon="shield" className={bare ? '' : 'w-full'} onClick={() => setOpen(true)}>
         Drop privado
       </Button>
       <Modal open={open} onClose={() => setOpen(false)} title="Drop privado" icon="shield" maxWidth="max-w-md">

@@ -40,7 +40,7 @@ describe('Onboarding', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Instalar' })[0]);
     expect(agents.connect).toHaveBeenCalledWith('codex');
     expect(takeAgentFocus()).toBe('codex');
-    expect(push).toHaveBeenCalledWith(null, '', '/painel#agents');
+    expect(push).toHaveBeenCalledWith(null, '', '/conexoes#provedores');
   });
 
   it('marks a logged agent as ready and finishes with the CTA', () => {

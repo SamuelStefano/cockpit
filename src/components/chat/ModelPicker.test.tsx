@@ -63,7 +63,7 @@ describe('ModelPicker visibility', () => {
     const setModel = vi.fn();
     const { getByRole } = render(<ModelPicker model="claude-opus-5" setModel={setModel} models={models} onRefreshModels={vi.fn()} canManage />);
     fireEvent.change(getByRole('combobox'), { target: { value: '__manage__' } });
-    expect(location.pathname + location.hash).toBe('/painel#models');
+    expect(location.pathname + location.hash).toBe('/conexoes#provedores');
     expect(setModel).not.toHaveBeenCalled();
   });
 });

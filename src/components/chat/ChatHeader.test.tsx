@@ -88,7 +88,7 @@ describe('ChatHeader', () => {
   it('shows the context row in the menu', () => {
     setup({ contextTokens: 100_000, contextModel: 'claude-opus-4-8' });
     fireEvent.click(screen.getByLabelText('Mais ações da conversa'));
-    expect(screen.getByRole('meter')).toBeTruthy();
+    expect(screen.getAllByRole('meter').length).toBeGreaterThan(1);
   });
 
   it('surfaces the new-session action over the context limit', () => {
@@ -127,13 +127,13 @@ describe('ChatHeader', () => {
 describe('ChatHeader phone bar', () => {
   const base = { session: { id: 's1', title: 'Relatório' } as never, messages: [], isEmpty: false, isMobile: true, contextTokens: 0, onNew: vi.fn(), fullLoaded: false, setFullLoaded: vi.fn() };
 
-  it('shows ☰ · title · one "…" action, no context ring or terminal button', () => {
+  it('shows ☰ · title · one "…" action, the terminal button, no "…" duplicate', () => {
     const onMenu = vi.fn();
     render(<ChatHeader {...base} onMenu={onMenu} onTerminal={vi.fn()} />);
     fireEvent.click(screen.getByRole('button', { name: 'Menu' }));
     expect(onMenu).toHaveBeenCalledOnce();
     expect(screen.getByRole('button', { name: 'Mais ações da conversa' })).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Abrir terminais' })).toBeNull();
+    expect(screen.getAllByRole('button', { name: 'Abrir terminais' })).toHaveLength(1);
   });
 
   it('on a fresh chat the action is "+" and the title is Deck', () => {

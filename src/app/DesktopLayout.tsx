@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { ChatPanel } from '../components/Chat';
 import type { ChatPanelProps } from '../components/chat/chat-panel-props';
 import { TerminalsPanel, type TerminalsPanelProps } from '../components/Terminals';
+import { takeTerminalRequest } from '../lib/terminal-request';
 
 export interface DesktopLayoutProps {
   chatProps: ChatPanelProps;
@@ -12,7 +13,7 @@ export interface DesktopLayoutProps {
 }
 
 export function DesktopLayout({ chatProps, termProps, center, hideTerminals = false, rowRef }: DesktopLayoutProps) {
-  const [terminalOpen, setTerminalOpen] = useState(false);
+  const [terminalOpen, setTerminalOpen] = useState(takeTerminalRequest);
   const open = terminalOpen && !hideTerminals;
   return (
     <div ref={rowRef} className="flex min-h-0 flex-1">

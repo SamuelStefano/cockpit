@@ -88,7 +88,7 @@ export const FILEMAP: { group: string; tone: string; files: { path: string; what
       { path: 'src/routes/Contextos.tsx', what: 'Aba Contextos — viewer/busca da memória do agente.' },
       { path: 'src/routes/Skills.tsx', what: 'Aba Skills — habilidades instaladas, compartilháveis.' },
       { path: 'src/routes/Observatorio.tsx', what: 'Aba Uso — custo, tokens, turnos e janela de rate-limit.' },
-      { path: 'src/routes/Admin.tsx', what: 'Painel (rota /painel) — junta saúde, contas, host-ops e inventário; cada bloco num arquivo próprio.' },
+      { path: 'src/routes/Configuracoes.tsx', what: 'Configurações (rota /configuracoes) — Conta, Uso, Pessoas, Máquina e Avançado; cada seção embrulha um componente existente.' },
       { path: 'src/routes/AdminAccounts.tsx', what: 'Lista de contas + toggle de admin (conceder/revogar restrito ao root).' },
       { path: 'src/routes/AdminHostOps.tsx', what: 'Ações no host: tokens de ambiente, servidores MCP e install de CLI a partir do browser.' },
       { path: 'src/routes/AdminInventory.tsx', what: 'Inventário read-only do host (vínculos + grids de CLIs/MCP/SSH/tmux/plugins/tokens).' },
