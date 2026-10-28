@@ -24,7 +24,6 @@ export interface SelfUpdateDeps {
 
 export interface SelfUpdateOptions {
   env?: NodeJS.ProcessEnv;
-  maxWaitMs?: number;
   npmBin?: string;
 }
 
@@ -32,7 +31,8 @@ export type TickResult =
   | 'disabled' | 'skipped' | 'fetch-failed' | 'current' | 'diverged' | 'known-bad'
   | 'waiting' | 'merge-failed' | 'rolled-back' | 'restarting';
 
-export const MAX_WAIT_MS = 30 * 60_000;
+// A restart interrupts nobody: it waits for no turn in flight, for this long in a row.
+export const QUIET_MS = 3 * 60_000;
 const FETCH_MS = 90_000;
 const GIT_MS = 30_000;
 const NPM_MS = 15 * 60_000;
@@ -47,12 +47,12 @@ export function isSupervised(env: NodeJS.ProcessEnv): boolean {
 
 export function createSelfUpdater(deps: SelfUpdateDeps, o: SelfUpdateOptions = {}) {
   const env = o.env ?? process.env;
-  const maxWaitMs = o.maxWaitMs ?? MAX_WAIT_MS;
   const npm = o.npmBin ?? 'npm';
   const git = (args: string[], ms = GIT_MS) => deps.exec('git', [...GIT, ...args], ms);
   let lastSkip = '';
-  let pendingSince: number | null = null;
+  let idleSince: number | null = null;
   let done = false;
+  let staged: { from: string; to: string } | null = null;
 
   const skip = (why: string): TickResult => {
     if (why !== lastSkip) deps.log(`[agent] self-update: skipped (${why})`);
@@ -76,24 +76,25 @@ export function createSelfUpdater(deps: SelfUpdateDeps, o: SelfUpdateOptions = {
 
   async function tick(): Promise<TickResult> {
     if (done) return 'restarting';
+    if (staged) return restartWhenQuiet();
     if (env.DECK_SELF_UPDATE === 'off') { deps.log('[agent] self-update: off (DECK_SELF_UPDATE=off)'); return 'disabled'; }
     const why = await skipReason();
     if (!why && deps.unconfirmed()) return skip('previous update not confirmed yet');
-    if (why) { pendingSince = null; return skip(why); }
+    if (why) { idleSince = null; return skip(why); }
     lastSkip = '';
 
     if (!(await git(['fetch', '-q', 'origin', 'main'], FETCH_MS)).ok) return 'fetch-failed';
     const head = (await git(['rev-parse', 'HEAD'])).stdout.trim();
     const target = (await git(['rev-parse', 'origin/main'])).stdout.trim();
-    if (!head || !target || head === target) { pendingSince = null; return 'current'; }
-    if (!(await git(['merge-base', '--is-ancestor', head, target])).ok) { pendingSince = null; return 'diverged'; }
+    if (!head || !target || head === target) { idleSince = null; return 'current'; }
+    if (!(await git(['merge-base', '--is-ancestor', head, target])).ok) { idleSince = null; return 'diverged'; }
     if (deps.isBad(target)) return 'known-bad';
 
-    if (deps.busy()) {
-      pendingSince ??= deps.now();
-      if (deps.now() - pendingSince < maxWaitMs) return 'waiting';
-      deps.log('[agent] self-update: turns still running after the max wait; restarting anyway (they resume on boot)');
-    }
+    // Never restart over a running turn, however long it takes; a gap between two
+    // turns is not enough either, the agent must stay idle for QUIET_MS.
+    if (deps.busy()) { idleSince = null; return 'waiting'; }
+    idleSince ??= deps.now();
+    if (deps.now() - idleSince < QUIET_MS) return 'waiting';
 
     const changed = await git(['diff', '--name-only', head, target, '--', ...DEP_FILES]);
     if (!(await git(['merge', '--ff-only', '-q', target])).ok) {
@@ -109,13 +110,25 @@ export function createSelfUpdater(deps: SelfUpdateDeps, o: SelfUpdateOptions = {
         const restore = await deps.exec(npm, ['ci', '--no-audit', '--no-fund'], NPM_MS);
         if (!restore.ok) deps.log('[agent] self-update: restoring the previous dependencies failed too');
         deps.markBad(target);
-        pendingSince = null;
+        idleSince = null;
         return 'rolled-back';
       }
     }
+    staged = { from: head, to: target };
+    return restartWhenQuiet();
+  }
+
+  // The merge and npm ci can take minutes: a turn may start meanwhile. The new code
+  // is already on disk, so later ticks only wait to restart (HEAD equals origin/main
+  // by then and the normal path would read 'current' and never restart).
+  function restartWhenQuiet(): TickResult {
+    if (!staged) return 'current';
+    if (deps.busy()) { idleSince = null; return 'waiting'; }
+    idleSince ??= deps.now();
+    if (deps.now() - idleSince < QUIET_MS) return 'waiting';
     done = true;
-    deps.markPending(head, target);
-    deps.log(`[agent] self-update: ${short(head)}..${short(target)}, restarting`);
+    deps.markPending(staged.from, staged.to);
+    deps.log(`[agent] self-update: ${short(staged.from)}..${short(staged.to)}, restarting`);
     deps.restart();
     return 'restarting';
   }

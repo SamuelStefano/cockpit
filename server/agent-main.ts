@@ -448,12 +448,19 @@ export function runAgent(relayUrl: string): void {
     );
   };
   loop();
-  startSelfUpdate({ cwd: process.cwd(), busy: () => threads.size > 0, restart: () => gracefulShutdown(0) });
+  startSelfUpdate({ cwd: process.cwd(), busy: () => threads.size > 0, restart: restartForUpdate });
   startCliAutoUpdate({ busy: () => threads.size > 0 });
-  startNodeUpgrade({ cwd: process.cwd(), busy: () => threads.size > 0, restart: () => gracefulShutdown(0) });
+  startNodeUpgrade({ cwd: process.cwd(), busy: () => threads.size > 0, restart: restartForUpdate });
   process.on('SIGTERM', () => gracefulShutdown(0));
   process.on('SIGINT', () => gracefulShutdown(0));
   installCrashBackstop(process, gracefulShutdown);
+}
+
+// Planned restart (self-update, Node upgrade): tell the open tabs first so they show
+// a neutral notice instead of "backend unreachable", and give the frame time to leave.
+export function restartForUpdate(): void {
+  broadcast({ t: 'agent-restarting', reason: 'update' });
+  setTimeout(() => gracefulShutdown(0), 1000);
 }
 
 // Same backstop index.ts has. Without it an unexpected throw in the agent made
