@@ -27,6 +27,11 @@ describe('relay migration 0008 (diag_reports)', () => {
     expect(code).toMatch(/source in \('browser', 'agent', 'relay'\)/);
   });
 
+  it('accepts only slug kinds and uuid box ids (they reach an operator terminal)', () => {
+    expect(code).toContain("kind ~ '^[a-z][a-z0-9_-]{0,39}$'");
+    expect(code).toContain("box_id ~ '^[0-9a-f-]{36}$'");
+  });
+
   it('indexes created_at desc and account_id for the admin app', () => {
     expect(code).toMatch(/on public\.diag_reports \(created_at desc\)/);
     expect(code).toMatch(/on public\.diag_reports \(account_id, created_at desc\)/);
