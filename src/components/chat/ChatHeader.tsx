@@ -44,13 +44,14 @@ interface ChatHeaderProps {
   // Phone: the single top bar owns the drawer button (☰ · title · one action).
   onMenu?: () => void;
   teamSlot?: ReactNode;
+  restoring?: boolean;
 }
 
-export function ChatHeader({ session, messages, isEmpty, contextTokens, contextModel = null, lastTurn, onNew, fullLoaded, truncated, onOpenFull, onLoadOlder, onOpenSummary, setFullLoaded, beforeGrow, onTerminal, terminalRunning, terminalOpen = false, usage, onRename, onDelete, keyboardOpen = false, selectedModel, agent, onMenu, teamSlot }: ChatHeaderProps) {
+export function ChatHeader({ session, messages, isEmpty, contextTokens, contextModel = null, lastTurn, onNew, fullLoaded, truncated, onOpenFull, onLoadOlder, onOpenSummary, setFullLoaded, beforeGrow, onTerminal, terminalRunning, terminalOpen = false, usage, onRename, onDelete, keyboardOpen = false, selectedModel, agent, onMenu, teamSlot, restoring = false }: ChatHeaderProps) {
   const menu = useHeaderMenu();
   const [renameSignal, setRenameSignal] = useState(0);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const title = agent?.name ?? (session ? session.title : 'Nova conversa');
+  const title = agent?.name ?? (session ? session.title : restoring ? '' : 'Nova conversa');
   if (keyboardOpen) return <ChatHeaderCompact title={title} onTerminal={onTerminal} terminalRunning={terminalRunning} />;
 
   const saved = !!session && !session.id.startsWith('new-');
