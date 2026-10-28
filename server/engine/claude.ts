@@ -18,6 +18,7 @@ import type { TeamProfile } from '../../shared/protocol';
 import { projectSlug } from '../config';
 import { restrictedTurn, ensureWorkspace, type RestrictedTurn } from './restricted-profile';
 import { deckAgentContext, joinSystemPrompts } from '../deck-context';
+import { withGithubCredentialHelper } from '../github-app';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -502,7 +503,7 @@ export function withWorkflowGrant(r: { permissionMode: string; allow: string[] }
 // variável (PATH inclusive), e um PATH gerenciado na frente de cliPath() trocaria
 // qual binário `claude` roda.
 export function minimalEnv(): NodeJS.ProcessEnv {
-  return {
+  return withGithubCredentialHelper({
     LANG: process.env.LANG ?? 'en_US.UTF-8',
     TERM: 'dumb',
     ...managedEnvSync(),
@@ -512,7 +513,7 @@ export function minimalEnv(): NodeJS.ProcessEnv {
     NPM_CONFIG_PREFIX: managedPrefix(),
     HOME: process.env.HOME,
     ANTHROPIC_API_KEY: '',
-  };
+  });
 }
 
 // Varre temp-configs de MCP órfãos (deck-mcp-*.json) que sobraram de um crash do

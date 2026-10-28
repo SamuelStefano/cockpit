@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useGithubApp, parseInstallParams } from './conexoes/useGithubApp';
 import { connectionsTabFromHash } from '../lib/admin-nav';
 import type { Connection } from '../../shared/connections';
 import type { TeamBot } from '../../shared/protocol';
@@ -49,6 +50,9 @@ export function Conexoes({ connected, items, loaded, bots, dflMcpsState, dflMcps
   const sealed = useSealState() === 'sealed';
   const devices = useDevices(sealed);
   const link = useDeviceLink();
+  const github = useGithubApp();
+  const landing = useRef(!!parseInstallParams(location.search)).current;
+  useEffect(() => { if (landing) { setTab('ferramentas'); setToolOpen(true); } }, [landing]);
 
   useEffect(() => {
     const onPop = () => { if (probe && location.hash === ADD_PROVIDER_HASH) { setTab('provedores'); setProviderOpen(true); return; } const t = connectionsTabFromHash(location.hash); if (t) setTab(t); };
@@ -136,7 +140,7 @@ export function Conexoes({ connected, items, loaded, bots, dflMcpsState, dflMcps
         {active === 'aparelhos' && sealed && <PairDevice link={link} />}
       </div>
       {probe && <AddProvider open={providerOpen} onClose={() => { setProviderOpen(false); if (location.hash === ADD_PROVIDER_HASH) history.replaceState(null, '', '/conexoes'); }} probe={probe} onLogin={() => onGo('/onboarding')} />}
-      <ConnectTool open={toolOpen} busy={dflMcpsBusy} onClose={() => setToolOpen(false)} onConnect={() => { onToolAdd(); setToolOpen(false); }} />
+      <ConnectTool github={github} open={toolOpen} busy={dflMcpsBusy} onClose={() => setToolOpen(false)} onConnect={() => { onToolAdd(); setToolOpen(false); }} />
       <Modal open={!!removing} onClose={() => setRemoving(null)} title="Remover aparelho?" icon="smartphone" maxWidth="max-w-sm">
         <p className="text-[13px] leading-relaxed text-neutral-400">{removing?.label} perde o acesso agora e precisa ser pareado de novo para voltar.</p>
         <div className="mt-4 flex justify-end gap-2">
