@@ -68,4 +68,26 @@ describe('TeamRail', () => {
     setup([view('a'), view('b')]);
     expect(screen.getByRole('button', { name: 'Soltar equipe' })).toBeTruthy();
   });
+
+  it('closes when unpinned even though the pointer is still over it', () => {
+    localStorage.setItem(`cockpit:${TEAM_RAIL_PINNED_KEY}`, 'true');
+    setup([view('a'), view('b')]);
+    const rail = screen.getByRole('complementary').firstElementChild as HTMLElement;
+    fireEvent.mouseEnter(rail);
+    fireEvent.click(screen.getByRole('button', { name: 'Soltar equipe' }));
+    expect(rail.getAttribute('data-open')).toBe('false');
+    expect(localStorage.getItem(`cockpit:${TEAM_RAIL_PINNED_KEY}`)).toBe('false');
+    fireEvent.mouseEnter(rail);
+    expect(rail.getAttribute('data-open')).toBe('false');
+    fireEvent.mouseLeave(rail);
+    fireEvent.mouseEnter(rail);
+    expect(rail.getAttribute('data-open')).toBe('true');
+  });
+
+  it('hover overlay starts below the header so it never covers the header buttons', () => {
+    setup([view('a'), view('b')]);
+    const rail = screen.getByRole('complementary').firstElementChild as HTMLElement;
+    fireEvent.mouseEnter(rail);
+    expect(rail.className).toContain('top-12');
+  });
 });

@@ -26,6 +26,9 @@ export interface TeamRailProps {
 export function TeamRail({ views, activeId, onOpen, onNew, onAll, canManage, paused = false, onPauseSet }: TeamRailProps) {
   const [pinned, setPinned] = usePersisted<boolean>(TEAM_RAIL_PINNED_KEY, false);
   const [hover, setHover] = useState(false);
+  // After unpinning, the pointer is still over the rail: hover must stay off until it leaves,
+  // otherwise the rail seems to ignore the click and keeps covering the header controls.
+  const [muted, setMuted] = useState(false);
   if (views.length === 0) return null;
   const entries = orderTeam(views);
   const open = pinned || hover;
@@ -33,17 +36,27 @@ export function TeamRail({ views, activeId, onOpen, onNew, onAll, canManage, pau
   const canPause = canManage && views.length > 1 && !!onPauseSet;
   return (
     <aside aria-label="Equipe" className={`relative shrink-0 ${pinned ? 'w-60' : 'w-14'} transition-[width] duration-200 motion-reduce:transition-none`}>
+      {open && !pinned && (
+        <div aria-hidden className="absolute right-0 top-0 flex h-12 w-14 items-center justify-center border-l border-neutral-800 bg-neutral-950 text-neutral-500">
+          <Icon name="users" size={16} />
+        </div>
+      )}
       <div
-        onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)} onFocus={() => setHover(true)}
+        onMouseEnter={() => { if (!muted) setHover(true); }}
+        onMouseLeave={() => { setHover(false); setMuted(false); }}
+        onFocus={() => { if (!muted) setHover(true); }}
         onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setHover(false); }}
         data-open={open}
-        className={`absolute inset-y-0 right-0 z-30 flex flex-col border-l border-neutral-800 bg-neutral-950 transition-[width] duration-200 motion-reduce:transition-none ${open ? 'w-60' : 'w-14'} ${open && !pinned ? 'elev-2' : ''}`}
+        className={`absolute right-0 z-30 flex flex-col border-l border-neutral-800 bg-neutral-950 transition-[width] duration-200 motion-reduce:transition-none ${open && !pinned ? 'top-12 bottom-0 elev-2' : 'inset-y-0'} ${open ? 'w-60' : 'w-14'}`}
       >
         <div className="flex h-12 shrink-0 items-center px-2">
           {open ? (
             <>
               <span className="flex-1 pl-1.5 text-[11px] font-medium uppercase tracking-[0.06em] text-neutral-500">Equipe</span>
-              <IconButton icon="panelRight" label={pinned ? 'Soltar equipe' : 'Fixar equipe'} side="left" aria-pressed={pinned} size="sm" onClick={() => setPinned(!pinned)} />
+              <IconButton icon="panelRight" label={pinned ? 'Soltar equipe' : 'Fixar equipe'} side="left" aria-pressed={pinned} size="sm" onClick={(e) => {
+                if (pinned) { setMuted(true); setHover(false); e.currentTarget.blur(); }
+                setPinned(!pinned);
+              }} />
             </>
           ) : (
             <span className="flex w-full justify-center text-neutral-500"><Icon name="users" size={16} /></span>
