@@ -565,6 +565,11 @@ export function main(): void {
   const url = process.env.DECK_RELAY_URL ?? '';
   const pairArg = process.argv.find((a) => a === '--pair' || a.startsWith('--pair='));
   const revokeArg = process.argv.find((a) => a.startsWith('--revoke-device='));
+  const gitCred = process.argv.indexOf('--git-credential');
+  if (gitCred >= 0) {
+    void import('./github-app').then((m) => m.gitCredentialCli(process.argv[gitCred + 1]));
+    return;
+  }
   const local = process.argv.includes('--enroll-device') || process.argv.includes('--devices') || !!revokeArg;
   if (!url && !local) { console.error('[agent] defina DECK_RELAY_URL'); process.exit(1); }
   if (process.argv.includes('--enroll-device')) {

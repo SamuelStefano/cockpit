@@ -6,7 +6,7 @@ import { noteBoot } from './agent-diag';
 // any of it, so a self-update that broke any module must still find this check
 // running first. The agent itself lives in agent-main.ts.
 
-const LOCAL_ONLY = /^--(pair(=|$)|enroll-device$|devices$|revoke-device=)/;
+const LOCAL_ONLY = /^--(pair(=|$)|enroll-device$|devices$|revoke-device=|git-credential$)/;
 
 if (process.argv[1]?.endsWith('agent.ts')) {
   if (!process.argv.slice(2).some((a) => LOCAL_ONLY.test(a))) {

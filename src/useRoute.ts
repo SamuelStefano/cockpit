@@ -26,6 +26,8 @@ function redirectLegacy(): void {
 // conversa, duas abas em chats diferentes. A VIEW continua sendo '/', então o id
 // só alimenta a sessão ativa — nada remonta ao trocar de chat.
 const CHAT = '/c/';
+// The GitHub App "Setup URL" lands here; it renders Conexões, which consumes the query.
+const GITHUB_RETURN = '/conexoes/github';
 
 export type AgentTab = 'perfil' | 'rotinas' | 'arquivos' | 'computador';
 const AGENT_TABS: readonly AgentTab[] = ['perfil', 'rotinas', 'arquivos', 'computador'];
@@ -47,6 +49,7 @@ const plain = (route: Route, chatId = '', skillId = ''): RouteState => ({ route,
 function current(): RouteState {
   redirectLegacy();
   const p = location.pathname;
+  if (p === GITHUB_RETURN) return plain('/conexoes');
   if (p.startsWith(CHAT)) {
     const id = decodeURIComponent(p.slice(CHAT.length));
     if (id) return plain('/', id);
