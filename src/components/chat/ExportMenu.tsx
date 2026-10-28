@@ -1,6 +1,7 @@
 import { Icon, tokens, toast } from '../primitives';
 import type { Message } from '../../data/types';
 import { useState } from 'react';
+import { useShareConversation } from './useShareConversation';
 import { threadToMarkdown, threadToPdf, download, fileSlug } from '../../lib/export';
 
 // Export 100% client-side: os dados já vivem em messages[]. .md serializa a
@@ -8,6 +9,7 @@ import { threadToMarkdown, threadToPdf, download, fileSlug } from '../../lib/exp
 // diálogo de impressão do navegador.
 export function ExportMenu({ title, messages }: { title: string; messages: Message[] }) {
   const [busy, setBusy] = useState(false);
+  const sharing = useShareConversation(title, messages);
   const exportMd = () => download(`${fileSlug(title)}.md`, 'text/markdown', threadToMarkdown(title, messages));
   const exportPdf = async () => {
     setBusy(true);
@@ -25,6 +27,16 @@ export function ExportMenu({ title, messages }: { title: string; messages: Messa
       <button onClick={exportPdf} disabled={busy} title="Baixar conversa em PDF" className={row}>
         <Icon name={busy ? 'rotate' : 'download'} size={14} className={busy ? 'spin' : ''} /> Exportar .pdf
       </button>
+      {sharing.enabled && (
+        <button onClick={sharing.share} disabled={sharing.busy} title="Criar link público desta conversa" className={row}>
+          <Icon name="link" size={14} /> Compartilhar link
+        </button>
+      )}
+      {sharing.enabled && sharing.current && (
+        <button onClick={sharing.revoke} disabled={sharing.busy} title="Apagar o link público desta conversa" className={row}>
+          <Icon name="trash" size={14} /> Revogar link
+        </button>
+      )}
     </>
   );
 }
