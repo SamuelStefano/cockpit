@@ -16,7 +16,7 @@ export function AuthGate({ onSubmit }: { onSubmit: (token: string) => void }) {
           nested in a form is invalid HTML (Enter there submitted the token). */}
       <div className="w-full max-w-sm rounded-2xl border border-neutral-800 bg-neutral-900/60 p-7 shadow-2xl">
       <form onSubmit={submit}>
-        <BrandMark title="deck" subtitle="acesso restrito" className="mb-5" />
+        <BrandMark title="deck" className="mb-5" />
         <label htmlFor="gate-token" className="mb-1.5 flex items-center gap-1.5 text-[12px] font-medium text-neutral-400">
           <Icon name="shield" size={12} /> Token de acesso
         </label>

@@ -24,7 +24,7 @@ export function Dashboard({ token, userId, onSignOut }: { token: string; userId?
   return (
     <div className="flex h-full flex-1 justify-center overflow-y-auto bg-neutral-950 px-4 py-6">
       <div className="my-auto w-full max-w-xl rounded-2xl border border-neutral-800 bg-neutral-900/60 p-5 shadow-2xl sm:p-7">
-        <BrandMark title="conectar sua VPS" subtitle="rode um comando na sua máquina pra começar" bitState="connecting" />
+        <BrandMark title="conectar sua VPS" bitState="connecting" />
         <p className="mb-6 mt-4 text-[13px] leading-relaxed text-neutral-400">
           O Deck é a tela; o cérebro roda na sua VPS. Escolha como instalar, cole o comando e a tela troca sozinha quando conectar.
         </p>

@@ -81,9 +81,9 @@ function PrimaryAction({ paused, hasText, hasAtt, attUploading, onSubmit, onCall
           ? idle
           : paused
           ? (hasText ? 'bg-amber-500/80 text-neutral-950 hover:bg-amber-400' : idle)
-          : canSend ? 'bg-orange-500 text-neutral-950 hover:bg-orange-400' : idle}`}
+          : canSend ? chunk : idle}`}
     >
-      <Icon name={paused ? 'clock' : 'arrowUp'} size={paused ? 14 : 16} />
+      <Icon name={paused ? 'clock' : 'arrowUp'} size={paused ? 16 : 19} />
     </button>
   );
 }

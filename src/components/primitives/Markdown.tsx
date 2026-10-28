@@ -20,7 +20,7 @@ function MarkdownImpl({ md, caret = false }: MarkdownProps) {
   }, [md]);
   const slugs = new Map<string, number>();
   return (
-    <div className="space-y-4 wrap-break-word text-[15.5px] leading-7 text-neutral-300">
+    <div className="space-y-4 wrap-break-word text-[17px] leading-8 text-neutral-300">
       {segs.map((s, si) =>
         s.t === 'code'
           ? <CodeBlock key={`seg${si}`} code={s.code} lang={s.lang || undefined} />

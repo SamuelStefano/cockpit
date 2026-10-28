@@ -42,6 +42,8 @@ export function PrimitivesGallery() {
         <Row label="outline"><Button variant="outline" icon="plus">Nova conversa</Button><Button variant="outline">Conectar</Button></Row>
         <Row label="ghost"><Button variant="ghost" icon="pencil">Editar</Button><Button variant="ghost">Ignorar</Button></Row>
         <Row label="danger"><Button variant="danger" icon="trash">Excluir</Button></Row>
+        <Row label="dangerSolid (chunky)"><Button variant="dangerSolid" icon="trash">Excluir de vez</Button></Row>
+        <Row label="chunky xs / sm / md"><Button size="xs">Mini</Button><Button size="sm">Pequeno</Button><Button size="md" icon="plus">Nova conversa</Button></Row>
       </Section>
 
       <Section title="Button — tamanhos & estados">
@@ -85,8 +87,8 @@ export function PrimitivesGallery() {
       </Section>
 
       <Section title="BrandMark">
-        <Row label="md"><BrandMark title="deck" subtitle="acesso restrito" /></Row>
-        <Row label="lg"><BrandMark title="deck" subtitle="o Claude Code da sua VPS" size="lg" /></Row>
+        <Row label="md"><BrandMark title="deck" /></Row>
+        <Row label="lg"><BrandMark title="deck" size="lg" /></Row>
         <Row label="connecting"><BrandMark title="conectar sua VPS" bitState="connecting" /></Row>
       </Section>
 

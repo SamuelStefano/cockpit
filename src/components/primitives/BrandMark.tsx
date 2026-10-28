@@ -10,7 +10,7 @@ interface BrandMarkProps {
   className?: string;
 }
 
-const titleSize = { md: 'text-[15px]', lg: 'text-[17px]' } as const;
+const titleSize = { md: 'text-[26px]', lg: 'text-[34px]' } as const;
 const subtitleSize = { md: 'text-[12px]', lg: 'text-[13px]' } as const;
 
 // Bit + wordmark das telas de entrada (login por token, login Supabase,
@@ -19,9 +19,9 @@ const subtitleSize = { md: 'text-[12px]', lg: 'text-[13px]' } as const;
 export function BrandMark({ title, subtitle, size = 'md', bitState = 'wave', className = '' }: BrandMarkProps) {
   return (
     <div className={`flex items-center gap-2.5 ${className}`}>
-      <Bit state={bitState} size={40} />
+      <Bit state={bitState} size={size === 'lg' ? 52 : 44} />
       <div>
-        <div className={`font-mono ${titleSize[size]} font-semibold lowercase tracking-tight ${tokens.text.primary}`}>{title}</div>
+        <div className={`font-display ${titleSize[size]} font-bold leading-none lowercase tracking-tight ${tokens.text.primary}`}>{title}</div>
         {subtitle && <div className={`${subtitleSize[size]} ${tokens.text.muted}`}>{subtitle}</div>}
       </div>
     </div>
