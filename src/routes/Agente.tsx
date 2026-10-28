@@ -9,7 +9,7 @@ import { BotRoutines } from './equipe/BotRoutines';
 import { BotComputerProvider } from './equipe/computer-context';
 import type { BotComputerApi, BotFilesApi, CronApi } from './equipe/equipe-props';
 import type { BotView } from './equipe/team-view';
-import { useBotRoutines } from './equipe/useBotRoutines';
+import { useRotinas } from './equipe/rotinas/useRotinas';
 import { AgentForm } from './agente/AgentForm';
 import { AgentHeader } from './agente/AgentHeader';
 import { AgentList } from './agente/AgentList';
@@ -36,9 +36,9 @@ interface AgenteProps {
   onChat: (id: string) => void;
 }
 
-function RoutinesTab({ botId, api, connected }: { botId: string; api: CronApi; connected: boolean }) {
-  const r = useBotRoutines({ ...api, botId, connected });
-  return <div className="rounded-xl border border-neutral-800 bg-neutral-900/60 p-4"><BotRoutines r={r} /></div>;
+function RoutinesTab({ botId, bots, api, connected, onChat }: { botId: string; bots: TeamBot[]; api: CronApi; connected: boolean; onChat: (id: string) => void }) {
+  const r = useRotinas({ ...api, bots, botId, connected });
+  return <BotRoutines botId={botId} r={r} onChat={onChat} />;
 }
 
 export function Agente({ agentId, tab, views, api, connected, isAdmin, isMobile, onTab, onList, onChat }: AgenteProps) {
@@ -82,7 +82,7 @@ export function Agente({ agentId, tab, views, api, connected, isAdmin, isMobile,
             onDelete={(id) => { api.onTeamDelete(id); onList(); }} />
         </div>
       )}
-      {tab === 'rotinas' && <RoutinesTab botId={bot.id} api={api} connected={connected} />}
+      {tab === 'rotinas' && <RoutinesTab botId={bot.id} bots={api.bots} api={api} connected={connected} onChat={onChat} />}
       {tab === 'arquivos' && <BotFiles botId={bot.id} api={api} connected={connected} />}
       {tab === 'computador' && <BotComputer bot={bot} state={state} />}
     </>

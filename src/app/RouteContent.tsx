@@ -6,7 +6,7 @@ import type { AgentNav } from './useAgentNav';
 import { RouteFallback } from './RouteFallback';
 import { ChunkErrorBoundary } from './ChunkErrorBoundary';
 import {
-  Contextos, Skills, Pontos, Crons, Observatorio,
+  Contextos, Skills, Pontos, Observatorio,
   Graph, Canvas, Admin, Docs, DesignSystem, Onboarding, EquipePage, Agente,
 } from './lazyRoutes';
 import type { ChatPanelProps } from '../components/chat/chat-panel-props';
@@ -58,11 +58,12 @@ export function RouteContent({ route, agentRoute, isMobile, isAdmin, isRoot, con
           onCtxList={c.onCtxList} onCtxOpen={c.onCtxOpen} onCtxClose={c.onCtxClose} />
       );
     }
-    if (route === '/equipe') {
+    if (route === '/equipe' || route === '/equipe/rotinas') {
       return (
         <EquipePage
           views={agent.views} connected={connected} isAdmin={isAdmin} usageStats={c.usageStats} paused={c.teamPaused}
-          cronCount={c.cronsLoaded ? c.crons.length : undefined}
+          tab={route === '/equipe/rotinas' ? 'rotinas' : 'agentes'} bots={c.bots} onOpenChat={agent.open}
+          cron={{ crons: c.crons, loaded: c.cronsLoaded, onCronsGet: c.onCronsGet, onCronSave: c.onCronSave, onCronDelete: c.onCronDelete, onCronRun: c.onCronRun }}
           onOpenAgent={(id) => agentRoute?.open(id)} onNew={agent.openNew} onPauseSet={c.onTeamPauseSet} onUsageList={c.onUsageList} onGo={navigateTo} />
       );
     }
@@ -83,13 +84,6 @@ export function RouteContent({ route, agentRoute, isMobile, isAdmin, isRoot, con
           onDflGet={c.onDflGet} onDflSync={c.onDflSync} onDflChange={c.onDflChange} onDflInvoice={c.onDflInvoice}
           onPontosAgent={c.onPontosAgent}
           drafts={c.drafts} draftsLoaded={c.draftsLoaded} onDraftsGet={c.onDraftsGet} onDraftOp={c.onDraftOp} />
-      );
-    }
-    if (route === '/crons') {
-      return (
-        <Crons connected={connected} crons={c.crons} loaded={c.cronsLoaded}
-          onCronsGet={c.onCronsGet} onCronSave={c.onCronSave} onCronDelete={c.onCronDelete} onCronRun={c.onCronRun}
-          planUsage={c.planUsage} models={c.models} bots={c.bots} onTeamGet={c.onTeamGet} />
       );
     }
     if (route === '/uso') {

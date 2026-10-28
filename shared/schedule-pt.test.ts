@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseScheduleText, scheduleToText, scheduleSummary, nextRuns } from './schedule-pt';
+import { parseCronExpr, parseScheduleText, scheduleToText, scheduleSummary, nextRuns } from './schedule-pt';
 
 const brt = (y: number, mo: number, d: number, h: number, mi = 0) => Date.UTC(y, mo - 1, d, h + 3, mi);
 const NOW = brt(2026, 10, 28, 12, 0);
@@ -269,5 +269,40 @@ describe('nextRuns', () => {
     const r = ok('amanhã às 9h');
     expect(nextRuns(r.schedule, NOW, 3)).toEqual([brt(2026, 10, 29, 9)]);
     expect(nextRuns(r.schedule, brt(2026, 10, 30, 0), 3)).toEqual([]);
+  });
+});
+
+describe('raw cron fallback', () => {
+  it('weekday cron', () => {
+    const r = ok('0 9 * * 1-5');
+    expect(r.schedule).toEqual({ kind: 'daily', atMinute: 540, weekdays: [1, 2, 3, 4, 5] });
+    expect(r.summary).toBe('dias úteis, 09:00');
+  });
+  it('month-day cron', () => {
+    expect(ok('0 8 1 * *').schedule).toEqual({ kind: 'daily', atMinute: 480, monthDay: 1 });
+  });
+  it('step crons become intervals', () => {
+    expect(ok('*/15 * * * *').schedule).toEqual({ kind: 'interval', everyMinutes: 15 });
+    expect(ok('0 */2 * * *').schedule).toEqual({ kind: 'interval', everyMinutes: 120 });
+    expect(ok('0 * * * *').schedule).toEqual({ kind: 'interval', everyMinutes: 60 });
+  });
+  it('sunday as 7 and lists', () => {
+    expect(ok('30 14 * * 7').schedule).toMatchObject({ weekdays: [0] });
+    expect(ok('0 7 * * 1,3,5').schedule).toMatchObject({ weekdays: [1, 3, 5] });
+  });
+  it('every day cron has no filter', () => {
+    expect(ok('15 7 * * *').schedule).toEqual({ kind: 'daily', atMinute: 435 });
+  });
+  it('rejects what a routine cannot hold', () => {
+    expect(parseCronExpr('0 9 1 * 1').ok).toBe(false);
+    expect(parseCronExpr('0 9 * 3 *').ok).toBe(false);
+    expect(parseCronExpr('0 9 * *').ok).toBe(false);
+    expect(parseCronExpr('*/2 * * * *').ok).toBe(false);
+  });
+  it('parse(cronOf(schedule)) is the identity', () => {
+    for (const text of ['toda segunda às 14h30', 'todo dia útil às 9h', 'a cada 2 horas', 'a cada 30 minutos', 'todo dia 15 às 10h', 'fins de semana às 10h']) {
+      const a = ok(text);
+      expect(ok(a.cron as string).schedule).toEqual(a.schedule);
+    }
   });
 });

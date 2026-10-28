@@ -160,7 +160,51 @@ function build(schedule: CronSchedule): ParseResult {
   return { ok: true, schedule, cron: cronOf(schedule), summary: scheduleSummary(schedule) };
 }
 
+const CRON_TEXT_RE = /^[\d*/,\- ]+$/;
+const INT = /^\d+$/;
+
+function dowList(field: string): number[] | null {
+  if (field === '*') return [];
+  const out = new Set<number>();
+  for (const part of field.split(',')) {
+    const r = /^(\d)(?:-(\d))?$/.exec(part);
+    if (!r) return null;
+    const a = Number(r[1]);
+    const b = r[2] === undefined ? a : Number(r[2]);
+    if (a > 7 || b > 7 || b < a) return null;
+    for (let d = a; d <= b; d++) out.add(d % 7);
+  }
+  return [...out].sort((x, y) => x - y);
+}
+
+export function parseCronExpr(expr: string): ParseResult {
+  const f = expr.trim().split(/\s+/);
+  if (f.length !== 5) return fail('Cron precisa de 5 campos — ex: 0 9 * * 1-5');
+  const [mi, h, dom, mon, dow] = f;
+  const bad = fail('Esse cron não cabe numa rotina — tente "toda sexta às 17h".');
+  const step = /^\*\/(\d+)$/;
+  if (step.test(mi) && h === '*' && dom === '*' && mon === '*' && dow === '*') {
+    const n = Number(step.exec(mi)?.[1]);
+    return n >= MIN_INTERVAL_MINUTES && n < 60 ? build({ kind: 'interval', everyMinutes: n }) : fail(`O intervalo mínimo é ${MIN_INTERVAL_MINUTES} min.`);
+  }
+  if (mi === '0' && h === '*' && dom === '*' && mon === '*' && dow === '*') return build({ kind: 'interval', everyMinutes: 60 });
+  if (mi === '0' && step.test(h) && dom === '*' && mon === '*' && dow === '*') {
+    const n = Number(step.exec(h)?.[1]);
+    return n >= 1 && n < 24 ? build({ kind: 'interval', everyMinutes: n * 60 }) : bad;
+  }
+  if (!INT.test(mi) || !INT.test(h) || Number(mi) > 59 || Number(h) > 23 || mon !== '*') return bad;
+  const atMinute = Number(h) * 60 + Number(mi);
+  const days = dowList(dow);
+  if (!days) return bad;
+  if (dom !== '*') {
+    if (!INT.test(dom) || Number(dom) < 1 || Number(dom) > 31 || days.length) return bad;
+    return build({ kind: 'daily', atMinute, monthDay: Number(dom) });
+  }
+  return build(days.length && days.length < 7 ? { kind: 'daily', atMinute, weekdays: days } : { kind: 'daily', atMinute });
+}
+
 export function parseScheduleText(text: string, now: number): ParseResult {
+  if (CRON_TEXT_RE.test(text.trim()) && text.trim().split(/\s+/).length > 1) return parseCronExpr(text);
   const t = normalize(text);
   if (!t) return fail(`Escreva quando a rotina roda — tente 'toda sexta às 17h'`);
 

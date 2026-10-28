@@ -13,7 +13,6 @@ export const Skills = lazy(() => import('../routes/Skills').then((m) => ({ defau
 export const Pontos = lazy(() => import('../routes/Pontos').then((m) => ({ default: m.Pontos })));
 export const Equipe = lazy(() => import('../routes/Equipe').then((m) => ({ default: m.Equipe })));
 export const EquipePage = lazy(() => import('../routes/EquipePage').then((m) => ({ default: m.EquipePage })));
-export const Crons = lazy(() => import('../routes/Crons').then((m) => ({ default: m.Crons })));
 export const Observatorio = lazy(() => import('../routes/Observatorio').then((m) => ({ default: m.Observatorio })));
 export const Canvas = lazy(() => import('../routes/Canvas').then((m) => ({ default: m.Canvas })));
 export const Graph = lazy(() => import('../routes/Graph').then((m) => ({ default: m.Graph })));
