@@ -36,7 +36,7 @@ export function SaturationBanner({ sessionId, contextTokens, contextModel = null
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 pb-2">
-      <div className={`flex items-center gap-2 rounded-2xl border ${tone.border} ${tone.bg} py-1.5 pl-3 pr-1.5 text-[14px] ${tone.text}`}>
+      <div className={`flex items-center gap-2 rounded-2xl border ${tone.border} ${tone.bg} py-1.5 pl-3 pr-1.5 text-[13px] ${tone.text}`}>
         <span className={`h-2 w-2 shrink-0 rounded-full ${tone.dot}`} />
         {notice ? (
           <button

@@ -10,7 +10,7 @@ interface BrandMarkProps {
   className?: string;
 }
 
-const titleSize = { md: 'text-[26px]', lg: 'text-[34px]' } as const;
+const titleSize = { md: 'text-[24px]', lg: 'text-[32px]' } as const;
 const subtitleSize = { md: 'text-[12px]', lg: 'text-[13px]' } as const;
 
 // Bit + wordmark das telas de entrada (login por token, login Supabase,

@@ -22,7 +22,7 @@ describe('SessionRow', () => {
     expect(title.className).not.toContain('line-clamp');
     expect(c.querySelector('[data-row-meta]')).toBeNull();
     expect(screen.queryByText('há 3m')).toBeNull();
-    expect(title.parentElement?.className).toContain('text-[15px]');
+    expect(title.parentElement?.className).toContain('text-[14px]');
     expect(screen.queryByText('Pegue o contexto')).toBeNull();
   });
 

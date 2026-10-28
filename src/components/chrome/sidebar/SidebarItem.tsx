@@ -30,7 +30,7 @@ export function SidebarItem({ icon, tile, label, onClick, expanded, active = fal
         aria-current={active ? 'page' : undefined}
         aria-expanded={expandedControl}
         aria-haspopup={haspopup ? 'dialog' : undefined}
-        className={`flex h-11 items-center rounded-xl text-[15px] transition focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-orange-500/40
+        className={`flex h-11 items-center rounded-xl text-[14px] transition focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-orange-500/40
           ${expanded ? 'w-full pr-2' : 'w-10'}
           ${active ? 'bg-orange-500/12 font-semibold text-orange-100 shadow-[inset_0_0_0_1px_rgba(249,115,22,0.3)]' : 'text-neutral-300 hover:bg-neutral-800/50 hover:text-neutral-100'}`}
       >

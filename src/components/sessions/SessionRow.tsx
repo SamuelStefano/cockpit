@@ -56,7 +56,7 @@ export function SessionRow({ s, active, running, stalled, updated, runStart, pin
           type="button"
           data-row-select=""
           aria-current={active ? 'true' : undefined}
-          className={`flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-left text-[15px] leading-tight outline-hidden ${active ? 'font-semibold text-orange-50' : updated ? 'font-medium text-neutral-100' : 'text-neutral-300 group-hover:text-neutral-100'}`}
+          className={`flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-left text-[14px] leading-tight outline-hidden ${active ? 'font-semibold text-orange-50' : updated ? 'font-medium text-neutral-100' : 'text-neutral-300 group-hover:text-neutral-100'}`}
         >
           {dot && <span className={`h-2 w-2 shrink-0 rounded-full ${dot}`} title={status?.title ?? 'Novo output desde a última vez que você abriu'} />}
           {/* Fade instead of an ellipsis: the box spans the row, so only a title that reaches the edge fades. */}

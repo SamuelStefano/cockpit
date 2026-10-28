@@ -122,7 +122,7 @@ export function ChatInput(props: ChatInputProps) {
             enterKeyHint={touch ? 'enter' : 'send'}
             placeholder={paused ? 'Enfileirar mensagem…' : mic.listening ? 'Ouvindo…' : placeholder ?? 'Mensagem'}
             style={{ maxHeight: composerMaxH() }}
-            className="scroll-thin relative w-full resize-none bg-transparent py-1 text-[17px] leading-7 text-neutral-100 placeholder-neutral-600 outline-hidden"
+            className="scroll-thin relative w-full resize-none bg-transparent py-1 text-[16px] leading-7 text-neutral-100 placeholder-neutral-600 outline-hidden"
           />
         </div>
         <div className="flex shrink-0 items-center">

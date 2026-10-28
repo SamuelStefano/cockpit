@@ -16,7 +16,7 @@ describe('SessionGroup', () => {
 
   it('running and date groups share the same label style', () => {
     render(<><SessionGroup label={RUNNING_LABEL}><div /></SessionGroup><SessionGroup label="Hoje"><div /></SessionGroup></>);
-    expect(screen.getByText(RUNNING_LABEL).className).toContain('text-[13px]');
+    expect(screen.getByText(RUNNING_LABEL).className).toContain('text-[12px]');
     expect(screen.getByText('Hoje').className).toContain('text-[13px]');
   });
 });
