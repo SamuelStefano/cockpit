@@ -67,6 +67,9 @@ export function validateBotInput(raw: unknown): BotValidation {
   if (model !== undefined && !MODEL_RE.test(model)) return { ok: false, error: 'modelo inválido' };
   // The ACP agent runs its own tool loop, outside the restricted profile's rules.
   if (profile === 'restricted' && isAgentModel(model)) return { ok: false, error: 'bot com perfil travado não pode usar agente externo' };
+  const fallbackModel = str(r.fallbackModel) || undefined;
+  if (fallbackModel !== undefined && !MODEL_RE.test(fallbackModel)) return { ok: false, error: 'reserva inválida' };
+  if (profile === 'restricted' && isAgentModel(fallbackModel)) return { ok: false, error: 'bot com perfil travado não pode usar agente externo' };
   const mode = str(r.mode) as PermMode | undefined;
   if (mode !== undefined && !MODES.has(mode)) return { ok: false, error: 'modo inválido' };
   const effort = str(r.effort) as Effort | undefined;
@@ -75,6 +78,7 @@ export function validateBotInput(raw: unknown): BotValidation {
   if (parentId) bot.parentId = parentId;
   if (r.primary === true) bot.primary = true;
   if (model) bot.model = model;
+  if (fallbackModel) bot.fallbackModel = fallbackModel;
   if (mode) bot.mode = mode;
   if (effort) bot.effort = effort;
   if (permissions) bot.permissions = permissions;

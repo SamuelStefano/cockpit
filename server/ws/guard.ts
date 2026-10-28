@@ -10,7 +10,7 @@ import type { ClientMsg } from '../../shared/protocol';
 const HEAVY: ReadonlySet<ClientMsg['t']> = new Set([
   'search', 'term-open', 'send', 'list', 'list-archived', 'open', 'open-full', 'bench-build',
   'session-handoff', 'sessions-funnel', 'queue-run-bg', 'queue-run-now',
-  'agent-test', 'agent-probe-draft', 'agent-add-custom', 'box-health-get', 'box-smoke-test',
+  'agent-test', 'agent-probe-draft', 'provider-probe', 'agent-add-custom', 'box-health-get', 'box-smoke-test',
 ]);
 
 export interface Bucket { tokens: number; last: number }

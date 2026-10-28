@@ -8,6 +8,9 @@ import { useDevices } from '../cockpit/useDevices';
 import { useDeviceLink } from '../components/profile/useDeviceLink';
 import { ConnectionRow, ROW_GRID } from './conexoes/ConnectionRow';
 import { ConnectTool } from './conexoes/ConnectTool';
+import { AddProvider } from './conexoes/AddProvider';
+import { ADD_PROVIDER_HASH } from '../lib/conexoes-nav';
+import type { ProviderProbeView } from '../cockpit/useProviderProbe';
 import { EmptyTab } from './conexoes/EmptyTab';
 import { Notice } from './conexoes/Notice';
 import { PairDevice } from './conexoes/PairDevice';
@@ -26,6 +29,7 @@ interface Props {
   onGet: () => void;
   onToolAdd: (hosts?: string[]) => void;
   onGo: (to: '/onboarding') => void;
+  probe?: ProviderProbeView;
   manage?: { provedores?: ReactNode; ferramentas?: ReactNode };
 }
 
@@ -35,9 +39,10 @@ const FOOT: Partial<Record<ConnTab, string>> = {
   maquinas: 'Outra VPS ou computador com o Deck instalado. Os agentes de cada máquina aparecem agrupados na barra lateral.',
 };
 
-export function Conexoes({ connected, items, loaded, bots, dflMcpsState, dflMcpsBusy, onGet, onToolAdd, onGo, manage }: Props) {
+export function Conexoes({ connected, items, loaded, bots, dflMcpsState, dflMcpsBusy, onGet, onToolAdd, onGo, probe, manage }: Props) {
   const [tab, setTab] = useState<ConnTab>(() => connectionsTabFromHash(location.hash) ?? 'provedores');
   const [toolOpen, setToolOpen] = useState(false);
+  const [providerOpen, setProviderOpen] = useState(() => !!probe && location.hash === ADD_PROVIDER_HASH);
   const [removing, setRemoving] = useState<Connection | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const sealed = useSealState() === 'sealed';
@@ -45,10 +50,10 @@ export function Conexoes({ connected, items, loaded, bots, dflMcpsState, dflMcps
   const link = useDeviceLink();
 
   useEffect(() => {
-    const onPop = () => { const t = connectionsTabFromHash(location.hash); if (t) setTab(t); };
+    const onPop = () => { if (probe && location.hash === ADD_PROVIDER_HASH) { setTab('provedores'); setProviderOpen(true); return; } const t = connectionsTabFromHash(location.hash); if (t) setTab(t); };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
-  }, []);
+  }, [probe]);
   useEffect(() => { if (connected) onGet(); }, [connected, onGet]);
   useEffect(() => { if (dflMcpsState) onGet(); }, [dflMcpsState, onGet]);
   useEffect(() => { const id = setInterval(() => setNow(Date.now()), 30_000); return () => clearInterval(id); }, []);
@@ -62,7 +67,7 @@ export function Conexoes({ connected, items, loaded, bots, dflMcpsState, dflMcps
   const tabItems: TabItem<ConnTab>[] = tabs.map((t) => ({ id: t, label: TAB_LABEL[t], count: loaded ? itemsOf(items, t).length : undefined }));
 
   const connectFlow = () => {
-    if (active === 'provedores') onGo('/onboarding');
+    if (active === 'provedores') { if (probe) setProviderOpen(true); else onGo('/onboarding'); }
     else if (active === 'ferramentas') setToolOpen(true);
     else if (active === 'aparelhos') link.start();
   };
@@ -124,6 +129,7 @@ export function Conexoes({ connected, items, loaded, bots, dflMcpsState, dflMcps
         {active === 'ferramentas' && manage?.ferramentas}
         {active === 'aparelhos' && sealed && <PairDevice link={link} />}
       </div>
+      {probe && <AddProvider open={providerOpen} onClose={() => { setProviderOpen(false); if (location.hash === ADD_PROVIDER_HASH) history.replaceState(null, '', '/conexoes'); }} probe={probe} onLogin={() => onGo('/onboarding')} />}
       <ConnectTool open={toolOpen} busy={dflMcpsBusy} onClose={() => setToolOpen(false)} onConnect={() => { onToolAdd(); setToolOpen(false); }} />
       <Modal open={!!removing} onClose={() => setRemoving(null)} title="Remover aparelho?" icon="smartphone" maxWidth="max-w-sm">
         <p className="text-[13px] leading-relaxed text-neutral-400">{removing?.label} perde o acesso agora e precisa ser pareado de novo para voltar.</p>

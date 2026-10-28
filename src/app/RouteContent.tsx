@@ -135,6 +135,7 @@ export function RouteContent({ route, agentRoute, skillRoute, isMobile, isAdmin,
       return (
         <Conexoes connected={connected} items={c.connections} loaded={c.connectionsLoaded} bots={c.bots}
           dflMcpsState={c.dflMcps} dflMcpsBusy={c.dflMcpsBusy} onGet={c.onConnectionsGet} onToolAdd={c.onDflMcpsAdd} onGo={navigateTo}
+          probe={{ probeResult: c.probeResult, probeBusy: c.probeBusy, onProviderProbe: c.onProviderProbe, onProviderProbeReset: c.onProviderProbeReset }}
           manage={{ provedores: <ManageProviders {...manage} />, ferramentas: <ManageTools {...manage} /> }} />
       );
     }
