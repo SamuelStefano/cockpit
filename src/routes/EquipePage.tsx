@@ -66,11 +66,11 @@ export function EquipePage(p: EquipePageProps) {
           </div>
         </header>
         <TopBarAction>
-          {isAdmin && tab !== 'rotinas' && views.length > 1 && (
+          {isAdmin && tab === 'agentes' && views.length > 1 && (
             <IconButton icon="pause" label={p.paused ? 'Retomar equipe' : 'Pausar equipe'} side="bottom" onClick={() => p.onPauseSet(!p.paused)} className="pointer-coarse:h-11 pointer-coarse:w-11" />
           )}
           {isAdmin && tab === 'rotinas' && <IconButton icon="plus" label="Nova rotina" side="bottom" onClick={r.openNew} className="pointer-coarse:h-11 pointer-coarse:w-11" />}
-          {isAdmin && tab !== 'rotinas' && <IconButton icon="plus" label="Novo agente" side="bottom" onClick={p.onNew} className="pointer-coarse:h-11 pointer-coarse:w-11" />}
+          {isAdmin && tab === 'agentes' && <IconButton icon="plus" label="Novo agente" side="bottom" onClick={p.onNew} className="pointer-coarse:h-11 pointer-coarse:w-11" />}
         </TopBarAction>
         <Tabs items={items} active={tab} onChange={onTab} className="mb-2.5 lg:mb-5" />
         {tab === 'memoria' && p.memory ? (
