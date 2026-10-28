@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { getTeam, saveBot, deleteBot, bindBotSession } from './team';
@@ -69,5 +69,16 @@ describe('team store', () => {
     expect(team.map((b) => b.id).sort()).toEqual(ids);
     expect(team.filter((b) => b.primary)).toHaveLength(1);
     expect(() => JSON.parse(readFileSync(process.env.COCKPIT_TEAM!, 'utf8'))).not.toThrow();
+  });
+});
+
+describe('team store: files written before the hierarchy fields', () => {
+  it('loads an old-format team.json unchanged and keeps it through a save', async () => {
+    const old = [{ id: 'aaaa1', name: 'Lia', label: 'coo', instructions: 'x', mascot: { shape: 'drop', color: '#22c55e' }, profile: 'full', createdAt: 1, updatedAt: 2 }];
+    writeFileSync(process.env.COCKPIT_TEAM!, JSON.stringify(old));
+    expect(await getTeam()).toEqual(old);
+    const r = await saveBot(bot('bbbb1', { parentId: 'aaaa1' }), 5);
+    expect(r.ok && r.bots[0]).toEqual(expect.objectContaining({ id: 'aaaa1', label: 'coo', createdAt: 1 }));
+    expect(r.ok && r.bots[1].parentId).toBe('aaaa1');
   });
 });
