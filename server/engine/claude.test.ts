@@ -323,6 +323,12 @@ describe('buildArgs', () => {
     expect(argsOf({ prompt: 'x' })).not.toContain('--append-system-prompt');
   });
 
+  it('puts the Deck context before the bot identity in one --append-system-prompt, resume included', () => {
+    const args = argsOf({ prompt: 'x', deckContext: 'Box: pc-samuel', appendSystemPrompt: 'Você é capo.', resumeId: '11111111-1111-1111-1111-111111111111' });
+    expect(args.filter((a) => a === '--append-system-prompt')).toHaveLength(1);
+    expect(valAfter(args, '--append-system-prompt')).toBe('Box: pc-samuel\n\nVocê é capo.');
+  });
+
   it('forkId vira --fork-session --session-id, e só junto do --resume', () => {
     const fork = argsOf({ prompt: 'x', resumeId: '11111111-1111-1111-1111-111111111111', forkId: '22222222-2222-2222-2222-222222222222' });
     expect(fork).toContain('--fork-session');
@@ -818,5 +824,38 @@ describe('buildArgs bot tool permissions', () => {
   it('net off denies WebFetch/WebSearch and a restricted bot keeps its own deny list', () => {
     const deny = valAfter(argsOf({ ...bot, profile: 'restricted', disallowedSkills: ['WebFetch', 'WebSearch'] }), '--disallowedTools')!.split(' ');
     expect(deny).toEqual(expect.arrayContaining(['WebFetch', 'WebSearch', 'Bash', 'Agent']));
+  });
+});
+
+describe('run: Deck context', () => {
+  const env = { ...process.env };
+  beforeEach(() => {
+    spawned.child = new FakeChild();
+    process.env.DECK_BOX_LABEL = 'pc-samuel';
+    process.env.DECK_BOX_ROSTER_FILE = join(homedir(), '.cockpit', 'missing-roster-for-test.json');
+  });
+  afterEach(() => { process.env = { ...env }; });
+  const start = (over: Partial<Parameters<typeof run>[0]> = {}) => {
+    run({ prompt: 'oi', onEvent: () => {}, onError: () => {}, onClose: () => {}, ...over });
+    const { args } = spawned.last!;
+    spawned.child!.emit('close', 0);
+    return args;
+  };
+
+  it('every session gets --append-system-prompt naming its box', () => {
+    const text = valAfter(start(), '--append-system-prompt');
+    expect(text).toContain('You are running inside the Deck');
+    expect(text).toContain('Box: pc-samuel');
+  });
+
+  it('a resumed session passes the same single flag', () => {
+    const args = start({ resumeId: '11111111-1111-1111-1111-111111111111' });
+    expect(args.filter((a) => a === '--append-system-prompt')).toHaveLength(1);
+    expect(valAfter(args, '--append-system-prompt')).toContain('Box: pc-samuel');
+  });
+
+  it('DECK_AGENT_CONTEXT=0 turns it off', () => {
+    process.env.DECK_AGENT_CONTEXT = '0';
+    expect(start()).not.toContain('--append-system-prompt');
   });
 });

@@ -431,6 +431,12 @@ export type MascotShape = 'drop' | 'blob' | 'tri' | 'bean';
 export interface TeamMascot { shape: MascotShape; color: string }
 export type TeamProfile = 'full' | 'restricted';
 export interface BotPermissions { read: boolean; write: boolean; net: boolean }
+export interface RosterBox {
+  label: string;
+  online: boolean;
+  self: boolean;
+}
+
 export interface TeamBot {
   id: string;
   name: string;
@@ -704,6 +710,9 @@ export type ClientMsg =
   // (relay/NAT dropou sem FIN, laptop dormiu) segue "OPEN" pro browser sem disparar
   // onclose — o pong é o único sinal de que o ida-e-volta ainda vive.
   | { t: 'ping' }
+  // The relay's box list, forwarded by the tab so the box can describe its siblings
+  // in the Deck context of the sessions it spawns (boxes never get it from the relay).
+  | { t: 'box-roster'; boxes: RosterBox[] }
   | { t: 'list' }
   // Resume (mobile): reemite o estado durável (busy/rate/plan-usage/models +
   // sessions) que o CLI só manda durante um run, sem depender de eventos perdidos.

@@ -68,6 +68,8 @@ export function serveConnection(ws: WebSocket, opts: { role: Role; root?: boolea
     // 'sem permissão' (toast espúrio na aba a cada abrir/fechar) p/ agente student.
     const ctrlT = msg.t as string;
     if (ctrlT === 'browsers-present' || ctrlT === 'no-browsers') return;
+    // Every tab sends its box list on connect; a non-admin tab's is dropped quietly, not toasted.
+    if (msg.t === 'box-roster' && role !== 'admin') return;
     // Teto por conexão antes de qualquer trabalho: corta loop de frames (DoS).
     if (!limiter.allow(msg.t)) { send(ws, { t: 'error', message: 'muitas requisições' }); return; }
     // Checkpoint ÚNICO de autorização (default-deny), ANTES do handleTerm (que
