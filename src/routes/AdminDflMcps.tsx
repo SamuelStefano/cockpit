@@ -6,6 +6,7 @@ import { AdminDflMcpRow } from './AdminDflMcpRow';
 import { AgentTerminal } from './AgentTerminal';
 import { useDflMcpLogin } from './useDflMcpLogin';
 import { useDflPanelOpen } from './useDflPanelOpen';
+import { takeDflLogin } from './dfl-login-request';
 
 interface AdminDflMcpsProps {
   api: Pick<DflMcps, 'dflMcps' | 'dflMcpsBusy' | 'onDflMcpsGet' | 'onDflMcpsAdd'>;
@@ -16,6 +17,11 @@ export function AdminDflMcps({ api, term }: AdminDflMcpsProps) {
   const { dflMcps, dflMcpsBusy, onDflMcpsGet, onDflMcpsAdd } = api;
   const { terminal, login } = useDflMcpLogin(term, onDflMcpsGet);
   useEffect(() => { onDflMcpsGet(); }, [onDflMcpsGet]);
+  useEffect(() => {
+    const asked = dflMcps && takeDflLogin();
+    const host = asked ? dflMcps.hosts.find((h) => h.host === asked) : undefined;
+    if (host) login(host);
+  }, [dflMcps, login]);
 
   const { open, show } = useDflPanelOpen(dflMcps);
   const missing = dflMcps?.hosts.filter((h) => h.status === 'missing').length ?? 0;

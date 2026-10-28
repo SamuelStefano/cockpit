@@ -73,7 +73,7 @@ export function mcpConnections(state: DflMcpsState): Connection[] {
   // A host the user never added is a catalog entry, not a connection: it lives in
   // "Gerenciar ferramentas" and would otherwise show as an unremovable row.
   return state.hosts.filter((h) => h.status !== 'missing').map((h) => {
-    const d = state.error ? detail : safeDetail(h.detail);
+    const d = state.error ? detail : h.status === 'needs-auth' ? 'adicionado; falta entrar com a sua conta' : safeDetail(h.detail);
     return { id: `tool:${h.host}`, kind: 'tool' as const, label: h.name, state: MCP_STATE[h.status], ...(d ? { detail: d } : {}) };
   });
 }

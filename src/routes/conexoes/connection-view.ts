@@ -43,7 +43,7 @@ export function tabOfKind(kind: ConnectionKind): ConnTab {
 export function stateLabel(c: Pick<Connection, 'kind' | 'state'>): string {
   switch (c.state) {
     case 'connected': return c.kind === 'machine' ? 'ligada' : 'conectado';
-    case 'expired': return 'expirou';
+    case 'expired': return c.kind === 'tool' ? 'falta entrar' : 'expirou';
     case 'error': return 'erro';
     default: return c.kind === 'machine' ? 'desligada' : c.kind === 'device' ? 'desconectado' : 'desligado';
   }
@@ -80,7 +80,7 @@ export function noticeOf(items: Connection[], bots: TeamBot[]): { title: string;
   const bad = problems(items);
   if (!bad.length) return null;
   const title = bad.length === 1 ? '1 conexão precisa de você.' : `${bad.length} conexões precisam de você.`;
-  const what = join(bad.map((c) => (c.state === 'expired' ? `${c.label} expirou` : `${c.label} deu erro`)));
+  const what = join(bad.map((c) => (c.state === 'expired' ? (c.kind === 'tool' ? `falta entrar em ${c.label}` : `${c.label} expirou`) : `${c.label} deu erro`)));
   const ids = new Set(bad.flatMap((c) => c.usedBy ?? []));
   const names = bots.filter((b) => ids.has(b.id)).map((b) => b.name);
   const tail = names.length
@@ -110,7 +110,7 @@ export type RowAction = { kind: 'relogin' | 'error' | 'turnon' | 'remove'; label
 export function actionOf(c: Connection): RowAction | null {
   if (c.kind === 'device') return { kind: 'remove', label: 'Remover', primary: false };
   if (c.kind !== 'provider' && c.kind !== 'tool') return null;
-  if (c.state === 'expired') return { kind: 'relogin', label: 'Entrar de novo', primary: true };
+  if (c.state === 'expired') return { kind: 'relogin', label: c.kind === 'tool' ? 'Entrar' : 'Entrar de novo', primary: true };
   if (c.state === 'error') return { kind: 'error', label: 'Ver erro', primary: false };
   if (c.state === 'off') return { kind: 'turnon', label: 'Ligar', primary: false };
   return null;

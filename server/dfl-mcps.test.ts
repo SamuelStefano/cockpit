@@ -51,6 +51,16 @@ describe('addDflMcps', () => {
     expect(s.op).toEqual({ ok: true, message: '1 MCP(s) adicionado(s)' });
   });
 
+  it('says the login is still missing when the added host needs auth', async () => {
+    let added = false;
+    const exec = vi.fn(async (args: string[]) => {
+      if (args[1] === 'add') { added = true; return ''; }
+      return added ? `${LIST}dfl-quiz: https://quiz.mcp.devfellowship.com/mcp (HTTP) - ! Needs authentication\n` : LIST;
+    });
+    const s = await addDflMcps(['quiz'], { exec, fetchFn: okFetch });
+    expect(s.op).toEqual({ ok: true, message: '1 MCP(s) adicionado(s); falta entrar: clique em Entrar' });
+  });
+
   it('ignores hosts that are injected or not in the manifest', async () => {
     const exec = vi.fn(async (args: string[]) => (args[1] === 'list' ? '' : ''));
     await addDflMcps(['x; rm -rf ~', '--scope', 'evil', 'docs'], { exec, fetchFn: okFetch });

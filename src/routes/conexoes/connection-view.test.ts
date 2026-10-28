@@ -14,12 +14,13 @@ describe('connection-view', () => {
   it('words the state per kind', () => {
     expect(stateLabel({ kind: 'machine', state: 'connected' })).toBe('ligada');
     expect(stateLabel({ kind: 'machine', state: 'off' })).toBe('desligada');
-    expect(stateLabel({ kind: 'tool', state: 'expired' })).toBe('expirou');
+    expect(stateLabel({ kind: 'tool', state: 'expired' })).toBe('falta entrar');
+    expect(stateLabel({ kind: 'provider', state: 'expired' })).toBe('expirou');
     expect(stateLabel({ kind: 'device', state: 'off' })).toBe('desconectado');
   });
 
   it('picks the right verb', () => {
-    expect(actionOf(c({ state: 'expired' }))?.label).toBe('Entrar de novo');
+    expect(actionOf(c({ state: 'expired' }))?.label).toBe('Entrar');
     expect(actionOf(c({ state: 'error' }))?.label).toBe('Ver erro');
     expect(actionOf(c({ state: 'off' }))?.label).toBe('Ligar');
     expect(actionOf(c({ state: 'connected' }))).toBeNull();
@@ -31,7 +32,7 @@ describe('connection-view', () => {
     const bots = [{ id: 'b1', name: 'Redator' }] as TeamBot[];
     const n = noticeOf([c({ label: 'Gmail', state: 'expired', usedBy: ['b1'] }), c({ id: 'y', label: 'Slack', state: 'error' })], bots);
     expect(n?.title).toBe('2 conexões precisam de você.');
-    expect(n?.body).toBe('Gmail expirou e Slack deu erro — Redator não consegue usar isso até você resolver.');
+    expect(n?.body).toBe('falta entrar em Gmail e Slack deu erro — Redator não consegue usar isso até você resolver.');
     expect(n?.short).toBe('Gmail, Slack');
     expect(noticeOf([c({})], bots)).toBeNull();
   });

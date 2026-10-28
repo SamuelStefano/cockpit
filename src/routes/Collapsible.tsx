@@ -1,8 +1,14 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Icon } from '../components/primitives';
 
-export function Collapsible({ title, children }: { title: string; children: ReactNode }) {
+export function Collapsible({ title, children, openOn }: { title: string; children: ReactNode; openOn?: string }) {
   const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!openOn) return;
+    const onOpen = () => setOpen(true);
+    window.addEventListener(openOn, onOpen);
+    return () => window.removeEventListener(openOn, onOpen);
+  }, [openOn]);
   return (
     <section className="mt-6 rounded-xl border border-neutral-800 bg-neutral-900/40 max-lg:mt-0 max-lg:rounded-none max-lg:border-0 max-lg:border-t max-lg:bg-transparent">
       <button

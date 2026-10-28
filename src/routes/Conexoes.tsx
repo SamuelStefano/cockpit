@@ -20,6 +20,7 @@ import {
   itemsOf, noticeOf, problems, tabOfKind, TAB_HEAD, TAB_LABEL, toolHost, visibleTabs, type ConnTab,
 } from './conexoes/connection-view';
 import type { RowAction } from './conexoes/connection-view';
+import { requestDflLogin } from './dfl-login-request';
 
 interface Props {
   connected: boolean;
@@ -86,7 +87,8 @@ export function Conexoes({ connected, items, loaded, bots, dflMcpsState, dflMcps
 
   const onAction = (a: RowAction, c: Connection) => {
     if (a.kind === 'remove') { setRemoving(c); return; }
-    if (c.kind === 'tool') onToolAdd([toolHost(c)]);
+    if (c.kind === 'tool' && a.kind === 'relogin') requestDflLogin(toolHost(c));
+    else if (c.kind === 'tool') onToolAdd([toolHost(c)]);
     else if (c.kind === 'provider') onGo('/onboarding');
   };
 

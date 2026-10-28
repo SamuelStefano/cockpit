@@ -68,8 +68,9 @@ export async function addDflMcps(requested: unknown, deps: { exec?: Runner; fetc
   }
   const after = await dflMcpsState(deps);
   const added = todo.length - failures.length;
+  const pending = after.hosts.filter((h) => h.status === 'needs-auth' && todo.some((t) => t.host === h.host)).length;
   const op = failures.length
     ? { ok: false, message: `falhou: ${failures.join('; ')}` }
-    : { ok: true, message: todo.length ? `${added} MCP(s) adicionado(s)` : 'nada a adicionar' };
+    : { ok: true, message: !todo.length ? 'nada a adicionar' : pending ? `${added} MCP(s) adicionado(s); falta entrar: clique em Entrar` : `${added} MCP(s) adicionado(s)` };
   return { ...after, op };
 }
