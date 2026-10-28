@@ -42,6 +42,8 @@ export interface ChatPanelProps {
   // Slim line under the composer (machine chip, quota reset): lives in the chat column so it
   // tracks the team rail instead of sliding under it.
   footer?: ReactNode;
+  // Reload in progress: a session will be restored, so never show the empty new-chat screen.
+  restoring?: boolean;
   botDecor?: ChatBotDecor;
   // Link to the agent; a dead one puts the chat's Bit to sleep.
   conn?: LinkState;

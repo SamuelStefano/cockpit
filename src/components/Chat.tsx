@@ -29,7 +29,7 @@ import { BotThreadContext, BOT_ANSWER_PLACEHOLDER } from './chat/bot-thread-cont
 
 export type { Phase };
 
-export function ChatPanel({ session, messages, phase, terminalBusy = false, draft, setDraft, onSend, onPrompt, onApproveWorkflow, onStop, mode, setMode, caps, claudeReady = true, bypass, setBypass, model, setModel, modelLocked, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, slashCommands, contextTokens, contextModel = null, sendCost, liveTurnTokens, turnStartedAt, bgAgents, lastTurn, lastEnd, onNew, onHandoff, handoffBusy = false, attachments, onUpload, onRemoveAttachment, attPreview = null, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser, onQuote, onMemorize, onRename, onDelete, onOpenFull, onLoadOlder, onOpenSummary, truncated, onShowHelp, focusSignal = 0, onTerminal, terminalRunning, terminalOpen, usage, isMobile = false, onMenu, keyboardOpen = false, quotaPaused = false, quotaResetsAt = null, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueReleaseAt = 0, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce, resumeOffer = null, resumeRun, orchestratorSessionId, turnStatus, teamSlot, footer, botDecor, conn, call }: ChatPanelProps) {
+export function ChatPanel({ session, messages, phase, terminalBusy = false, draft, setDraft, onSend, onPrompt, onApproveWorkflow, onStop, mode, setMode, caps, claudeReady = true, bypass, setBypass, model, setModel, modelLocked, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, slashCommands, contextTokens, contextModel = null, sendCost, liveTurnTokens, turnStartedAt, bgAgents, lastTurn, lastEnd, onNew, onHandoff, handoffBusy = false, attachments, onUpload, onRemoveAttachment, attPreview = null, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser, onQuote, onMemorize, onRename, onDelete, onOpenFull, onLoadOlder, onOpenSummary, truncated, onShowHelp, focusSignal = 0, onTerminal, terminalRunning, terminalOpen, usage, isMobile = false, onMenu, keyboardOpen = false, quotaPaused = false, quotaResetsAt = null, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueReleaseAt = 0, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce, resumeOffer = null, resumeRun, orchestratorSessionId, turnStatus, teamSlot, footer, restoring = false, botDecor, conn, call }: ChatPanelProps) {
   const c = useChatPanel({ session, messages, phase, models, model, lastEnd, onSend, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queueRetry, queueRunBg, queueRunNow });
   // Modo iterativo: um refino pedido de dentro de um live preview vira o próximo
   // prompt (o card não tem acesso ao compositor — publica no [[refine-bus]]).
@@ -69,7 +69,7 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, draf
       queueHeld={c.queueHeld} onResumeQueue={c.resumeQueue}
       paused={quotaPaused} quotaResetsAt={quotaResetsAt} onCall={call.supported ? call.dial : undefined} />
   );
-  const hero = c.isEmpty && phase === 'idle' && !botDecor;
+  const hero = c.isEmpty && phase === 'idle' && !botDecor && !restoring;
 
   return (
     <div
@@ -88,7 +88,7 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, draf
         fullLoaded={c.fullLoaded} truncated={truncated} onOpenFull={onOpenFull} onLoadOlder={onLoadOlder} onOpenSummary={onOpenSummary}
         beforeGrow={c.captureAnchor}
         setFullLoaded={c.setFullLoaded} onTerminal={onTerminal} terminalRunning={terminalRunning} terminalOpen={terminalOpen} usage={usage} onRename={onRename} onDelete={onDelete}
-        keyboardOpen={keyboardOpen} selectedModel={model} onMenu={isMobile ? onMenu : undefined} teamSlot={teamSlot}
+        keyboardOpen={keyboardOpen} selectedModel={model} onMenu={isMobile ? onMenu : undefined} teamSlot={teamSlot} restoring={restoring}
         agent={botDecor && { name: botDecor.name, avatar: botDecor.avatar, ...botDecor.header }}
       />
 
