@@ -42,6 +42,8 @@ const STUDENT_ALLOWED: ReadonlySet<ClientMsg['t']> = new Set([
   'team-get', 'team-save', 'team-delete',
   // Text-only one-shot with no tools (ws/agent-build.ts); one in flight per socket.
   'agent-build',
+  // Text in, mp3 out, no tools and no state; same level as sending a chat message.
+  'tts',
   'crons-get', 'cron-save', 'cron-delete', 'cron-run',
   // Read-only, limited to a bot in this account's team.json and to that bot's
   // workspace after realpath (ws/team-files-frames.ts, team-files.ts).

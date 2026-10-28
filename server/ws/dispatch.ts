@@ -27,6 +27,7 @@ import { getMemories, saveMemory, deleteMemory, validateMemoryInput, readMemorie
 import { botTurnFor, botDenyRules } from '../team-prompt';
 import { agentBuilderTurn } from '../engine/triage';
 import { cleanBuildRequest } from './agent-build';
+import { parseTtsText, synthesize } from '../tts';
 import { sendTeamMessages, sendTeamPaused, setTeamPause } from './team-frames';
 import { clearBotQuestion, sendTeamPending } from './team-pending-frames';
 import { sendBotComputer, sendBotFile, sendBotFiles } from './team-files-frames';
@@ -145,6 +146,8 @@ const NOW_RUN_MESSAGE: Record<NowRunReject, string> = {
 // Cards with a dfl-task-create-link between its checks and its board write.
 const dflCreatesInFlight = new Set<string>();
 const buildInFlight = new WeakSet<WebSocket>();
+const ttsInFlight = new WeakMap<WebSocket, number>();
+const MAX_TTS_IN_FLIGHT = 3;
 
 export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
   switch (msg.t) {
@@ -872,6 +875,18 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       const r = await saveBot(coerceBotForRole(v.bot, role));
       if (!r.ok) { send(ws, { t: 'error', message: r.error }); return; }
       broadcast({ t: 'team', bots: r.bots });
+      return;
+    }
+    case 'tts': {
+      const reqId = typeof msg.reqId === 'string' ? msg.reqId.slice(0, 64) : '';
+      const fail = () => send(ws, { t: 'tts-error', reqId });
+      const active = ttsInFlight.get(ws) ?? 0;
+      if (!reqId || active >= MAX_TTS_IN_FLIGHT) { fail(); return; }
+      ttsInFlight.set(ws, active + 1);
+      try {
+        const audio = await synthesize(parseTtsText(typeof msg.text === 'string' ? msg.text : ''));
+        send(ws, { t: 'tts-audio', reqId, audio: audio.toString('base64') });
+      } catch { fail(); } finally { ttsInFlight.set(ws, (ttsInFlight.get(ws) ?? 1) - 1); }
       return;
     }
     case 'agent-build': {

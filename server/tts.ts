@@ -1,11 +1,6 @@
-import type { IncomingMessage, ServerResponse } from 'node:http';
 import { MsEdgeTTS, OUTPUT_FORMAT } from 'msedge-tts';
-import { CONFIG } from './config';
-import { mcpAuthorized } from './mcp/auth';
 
-export const TTS_PATH = '/api/tts';
 export const TTS_MAX_CHARS = 600;
-const MAX_BODY_BYTES = 8 * 1024;
 const DEFAULT_VOICE = 'pt-BR-AntonioNeural';
 const ELEVENLABS_MODEL = 'eleven_flash_v2_5';
 const ELEVENLABS_BASE = 'https://api.elevenlabs.io/v1/text-to-speech';
@@ -15,13 +10,7 @@ export class TtsError extends Error {
   constructor(readonly status: number, message: string) { super(message); }
 }
 
-export function isTtsPath(url: string | undefined): boolean {
-  return !!url && url.split('?')[0] === TTS_PATH;
-}
-
-export function parseTtsText(raw: string): string {
-  let text: unknown;
-  try { text = (JSON.parse(raw) as { text?: unknown }).text; } catch { throw new TtsError(400, 'invalid json'); }
+export function parseTtsText(text: unknown): string {
   if (typeof text !== 'string' || !text.trim()) throw new TtsError(400, 'text required');
   const trimmed = text.trim();
   if (trimmed.length > TTS_MAX_CHARS) throw new TtsError(400, `text too long (max ${TTS_MAX_CHARS})`);
@@ -86,39 +75,4 @@ export function synthesize(text: string, env: TtsEnv = readTtsEnv()): Promise<Bu
   const voiceId = env.COCKPIT_ELEVENLABS_VOICE_ID?.trim();
   if (key && voiceId) return synthesizeElevenLabs(text, key, voiceId);
   return synthesizeEdge(text, edgeVoice(env));
-}
-
-function readBody(req: IncomingMessage): Promise<string> {
-  return new Promise((resolve, reject) => {
-    let size = 0;
-    const parts: Buffer[] = [];
-    req.on('data', (c: Buffer) => {
-      size += c.length;
-      if (size > MAX_BODY_BYTES) { reject(new TtsError(413, 'body too large')); req.destroy(); return; }
-      parts.push(c);
-    });
-    req.on('end', () => resolve(Buffer.concat(parts).toString('utf8')));
-    req.on('error', reject);
-  });
-}
-
-function fail(res: ServerResponse, status: number, message: string) {
-  if (res.headersSent) { res.end(); return; }
-  res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' });
-  res.end(JSON.stringify({ error: message }));
-}
-
-// Default-deny like /mcp: without a configured COCKPIT_TOKEN nobody gets audio.
-export async function handleTtsRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
-  if (!mcpAuthorized(CONFIG.authToken, req.headers.authorization)) { fail(res, 401, 'unauthorized'); return; }
-  if (req.method !== 'POST') { fail(res, 405, 'method not allowed'); return; }
-  try {
-    const text = parseTtsText(await readBody(req));
-    const audio = await synthesize(text);
-    res.writeHead(200, { 'content-type': 'audio/mpeg', 'content-length': audio.length, 'cache-control': 'no-store' });
-    res.end(audio);
-  } catch (e) {
-    if (e instanceof TtsError) { fail(res, e.status, e.message); return; }
-    fail(res, 502, 'tts failed');
-  }
 }

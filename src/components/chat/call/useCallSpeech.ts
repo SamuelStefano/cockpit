@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
-import { relayHttpBase } from '../../../cockpit/session';
-import { loadPref } from '../../../lib/persist';
+import { requestTts } from '../../../cockpit/tts-bus';
 import { SPEECH_LANG } from '../speech';
 import { splitForSpeech } from './utterance';
 
@@ -12,21 +11,7 @@ const TTS_COOLDOWN_MS = 30000;
 // WAV header with no samples: enough to satisfy the autoplay unlock.
 const SILENT_WAV = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
 
-async function fetchChunk(text: string, signal: AbortSignal): Promise<Blob> {
-  const token = loadPref<string>('auth.token', '');
-  const res = await fetch(`${relayHttpBase()}/api/tts`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) },
-    body: JSON.stringify({ text }),
-    signal,
-  });
-  if (!res.ok) throw new Error(`tts ${res.status}`);
-  const blob = await res.blob();
-  if (blob.size === 0) throw new Error('empty audio');
-  return blob;
-}
-
-// Plays server-rendered neural voice chunk by chunk (the next chunk is fetched while
+// Plays the box's neural voice (a `tts` frame on the chat socket) chunk by chunk (the next chunk is fetched while
 // the current one plays) and falls back to the browser voice when the server can't
 // answer, so a call never goes silent. Every cancel() bumps `run` so late callbacks
 // from an interrupted reply never fire onDone for the next one.
@@ -99,7 +84,7 @@ export function useCallSpeech(onDone: () => void) {
     const ctrl = new AbortController();
     abortRef.current = ctrl;
     const blobs: Promise<Blob | null>[] = [];
-    const load = (i: number) => (blobs[i] ??= fetchChunk(chunks[i], ctrl.signal).catch(() => null));
+    const load = (i: number) => (blobs[i] ??= requestTts(chunks[i], ctrl.signal).catch(() => null));
 
     void (async () => {
       for (let i = 0; i < chunks.length; i++) {
