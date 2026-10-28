@@ -45,6 +45,11 @@ export function clientIp(req: IncomingMessage): string {
 
 function sameOrigin(req: IncomingMessage, origins: string[]): boolean {
   const o = req.headers.origin;
+  // Sec-Fetch-Site is set by the browser itself; a cross-site page cannot forge it.
+  if (o === 'null' || !o) {
+    if (req.headers['sec-fetch-site'] === 'same-origin') return true;
+    if (o === 'null') return false;
+  }
   if (o) return origins.includes(o);
   const ref = req.headers.referer;
   return typeof ref === 'string' && origins.some((origin) => ref === origin || ref.startsWith(`${origin}/`));

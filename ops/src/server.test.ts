@@ -88,3 +88,10 @@ describe('ops server', () => {
     expect(data.listReports).toHaveBeenCalledWith({ accountIds: undefined, boxIds: undefined, source: 'browser', kind: 'js-error', limit: 100 });
   });
 });
+
+describe('login origin check', () => {
+  it('serves pages that do not turn the form Origin into null', async () => {
+    const { readFileSync } = await import('node:fs');
+    expect(readFileSync(new URL('./views.ts', import.meta.url), 'utf8')).not.toContain('content="no-referrer"');
+  });
+});
