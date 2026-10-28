@@ -7,6 +7,8 @@ import {
   type JwksFn, type Identity,
 } from './verify';
 import { slidingWindow } from './throttle';
+import { createObs } from './obs';
+import { OPS_PAGE } from './opsPage';
 import { parseCsvSet, clientIp, originAllowed, tokenFromSubprotocol, pickSubprotocol, rawLength, makeLimiter } from './guards';
 import { parseRootEmails, canSeeAllAccounts, canGrantAdmin, canListAccounts, type AccountRole } from '../../shared/identity';
 import { isRootOnlyFrame } from '../../shared/root-frames';
@@ -62,6 +64,11 @@ export interface RelayConfig {
   maxPayload?: number;
   // Segredo do /status detalhado (DECK_STATUS_TOKEN). Ausente = só o corpo público.
   statusToken?: string;
+  // Bearer for /ops and /ops/stats (DECK_OPS_TOKEN). Falls back to statusToken; neither = 404.
+  opsToken?: string;
+  // Salt for hashed ids in logs (DECK_LOG_SALT). Unset = random per process.
+  logSalt?: string;
+  revision?: string;
   // Override da resolução de identidade do browser (default: JWT via JWKS). Existe
   // só pra TESTE de integração local (stub) — em prod fica undefined = JWKS real.
   resolveIdentity?: (token: string | null) => Promise<Identity | null>;
@@ -93,6 +100,15 @@ export function createRelay(cfg: RelayConfig) {
   }
   const registry = new Registry();
   const startedAt = nowMs();
+  const obs = createObs({ salt: cfg.logSalt });
+  const revision = cfg.revision ?? 'unknown';
+  const opsSecret = cfg.opsToken || cfg.statusToken;
+  const telemetryThrottle = slidingWindow(30, 60_000);
+  const originHost = (o: string | undefined): string => {
+    if (!o) return 'none';
+    try { return new URL(o).host.replace(/[^A-Za-z0-9.:-]/g, '?').slice(0, 60); } catch { return 'invalid'; }
+  };
+  const closeReason = (r: Buffer): string => r.toString('utf8').replace(/[^\x20-\x7e]/g, '?').slice(0, 40);
   const roots = parseRootEmails(cfg.rootEmails);
   const rootIds = parseCsvSet(cfg.rootUserIds);
   const origins = parseCsvSet(cfg.allowedOrigins);
@@ -186,14 +202,75 @@ export function createRelay(cfg: RelayConfig) {
     if (origins.size === 0) res.setHeader('access-control-allow-origin', origin ?? '*');
     else if (origin && origins.has(origin)) res.setHeader('access-control-allow-origin', origin);
     res.setHeader('vary', 'Origin');
-    res.setHeader('access-control-allow-methods', 'POST, OPTIONS');
+    res.setHeader('access-control-allow-methods', 'GET, POST, OPTIONS');
     res.setHeader('access-control-allow-headers', 'authorization, content-type');
     res.setHeader('access-control-max-age', '600');
+  };
+
+  // Anonymous SPA beacon: origin-gated, size-capped, rate limited per IP (IP is never stored).
+  const handleTelemetry = (req: IncomingMessage, res: import('node:http').ServerResponse) => {
+    const end = (code: number) => { if (!res.headersSent) { res.writeHead(code); res.end(); } };
+    if (!originAllowed(origins, req.headers.origin)) { end(403); return; }
+    if (!telemetryThrottle(clientIp(req))) { end(429); return; }
+    const MAX = 2048;
+    const declared = Number(req.headers['content-length']);
+    if (Number.isFinite(declared) && declared > MAX) { end(413); req.resume(); return; }
+    const chunks: Buffer[] = [];
+    let size = 0;
+    let aborted = false;
+    req.on('data', (c: Buffer) => {
+      if (aborted) return;
+      size += c.length;
+      if (size > MAX) { aborted = true; chunks.length = 0; end(413); return; }
+      chunks.push(c);
+    });
+    req.on('end', () => {
+      if (aborted) return;
+      let body: unknown;
+      try { body = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { end(400); return; }
+      end(obs.clientReport(body) ? 204 : 400);
+    });
+    req.on('error', () => end(400));
   };
 
   const server = createServer(async (req, res) => {
     setCors(req, res);
     if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
+    const urlPath = (req.url ?? '').split('?')[0];
+    if (urlPath === '/pair/new' || urlPath === '/status') {
+      const name = urlPath === '/status' ? 'status' : 'pair_new';
+      res.on('finish', () => obs.event(name, { code: res.statusCode }));
+    }
+    if (req.method === 'POST' && urlPath === '/telemetry') { handleTelemetry(req, res); return; }
+    if (req.method === 'GET' && (urlPath === '/ops' || urlPath === '/ops/stats')) {
+      const auth = req.headers.authorization ?? '';
+      if (urlPath === '/ops') {
+        if (!opsSecret) { res.writeHead(404); res.end(); return; }
+        res.writeHead(200, {
+          'content-type': 'text/html; charset=utf-8',
+          'content-security-policy': "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'",
+          'x-content-type-options': 'nosniff',
+          'cache-control': 'no-store',
+        });
+        res.end(OPS_PAGE);
+        return;
+      }
+      if (!opsSecret) { res.writeHead(404); res.end(); return; }
+      if (!(auth.startsWith('Bearer ') && secretEquals(opsSecret, auth.slice(7)))) {
+        res.writeHead(401, { 'cache-control': 'no-store' }); res.end('auth'); return;
+      }
+      const s = registry.stats();
+      res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+      res.end(JSON.stringify({
+        revision,
+        startedAt: new Date(startedAt).toISOString(),
+        uptimeS: Math.floor((nowMs() - startedAt) / 1000),
+        live: { browsers: s.browsers, agents: s.agents, boxesOnline: s.agents },
+        counters: obs.counters(),
+        recent: obs.recent(),
+      }));
+      return;
+    }
     // POST /pair/new — o browser logado pede um código de pareamento (JWT no header).
     if (req.method === 'POST' && (req.url ?? '').split('?')[0] === '/pair/new') {
       // Só header: JWT em query string vaza pro access log do Caddy (e pro Referer).
@@ -249,6 +326,11 @@ export function createRelay(cfg: RelayConfig) {
     // Teto do buffer pré-auth: um socket que nunca autentica (ou um atacante) podia
     // despejar frames sem limite durante o await do JWKS até estourar a heap. Frames
     // legítimos pré-auth são ~4 (list/usage/skill-list). Acima do teto, fecha.
+    const openedAt = nowMs();
+    let acctHid: string | undefined;
+    ws.on('close', (code: number, reason: Buffer) => {
+      obs.event('browser_close', { code, reason: closeReason(reason), ms: nowMs() - openedAt, acct: acctHid });
+    });
     const early: string[] = [];
     let earlyBytes = 0;
     const buffer = (data: import('ws').RawData) => {
@@ -269,8 +351,9 @@ export function createRelay(cfg: RelayConfig) {
     // never authority. A box of another account resolves to "offline", like an
     // unknown one. Anything that isn't a uuid is refused before the JWT work.
     const { box: rawBox, peek } = boxFromUrl(req.url);
-    if ((rawBox !== null && !isBoxId(rawBox)) || (peek && rawBox === null)) { clearTimeout(authTimer); ws.close(4400, 'bad box'); return; }
+    if ((rawBox !== null && !isBoxId(rawBox)) || (peek && rawBox === null)) { obs.event('browser_open', { peek, box: rawBox !== null, bad: true }); clearTimeout(authTimer); ws.close(4400, 'bad box'); return; }
     const box = rawBox ? rawBox.toLowerCase() : '';
+    obs.event('browser_open', { peek, box: box !== '' });
     const id = await identityFrom(tokenFromSubprotocol(req.headers['sec-websocket-protocol']) ?? tokenFromUrl(req.url));
     clearTimeout(authTimer);
     // The socket may have closed during the await (F5, pre-auth flood, auth
@@ -280,8 +363,10 @@ export function createRelay(cfg: RelayConfig) {
     if (ws.readyState !== WebSocket.OPEN) return;
     if (!id) { ws.close(4401, 'auth'); return; }            // default-deny (red line #10)
     const accountId = id.accountId;
+    acctHid = obs.hid(accountId);
     // Checked and registered with no await in between, so concurrent opens can't overshoot.
     if (registry.browserCount(accountId, box, peek) >= (peek ? MAX_PEEKS_PER_BOX : maxTabs)) { ws.close(4429, 'too many tabs'); return; }
+    obs.event('browser_auth_ok', { acct: acctHid, box: box ? obs.hid(box) : 'primary', role: id.role, peek });
     (ws as BrowserSock)._role = id.role;                     // pra reemitir caps no agent-caps
     const connId = randomBytes(16).toString('base64url');
     conns.set(connId, { ws, accountId });
@@ -410,6 +495,14 @@ export function createRelay(cfg: RelayConfig) {
   wssAgent.on('connection', (ws: WebSocket) => {
     const st: AgentState = { agentId: '', accountId: '', challenge: '', authed: false };
     let attempts = 0;
+    const agentOpenedAt = nowMs();
+    obs.event('agent_open');
+    ws.on('close', (code: number, reason: Buffer) => {
+      obs.event('agent_close', {
+        code, reason: closeReason(reason), ms: nowMs() - agentOpenedAt,
+        acct: st.accountId ? obs.hid(st.accountId) : undefined, box: st.agentId ? obs.hid(st.agentId) : undefined,
+      });
+    });
     // Socket pré-auth não pode ficar pendurado (DB-amplification/exaustão): fecha
     // se não autenticar em 15s.
     const authTimer = setTimeout(() => { if (!st.authed) { try { ws.close(4408, 'auth timeout'); } catch { /* indo */ } } }, 15_000);
@@ -431,6 +524,7 @@ export function createRelay(cfg: RelayConfig) {
           const agentId = await cfg.store.createAgent(accountId, m.publicKey, sanitizeBoxLabel(m.label));
           if (!agentId) { ws.close(4500, 'pair failed'); return; }
           boxRows.delete(accountId);
+          obs.event('agent_pair_ok', { acct: obs.hid(accountId), box: obs.hid(agentId) });
           ws.send(JSON.stringify({ t: 'paired', agentId }));
           void sendBoxes(accountId);
           return;
@@ -461,6 +555,7 @@ export function createRelay(cfg: RelayConfig) {
           if (ws.readyState !== ws.OPEN) return;
           st.authed = true;
           clearTimeout(authTimer);
+          obs.event('agent_auth_ok', { acct: obs.hid(st.accountId), box: obs.hid(st.agentId) });
           const prevPrimary = registry.primary(st.accountId);
           const prevAgent = registry.bindAgent(st.accountId, st.agentId, ws, st.rank);
           if (prevAgent) { try { (prevAgent as WebSocket).terminate(); } catch { /* já indo */ } }
@@ -552,15 +647,17 @@ export function createRelay(cfg: RelayConfig) {
   server.on('upgrade', (req, socket, head) => {
     const path = (req.url ?? '').split('?')[0];
     const target = path === '/agent' ? wssAgent : path === '/ws' ? wssBrowser : null;
-    if (!target) { socket.destroy(); return; }
+    if (!target) { obs.event('upgrade_not_found'); socket.destroy(); return; }
     // Browsers always send Origin; a cross-site page must not open a socket with the
     // user's token. Agents send none (allowed); a foreign Origin on /agent is rejected too.
     if (!originAllowed(origins, req.headers.origin)) {
+      obs.event('origin_reject', { host: originHost(req.headers.origin), path });
       socket.end('HTTP/1.1 403 Forbidden\r\nconnection: close\r\ncontent-length: 0\r\n\r\n');
       return;
     }
     const release = acquireIp(clientIp(req));
     if (!release) {
+      obs.event('ip_limit', { path });
       socket.end('HTTP/1.1 429 Too Many Requests\r\nconnection: close\r\ncontent-length: 0\r\n\r\n');
       return;
     }
@@ -600,12 +697,15 @@ export function createRelay(cfg: RelayConfig) {
   // SIGKILL (~90s offline per restart instead of a few seconds). Agents and tabs
   // reconnect with backoff.
   const shutdown = (done: () => void) => {
+    obs.event('relay_stop');
     clearInterval(beat);
     for (const w of [wssBrowser, wssAgent]) for (const c of w.clients) { try { c.terminate(); } catch { /* going */ } }
     server.close(() => done());
   };
 
-  return { server, registry, shutdown };
+  obs.event('relay_start', { revision });
+
+  return { server, registry, shutdown, obs };
 }
 
 // Pré-filtro BARATO: só decide se vale gastar um JSON.parse. Os frames de DADOS
