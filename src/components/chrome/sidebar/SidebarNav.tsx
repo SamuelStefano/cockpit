@@ -12,7 +12,7 @@ interface SidebarNavProps {
 }
 
 export function SidebarNav({ route, nav, role, counts, expanded }: SidebarNavProps) {
-  const items = footerNav(role);
+  const items = footerNav(role).filter((i) => i.id !== 'configuracoes');
   if (!items.length) return null;
   return (
     <nav aria-label="Rotas" className="flex flex-col gap-0.5">

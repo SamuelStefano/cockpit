@@ -26,12 +26,11 @@ export interface UsageDockProps {
 
 interface Placement { side: PopoverSide; tip: TooltipSide; size: number; box: string }
 
-const DESKTOP: Placement = { side: 'right', tip: 'right', size: 22, box: 'h-10 w-10' };
-const MOBILE: Placement = { side: 'bottom', tip: 'bottom', size: 24, box: 'h-11 w-11' };
+const HEADER: Placement = { side: 'bottom', tip: 'bottom', size: 20, box: 'h-8 w-8 pointer-coarse:h-11 pointer-coarse:w-11' };
 
-// The plan-usage ring: no number on screen, the reading is in the hover label and
+// The plan-usage ring, in the chat header: no number on screen, the reading is in the hover label and
 // the click opens the full panel plus the VPS meters (the old StatusBar).
-export function UsageDock({ usageAgent = 'claude', planUsage, planBlockedUntil = null, planReadAt = null, planNextReadAt = null, onRefreshPlanUsage, grokUsage, onRefreshGrokUsage, quotaWarn = false, quotaPaused = false, quotaResetsAt = null, stats, mobile = false }: UsageDockProps & { mobile?: boolean }) {
+export function UsageDock({ usageAgent = 'claude', planUsage, planBlockedUntil = null, planReadAt = null, planNextReadAt = null, onRefreshPlanUsage, grokUsage, onRefreshGrokUsage, quotaWarn = false, quotaPaused = false, quotaResetsAt = null, stats }: UsageDockProps) {
   const [open, setOpen] = useState(false);
   const chip = usageChip(usageAgent, { usage: planUsage, blockedUntil: planBlockedUntil, readAt: planReadAt, nextReadAt: planNextReadAt }, grokUsage);
   useOpenRefresh(open, chip.agent === 'grok' ? onRefreshGrokUsage : onRefreshPlanUsage);
@@ -39,7 +38,7 @@ export function UsageDock({ usageAgent = 'claude', planUsage, planBlockedUntil =
   const paused = chip.gate && quotaPaused;
   const gateResetAt = chip.gate ? quotaResetsAt : null;
   const s = usageSummary({ usage: chip.usage, agent: chip.agent, readAt: chip.readAt, warn, paused, quotaResetsAt: gateResetAt });
-  const p = mobile ? MOBILE : DESKTOP;
+  const p = HEADER;
   const title = chip.agent === 'grok' ? 'Uso do Grok' : 'Uso do plano';
 
   return (

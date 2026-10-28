@@ -6,14 +6,15 @@ import { ContextRing } from './ContextRing';
 afterEach(cleanup);
 
 describe('ContextRing', () => {
-  it('renders nothing without context', () => {
-    const { container } = render(<ContextRing tokens={0} />);
-    expect(container.firstChild).toBeNull();
+  it('stays rendered and dimmed without context', () => {
+    render(<ContextRing tokens={0} onNew={vi.fn()} />);
+    expect(screen.getByLabelText('Contexto da conversa: 0%')).toBeTruthy();
+    expect(screen.getByText('nova sessão')).toBeTruthy();
   });
 
-  it('hides below 70 percent', () => {
-    const { container } = render(<ContextRing tokens={76_000} model="claude-opus-4-8" onNew={vi.fn()} />);
-    expect(container.firstChild).toBeNull();
+  it('stays rendered below 70 percent', () => {
+    render(<ContextRing tokens={76_000} model="claude-opus-4-8" onNew={vi.fn()} />);
+    expect(screen.getByText('nova sessão')).toBeTruthy();
   });
 
   it('shows the new-session action when over the limit', () => {
