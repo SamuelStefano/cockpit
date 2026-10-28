@@ -3,6 +3,8 @@ import { Button, SectionTitle } from '../../components/primitives';
 import { VpsMeters } from '../../components/chrome/sidebar/VpsMeters';
 import { AdminHostOps } from '../AdminHostOps';
 import { AdminDeckUpdate } from '../AdminDeckUpdate';
+import { AdminInventory } from '../AdminInventory';
+import { Collapsible } from '../Collapsible';
 import type { AdminHealth, SysStats } from '../../../shared/protocol';
 import { useAdminOpToast } from './useAdminOpToast';
 
@@ -42,13 +44,12 @@ export function Maquina(p: MaquinaProps) {
       <div className="overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900/60 hairline [&>div]:border-t-0">
         <VpsMeters stats={p.stats} />
       </div>
+      {p.health && <Collapsible title="Inventário"><AdminInventory health={p.health} /></Collapsible>}
       {p.isRoot && (
-        <>
-          <SectionTitle>Claude Code e Deck</SectionTitle>
+        <div className="mt-6">
           <AdminDeckUpdate health={p.health} adminOp={p.adminOp} onCliUpdate={p.onCliUpdate} onDeckRestart={p.onDeckRestart} />
-          <SectionTitle>Tokens, MCPs e CLIs</SectionTitle>
           <AdminHostOps health={p.health} adminOp={p.adminOp} onEnvSet={p.onEnvSet} onEnvUnset={p.onEnvUnset} onMcpAdd={p.onMcpAdd} onMcpRemove={p.onMcpRemove} onCliInstall={p.onCliInstall} />
-        </>
+        </div>
       )}
     </>
   );

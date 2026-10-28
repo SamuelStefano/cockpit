@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { connectionsTabFromHash } from '../lib/admin-nav';
 import type { Connection } from '../../shared/connections';
 import type { TeamBot } from '../../shared/protocol';
@@ -26,6 +26,7 @@ interface Props {
   onGet: () => void;
   onToolAdd: (hosts?: string[]) => void;
   onGo: (to: '/onboarding') => void;
+  manage?: { provedores?: ReactNode; ferramentas?: ReactNode };
 }
 
 const FOOT: Partial<Record<ConnTab, string>> = {
@@ -34,7 +35,7 @@ const FOOT: Partial<Record<ConnTab, string>> = {
   maquinas: 'Outra VPS ou computador com o Deck instalado. Os agentes de cada máquina aparecem agrupados na barra lateral.',
 };
 
-export function Conexoes({ connected, items, loaded, bots, dflMcpsState, dflMcpsBusy, onGet, onToolAdd, onGo }: Props) {
+export function Conexoes({ connected, items, loaded, bots, dflMcpsState, dflMcpsBusy, onGet, onToolAdd, onGo, manage }: Props) {
   const [tab, setTab] = useState<ConnTab>(() => connectionsTabFromHash(location.hash) ?? 'provedores');
   const [toolOpen, setToolOpen] = useState(false);
   const [removing, setRemoving] = useState<Connection | null>(null);
@@ -119,6 +120,8 @@ export function Conexoes({ connected, items, loaded, bots, dflMcpsState, dflMcps
         {active === 'ferramentas' && list.length > 0 && (
           <p className="mt-3 text-[12px] text-neutral-500">Cada agente só usa as ferramentas que estão ligadas na página dele. Desligar aqui desliga para todos.</p>
         )}
+        {active === 'provedores' && manage?.provedores}
+        {active === 'ferramentas' && manage?.ferramentas}
         {active === 'aparelhos' && sealed && <PairDevice link={link} />}
       </div>
       <ConnectTool open={toolOpen} busy={dflMcpsBusy} onClose={() => setToolOpen(false)} onConnect={() => { onToolAdd(); setToolOpen(false); }} />

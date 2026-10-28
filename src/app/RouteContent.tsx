@@ -15,6 +15,7 @@ import type { Terminal } from '../data/types';
 import type { useCockpit } from '../useCockpit';
 import type { AgentTab, Route } from '../useRoute';
 import { navigateTo } from '../lib/route-nav';
+import { ManageProviders, ManageTools } from '../routes/conexoes/Manage';
 import { requestTerminal } from '../lib/terminal-request';
 import type { NavRole } from '../components/chrome/nav-routes';
 import type { UsageDockProps } from '../components/chrome/sidebar/UsageDock';
@@ -130,9 +131,11 @@ export function RouteContent({ route, agentRoute, skillRoute, isMobile, isAdmin,
       );
     }
     if (route === '/conexoes' && isAdmin) {
+      const manage = { agents: c.agents, dflMcps: c, term: c.term, models: c.models, isRoot, onOpenAgentChat };
       return (
         <Conexoes connected={connected} items={c.connections} loaded={c.connectionsLoaded} bots={c.bots}
-          dflMcpsState={c.dflMcps} dflMcpsBusy={c.dflMcpsBusy} onGet={c.onConnectionsGet} onToolAdd={c.onDflMcpsAdd} onGo={navigateTo} />
+          dflMcpsState={c.dflMcps} dflMcpsBusy={c.dflMcpsBusy} onGet={c.onConnectionsGet} onToolAdd={c.onDflMcpsAdd} onGo={navigateTo}
+          manage={{ provedores: <ManageProviders {...manage} />, ferramentas: <ManageTools {...manage} /> }} />
       );
     }
     if (route === '/agentes' && agentRoute) {

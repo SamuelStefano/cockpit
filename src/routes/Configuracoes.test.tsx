@@ -24,7 +24,20 @@ function mount(role: NavRole, route: Route = '/configuracoes', nav: (to: Route) 
   );
 }
 
+vi.mock('./AdminInventory', () => ({ AdminInventory: () => <div>inventory-panel</div> }));
+const withHealth = { ...(cockpit as object), health: { host: 'h' } } as never;
+
 describe('Configuracoes', () => {
+  it('Máquina offers the inventory to admin and root, never to a student', () => {
+    for (const role of ['admin', 'root'] as const) {
+      render(<Configuracoes route="/configuracoes/maquina" role={role} nav={noop} isMobile={false} connected cockpit={withHealth} account={{}} usageDock={dock} onOpenSession={noop} onOpenTerminal={noop} />);
+      expect(screen.getByRole('button', { name: 'Inventário' })).toBeTruthy();
+      cleanup();
+    }
+    render(<Configuracoes route="/configuracoes/maquina" role="student" nav={noop} isMobile={false} connected cockpit={withHealth} account={{}} usageDock={dock} onOpenSession={noop} onOpenTerminal={noop} />);
+    expect(screen.queryByRole('button', { name: 'Inventário' })).toBeNull();
+  });
+
   it('student: Conta only, no subnav', () => {
     mount('student');
     expect(screen.queryByRole('navigation', { name: 'Seções de configurações' })).toBeNull();
