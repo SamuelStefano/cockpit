@@ -103,11 +103,11 @@ export function AgentForm({ bot, bots, models, locked, skills = [], onSave, onSa
           <Button type="submit" variant="primary" size="md" icon={bot ? 'check' : 'plus'} className={tokens.focusRing}>{bot ? 'Salvar' : 'Criar'}</Button>
         </div>
       </form>
-        {b.panel === 'builder' && onAgentBuild && (
-          <BotBuilder initial={{ name: draft.name, label: draft.label, instructions: draft.instructions, skills: draft.skills }} skills={skills}
-            result={agentBuild} onBuild={onAgentBuild} onAccept={b.accept} onClose={() => b.setPanel(null)} />
-        )}
-        {b.panel === 'template' && <BotTemplate draft={draft} skills={skills} onImport={b.imported} onClose={() => b.setPanel(null)} />}
+      {b.panel === 'builder' && onAgentBuild && (
+        <BotBuilder initial={{ name: draft.name, label: draft.label, instructions: draft.instructions, skills: draft.skills }} skills={skills}
+          result={agentBuild} onBuild={onAgentBuild} onAccept={b.accept} onClose={() => b.setPanel(null)} />
+      )}
+      {b.panel === 'template' && <BotTemplate draft={draft} skills={skills} onImport={b.imported} onClose={() => b.setPanel(null)} />}
     </>
   );
 }
