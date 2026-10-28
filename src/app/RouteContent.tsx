@@ -7,13 +7,14 @@ import { RouteFallback } from './RouteFallback';
 import { ChunkErrorBoundary } from './ChunkErrorBoundary';
 import {
   Contextos, Skills, Pontos, Crons, Observatorio,
-  Graph, Canvas, Admin, Docs, DesignSystem, Agente,
+  Graph, Canvas, Admin, Docs, DesignSystem, Onboarding, Agente,
 } from './lazyRoutes';
 import type { ChatPanelProps } from '../components/chat/chat-panel-props';
 import type { TerminalsPanelProps } from '../components/Terminals';
 import type { Terminal } from '../data/types';
 import type { useCockpit } from '../useCockpit';
 import type { AgentTab, Route } from '../useRoute';
+import { navigateTo } from '../lib/route-nav';
 
 // The DFL snapshot is root-only on the server: the Canvas of a plain admin skips it.
 const noop = () => {};
@@ -135,6 +136,13 @@ export function RouteContent({ route, agentRoute, isMobile, isAdmin, isRoot, con
     }
     if (route === '/docs') return <Docs />;
     if (route === '/ds') return <DesignSystem />;
+    if (route === '/onboarding') {
+      return (
+        <Onboarding agents={c.agents} claudeReady={c.claudeReady} login={c.claudeLogin}
+          onStart={c.onClaudeLoginStart} onCode={c.onClaudeLoginCode} onCancel={c.onClaudeLoginCancel}
+          onDone={() => navigateTo('/')} />
+      );
+    }
     // '/' and '/equipe' (a deep link that lands on the primary agent) share one surface.
     const center = agent.active
       ? <AgentCenter view={agent.active} agent={agent} cockpit={c} chatProps={chatProps} connected={connected} isMobile={isMobile} isAdmin={isAdmin} />

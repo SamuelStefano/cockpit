@@ -1,10 +1,7 @@
-import { useContext, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Icon, Markdown, CodeBlock, tokens } from '../primitives';
 import type { Block } from '../../data/types';
 import { AskQuestionCard } from './AskQuestionCard';
-import { BotQuestionCard } from './BotQuestionCard';
-import { BotThreadContext } from './bot-thread-context';
-import { isLetterQuestion } from './useBotQuestionCard';
 import { WorkflowReviewCard } from './WorkflowReviewCard';
 import { isWorkflowReview } from './permission-deny';
 import { isQuestionTool as isQuestion } from './visible-blocks';
@@ -49,7 +46,6 @@ interface AssistantBlocksProps {
 
 export function AssistantBlocks({ blocks, caretOnLast, answerable = false, onAnswer, reviewable = false, onApproveWorkflow }: AssistantBlocksProps) {
   const lastIdx = blocks.length - 1;
-  const botThread = useContext(BotThreadContext);
   return (
     <div className="space-y-2">
       {blocks.map((b, i) => {
@@ -66,7 +62,6 @@ export function AssistantBlocks({ blocks, caretOnLast, answerable = false, onAns
     // numa caixa só. Sobra apenas AskUserQuestion — o turno só destrava se o
     // usuário clicar. Progresso de tarefas fica na bandeja do rodapé.
     if (b.type === 'tool') {
-      if (isQuestion(b.tool) && botThread && isLetterQuestion(b.tool)) return <BotQuestionCard tool={b.tool} answerable={answerable} onAnswer={onAnswer} />;
       if (isQuestion(b.tool)) return <AskQuestionCard tool={b.tool} answerable={answerable} onAnswer={onAnswer} />;
       if (isWorkflowReview(b.tool)) return <WorkflowReviewCard tool={b.tool} reviewable={reviewable} onApprove={onApproveWorkflow} />;
       return null;

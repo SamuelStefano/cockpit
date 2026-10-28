@@ -25,6 +25,7 @@ interface ChatHeaderMenuProps {
   history: HistoryProps | null;
   canExport: boolean;
   profile?: { open: boolean; toggle: () => void } | null;
+  pause?: { paused: boolean; onSet: (paused: boolean) => void };
   contextPct?: number | null;
   onRename?: () => void;
   onTerminal?: () => void;
@@ -33,7 +34,7 @@ interface ChatHeaderMenuProps {
   onDone: () => void;
 }
 
-export function ChatHeaderMenu({ title, messages, lastTurn, ranOn, selectedModel, history, canExport, profile, contextPct = null, onRename, onTerminal, terminalRunning, onDelete, onDone }: ChatHeaderMenuProps) {
+export function ChatHeaderMenu({ title, messages, lastTurn, ranOn, selectedModel, history, canExport, profile, pause, contextPct = null, onRename, onTerminal, terminalRunning, onDelete, onDone }: ChatHeaderMenuProps) {
   const turn = turnStatParts(lastTurn);
   const turns = lastTurn?.numTurns ? ` · ${lastTurn.numTurns} turno${lastTurn.numTurns === 1 ? '' : 's'}` : '';
   const hasActions = !!onRename || canExport || !!history || !!onTerminal;
@@ -53,6 +54,7 @@ export function ChatHeaderMenu({ title, messages, lastTurn, ranOn, selectedModel
           </>
         )}
         {profile && <MenuItem icon="user" label="Perfil do agente" aria-pressed={profile.open} onClick={profile.toggle} />}
+        {pause && <MenuItem icon={pause.paused ? 'play' : 'pause'} label={pause.paused ? 'Retomar agentes' : 'Pausar agentes'} aria-pressed={pause.paused} onClick={() => pause.onSet(!pause.paused)} />}
         {onRename && <MenuItem icon="pencil" label="Renomear" onClick={onRename} />}
         {canExport && <ExportMenu title={title} messages={messages} />}
         {history && <HistoryControls {...history} />}
