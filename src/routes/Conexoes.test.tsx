@@ -3,6 +3,7 @@ import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, cleanup, fireEvent, screen } from '@testing-library/react';
 import type { Connection } from '../../shared/connections';
 import { Conexoes } from './Conexoes';
+import { DFL_LOGIN_EVENT } from './dfl-login-request';
 
 afterEach(cleanup);
 
@@ -24,11 +25,14 @@ describe('Conexoes', () => {
     expect(container.textContent).toContain('1 conexão precisa de você.');
   });
 
-  it('Resolver jumps to the tab of the first problem and re-login adds the tool', () => {
+  it('Resolver jumps to the tab of the first problem and re-login asks for the tool login instead of adding it again', () => {
+    const asked = vi.fn();
+    window.addEventListener(DFL_LOGIN_EVENT, (e) => asked((e as CustomEvent).detail));
     const { p } = mount();
     fireEvent.click(screen.getByText('Resolver'));
-    fireEvent.click(screen.getByText('Entrar de novo'));
-    expect(p.onToolAdd).toHaveBeenCalledWith(['work']);
+    fireEvent.click(screen.getByText('Entrar'));
+    expect(asked).toHaveBeenCalledWith('work');
+    expect(p.onToolAdd).not.toHaveBeenCalled();
   });
 
   it('hides Chaves without key items and keeps dev words out of the main copy', () => {
