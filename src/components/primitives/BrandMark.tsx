@@ -21,7 +21,7 @@ export function BrandMark({ title, subtitle, size = 'md', bitState = 'wave', cla
     <div className={`flex items-center gap-2.5 ${className}`}>
       <Bit state={bitState} size={size === 'lg' ? 52 : 44} />
       <div>
-        <div className={`font-display ${titleSize[size]} font-bold leading-none lowercase tracking-tight ${tokens.text.primary}`}>{title}</div>
+        <div className={`font-display ${titleSize[size]} font-bold leading-none lowercase tracking-wide ${tokens.text.primary}`}>{title}</div>
         {subtitle && <div className={`${subtitleSize[size]} ${tokens.text.muted}`}>{subtitle}</div>}
       </div>
     </div>

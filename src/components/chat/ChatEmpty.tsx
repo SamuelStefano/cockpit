@@ -28,7 +28,7 @@ export function ChatEmpty({ onPrompt, onSeed, suggestions = FALLBACK_SUGGESTIONS
   return (
     <div className="flex min-h-0 flex-1 flex-col items-center overflow-y-auto px-3 pb-10">
       <div className="min-h-6 flex-[6]" />
-      <h2 className="fade-up mb-7 px-3 text-center font-display text-[40px] font-bold leading-none tracking-tight text-neutral-50 pointer-coarse:text-[34px]">O que vamos trabalhar hoje?</h2>
+      <h2 className="fade-up mb-7 px-3 text-center font-display text-[44px] font-bold leading-none tracking-normal text-neutral-50 pointer-coarse:text-[34px]">O que vamos trabalhar hoje?</h2>
       {needsProvider && (
         <p className="fade-up -mt-3 mb-5 text-center text-[13px] text-neutral-400">
           Nenhum provedor conectado ainda.{' '}

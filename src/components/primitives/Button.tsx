@@ -32,8 +32,8 @@ const variants: Record<ButtonVariant, string> = {
 
 const sizes: Record<ButtonSize, string> = {
   xs: 'h-7 gap-1 px-2.5 text-[13px]',
-  sm: 'h-9 gap-1.5 px-3.5 text-[14px]',
-  md: 'h-11 gap-2 px-5 text-[16px]',
+  sm: 'h-9 gap-1.5 px-3.5 text-[15px]',
+  md: 'h-11 gap-2 px-5 text-[18px]',
 };
 
 const squareSizes: Record<ButtonSize, string> = {

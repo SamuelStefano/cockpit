@@ -43,7 +43,7 @@ export function Sidebar({ route, nav, role, navCounts, onNew, onPalette, bitStat
         <Tooltip label={`Ir pro chat · ${BIT_STATE_LABEL[bitState]}`} side="right" disabled={!!drawer}>
           <button type="button" onClick={() => nav('/')} aria-label="Ir pro chat" className="bit-greet flex h-11 items-center gap-2 rounded-xl px-1 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-orange-500/40">
             <Bit state={bitState} size={expanded ? 36 : 30} />
-            {expanded && <span className="font-display text-[28px] font-bold lowercase leading-none tracking-tight text-neutral-50">deck</span>}
+            {expanded && <span className="font-display text-[30px] font-bold lowercase leading-none tracking-wide text-neutral-50">deck</span>}
           </button>
         </Tooltip>
         {expanded && <span className="flex-1" />}

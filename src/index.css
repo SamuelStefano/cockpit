@@ -85,7 +85,7 @@ body {
 
 /* Títulos um tom mais apertados = ar mais "desenhado". */
 h1, h2, h3 { letter-spacing: -0.02em; }
-h1, h2 { font-family: var(--font-display); font-weight: 700; }
+h1, h2 { font-family: var(--font-display); font-weight: 700; letter-spacing: 0; }
 
 /* ── Sistema de profundidade ────────────────────────────────────────────────
    Dark-UI profissional (Linear/Vercel/Raycast) não é chapado: a luz "bate" na
