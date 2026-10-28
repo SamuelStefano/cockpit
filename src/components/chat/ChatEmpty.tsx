@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Bit } from '../bit/Bit';
 import { isVirtualKeyboardOnly } from './touch';
 import { navigateTo } from '../../lib/route-nav';
+import { DECK_GUIDE_PROMPT } from '../../lib/deck-guide-prompt';
 
 interface ChatEmptyProps {
   onPrompt: (text: string) => void;
@@ -50,6 +51,15 @@ export function ChatEmpty({ onPrompt, onSeed, suggestions = FALLBACK_SUGGESTIONS
           </button>
         ))}
       </div>
+      {onSeed && (
+        <button
+          type="button"
+          onClick={() => onSeed(DECK_GUIDE_PROMPT)}
+          className="mt-4 text-[13px] text-neutral-500 underline-offset-2 transition-colors hover:text-orange-400 hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-orange-500/40"
+        >
+          Pergunte ao Deck como configurar
+        </button>
+      )}
     </div>
   );
 }

@@ -100,6 +100,15 @@ conta com um box só, sem mudança. Se o primário cai e outro assume, essas aba
   `id` + `account_id` no banco. Revogar corta o socket do box na hora.
 - Rótulo saneado (controle e bidi fora, ≤ 64) no relay e no banco (migration 0007).
 
+## Skills embarcadas
+
+`bundled-skills/<slug>/` (SKILL.md + references/) viaja com o repo. No boot, o agente e o
+backend local (`server/bundled-skills.ts`) copiam cada uma pra `~/.claude/skills/` com um
+marcador `.deck-bundled.json` (hash do que foi escrito). Pasta ausente → instala; marcador
+presente e conteúdo intocado → atualiza quando o repo muda; sem marcador ou editada pelo
+usuário → nunca mexe. Hoje: `deck-guide` ("como o Deck funciona"), oferecida no estado
+vazio das sessões ("Pergunte ao Deck como configurar").
+
 ## Health checks e supervisão (resiliência)
 
 A box NÃO pode travar. Camadas:
