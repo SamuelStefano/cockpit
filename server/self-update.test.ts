@@ -204,6 +204,21 @@ describe('self-update decision', () => {
     expect(await h.updater.tick()).toBe('restarting');
   });
 
+  it('waits to restart when a turn starts during npm ci, though the code is already merged', async () => {
+    let calls: string[] = [];
+    let turnEnded = false;
+    const h = harness({ depsChanged: true }, { busy: () => !turnEnded && calls.some((c) => c.startsWith('npm ci')) });
+    calls = h.calls;
+    expect(await h.settle()).toBe('waiting');
+    expect(h.restarts()).toBe(0);
+    turnEnded = true;
+    expect(await h.updater.tick()).toBe('waiting');
+    h.advance(QUIET_MS);
+    expect(await h.updater.tick()).toBe('restarting');
+    expect(h.pending).toEqual([[OLD, NEW]]);
+    expect(h.calls.filter((c) => c.startsWith('git merge --ff-only'))).toHaveLength(1);
+  });
+
   it('restarts only once', async () => {
     const h = harness();
     await h.settle();

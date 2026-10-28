@@ -52,6 +52,7 @@ export function createSelfUpdater(deps: SelfUpdateDeps, o: SelfUpdateOptions = {
   let lastSkip = '';
   let idleSince: number | null = null;
   let done = false;
+  let staged: { from: string; to: string } | null = null;
 
   const skip = (why: string): TickResult => {
     if (why !== lastSkip) deps.log(`[agent] self-update: skipped (${why})`);
@@ -75,6 +76,7 @@ export function createSelfUpdater(deps: SelfUpdateDeps, o: SelfUpdateOptions = {
 
   async function tick(): Promise<TickResult> {
     if (done) return 'restarting';
+    if (staged) return restartWhenQuiet();
     if (env.DECK_SELF_UPDATE === 'off') { deps.log('[agent] self-update: off (DECK_SELF_UPDATE=off)'); return 'disabled'; }
     const why = await skipReason();
     if (!why && deps.unconfirmed()) return skip('previous update not confirmed yet');
@@ -112,9 +114,21 @@ export function createSelfUpdater(deps: SelfUpdateDeps, o: SelfUpdateOptions = {
         return 'rolled-back';
       }
     }
+    staged = { from: head, to: target };
+    return restartWhenQuiet();
+  }
+
+  // The merge and npm ci can take minutes: a turn may start meanwhile. The new code
+  // is already on disk, so later ticks only wait to restart (HEAD equals origin/main
+  // by then and the normal path would read 'current' and never restart).
+  function restartWhenQuiet(): TickResult {
+    if (!staged) return 'current';
+    if (deps.busy()) { idleSince = null; return 'waiting'; }
+    idleSince ??= deps.now();
+    if (deps.now() - idleSince < QUIET_MS) return 'waiting';
     done = true;
-    deps.markPending(head, target);
-    deps.log(`[agent] self-update: ${short(head)}..${short(target)}, restarting`);
+    deps.markPending(staged.from, staged.to);
+    deps.log(`[agent] self-update: ${short(staged.from)}..${short(staged.to)}, restarting`);
     deps.restart();
     return 'restarting';
   }
