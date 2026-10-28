@@ -1,5 +1,5 @@
 import { createPrivateKey, sign as edSign } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -8,7 +8,8 @@ export interface GithubToken { account_login: string; token: string; expires_at:
 interface BoxIdentity { agentId: string; privateKeyPem: string }
 
 const DEFAULT_SUPABASE_URL = 'https://ikxtdssxmcgipyfpwmar.supabase.co';
-const TIMEOUT_MS = 30_000;
+const TIMEOUT_MS = 5_000;
+const NEGATIVE_TTL_MS = 10 * 60_000;
 const REFRESH_MARGIN_MS = 5 * 60_000;
 
 export const agentStateDir = (env: NodeJS.ProcessEnv = process.env): string => env.DECK_AGENT_DIR || join(homedir(), '.deck-agent');
@@ -29,22 +30,44 @@ export function signTokenRequest(privateKeyPem: string, agentId: string, ts: num
   return edSign(null, Buffer.from(`deck-gh-token.${ts}.${agentId}`), createPrivateKey(privateKeyPem)).toString('base64');
 }
 
-let cache: GithubToken[] = [];
-let cacheUntil = 0;
+export const cacheFile = (): string => join(homedir(), '.cockpit', 'github-app-tokens.json');
 
-export function resetGithubTokenCache(): void { cache = []; cacheUntil = 0; }
+interface CacheFile { fetchedAt: number; tokens: GithubToken[] }
 
 export function cacheDeadline(tokens: GithubToken[]): number {
   const times = tokens.map((t) => Date.parse(t.expires_at)).filter((n) => Number.isFinite(n));
   return times.length ? Math.min(...times) - REFRESH_MARGIN_MS : 0;
 }
 
-// Best-effort: an unpaired box, a network error or an unlinked account all yield [],
-// so the box keeps using its own gh login / PAT exactly as before.
-export async function fetchGithubTokens(now: () => number = Date.now, fetchImpl: typeof fetch = fetch): Promise<GithubToken[]> {
-  if (cache.length && now() < cacheUntil) return cache;
-  const id = readIdentity();
+function readCache(path: string): CacheFile | null {
+  try {
+    const c = JSON.parse(readFileSync(path, 'utf8')) as CacheFile;
+    return Array.isArray(c.tokens) && typeof c.fetchedAt === 'number' ? c : null;
+  } catch { return null; }
+}
+
+// Atomic (tmp + rename) and born 0600: the file holds live installation tokens.
+function writeCache(path: string, c: CacheFile): void {
+  try {
+    mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
+    const tmp = `${path}.${process.pid}.tmp`;
+    writeFileSync(tmp, JSON.stringify(c), { mode: 0o600 });
+    renameSync(tmp, path);
+  } catch { /* cache is best-effort */ }
+}
+
+export interface FetchDeps { now: () => number; fetchImpl: typeof fetch; path: string; identity: () => BoxIdentity | null }
+
+// git starts a new helper process per operation, so the cache lives on disk. Failures and
+// empty answers are cached too (negative cache) so an unlinked box stays off the network.
+// Best-effort: every failure yields [] and the box keeps using its own gh login / PAT.
+export async function fetchGithubTokens(deps: Partial<FetchDeps> = {}): Promise<GithubToken[]> {
+  const { now = Date.now, fetchImpl = fetch, path = cacheFile(), identity = readIdentity } = deps;
+  const cached = readCache(path);
+  if (cached && (cached.tokens.length ? now() < cacheDeadline(cached.tokens) : now() - cached.fetchedAt < NEGATIVE_TTL_MS)) return cached.tokens;
+  const id = identity();
   if (!id) return [];
+  let tokens: GithubToken[] = [];
   try {
     const ts = now();
     const res = await fetchImpl(tokenUrl(), {
@@ -53,13 +76,13 @@ export async function fetchGithubTokens(now: () => number = Date.now, fetchImpl:
       body: JSON.stringify({ agent_id: id.agentId, ts, sig: signTokenRequest(id.privateKeyPem, id.agentId, ts) }),
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
-    if (!res.ok) return [];
-    const body = (await res.json()) as { tokens?: GithubToken[] };
-    const tokens = (body.tokens ?? []).filter((t) => t?.token && t.account_login);
-    cache = tokens;
-    cacheUntil = cacheDeadline(tokens);
-    return tokens;
-  } catch { return []; }
+    if (res.ok) {
+      const body = (await res.json()) as { tokens?: GithubToken[] };
+      tokens = (body.tokens ?? []).filter((t) => t?.token && t.account_login);
+    }
+  } catch { /* negative-cached below */ }
+  writeCache(path, { fetchedAt: now(), tokens });
+  return tokens;
 }
 
 export function parseCredentialInput(input: string): Record<string, string> {

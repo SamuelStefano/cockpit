@@ -1,5 +1,9 @@
-import { describe, expect, it } from 'vitest';
-import { cacheDeadline, credentialOutput, mergeGitConfigEnv, parseCredentialInput, pickToken, tokenUrl, type GithubToken } from './github-app';
+import { describe, expect, it, vi } from 'vitest';
+import { generateKeyPairSync } from 'node:crypto';
+import { mkdtempSync, readFileSync, statSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fetchGithubTokens, cacheDeadline, credentialOutput, mergeGitConfigEnv, parseCredentialInput, pickToken, tokenUrl, type GithubToken } from './github-app';
 
 const tok = (login: string, token = `t-${login}`): GithubToken => ({ account_login: login, token, expires_at: '2030-01-01T01:00:00Z' });
 
@@ -41,5 +45,55 @@ describe('env and cache helpers', () => {
   it('defaults the supabase url', () => {
     expect(tokenUrl({})).toBe('https://ikxtdssxmcgipyfpwmar.supabase.co/functions/v1/github-app/token');
     expect(tokenUrl({ DECK_SUPABASE_URL: 'http://x/' })).toBe('http://x/functions/v1/github-app/token');
+  });
+});
+
+describe('disk token cache', () => {
+  const pem = generateKeyPairSync('ed25519').privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
+  const identity = () => ({ agentId: 'ag', privateKeyPem: pem });
+  const T0 = Date.parse('2030-01-01T00:00:00Z');
+  const setup = (body: unknown = { tokens: [tok('octo')] }, ok = true) => {
+    const path = join(mkdtempSync(join(tmpdir(), 'gh-cache-')), 'sub', 'tokens.json');
+    const fetchImpl = vi.fn().mockResolvedValue({ ok, json: async () => body }) as unknown as typeof fetch;
+    return { path, fetchImpl };
+  };
+
+  it('writes the cache 0600 and reuses it while fresh', async () => {
+    const { path, fetchImpl } = setup();
+    expect((await fetchGithubTokens({ now: () => T0, fetchImpl, path, identity }))[0].token).toBe('t-octo');
+    expect(statSync(path).mode & 0o777).toBe(0o600);
+    await fetchGithubTokens({ now: () => T0 + 60_000, fetchImpl, path, identity });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+  it('refetches once the earliest token is within 5 min of expiry', async () => {
+    const { path, fetchImpl } = setup();
+    await fetchGithubTokens({ now: () => T0, fetchImpl, path, identity });
+    await fetchGithubTokens({ now: () => Date.parse('2030-01-01T00:56:00Z'), fetchImpl, path, identity });
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+  it('negative-caches empty answers for 10 min', async () => {
+    const { path, fetchImpl } = setup({ tokens: [] });
+    await fetchGithubTokens({ now: () => T0, fetchImpl, path, identity });
+    expect(JSON.parse(readFileSync(path, 'utf8')).tokens).toEqual([]);
+    await fetchGithubTokens({ now: () => T0 + 9 * 60_000, fetchImpl, path, identity });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    await fetchGithubTokens({ now: () => T0 + 11 * 60_000, fetchImpl, path, identity });
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+  it('negative-caches 4xx and network failures', async () => {
+    const a = setup({}, false);
+    await fetchGithubTokens({ now: () => T0, fetchImpl: a.fetchImpl, path: a.path, identity });
+    await fetchGithubTokens({ now: () => T0 + 1000, fetchImpl: a.fetchImpl, path: a.path, identity });
+    expect(a.fetchImpl).toHaveBeenCalledTimes(1);
+    const b = setup();
+    const boom = vi.fn().mockRejectedValue(new Error('x')) as unknown as typeof fetch;
+    expect(await fetchGithubTokens({ now: () => T0, fetchImpl: boom, path: b.path, identity })).toEqual([]);
+    await fetchGithubTokens({ now: () => T0 + 1000, fetchImpl: boom, path: b.path, identity });
+    expect(boom).toHaveBeenCalledTimes(1);
+  });
+  it('does not touch the network without an identity', async () => {
+    const { path, fetchImpl } = setup();
+    expect(await fetchGithubTokens({ now: () => T0, fetchImpl, path, identity: () => null })).toEqual([]);
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 });
