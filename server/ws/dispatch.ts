@@ -956,7 +956,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     }
     case 'claude-import-scan': { send(ws, await claudeImportFrame(msg.path)); return; }
     case 'claude-import-apply': {
-      const kinds = msg.kinds.filter((k) => IMPORT_KINDS.includes(k));
+      const kinds = (Array.isArray(msg.kinds) ? msg.kinds : []).filter((k) => IMPORT_KINDS.includes(k));
       const result = await applyClaudeImport(msg.path, kinds);
       send(ws, { ...(await claudeImportFrame(msg.path)), result });
       return;
