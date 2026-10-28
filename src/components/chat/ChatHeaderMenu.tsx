@@ -64,7 +64,7 @@ export function ChatHeaderMenu({ title, messages, lastTurn, ranOn, selectedModel
         {profile && <MenuItem icon="user" label="Perfil do agente" aria-pressed={profile.open} onClick={profile.toggle} />}
         {pause && <MenuItem icon={pause.paused ? 'play' : 'pause'} label={pause.paused ? 'Retomar agentes' : 'Pausar agentes'} aria-pressed={pause.paused} onClick={() => pause.onSet(!pause.paused)} />}
         {onRename && <MenuItem icon="pencil" label="Renomear" onClick={onRename} />}
-        {canExport && <ExportMenu title={title} messages={messages} />}
+        {canExport && <ExportMenu title={title} messages={messages} sessionId={history?.sessionId} />}
         {history && <HistoryControls {...history} />}
         {(turn || ranOn) && hasActions && <MenuSeparator />}
         {turn && (

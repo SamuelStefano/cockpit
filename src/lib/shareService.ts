@@ -4,7 +4,7 @@ import type { Message } from '../data/types';
 
 const KEY = 'cockpit:shares';
 
-export interface StoredShare { path: string; url: string; title: string }
+export interface StoredShare { sessionId: string; path: string; url: string; title: string }
 
 export function listShares(): StoredShare[] {
   try {
@@ -25,14 +25,14 @@ async function requireUid() {
   return uid;
 }
 
-export async function createShare(title: string, messages: Message[]): Promise<StoredShare> {
+export async function createShare(sessionId: string, title: string, messages: Message[]): Promise<StoredShare> {
   const uid = await requireUid();
   const id = shareId();
   const path = sharePath(uid, id);
   const blob = new Blob([JSON.stringify(buildShareSnapshot(title, messages))], { type: 'application/json' });
   const { error } = await supabase!.storage.from('shares').upload(path, blob, { contentType: 'application/json', upsert: false });
   if (error) throw new Error(error.message);
-  const share = { path, url: `${location.origin}/s/${uid}/${id}`, title };
+  const share = { sessionId, path, url: `${location.origin}/s/${uid}/${id}`, title };
   save([...listShares(), share]);
   return share;
 }

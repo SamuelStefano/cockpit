@@ -7,9 +7,9 @@ import { threadToMarkdown, threadToPdf, download, fileSlug } from '../../lib/exp
 // Export 100% client-side: os dados já vivem em messages[]. .md serializa a
 // thread; .pdf gera um arquivo real via jspdf (carregado sob demanda), sem o
 // diálogo de impressão do navegador.
-export function ExportMenu({ title, messages }: { title: string; messages: Message[] }) {
+export function ExportMenu({ title, messages, sessionId }: { title: string; messages: Message[]; sessionId?: string }) {
   const [busy, setBusy] = useState(false);
-  const sharing = useShareConversation(title, messages);
+  const sharing = useShareConversation(title, messages, sessionId);
   const exportMd = () => download(`${fileSlug(title)}.md`, 'text/markdown', threadToMarkdown(title, messages));
   const exportPdf = async () => {
     setBusy(true);
@@ -27,7 +27,7 @@ export function ExportMenu({ title, messages }: { title: string; messages: Messa
       <button onClick={exportPdf} disabled={busy} title="Baixar conversa em PDF" className={row}>
         <Icon name={busy ? 'rotate' : 'download'} size={14} className={busy ? 'spin' : ''} /> Exportar .pdf
       </button>
-      {sharing.enabled && (
+      {sharing.enabled && !sharing.current && (
         <button onClick={sharing.share} disabled={sharing.busy} title="Criar link público desta conversa" className={row}>
           <Icon name="link" size={14} /> Compartilhar link
         </button>
