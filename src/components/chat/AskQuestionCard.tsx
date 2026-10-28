@@ -19,11 +19,11 @@ export function AskQuestionCard({ tool, answerable, onAnswer }: AskQuestionCardP
 
 function LetterQuestion({ tool, answerable, onAnswer }: AskQuestionCardProps) {
   const inTeam = useContext(BotThreadContext);
-  const { question, open, picked, pick } = useLetterQuestion(tool, answerable, inTeam, onAnswer);
+  const { question, open, picked, pick, writing, submitText, cancelWrite } = useLetterQuestion(tool, answerable, inTeam, onAnswer);
   if (!question) return null;
   const options = question.options.map((o) => ({ ...o, ...parseRecommended(o.label) }));
   return (
-    <ProposalCard question={question.question} options={options} open={open} picked={picked} inTeam={inTeam} onPick={pick}
+    <ProposalCard question={question.question} options={options} open={open} picked={picked} inTeam={inTeam} onPick={pick} writing={writing} onSubmitText={submitText} onCancelWrite={cancelWrite}
       image={question.image} deadline={question.deadline} />
   );
 }

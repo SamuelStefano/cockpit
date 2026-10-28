@@ -41,6 +41,8 @@ interface ChatInputProps {
   onUpload: (file: File) => void;
   onRemoveAttachment: (path: string) => void;
   onOpenAttachment?: (path: string, name: string) => void;
+  attThumbs?: Record<string, string>;
+  onAttThumb?: (path: string) => void;
   focusSignal: number;
   queued: string[];
   queuedAtts?: number[];
@@ -66,7 +68,7 @@ interface ChatInputProps {
 }
 
 export function ChatInput(props: ChatInputProps) {
-  const { disabled, placeholder, onStop, value, setValue, mode, setMode, caps, bypass, setBypass, model, setModel, modelLocked, models, onRefreshModels, effort, setEffort, mcpServers, selectedMcps, setSelectedMcps, attachments, onRemoveAttachment, onOpenAttachment, queued, queuedAtts, queuedModels, onRunQueuedBg, onRunQueuedNow, onCancelQueueAt, onEditQueuedAt, onMoveQueued, queueHeld = false, onResumeQueue, queuePaused = false, queueReleaseAt = 0, onToggleQueuePause, paused = false, quotaResetsAt, onCall } = props;
+  const { disabled, placeholder, onStop, value, setValue, mode, setMode, caps, bypass, setBypass, model, setModel, modelLocked, models, onRefreshModels, effort, setEffort, mcpServers, selectedMcps, setSelectedMcps, attachments, onRemoveAttachment, onOpenAttachment, attThumbs, onAttThumb, queued, queuedAtts, queuedModels, onRunQueuedBg, onRunQueuedNow, onCancelQueueAt, onEditQueuedAt, onMoveQueued, queueHeld = false, onResumeQueue, queuePaused = false, queueReleaseAt = 0, onToggleQueuePause, paused = false, quotaResetsAt, onCall } = props;
   const hasAtt = attachments.length > 0;
   const attUploading = attachments.some((a) => a.uploading);
   const resetLabel = quotaResetsAt ? new Date(quotaResetsAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : null;
@@ -78,7 +80,7 @@ export function ChatInput(props: ChatInputProps) {
   return (
     <div className="relative z-20 shrink-0 px-3 py-3">
       <div className="mx-auto w-full max-w-[760px]">
-      {hasAtt && <AttachmentChips attachments={attachments} onRemoveAttachment={onRemoveAttachment} onOpen={onOpenAttachment} />}
+      {hasAtt && <AttachmentChips attachments={attachments} onRemoveAttachment={onRemoveAttachment} onOpen={onOpenAttachment} thumbs={attThumbs} onThumb={onAttThumb} />}
       {mic.error && <ComposerNotice icon="mic" onDismiss={mic.dismissError}>{mic.error}</ComposerNotice>}
       {mic.hint && <ComposerNotice icon="mic" tone="info" onDismiss={mic.dismissHint}>{mic.hint}</ComposerNotice>}
       {queued.length > 0 && <QueuedBanner queued={queued} queuedAtts={queuedAtts} queuedModels={queuedModels} models={models} onRunBg={onRunQueuedBg} onRunNow={onRunQueuedNow} onCancelQueueAt={onCancelQueueAt} onEdit={onEditQueuedAt} onMove={onMoveQueued} held={queueHeld} onResume={onResumeQueue} paused={queuePaused} releaseAt={queueReleaseAt} onTogglePause={onToggleQueuePause} quotaHeld={paused} resetLabel={resetLabel} />}
