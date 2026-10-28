@@ -33,7 +33,7 @@ export function probeScript(accountId: string | null): string {
     'if [ -n "$ACC" ] && [ -n "${DECK_LOG_SALT:-}" ]; then',
     '  H=$(node -e \'process.stdout.write(require("crypto").createHmac("sha256",process.env.DECK_LOG_SALT).update(process.argv[1]).digest("hex").slice(0,10))\' "$ACC")',
     '  echo "@@log"; journalctl -u deck-relay -n 5000 -o cat --no-pager 2>/dev/null | grep -F "\\"acct\\":\\"$H\\"" | tail -n 50',
-    `  echo "@@agents"; ${AUTH_CURL} "$SUPABASE_URL/rest/v1/agent?select=id,label,kind,last_seen,revoked_at&account_id=eq.$ACC&order=last_seen.desc.nullslast&limit=10" || echo "[]"`,
+    `  echo "@@agents"; ${AUTH_CURL} "$SUPABASE_URL/rest/v1/agent?select=id,label,kind,last_seen,revoked_at&account_id=eq.$ACC&order=last_seen.desc.nullslast&limit=10" || echo "[]"; echo`,
     'else',
     '  echo "@@log"; journalctl -u deck-relay -n 50 -o cat --no-pager 2>/dev/null',
     'fi',
@@ -92,4 +92,37 @@ export function fileCursor(path: string) {
       await rename(`${path}.tmp`, path);
     },
   };
+}
+
+export function emailsScript(accountIds: string[]): string {
+  const ids = accountIds.filter(isUuid);
+  return [
+    'set -u',
+    `set -a; . ${ENV}; set +a`,
+    `for id in ${ids.join(' ')}; do`,
+    `  printf '%s\\t' "$id"; ${AUTH_CURL} "$SUPABASE_URL/auth/v1/admin/users/$id" | tr -d '\\n' || true; echo`,
+    'done',
+  ].join('\n');
+}
+
+export function parseEmails(out: string): Map<string, string> {
+  const res = new Map<string, string>();
+  for (const line of out.split('\n')) {
+    const tab = line.indexOf('\t');
+    if (tab < 0) continue;
+    const id = line.slice(0, tab);
+    if (!isUuid(id)) continue;
+    try {
+      const email = (JSON.parse(line.slice(tab + 1)) as { email?: unknown }).email;
+      if (typeof email === 'string' && email.length <= 254) res.set(id, email.trim().toLowerCase());
+    } catch { /* user missing or curl failed: stays unresolved */ }
+  }
+  return res;
+}
+
+export async function fetchEmails(runner: Runner, target: SshTarget, accountIds: string[]): Promise<Map<string, string>> {
+  const ids = [...new Set(accountIds.filter(isUuid))];
+  if (!ids.length) return new Map();
+  const res = await ssh(runner, target, emailsScript(ids), 30_000);
+  return parseEmails(res.stdout);
 }

@@ -6,6 +6,7 @@ export const OWNER_CHAT_ID = 8831502964;
 export const RELAY_HOSTNAME = 'deck-relay.devfellowship.com';
 export const RELAY_IP = '163.176.220.63';
 export const RELAY_FALLBACK = 'deck-relay.163-176-220-63.sslip.io';
+export const WEB_HOSTNAME = 'deck.devfellowship.com';
 export const SPA_URL = 'https://deck.178-105-2-230.sslip.io';
 export const APPS = { web: 'PHVXEThUGQVuMKwyeJazl', ops: '_fu5zkgq_89jpNtJVlxXS' } as const;
 
@@ -19,6 +20,7 @@ export interface TriageConfig {
   claudeBin: string;
   stateDir: string;
   localRepo: string;
+  trustedEmails: Set<string>;
 }
 
 export function parseEnvFile(text: string): Record<string, string> {
@@ -33,6 +35,10 @@ export function parseEnvFile(text: string): Record<string, string> {
     out[m[1]] = v;
   }
   return out;
+}
+
+export function parseEmailList(raw: string | undefined): Set<string> {
+  return new Set((raw ?? '').split(',').map((x) => x.trim().toLowerCase()).filter((x) => /^[^@\s]+@[^@\s]+$/.test(x)));
 }
 
 // A token file readable by group/others is refused, not silently used.
@@ -67,5 +73,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): TriageConfig {
     claudeBin: e.CLAUDE_BIN?.trim() || join(home, '.local/bin/claude'),
     stateDir: e.DECK_TRIAGE_STATE || join(home, '.cache/deck-triage'),
     localRepo: e.DECK_LOCAL_REPO || join(home, 'cockpit'),
+    trustedEmails: parseEmailList(e.TRUSTED_REPORTER_EMAILS),
   };
 }

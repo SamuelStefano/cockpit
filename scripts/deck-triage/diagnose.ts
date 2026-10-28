@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { ACTIONS, isActionId, type ActionId } from './actions.ts';
 import { byId, CHECK_LABELS, type Findings } from './checks.ts';
-import { RELAY_FALLBACK, RELAY_HOSTNAME, RELAY_IP } from './config.ts';
+import { RELAY_FALLBACK, RELAY_HOSTNAME, RELAY_IP, WEB_HOSTNAME } from './config.ts';
 import type { Incident } from './incidents.ts';
 import { cleanText, sanitizeReport } from './sanitize.ts';
 
@@ -39,12 +39,20 @@ export function deterministicDiagnosis(f: Findings): Diagnosis {
     return out(`DNS de ${RELAY_HOSTNAME} aponta para o lugar errado (${c.get('dns_cf')?.detail}).`,
       `No Cloudflare, editar o registro A deck-relay para conteúdo ${RELAY_IP}, proxy DESLIGADO (DNS only).`);
   }
+  if (st('dns_web') === 'fail') {
+    return out(`Registro DNS de ${WEB_HOSTNAME} não existe (front do Deck fora pelo domínio).`,
+      'Recriar no Cloudflare (zona devfellowship.com > DNS > Add record): tipo A, nome deck, conteúdo 178.105.2.230, proxy DESLIGADO (DNS only), TTL Auto.');
+  }
   if (st('dokploy_web') === 'fail') actions.push('redeploy_web');
   if (st('spa_bundle') === 'fail') actions.push('redeploy_web');
   if (st('dokploy_ops') === 'fail') actions.push('redeploy_ops');
   if (st('public_status') === 'fail') {
     return out(`DNS ok, mas https://${RELAY_HOSTNAME}/status falha (${c.get('public_status')?.detail}) enquanto o fallback responde.`,
       'Conferir certificado e site do Caddy para deck-relay.devfellowship.com (journalctl -u caddy no host do relay).');
+  }
+  if (st('ws_upgrade') === 'fail') {
+    actions.push('restart_relay', 'reload_caddy');
+    return out(`/status responde mas o upgrade WebSocket em /ws falha (${c.get('ws_upgrade')?.detail}).`);
   }
   if (actions.includes('redeploy_web')) return out(`Front do Deck com problema: ${c.get('dokploy_web')?.detail}; ${c.get('spa_bundle')?.detail}.`);
   if (st('local_agent_service') === 'fail' || st('local_agent_owner') === 'fail') actions.push('restart_local_agent');

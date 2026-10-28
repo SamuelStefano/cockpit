@@ -1,12 +1,14 @@
 import { Resolver } from 'node:dns/promises';
+import { request } from 'node:https';
+import { randomBytes } from 'node:crypto';
 import { readdir, readFile, readlink } from 'node:fs/promises';
-import { APPS, RELAY_FALLBACK, RELAY_HOSTNAME, RELAY_IP, SPA_URL, type TriageConfig } from './config.ts';
+import { APPS, RELAY_FALLBACK, RELAY_HOSTNAME, RELAY_IP, SPA_URL, WEB_HOSTNAME, type TriageConfig } from './config.ts';
 import { run, ssh, withTimeout, type Runner } from './exec.ts';
 import { parseSections, probeScript } from './relay.ts';
 import { cleanText } from './sanitize.ts';
 
 export type CheckId =
-  | 'dns_cf' | 'dns_google' | 'public_status' | 'fallback_status' | 'ssh' | 'relay_local' | 'relay_active'
+  | 'dns_cf' | 'dns_google' | 'dns_web' | 'ws_upgrade' | 'public_status' | 'fallback_status' | 'ssh' | 'relay_local' | 'relay_active'
   | 'caddy_active' | 'dokploy_web' | 'dokploy_ops' | 'spa_bundle' | 'agents' | 'local_agent_service' | 'local_agent_owner';
 export type CheckStatus = 'ok' | 'fail' | 'warn' | 'skip';
 export interface Check { id: CheckId; status: CheckStatus; detail: string }
@@ -15,6 +17,8 @@ export interface Findings { at: string; checks: Check[]; relayLog: string[] }
 export const CHECK_LABELS: Record<CheckId, string> = {
   dns_cf: 'DNS (1.1.1.1)',
   dns_google: 'DNS (8.8.8.8)',
+  dns_web: `DNS de ${WEB_HOSTNAME}`,
+  ws_upgrade: 'WebSocket /ws no relay público',
   public_status: 'relay público /status',
   fallback_status: 'relay fallback sslip /status',
   ssh: 'ssh no host do relay',
@@ -29,11 +33,19 @@ export const CHECK_LABELS: Record<CheckId, string> = {
   local_agent_owner: 'agente do dono (~/cockpit)',
 };
 
+// Checks run from this VPS, outside any user's network. One failing (twice) = real outage.
+export const SYNTHETIC_IDS: ReadonlySet<CheckId> = new Set<CheckId>([
+  'dns_cf', 'dns_google', 'dns_web', 'public_status', 'fallback_status', 'ws_upgrade', 'spa_bundle', 'ssh', 'relay_local', 'relay_active', 'caddy_active',
+]);
+
+export const failingSynthetic = (f: Findings): Check[] => f.checks.filter((c) => SYNTHETIC_IDS.has(c.id) && c.status === 'fail');
+
 export interface CheckDeps {
   cfg: Pick<TriageConfig, 'relay' | 'dokploy' | 'localRepo'>;
   runner?: Runner;
   fetchImpl?: typeof fetch;
   resolve4?: (server: string, host: string) => Promise<string[]>;
+  wsUpgrade?: (url: string) => Promise<number>;
 }
 
 const T = 8_000;
@@ -53,6 +65,41 @@ async function dnsCheck(id: CheckId, server: string, resolve4: NonNullable<Check
     const code = (e as { code?: string }).code ?? '';
     if (code === 'ENOTFOUND' || code === 'ENODATA') return { id, status: 'fail', detail: `sem registro A (${code})` };
     return { id, status: 'warn', detail: `consulta falhou: ${cleanText((e as Error).message, 80)}` };
+  }
+}
+
+async function webDnsCheck(resolve4: NonNullable<CheckDeps['resolve4']>): Promise<Check> {
+  const id: CheckId = 'dns_web';
+  const out = await Promise.all(['1.1.1.1', '8.8.8.8'].map((srv) => withTimeout(resolve4(srv, WEB_HOSTNAME), T, 'dns').then((ips) => ips, (e) => (e as { code?: string }).code ?? 'erro')));
+  const missing = out.filter((r) => r === 'ENOTFOUND' || r === 'ENODATA');
+  if (missing.length) return { id, status: 'fail', detail: 'sem registro A' };
+  const ips = out.find(Array.isArray);
+  return ips ? { id, status: 'ok', detail: `A ${ips.join(', ')}` } : { id, status: 'warn', detail: 'consulta falhou' };
+}
+
+// Resolves with the HTTP status of the handshake: 101 when the relay accepts the upgrade.
+function defaultWsUpgrade(url: string): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const req = request(url, {
+      headers: { Connection: 'Upgrade', Upgrade: 'websocket', 'Sec-WebSocket-Version': '13', 'Sec-WebSocket-Key': randomBytes(16).toString('base64') },
+      timeout: T,
+    });
+    req.on('upgrade', (res, socket) => { socket.destroy(); resolve(res.statusCode ?? 101); });
+    req.on('response', (res) => { res.resume(); resolve(res.statusCode ?? 0); });
+    req.on('timeout', () => req.destroy(new Error('timeout')));
+    req.on('error', reject);
+    req.end();
+  });
+}
+
+async function wsCheck(wsUpgrade: NonNullable<CheckDeps['wsUpgrade']>): Promise<Check> {
+  const id: CheckId = 'ws_upgrade';
+  try {
+    const code = await withTimeout(wsUpgrade(`https://${RELAY_HOSTNAME}/ws`), T + 2000, 'ws');
+    return { id, status: code === 101 ? 'ok' : 'fail', detail: `HTTP ${code}` };
+  } catch (e) {
+    const cause = (e as { code?: string }).code;
+    return { id, status: 'fail', detail: cleanText(cause ?? (e as Error).message, 100) };
   }
 }
 
@@ -87,7 +134,7 @@ async function dokployCheck(id: CheckId, appId: string, deps: CheckDeps): Promis
   }
 }
 
-async function bundleCheck(f: typeof fetch): Promise<Check> {
+async function bundleCheck(f: typeof fetch, resolve4: NonNullable<CheckDeps['resolve4']>): Promise<Check> {
   const id: CheckId = 'spa_bundle';
   try {
     const html = await (await f(`${SPA_URL}/`, { signal: AbortSignal.timeout(T) })).text();
@@ -96,7 +143,10 @@ async function bundleCheck(f: typeof fetch): Promise<Check> {
     const js = await (await f(`${SPA_URL}${src}`, { signal: AbortSignal.timeout(15_000) })).text();
     const hosts = [RELAY_HOSTNAME, RELAY_FALLBACK].filter((h) => js.includes(`wss://${h}`));
     if (!hosts.length) return { id, status: 'fail', detail: `${src} não contém wss://${RELAY_HOSTNAME}` };
-    return { id, status: 'ok', detail: `${src} usa ${hosts.join(' + ')}` };
+    const resolved = await Promise.all(hosts.map((h) => withTimeout(resolve4('1.1.1.1', h), T, 'dns').then(() => true, () => false)));
+    const live = hosts.filter((_, i) => resolved[i]);
+    if (!live.length) return { id, status: 'fail', detail: `${src} usa ${hosts.join(' + ')}, que não resolve` };
+    return { id, status: 'ok', detail: `${src} usa ${hosts.join(' + ')} (resolve: ${live.join(', ')})` };
   } catch (e) {
     return { id, status: 'warn', detail: cleanText((e as Error).message, 100) };
   }
@@ -111,7 +161,7 @@ export function summarizeAgents(raw: string | undefined): Check {
   try { rows = JSON.parse(raw) as AgentRow[]; } catch { return { id, status: 'warn', detail: 'resposta ilegível' }; }
   if (!Array.isArray(rows) || !rows.length) return { id, status: 'warn', detail: 'nenhuma box pareada' };
   const live = rows.filter((r) => !r.revoked_at);
-  const parts = live.slice(0, 4).map((r) => `${cleanText(r.label || r.id?.slice(0, 8), 30)} visto ${cleanText(r.last_seen ?? 'nunca', 25)}`);
+  const parts = live.slice(0, 4).map((r) => `${cleanText(r.label || r.id?.slice(0, 8), 30)} visto ${cleanText((r.last_seen ?? 'nunca').slice(0, 16).replace('T', ' '), 20)}`);
   return { id, status: live.length ? 'ok' : 'warn', detail: `${live.length} ativa(s): ${parts.join('; ')}` };
 }
 
@@ -164,22 +214,28 @@ export async function findOwnerAgentPids(repo: string): Promise<number[]> {
   return out;
 }
 
-export async function runChecks(deps: CheckDeps, accountId: string | null, now = () => new Date()): Promise<Findings> {
+export type CheckScope = 'synthetic' | 'full';
+
+export async function runChecks(deps: CheckDeps, accountId: string | null, scope: CheckScope = 'full', now = () => new Date()): Promise<Findings> {
   const f = deps.fetchImpl ?? fetch;
   const resolve4 = deps.resolve4 ?? defaultResolve4;
+  const full = scope === 'full';
   const guard = <T>(p: Promise<T>, fallback: T) => withTimeout(p, 40_000, 'check').catch(() => fallback);
-  const [dnsCf, dnsGg, pub, fb, probe, web, ops, bundle, local] = await Promise.all([
+  const skipped = (id: CheckId): Promise<Check> => Promise.resolve({ id, status: 'skip', detail: 'fora do escopo' });
+  const [dnsCf, dnsGg, dnsWeb, pub, fb, ws, probe, web, ops, bundle, local] = await Promise.all([
     dnsCheck('dns_cf', '1.1.1.1', resolve4),
     dnsCheck('dns_google', '8.8.8.8', resolve4),
+    webDnsCheck(resolve4),
     httpStatus('public_status', `https://${RELAY_HOSTNAME}/status`, f),
     httpStatus('fallback_status', `https://${RELAY_FALLBACK}/status`, f),
-    guard(relayProbe(deps, accountId), { checks: [{ id: 'ssh' as const, status: 'fail' as const, detail: 'timeout' }], log: [] }),
-    dokployCheck('dokploy_web', APPS.web, deps),
-    dokployCheck('dokploy_ops', APPS.ops, deps),
-    bundleCheck(f),
-    guard(localAgentChecks(deps), []),
+    wsCheck(deps.wsUpgrade ?? defaultWsUpgrade),
+    guard(relayProbe(deps, full ? accountId : null), { checks: [{ id: 'ssh' as const, status: 'fail' as const, detail: 'timeout' }], log: [] }),
+    full ? dokployCheck('dokploy_web', APPS.web, deps) : skipped('dokploy_web'),
+    full ? dokployCheck('dokploy_ops', APPS.ops, deps) : skipped('dokploy_ops'),
+    bundleCheck(f, resolve4),
+    full ? guard(localAgentChecks(deps), []) : Promise.resolve([]),
   ]);
-  return { at: now().toISOString(), checks: [dnsCf, dnsGg, pub, fb, ...probe.checks, web, ops, bundle, ...local], relayLog: probe.log };
+  return { at: now().toISOString(), checks: [dnsCf, dnsGg, dnsWeb, pub, fb, ws, ...probe.checks, web, ops, bundle, ...local], relayLog: full ? probe.log : [] };
 }
 
 export const byId = (f: Findings) => new Map(f.checks.map((c) => [c.id, c]));

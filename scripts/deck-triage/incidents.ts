@@ -1,43 +1,71 @@
 import type { DiagReport } from '../../ops/src/data.ts';
 
 export const INCIDENT_WINDOW_MS = 15 * 60 * 1000;
+const KEEP_REPORTS = 5;
 
-export interface Incident { id: string; kind: string; accountId: string; reports: DiagReport[] }
+export type IncidentState = 'pending' | 'escalated';
 
-interface Open { id: string; lastAt: number }
+export interface Incident {
+  id: string;
+  kind: string;
+  accountId: string;
+  firstAt: number;
+  lastAt: number;
+  count: number;
+  reports: DiagReport[];
+  state: IncidentState;
+  email: string | null;
+}
 
-const ms = (iso: string) => {
+export const reportMs = (iso: string): number => {
   const t = Date.parse(iso);
   return Number.isNaN(t) ? 0 : t;
 };
 
 // Same kind + account within 15 min of the incident's last report = same incident.
-// State spans ticks: a report folded into an incident already triaged produces nothing.
+// Incidents live across ticks: the gate re-evaluates pending ones until they escalate
+// or go quiet.
 export function createIncidentTracker(windowMs = INCIDENT_WINDOW_MS) {
-  const open = new Map<string, Open>();
+  const open = new Map<string, Incident>();
   let seq = 0;
   return {
-    ingest(reports: DiagReport[]): { fresh: Incident[]; folded: number } {
-      const fresh = new Map<string, Incident>();
+    ingest(reports: DiagReport[]): { opened: Incident[]; folded: number } {
+      const opened: Incident[] = [];
       let folded = 0;
-      const sorted = [...reports].sort((a, b) => ms(a.created_at) - ms(b.created_at));
+      const sorted = [...reports].sort((a, b) => reportMs(a.created_at) - reportMs(b.created_at));
       for (const r of sorted) {
         const key = `${r.account_id}|${r.kind}`;
-        const at = ms(r.created_at);
+        const at = reportMs(r.created_at);
         const cur = open.get(key);
         if (cur && at - cur.lastAt <= windowMs) {
           cur.lastAt = Math.max(cur.lastAt, at);
-          const f = fresh.get(key);
-          if (f && f.id === cur.id) f.reports.push(r); else folded++;
+          cur.count++;
+          cur.reports = [...cur.reports, r].slice(-KEEP_REPORTS);
+          if (!opened.includes(cur)) folded++;
           continue;
         }
-        const id = `${Date.now().toString(36).slice(-4)}${(++seq).toString(36)}`;
-        open.set(key, { id, lastAt: at });
-        fresh.set(key, { id, kind: r.kind, accountId: r.account_id, reports: [r] });
+        const inc: Incident = { id: `${Date.now().toString(36).slice(-4)}${(++seq).toString(36)}`, kind: r.kind, accountId: r.account_id, firstAt: at, lastAt: at, count: 1, reports: [r], state: 'pending', email: null };
+        open.set(key, inc);
+        opened.push(inc);
       }
-      const newest = Math.max(0, ...[...open.values()].map((o) => o.lastAt));
-      for (const [k, o] of open) if (newest - o.lastAt > 4 * windowMs) open.delete(k);
-      return { fresh: [...fresh.values()], folded };
+      return { opened, folded };
+    },
+    pending(): Incident[] {
+      return [...open.values()].filter((i) => i.state === 'pending');
+    },
+    all(): Incident[] {
+      return [...open.values()];
+    },
+    escalate(inc: Incident): void {
+      inc.state = 'escalated';
+    },
+    // Quiet incidents close; a new report of the same key afterwards opens a fresh one.
+    prune(nowMs: number): Incident[] {
+      const closed: Incident[] = [];
+      for (const [k, i] of open) if (nowMs - i.lastAt > windowMs) { open.delete(k); closed.push(i); }
+      return closed;
     },
   };
 }
+
+export type IncidentTracker = ReturnType<typeof createIncidentTracker>;

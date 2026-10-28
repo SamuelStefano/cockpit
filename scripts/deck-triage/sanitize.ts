@@ -1,6 +1,6 @@
 import type { DiagReport } from '../../ops/src/data.ts';
 
-const CONTROL = /[\u0000-\u001f\u007f-\u009f​-‏  ‪-‮⁦-⁩﻿]/g;
+const CONTROL = /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028\u2029\u202a-\u202e\u2066-\u2069\ufeff]/g;
 
 // Single line, no control/bidi/zero-width bytes, no angle brackets (so text cannot
 // close or forge the wrapper tags of the prompt), capped.
