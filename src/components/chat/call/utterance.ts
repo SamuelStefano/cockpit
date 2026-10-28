@@ -1,7 +1,9 @@
 import type { Block } from '../../../data/types';
 
 const MIN_UTTERANCE_CHARS = 3;
-const MIN_BARGE_IN_WORDS = 2;
+const MIN_BARGE_IN_WORDS = 3;
+const MIN_BARGE_IN_CONFIDENCE = 0.5;
+const MIN_INTERIM_STREAK = 2;
 const SENTENCE_END = /[.!?…]["')\]]*$/;
 
 export const SILENCE_AFTER_SENTENCE_MS = 900;
@@ -38,8 +40,27 @@ export function isEcho(heard: string, spoken: string): boolean {
   return s.includes(` ${h.join(' ')} `);
 }
 
-export function isBargeIn(heard: string, spoken: string): boolean {
-  return words(heard).length >= MIN_BARGE_IN_WORDS && !isEcho(heard, spoken);
+export interface BargeInSignal {
+  isFinal?: boolean;
+  confidence?: number;
+  // Consecutive interim results carrying the same (or a grown) candidate.
+  streak?: number;
+}
+
+export function isBargeIn(heard: string, spoken: string, signal: BargeInSignal = {}): boolean {
+  if (words(heard).length < MIN_BARGE_IN_WORDS || isEcho(heard, spoken)) return false;
+  const { isFinal = false, confidence = 0, streak = 0 } = signal;
+  if (confidence > 0 && confidence < MIN_BARGE_IN_CONFIDENCE) return false;
+  return isFinal || streak >= MIN_INTERIM_STREAK;
+}
+
+// Counts how many interim results in a row kept the previous candidate (equal or
+// grown); anything else restarts the count at 1.
+export function nextStreak(prev: { text: string; streak: number } | null, text: string): number {
+  const cur = normalize(text);
+  if (!prev || !cur) return cur ? 1 : 0;
+  const before = normalize(prev.text);
+  return before && cur.startsWith(before) ? prev.streak + 1 : 1;
 }
 
 function stripMarkdown(md: string): string {

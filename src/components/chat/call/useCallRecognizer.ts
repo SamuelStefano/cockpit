@@ -6,9 +6,16 @@ import { speechCtor, type SpeechRecognition } from '../useSpeechInput';
 const MAX_FAST_FAILS = 3;
 const FAST_FAIL_MS = 800;
 
+export interface Heard {
+  text: string;
+  isFinal: boolean;
+  // 0 when the engine does not report one (interim results usually don't).
+  confidence: number;
+}
+
 interface Args {
   active: boolean;
-  onHeard: (text: string) => void;
+  onHeard: (heard: Heard) => void;
   onFatal: (message: string) => void;
 }
 
@@ -48,7 +55,8 @@ export function useCallRecognizer({ active, onHeard, onFatal }: Args) {
         lengthRef.current = e.results.length;
         let text = '';
         for (let i = baseRef.current; i < e.results.length; i++) text += e.results[i][0].transcript;
-        heardRef.current(text.trim());
+        const last = e.results[e.results.length - 1];
+        heardRef.current({ text: text.trim(), isFinal: last?.isFinal === true, confidence: last?.[0]?.confidence ?? 0 });
       };
       next.onerror = (e) => { lastError = e?.error ?? 'unknown'; };
       next.onend = () => {

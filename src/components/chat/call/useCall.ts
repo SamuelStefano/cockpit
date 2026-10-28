@@ -4,7 +4,7 @@ import type { Phase } from '../useChatPanel';
 import { speechCtor } from '../useSpeechInput';
 import { callReducer, initialCallState, recognizerShouldRun } from './call-machine';
 import { pickSpokenReply } from './pick-reply';
-import { endOfUtteranceDelay, isBargeIn, isEcho, isSendable } from './utterance';
+import { endOfUtteranceDelay, isBargeIn, isEcho, isSendable, nextStreak } from './utterance';
 import { callSpeechSupported, useCallSpeech } from './useCallSpeech';
 import { useCallRecognizer } from './useCallRecognizer';
 import { useWakeLock } from './useWakeLock';
@@ -30,6 +30,7 @@ export function useCall({ messages, phase, onSend, sessionKey = '', pendingIds }
   const [error, setError] = useState<string | null>(null);
   const silenceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const awaitingRef = useRef(false);
+  const candidateRef = useRef<{ text: string; streak: number } | null>(null);
   const sawBusyRef = useRef(false);
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -49,11 +50,19 @@ export function useCall({ messages, phase, onSend, sessionKey = '', pendingIds }
   const recognizer = useCallRecognizer({
     active: recognizerShouldRun(state),
     onFatal,
-    onHeard: (text) => {
+    onHeard: ({ text, isFinal, confidence }) => {
       const current = stateRef.current;
+      if (current.phase !== 'speaking') candidateRef.current = null;
       if (current.phase === 'speaking') {
-        if (isEcho(text, speech.spokenRef.current)) { recognizer.reset(); return; }
-        if (!isBargeIn(text, speech.spokenRef.current)) return;
+        if (isEcho(text, speech.spokenRef.current)) { candidateRef.current = null; recognizer.reset(); return; }
+        const streak = nextStreak(candidateRef.current, text);
+        candidateRef.current = { text, streak };
+        if (!isBargeIn(text, speech.spokenRef.current, { isFinal, confidence, streak })) {
+          // A rejected final is noise: drop it so it can't glue onto the next result.
+          if (isFinal) { candidateRef.current = null; recognizer.reset(); }
+          return;
+        }
+        candidateRef.current = null;
         speech.cancel();
         dispatch({ type: 'barge-in' });
       }

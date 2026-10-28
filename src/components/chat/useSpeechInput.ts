@@ -8,7 +8,7 @@ import { isTouchMobile } from './touch';
 
 // Tipos mínimos da Web Speech API (não vêm no lib.dom de todo target). Só o que
 // usamos: ditado contínuo com resultados parciais e final por trecho.
-export interface SpeechResult { 0: { transcript: string }; isFinal: boolean }
+export interface SpeechResult { 0: { transcript: string; confidence?: number }; isFinal: boolean }
 export interface SpeechResultEvent { resultIndex: number; results: ArrayLike<SpeechResult> }
 export interface SpeechErrorEvent { error: string }
 export interface SpeechRecognition {
