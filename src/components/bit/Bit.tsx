@@ -10,6 +10,7 @@ interface BitProps {
   title?: string;
   className?: string;
   still?: boolean;
+  loop?: boolean;
 }
 
 const BODY = '#f97316';
@@ -21,7 +22,7 @@ const LOW_ARM = 'M96 70q12 4 12 16';
 
 // The Deck's mascot: a little terminal with a screen for a face, drawn in code
 // so every state is just CSS on named parts (see bit.css).
-export function Bit({ state = 'idle', size = 64, title, className = '', still = false }: BitProps) {
+export function Bit({ state = 'idle', size = 64, title, className = '', still = false, loop = false }: BitProps) {
   const uid = useId().replace(/:/g, '');
   const clipId = `bit-scr-${uid}`;
   const gradId = `bit-body-${uid}`;
@@ -30,7 +31,7 @@ export function Bit({ state = 'idle', size = 64, title, className = '', still = 
   return (
     <svg
       role="img" aria-label={title ?? BIT_STATE_LABEL[state]} viewBox="0 0 120 120" width={size} height={size}
-      className={`bit bit-${state}${still ? ' bit-still' : ''} shrink-0 overflow-visible ${className}`}
+      className={`bit bit-${state}${still ? ' bit-still' : ''}${loop ? ' bit-loop' : ''} shrink-0 overflow-visible ${className}`}
     >
       <defs>
         <clipPath id={clipId}><rect x={32} y={40} width={56} height={50} rx={13} /></clipPath>
