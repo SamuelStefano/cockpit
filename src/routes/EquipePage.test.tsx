@@ -43,6 +43,6 @@ describe('EquipePage', () => {
     expect(p.onUsageList).not.toHaveBeenCalled();
   });
   it('keeps /equipe in the student menu and nothing else restricted', () => {
-    expect(navFor('student').map((n) => n.to)).toEqual(['/', '/equipe']);
+    expect(navFor('student').map((n) => n.to)).toEqual(['/', '/equipe', '/agentes']);
   });
 });
