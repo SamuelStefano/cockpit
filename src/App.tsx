@@ -59,7 +59,7 @@ function CockpitBody() {
     drops, dropsLoaded, lastDrop, onDropList, onDropPut, onDropRm,
   } = cockpit;
 
-  const { route, chatId, agentId, agentTab, nav, navChat, navAgent } = useRoute();
+  const { route, chatId, agentId, agentTab, skillId, nav, navChat, navAgent, navSkill } = useRoute();
   // Escolha explícita do usuário empilha history (voltar volta pro chat anterior);
   // trocas derivadas passam pelo useChatUrl com replace.
   const selectSession = useCallback((id: string) => {
@@ -249,7 +249,7 @@ function CockpitBody() {
           )}
 
           <RouteContent
-            route={route} agentRoute={{ id: agentId, tab: agentTab, open: navAgent }} isMobile={isMobile} isAdmin={isAdmin} isRoot={isRoot} connected={conn.ws === 'connected'}
+            route={route} agentRoute={{ id: agentId, tab: agentTab, open: navAgent }} skillRoute={{ id: skillId, open: navSkill }} isMobile={isMobile} isAdmin={isAdmin} isRoot={isRoot} connected={conn.ws === 'connected'}
             cockpit={cockpit} chatProps={chatProps} termProps={termProps}
             onOpenSession={selectSession} agent={agent}
             onOpenAgentChat={(m) => { handleNew(); setModel(m); nav('/'); }}

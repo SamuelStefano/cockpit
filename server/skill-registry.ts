@@ -87,7 +87,7 @@ export function adaptPack(raw: Raw): RegistryPack {
   return { source, slug: str(raw.pack), name: str(raw.name) || str(raw.pack), description: str(raw.description), root: str(raw.root), members };
 }
 
-async function catalog(): Promise<RegistryCatalog> {
+export async function catalog(): Promise<RegistryCatalog> {
   const [s, p] = await Promise.all([
     getJson<{ skills?: Raw[]; scope?: string }>('/api/v1/skills'),
     getJson<{ packs?: Raw[] }>('/api/v1/packs'),
