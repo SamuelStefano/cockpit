@@ -23,8 +23,8 @@ describe('SessionGroupHeader', () => {
   it('plain group is sentence-case neutral text: no mono, no uppercase, no rule, no icon', () => {
     const { container } = render(<SessionGroupHeader label="Hoje" count={1} />);
     const head = container.firstElementChild as HTMLElement;
-    expect(head.className).toContain('text-neutral-600');
-    expect(head.className).toContain('text-[12px]');
+    expect(head.className).toContain('text-neutral-500');
+    expect(head.className).toContain('text-[13px]');
     expect(head.className).not.toMatch(/font-mono|uppercase/);
     expect(container.querySelector('svg')).toBeNull();
     expect(container.querySelector('.h-px')).toBeNull();
