@@ -24,9 +24,9 @@ export interface AgentNav {
 }
 
 // Agents live in the same shell as every chat: opening one makes its thread the
-// open chat. `/equipe` is only a deep link that lands on the primary agent.
+// open chat. `/equipe` is the org chart page; opening a node lands here.
 export function useAgentNav(t: AgentNavInput, route: Route, nav: (to: Route) => void, navAgent: (id: string, tab?: AgentTab) => void): AgentNav {
-  const { bots, activeId, teamLoaded, connected, onTeamGet, onOpenBot } = t;
+  const { bots, activeId, connected, onTeamGet, onOpenBot } = t;
   useEffect(() => { if (connected) onTeamGet(); }, [connected, onTeamGet]);
 
   const activeAgentId = agentIdForSession(bots, activeId);
@@ -41,11 +41,6 @@ export function useAgentNav(t: AgentNavInput, route: Route, nav: (to: Route) => 
     nav('/');
     onOpenBot(bot.id, bot.sessionId, bot.name);
   }, [bots, nav, onOpenBot]);
-
-  const primaryId = views[0]?.bot.id;
-  useEffect(() => {
-    if (route === '/equipe' && teamLoaded && !activeAgentId && primaryId) open(primaryId);
-  }, [route, teamLoaded, activeAgentId, primaryId, open]);
 
   const activeBot = active?.bot;
   return {
