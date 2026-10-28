@@ -47,7 +47,7 @@ describe('Configuracoes', () => {
 
   it('root: Avançado holds bypass, terminal and restart', () => {
     mount('root', '/configuracoes/avancado');
-    expect(screen.getByRole('switch', { name: 'Executar sem pedir permissão' })).toBeTruthy();
+    expect(screen.getByRole('switch', { name: 'Pular aprovações' })).toBeTruthy();
     expect(screen.getByText('Terminal')).toBeTruthy();
     expect(screen.getByText('Reiniciar o Deck')).toBeTruthy();
   });

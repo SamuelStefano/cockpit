@@ -2,23 +2,19 @@ import { useState, useEffect, useCallback } from 'react';
 
 // Router minúsculo (sem dep): só troca a VIEW principal. useCockpit fica ACIMA
 // deste switch no App, então o WebSocket/terminais nunca desmontam ao navegar.
-export type Route = '/' | '/equipe/memoria' | '/skills' | '/pontos' | '/equipe' | '/equipe/rotinas' | '/configuracoes' | '/configuracoes/uso' | '/configuracoes/pessoas' | '/configuracoes/maquina' | '/configuracoes/avancado' | '/graph' | '/canvas' | '/painel' | '/docs' | '/ds' | '/onboarding' | '/agentes';
+export type Route = '/' | '/equipe/memoria' | '/skills' | '/pontos' | '/equipe' | '/equipe/rotinas' | '/configuracoes' | '/configuracoes/uso' | '/configuracoes/pessoas' | '/configuracoes/maquina' | '/configuracoes/avancado' | '/graph' | '/canvas' | '/conexoes' | '/docs' | '/ds' | '/onboarding' | '/agentes';
 
-const ROUTES: Route[] = ['/', '/equipe/memoria', '/skills', '/pontos', '/equipe', '/equipe/rotinas', '/configuracoes', '/configuracoes/uso', '/configuracoes/pessoas', '/configuracoes/maquina', '/configuracoes/avancado', '/graph', '/canvas', '/painel', '/docs', '/ds', '/onboarding', '/agentes'];
+const ROUTES: Route[] = ['/', '/equipe/memoria', '/skills', '/pontos', '/equipe', '/equipe/rotinas', '/configuracoes', '/configuracoes/uso', '/configuracoes/pessoas', '/configuracoes/maquina', '/configuracoes/avancado', '/graph', '/canvas', '/conexoes', '/docs', '/ds', '/onboarding', '/agentes'];
 
-// Old URLs (bookmarks, deep links) keep working: /admin became /painel (the hash
-// picks the sub-tab, so it rides along) and the retired screens fall back to chat.
-const LEGACY: Record<string, string> = { '/admin': '/painel', '/notas': '/', '/play': '/', '/harness': '/', '/contextos': '/equipe/memoria', '/crons': '/equipe/rotinas', '/uso': '/configuracoes/uso' };
+// Old URLs (bookmarks, deep links) keep working; the retired screens fall back to chat.
+const LEGACY: Record<string, string> = { '/notas': '/', '/play': '/', '/harness': '/', '/contextos': '/equipe/memoria', '/crons': '/equipe/rotinas', '/uso': '/configuracoes/uso' };
 
-// /painel moved into Configurações. The tabs that belong to Conexões (slice 22b)
-// keep working at /painel#<tab> until that page lands.
-const PAINEL_TO: Record<string, string> = { '': '/configuracoes/maquina', overview: '/configuracoes/maquina', host: '/configuracoes/maquina', accounts: '/configuracoes/pessoas' };
+// /painel is gone: its tabs moved to Configurações (Máquina, Pessoas) and Conexões.
+const PAINEL_TO: Record<string, string> = { overview: '/configuracoes/maquina', host: '/configuracoes/maquina', accounts: '/configuracoes/pessoas', mcps: '/conexoes#ferramentas', agents: '/conexoes#provedores', models: '/conexoes#provedores' };
 
 export function legacyRedirect(pathname: string, hash: string): string | null {
-  if (pathname === '/painel') return PAINEL_TO[decodeURIComponent(hash.replace(/^#/, ''))] ?? null;
-  const to = LEGACY[pathname];
-  if (!to) return null;
-  return to === '/painel' ? legacyRedirect('/painel', hash) ?? to + hash : to;
+  if (pathname === '/painel' || pathname === '/admin') return PAINEL_TO[decodeURIComponent(hash.replace(/^#/, ''))] ?? '/configuracoes/maquina';
+  return LEGACY[pathname] ?? null;
 }
 
 function redirectLegacy(): void {

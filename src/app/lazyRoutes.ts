@@ -14,9 +14,9 @@ export const Equipe = lazy(() => import('../routes/Equipe').then((m) => ({ defau
 export const EquipePage = lazy(() => import('../routes/EquipePage').then((m) => ({ default: m.EquipePage })));
 export const Canvas = lazy(() => import('../routes/Canvas').then((m) => ({ default: m.Canvas })));
 export const Graph = lazy(() => import('../routes/Graph').then((m) => ({ default: m.Graph })));
-export const Admin = lazy(() => import('../routes/Admin').then((m) => ({ default: m.Admin })));
 export const Docs = lazy(() => import('../routes/Docs').then((m) => ({ default: m.Docs })));
 export const DesignSystem = lazy(() => import('../routes/DesignSystem').then((m) => ({ default: m.DesignSystem })));
 export const Agente = lazy(() => import('../routes/Agente').then((m) => ({ default: m.Agente })));
 export const Onboarding = lazy(() => import('../routes/Onboarding').then((m) => ({ default: m.Onboarding })));
 export const Configuracoes = lazy(() => import('../routes/Configuracoes').then((m) => ({ default: m.Configuracoes })));
+export const Conexoes = lazy(() => import('../routes/Conexoes').then((m) => ({ default: m.Conexoes })));

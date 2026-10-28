@@ -23,18 +23,22 @@ describe('useRoute', () => {
     }
   });
 
-  it('abas de Conexões continuam em /painel até a fatia 22b', () => {
-    history.replaceState(null, '', '/painel#models');
-    const { result } = renderHook(() => useRoute());
-    expect(result.current.route).toBe('/painel');
+  it('abas de Conexões saem de /painel', () => {
+    for (const [from, to] of [['/painel#models', '/conexoes#provedores'], ['/painel#agents', '/conexoes#provedores'], ['/painel#mcps', '/conexoes#ferramentas']]) {
+      history.replaceState(null, '', from);
+      const { result, unmount } = renderHook(() => useRoute());
+      expect(result.current.route).toBe('/conexoes');
+      expect(location.pathname + location.hash).toBe(to);
+      unmount();
+    }
   });
 
-  it('/admin vira /painel preservando o hash da sub-aba', () => {
+  it('/admin segue o mesmo caminho do /painel', () => {
     history.replaceState(null, '', '/admin#models');
     const before = history.length;
     const { result } = renderHook(() => useRoute());
-    expect(result.current.route).toBe('/painel');
-    expect(location.pathname + location.hash).toBe('/painel#models');
+    expect(result.current.route).toBe('/conexoes');
+    expect(location.pathname + location.hash).toBe('/conexoes#provedores');
     expect(history.length).toBe(before);
   });
 

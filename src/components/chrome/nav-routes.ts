@@ -25,7 +25,7 @@ export const NAV: { to: Route; label: string; student?: true; root?: true }[] = 
   { to: '/configuracoes', label: 'configurações', student: true },
   { to: '/canvas', label: 'canvas' },
   { to: '/graph', label: 'graph' },
-  { to: '/painel', label: 'painel' },
+  { to: '/conexoes', label: 'conexões' },
   { to: '/docs', label: 'docs' },
 ];
 

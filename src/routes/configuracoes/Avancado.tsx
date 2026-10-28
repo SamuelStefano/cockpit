@@ -26,7 +26,7 @@ export function Avancado({ caps, bypass, setBypass, isRoot, isMobile, adminOp, o
       <div className="overflow-hidden rounded-xl border border-red-500/25 bg-neutral-900/60 hairline">
         {caps?.canBypass && (
           <SwitchRow
-            danger label="Executar sem pedir permissão" checked={bypass} onChange={() => setBypass(!bypass)}
+            danger label="Pular aprovações" checked={bypass} onChange={() => setBypass(!bypass)}
             hint="O agente roda qualquer comando sem perguntar. Só nesta máquina e só pra administradores."
           />
         )}

@@ -20,7 +20,7 @@ describe('usePaletteCommands navigation', () => {
 
   it('adds the admin-only routes only for admins', () => {
     expect(navIds('student')).not.toContain('go-canvas');
-    expect(navIds('admin')).toEqual(expect.arrayContaining(['go-canvas', 'go-graph', 'go-painel']));
+    expect(navIds('admin')).toEqual(expect.arrayContaining(['go-canvas', 'go-graph', 'go-conexoes']));
   });
 
   it('offers pontos to root only', () => {

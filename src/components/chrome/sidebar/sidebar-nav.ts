@@ -9,12 +9,10 @@ export interface FooterNavItem {
   to: Route;
 }
 
-// Conexões has no screen of its own yet (slice 22b): until then it opens the
-// closest existing route, so the footer is already final.
 export const FOOTER_NAV: FooterNavItem[] = [
   { id: 'equipe', label: 'Equipe', icon: 'users', to: '/equipe' },
   { id: 'skills', label: 'Skills', icon: 'sparkles', to: '/skills' },
-  { id: 'conexoes', label: 'Conexões', icon: 'link', to: '/painel' },
+  { id: 'conexoes', label: 'Conexões', icon: 'link', to: '/conexoes' },
   { id: 'configuracoes', label: 'Configurações', icon: 'sliders', to: '/configuracoes' },
 ];
 
