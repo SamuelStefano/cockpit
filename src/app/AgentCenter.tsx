@@ -21,7 +21,7 @@ export function AgentCenter({ view, agent, cockpit: c, chatProps, connected, isM
   return (
     <Suspense fallback={null}>
       <Equipe
-        key={view.bot.id} view={view} connected={connected} isMobile={isMobile} isAdmin={isAdmin}
+        key={view.bot.id} view={view} views={agent.views} connected={connected} isMobile={isMobile} isAdmin={isAdmin}
         bots={c.bots} models={c.models} onTeamSave={c.onTeamSave} onTeamDelete={c.onTeamDelete} chatProps={chatProps}
         crons={c.crons} onCronsGet={c.onCronsGet} onCronSave={c.onCronSave} onCronDelete={c.onCronDelete} onCronRun={c.onCronRun}
         teamMessages={c.teamMessages} teamPaused={c.teamPaused} onTeamMessagesGet={c.onTeamMessagesGet} onTeamPauseSet={c.onTeamPauseSet}

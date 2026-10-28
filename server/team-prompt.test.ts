@@ -21,6 +21,11 @@ describe('buildBotIdentity', () => {
     expect(t).toContain('AskUserQuestion com uma pergunta e 2 a 4 opções curtas e mutuamente exclusivas');
     expect(t).toContain('![legenda](nome.png)');
   });
+  it('tells the bot about the optional image and deadline of a proposal', () => {
+    const t = buildBotIdentity(team[0], team);
+    expect(t).toContain('`image`');
+    expect(t).toContain('`deadline`');
+  });
   it('omits the roster for a team of one and caps the size', () => {
     const solo = mk('solo1', { instructions: 'z'.repeat(40_000) });
     const t = buildBotIdentity(solo, [solo]);
@@ -59,5 +64,32 @@ describe('botTurnFor (fatia E)', () => {
   });
   it('no bot, no turn', () => {
     expect(botTurnFor([], 'k1', undefined, 'student')).toBeUndefined();
+  });
+});
+
+describe('memory block in the bot prompt', () => {
+  const mem = (agents: string[], body = 'Tom caloroso.') => ({ id: 'm1', title: 'Marca', body, agents, updatedAt: 1, updatedBy: 'user' });
+
+  it('is byte-identical to today without memories or readers', () => {
+    const base = buildBotIdentity(team[1], team);
+    expect(buildBotIdentity(team[1], team, [])).toBe(base);
+    expect(buildBotIdentity(team[1], team, [mem(['kid11'])])).toBe(base);
+  });
+
+  it('appends the memories the bot reads', () => {
+    const t = buildBotIdentity(team[1], team, [mem(['lead1'])]);
+    expect(t).toContain('## Marca\nTom caloroso.');
+    expect(t.startsWith(buildBotIdentity(team[1], team))).toBe(true);
+  });
+
+  it('caps the memory part at 8 KB and keeps the identity cap separate', () => {
+    const base = buildBotIdentity(team[1], team);
+    const t = buildBotIdentity(team[1], team, [mem(['lead1'], 'x'.repeat(50_000))]);
+    expect(new TextEncoder().encode(t).length - new TextEncoder().encode(base).length).toBeLessThanOrEqual(8 * 1024 + 2);
+  });
+
+  it('reaches botTurnParams and botTurnFor', () => {
+    expect(botTurnParams(team, 'bot-lead1', undefined, [mem(['lead1'])])?.appendSystemPrompt).toContain('Tom caloroso.');
+    expect(botTurnFor(team, 'bot-lead1', undefined, 'admin', [mem(['lead1'])])?.appendSystemPrompt).toContain('Tom caloroso.');
   });
 });

@@ -26,6 +26,8 @@ export interface ToolQuestion {
   header: string;
   multiSelect: boolean;
   options: ToolQuestionOption[];
+  image?: string; // proposal picture: a path in the bot's workspace or an https URL
+  deadline?: string; // free text shown in the footer ("10:30"): when the bot holds the round
 }
 
 // MCP Apps (SEP-1865): uma tool MCP pode declarar `_meta.ui.resourceUri` apontando
@@ -190,12 +192,34 @@ export interface ContextMeta {
   mtime: number;
 }
 
+// Memória da equipe: o que os agentes ligados a ela sabem antes da conversa
+// começar. `agents` = ids dos bots que a leem. Ligada a ninguém = só consulta.
+export interface Memory {
+  id: string;
+  title: string;
+  body: string;
+  agents: string[];
+  updatedAt: number;
+  updatedBy: string;
+  fileName?: string;
+  fromDisk?: boolean;
+}
+export type MemoryInput = Pick<Memory, 'title' | 'body' | 'agents'> & { id?: string; fileName?: string };
+
 // Skill do agente (dir com SKILL.md) surfaceada read-only na rota Skills.
+export type SkillRisk = 'read' | 'write' | 'net';
 export interface SkillMeta {
   id: string;
   name: string;
   description: string;
   mtime: number;
+  // Frontmatter `source:`; absent on the wire = a skill of the Deck itself. Any
+  // other value is the name of the host MCP that ships it.
+  source?: string;
+  // Frontmatter `risk:`; absent = the UI shows `read`.
+  risk?: SkillRisk[];
+  // Ids of the team bots that can run it (a bot without a skill list runs all).
+  usedBy?: string[];
 }
 
 // DFL Skills registry (skills.devfellowship.com), read server-side with the
@@ -700,6 +724,9 @@ export type ClientMsg =
   | { t: 'search'; q: string }
   | { t: 'ctx-list' }
   | { t: 'ctx-open'; id: string }
+  | { t: 'mem-list' }
+  | { t: 'mem-save'; memory: MemoryInput }
+  | { t: 'mem-delete'; id: string }
   | { t: 'notes-get' }
   | { t: 'notes-save'; text: string }
   // Drop privado (admin-only, fora do STUDENT_ALLOWED): entrega segredo/script à
@@ -932,6 +959,7 @@ export type ServerMsg =
   | { t: 'search-results'; q: string; items: SessionMeta[] }
   | { t: 'session-summary'; sessionId: string; summary: string }
   | { t: 'contexts'; items: ContextMeta[] }
+  | { t: 'memories'; items: Memory[] }
   | { t: 'notes'; text: string }
   // `content` preenchido SÓ em resposta a drop-open. No put a referência viaja
   // sozinha (caminho/bytes/sha256) — o segredo não volta pro cliente.

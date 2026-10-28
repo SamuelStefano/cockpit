@@ -16,11 +16,11 @@ export function navRole(role: Caps['role'] | undefined): NavRole {
 // (shared/root-frames.ts).
 export const NAV: { to: Route; label: string; student?: true; root?: true }[] = [
   { to: '/', label: 'chat', student: true },
-  { to: '/contextos', label: 'contextos' },
-  { to: '/skills', label: 'skills' },
+    { to: '/skills', label: 'skills' },
   { to: '/pontos', label: 'pontos', root: true },
-    { to: '/equipe', label: 'equipe', student: true },
+  { to: '/equipe', label: 'equipe', student: true },
   { to: '/equipe/rotinas', label: 'rotinas' },
+  { to: '/equipe/memoria', label: 'memória' },
   { to: '/agentes', label: 'Agentes', student: true },
   { to: '/uso', label: 'uso' },
   { to: '/canvas', label: 'canvas' },

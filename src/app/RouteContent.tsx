@@ -6,7 +6,7 @@ import type { AgentNav } from './useAgentNav';
 import { RouteFallback } from './RouteFallback';
 import { ChunkErrorBoundary } from './ChunkErrorBoundary';
 import {
-  Contextos, Skills, Pontos, Observatorio,
+  Skills, Pontos, Observatorio,
   Graph, Canvas, Admin, Docs, DesignSystem, Onboarding, EquipePage, Agente,
 } from './lazyRoutes';
 import type { ChatPanelProps } from '../components/chat/chat-panel-props';
@@ -34,6 +34,7 @@ interface MobileState {
 
 interface RouteContentProps {
   route: Route;
+  skillRoute?: { id: string; open: (id: string) => void };
   agentRoute?: { id: string; tab: AgentTab; open: (id: string, tab?: AgentTab) => void };
   isMobile: boolean;
   isAdmin: boolean;
@@ -49,27 +50,24 @@ interface RouteContentProps {
   mobile: MobileState;
 }
 
-export function RouteContent({ route, agentRoute, isMobile, isAdmin, isRoot, connected, cockpit, chatProps, termProps, onOpenSession, agent, onOpenAgentChat, layout, mobile }: RouteContentProps) {
+export function RouteContent({ route, agentRoute, skillRoute, isMobile, isAdmin, isRoot, connected, cockpit, chatProps, termProps, onOpenSession, agent, onOpenAgentChat, layout, mobile }: RouteContentProps) {
   const c = cockpit;
   const view = (() => {
-    if (route === '/contextos') {
-      return (
-        <Contextos connected={connected} contexts={c.contexts} loaded={c.ctxLoaded} openContext={c.openContext}
-          onCtxList={c.onCtxList} onCtxOpen={c.onCtxOpen} onCtxClose={c.onCtxClose} />
-      );
-    }
-    if (route === '/equipe' || route === '/equipe/rotinas') {
+    if (route === '/equipe' || route === '/equipe/rotinas' || route === '/equipe/memoria') {
       return (
         <EquipePage
+          tab={route === '/equipe/memoria' ? 'memoria' : route === '/equipe/rotinas' ? 'rotinas' : 'agentes'}
+          memory={{ memories: c.memories, loaded: c.memoriesLoaded, onList: c.onMemList, onSave: c.onMemSave, onDelete: c.onMemDelete }}
           views={agent.views} connected={connected} isAdmin={isAdmin} usageStats={c.usageStats} paused={c.teamPaused}
-          tab={route === '/equipe/rotinas' ? 'rotinas' : 'agentes'} bots={c.bots} onOpenChat={agent.open}
+          bots={c.bots} onOpenChat={agent.open}
           cron={{ crons: c.crons, loaded: c.cronsLoaded, onCronsGet: c.onCronsGet, onCronSave: c.onCronSave, onCronDelete: c.onCronDelete, onCronRun: c.onCronRun }}
           onOpenAgent={(id) => agentRoute?.open(id)} onNew={agent.openNew} onPauseSet={c.onTeamPauseSet} onUsageList={c.onUsageList} onGo={navigateTo} />
       );
     }
     if (route === '/skills') {
       return (
-        <Skills connected={connected} skills={c.skills} loaded={c.skillsLoaded} openSkill={c.openSkill}
+        <Skills connected={connected} skills={c.skills} loaded={c.skillsLoaded} openSkill={c.openSkill} bots={c.bots}
+          skillId={skillRoute?.id ?? ''} onNavigate={(id) => skillRoute?.open(id)}
           registry={c.registry} registryLoading={c.registryLoading} registryError={c.registryError} installing={c.installing}
           onSkillList={c.onSkillList} onSkillOpen={c.onSkillOpen} onSkillClose={c.onSkillClose}
           onRegistryGet={c.onRegistryGet} onRegistryInstall={c.onRegistryInstall} />

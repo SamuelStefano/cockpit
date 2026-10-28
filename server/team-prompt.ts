@@ -1,4 +1,5 @@
-import type { TeamBot } from '../shared/protocol';
+import type { Memory, TeamBot } from '../shared/protocol';
+import { buildMemoryBlock } from '../shared/memory';
 import { botIdFromKey } from '../shared/team';
 import type { Role } from './auth';
 
@@ -18,12 +19,12 @@ function rosterLine(b: TeamBot, byId: Map<string, TeamBot>, team: TeamBot[]): st
 // session without a recorded snapshot (older CLI, or one compacted since) still
 // gets it. The CLI's default --system-prompt-snapshot records the first launch's
 // text, so an instructions edit reaches an existing thread only after a compact.
-export function buildBotIdentity(bot: TeamBot, team: TeamBot[]): string {
+export function buildBotIdentity(bot: TeamBot, team: TeamBot[], memories?: Memory[]): string {
   const byId = new Map(team.map((b) => [b.id, b]));
   const lines = [
     `Você é ${bot.name}${bot.label ? `, ${bot.label}` : ''}, um bot da equipe do Deck. Fale sempre como ${bot.name}.`,
     'Responda em prosa curta, números na frente: o que aconteceu, o que você decidiu, o que falta.',
-    'Quando precisar de uma decisão do humano, explique o contexto em prosa antes e então use AskUserQuestion com uma pergunta e 2 a 4 opções curtas e mutuamente exclusivas.',
+    'Quando precisar de uma decisão do humano, explique o contexto em prosa antes e então use AskUserQuestion com uma pergunta e 2 a 4 opções curtas e mutuamente exclusivas. Marque a recomendada com "(Recomendada)" no fim do rótulo. Se houver um mockup ou print, passe o caminho dele em `image` na pergunta; se for segurar a rodada sem resposta, passe o horário em `deadline` (ex.: "10:30").',
     'Para mostrar uma imagem (mockup, gráfico, print), salve o arquivo no seu diretório de trabalho e cite com caminho relativo: ![legenda](nome.png).',
   ];
   if (bot.instructions.trim()) lines.push('', 'Suas instruções:', bot.instructions.trim());
@@ -33,7 +34,9 @@ export function buildBotIdentity(bot: TeamBot, team: TeamBot[]): string {
   }
   const text = lines.join('\n');
   const bytes = new TextEncoder().encode(text);
-  return bytes.length <= MAX_IDENTITY_BYTES ? text : new TextDecoder().decode(bytes.slice(0, MAX_IDENTITY_BYTES));
+  const base = bytes.length <= MAX_IDENTITY_BYTES ? text : new TextDecoder().decode(bytes.slice(0, MAX_IDENTITY_BYTES));
+  const memory = buildMemoryBlock(memories, bot.id);
+  return memory ? `${base}\n\n${memory}` : base;
 }
 
 // A turn belongs to a bot when its key names the bot (first turn / server turns)
@@ -61,18 +64,18 @@ export interface BotTurn {
 // A turn driven by anyone but admin is always restricted, whatever team.json says:
 // a non-admin account can reach that file through other means, the profile it
 // stored there must not be what unlocks Bash.
-export function botTurnFor(team: TeamBot[], sessionKey: string, sessionId: string | undefined, role: Role | undefined): BotTurn | undefined {
-  const turn = botTurnParams(team, sessionKey, sessionId);
+export function botTurnFor(team: TeamBot[], sessionKey: string, sessionId: string | undefined, role: Role | undefined, memories?: Memory[]): BotTurn | undefined {
+  const turn = botTurnParams(team, sessionKey, sessionId, memories);
   return turn && role !== 'admin' ? { ...turn, profile: 'restricted' } : turn;
 }
 
-export function botTurnParams(team: TeamBot[], sessionKey: string, sessionId?: string): BotTurn | undefined {
+export function botTurnParams(team: TeamBot[], sessionKey: string, sessionId?: string, memories?: Memory[]): BotTurn | undefined {
   const bot = findTurnBot(team, sessionKey, sessionId);
   if (!bot) return undefined;
   return {
     botId: bot.id,
     resumeId: bot.sessionId ?? sessionId,
-    appendSystemPrompt: buildBotIdentity(bot, team),
+    appendSystemPrompt: buildBotIdentity(bot, team, memories),
     profile: bot.profile === 'full' ? 'full' : 'restricted',
     ...(bot.model ? { model: bot.model } : {}),
     ...(bot.mode ? { mode: bot.mode } : {}),

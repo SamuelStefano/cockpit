@@ -1,27 +1,17 @@
-import type { RegistryRef } from '../../../shared/protocol';
-import type { PackView, SkillGroup } from '../../lib/skill-packs';
-import { PackPanel } from './PackPanel';
-import { SkillGroupSection } from './SkillGroupSection';
+import type { SkillMeta, TeamBot } from '../../../shared/protocol';
+import { EmptyState } from '../../components/primitives';
+import { SkillRow } from './SkillRow';
 
-interface Props {
-  packs: PackView[];
-  groups: SkillGroup[];
-  installing: ReadonlySet<string>;
-  onInstall: (key: string, items: RegistryRef[]) => void;
-  onOpen: (id: string) => void;
-}
+interface Props { skills: SkillMeta[]; bots: TeamBot[]; onOpen: (id: string) => void }
 
-export function InstalledView({ packs, groups, installing, onInstall, onOpen }: Props) {
+export function InstalledView({ skills, bots, onOpen }: Props) {
+  if (skills.length === 0) return <EmptyState icon="search" title="Nada com esses filtros" description="Tire um filtro ou mude a busca." />;
   return (
-    <div className="flex flex-col gap-6">
-      {packs.length > 0 && (
-        <div className="flex flex-col gap-3">
-          {packs.map((v) => (
-            <PackPanel key={`${v.pack.source}/${v.pack.slug}`} view={v} compact installing={installing.has(`pack:${v.pack.source}/${v.pack.slug}`)} onInstall={onInstall} onOpen={onOpen} />
-          ))}
-        </div>
-      )}
-      {groups.map((g) => <SkillGroupSection key={g.label} group={g} onOpen={onOpen} />)}
+    <div className="overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900/60">
+      <div className="hidden items-center gap-4 border-b border-neutral-800 px-4 py-2 text-[12px] uppercase tracking-wide text-neutral-500 sm:flex">
+        <span className="flex-1">Skill</span><span className="w-36">Fonte</span><span className="w-36">Usada por</span><span className="w-28">Risco</span>
+      </div>
+      {skills.map((s) => <SkillRow key={s.id} s={s} bots={bots} onOpen={onOpen} />)}
     </div>
   );
 }

@@ -2,13 +2,13 @@ import { useState, useEffect, useCallback } from 'react';
 
 // Router minúsculo (sem dep): só troca a VIEW principal. useCockpit fica ACIMA
 // deste switch no App, então o WebSocket/terminais nunca desmontam ao navegar.
-export type Route = '/' | '/contextos' | '/skills' | '/pontos' | '/equipe' | '/equipe/rotinas' | '/uso' | '/graph' | '/canvas' | '/painel' | '/docs' | '/ds' | '/onboarding' | '/agentes';
+export type Route = '/' | '/equipe/memoria' | '/skills' | '/pontos' | '/equipe' | '/equipe/rotinas' | '/uso' | '/graph' | '/canvas' | '/painel' | '/docs' | '/ds' | '/onboarding' | '/agentes';
 
-const ROUTES: Route[] = ['/', '/contextos', '/skills', '/pontos', '/equipe', '/equipe/rotinas', '/uso', '/graph', '/canvas', '/painel', '/docs', '/ds', '/onboarding', '/agentes'];
+const ROUTES: Route[] = ['/', '/equipe/memoria', '/skills', '/pontos', '/equipe', '/equipe/rotinas', '/uso', '/graph', '/canvas', '/painel', '/docs', '/ds', '/onboarding', '/agentes'];
 
 // Old URLs (bookmarks, deep links) keep working: /admin became /painel (the hash
 // picks the sub-tab, so it rides along) and the retired screens fall back to chat.
-const LEGACY: Record<string, string> = { '/admin': '/painel', '/notas': '/', '/play': '/', '/harness': '/', '/crons': '/equipe/rotinas' };
+const LEGACY: Record<string, string> = { '/admin': '/painel', '/notas': '/', '/play': '/', '/harness': '/', '/contextos': '/equipe/memoria', '/crons': '/equipe/rotinas' };
 
 export function legacyRedirect(pathname: string, hash: string): string | null {
   const to = LEGACY[pathname];
@@ -29,17 +29,19 @@ const CHAT = '/c/';
 export type AgentTab = 'perfil' | 'rotinas' | 'arquivos' | 'computador';
 const AGENT_TABS: readonly AgentTab[] = ['perfil', 'rotinas', 'arquivos', 'computador'];
 const AGENTS = '/agentes/';
+const SKILLS = '/skills/';
 
-export interface RouteState { route: Route; chatId: string; agentId: string; agentTab: AgentTab }
+export interface RouteState { route: Route; chatId: string; agentId: string; agentTab: AgentTab; skillId: string }
 
 export const chatPath = (id: string) => CHAT + encodeURIComponent(id);
+export const skillPath = (id: string) => (id ? SKILLS + encodeURIComponent(id) : '/skills');
 
 export function agentPath(id: string, tab: AgentTab = 'perfil'): string {
   if (!id) return '/agentes';
   return AGENTS + encodeURIComponent(id) + (tab === 'perfil' ? '' : `?aba=${tab}`);
 }
 
-const plain = (route: Route, chatId = ''): RouteState => ({ route, chatId, agentId: '', agentTab: 'perfil' });
+const plain = (route: Route, chatId = '', skillId = ''): RouteState => ({ route, chatId, agentId: '', agentTab: 'perfil', skillId });
 
 function current(): RouteState {
   redirectLegacy();
@@ -48,11 +50,12 @@ function current(): RouteState {
     const id = decodeURIComponent(p.slice(CHAT.length));
     if (id) return plain('/', id);
   }
+  if (p.startsWith(SKILLS)) return plain('/skills', '', decodeURIComponent(p.slice(SKILLS.length).split('/')[0]));
   if (p.startsWith(AGENTS)) {
     const id = decodeURIComponent(p.slice(AGENTS.length).split('/')[0]);
     if (id) {
       const aba = new URLSearchParams(location.search).get('aba') as AgentTab | null;
-      return { route: '/agentes', chatId: '', agentId: id, agentTab: aba && AGENT_TABS.includes(aba) ? aba : 'perfil' };
+      return { ...plain('/agentes'), agentId: id, agentTab: aba && AGENT_TABS.includes(aba) ? aba : 'perfil' };
     }
   }
   return plain(ROUTES.includes(p as Route) ? (p as Route) : '/');
@@ -85,7 +88,12 @@ export function useRoute() {
       if (replace) history.replaceState(null, '', path);
       else history.pushState(null, '', path);
     }
-    setState({ route: '/agentes', chatId: '', agentId: id, agentTab: tab });
+    setState({ ...plain('/agentes'), agentId: id, agentTab: tab });
   }, []);
-  return { route: state.route, chatId: state.chatId, agentId: state.agentId, agentTab: state.agentTab, nav, navChat, navAgent };
+  const navSkill = useCallback((id: string) => {
+    const path = skillPath(id);
+    if (location.pathname !== path) history.pushState(null, '', path);
+    setState(plain('/skills', '', id));
+  }, []);
+  return { route: state.route, chatId: state.chatId, agentId: state.agentId, agentTab: state.agentTab, skillId: state.skillId, nav, navChat, navAgent, navSkill };
 }
