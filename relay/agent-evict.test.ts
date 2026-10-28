@@ -87,21 +87,24 @@ describe('several boxes paired to one account', () => {
     return { ...env, first, second };
   }
 
-  it('tells the tab an agent without the sealed channel is plain, and a sealed one is not', async () => {
+  it('tells the tab an agent without the sealed channel is plain; a sealed or older one is not', async () => {
     const { url, first, second } = await twoBoxes();
-    first.ws.send(JSON.stringify({ t: 'agent-caps', canBypass: false }));
+    first.ws.send(JSON.stringify({ t: 'agent-caps', canBypass: false, sealed: false }));
     second.ws.send(JSON.stringify({ t: 'agent-caps', canBypass: false, sealed: true }));
     await new Promise((r) => setTimeout(r, 50));
     const t1 = tab(url, B1), t2 = tab(url, B2);
     expect((await t1.next((m) => m.t === 'agent-online')).plain).toBe(true);
     expect((await t2.next((m) => m.t === 'agent-online')).plain).toBeUndefined();
+    second.ws.send(JSON.stringify({ t: 'agent-caps', canBypass: false }));
+    await new Promise((r) => setTimeout(r, 50));
+    expect((await tab(url, B2).next((m) => m.t === 'agent-online')).plain).toBeUndefined();
   });
 
   it('a tab already open hears plain when the agent reports its caps', async () => {
     const { url, first } = await twoBoxes();
     const t1 = tab(url, B1);
     await t1.next((m) => m.t === 'agent-online');
-    first.ws.send(JSON.stringify({ t: 'agent-caps', canBypass: false }));
+    first.ws.send(JSON.stringify({ t: 'agent-caps', canBypass: false, sealed: false }));
     expect((await t1.next((m) => m.t === 'agent-online' && m.plain === true)).box).toBe(B1);
   });
 
