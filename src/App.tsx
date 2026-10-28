@@ -9,7 +9,6 @@ import { MobileNavDrawer } from './components/chrome/sidebar/MobileNavDrawer';
 import { SessionsPanel } from './components/Sessions';
 import { QuotaBanner } from './components/chrome/QuotaBanner';
 import { BodyFooter } from './components/chrome/BodyFooter';
-import { readUsage } from './components/chrome/sidebar/UsageDock';
 import { OfflineNotice } from './components/chrome/OfflineNotice';
 import { RestartNotice } from './components/chrome/RestartNotice';
 import { UpdateNotice } from './components/chrome/UpdateNotice';
@@ -186,7 +185,9 @@ function CockpitBody() {
     views: agent.views, activeId: agent.active?.bot.id ?? null, onNew: agent.openNew, onAll: () => nav('/equipe'),
     onOpen: agent.open, canManage: isAdmin, paused: cockpit.teamPaused, onPauseSet: cockpit.onTeamPauseSet,
   };
-  const chatWithTeam = { ...chatProps, teamSlot: <TeamStack {...teamProps} /> };
+  const quotaNotice = quotaGate.warn && !quotaClosed && rate ? <QuotaBanner reset={relReset(rate.resetsAt)} onClose={() => setQuotaClosed(true)} /> : null;
+  const bodyFooter = isMobile ? null : <BodyFooter userId={sbAuth.session?.user.id} end={quotaNotice} />;
+  const chatWithTeam = { ...chatProps, teamSlot: <TeamStack {...teamProps} />, footer: bodyFooter };
   const openPalette = () => { setDrawer(false); setPalette(true); };
   const account = { userId: sbAuth.session?.user.id, onSignOut: SUPABASE_ENABLED ? sbAuth.signOut : undefined, onChangePassword: SUPABASE_ENABLED ? sbAuth.changePassword : undefined, drops: dropApi };
 
@@ -264,12 +265,7 @@ function CockpitBody() {
             mobile={{ drawer, setDrawer, termSheet, setTermSheet, runningTerm, drawerNav }}
             role={role} team={teamProps} nav={nav} account={account} usageDock={usageDock}
           />
-          {!isMobile && (
-            <BodyFooter
-              userId={account.userId}
-              end={quotaGate.warn && !quotaClosed && rate && <QuotaBanner pct={readUsage(usageDock).s.pct} reset={relReset(rate.resetsAt)} onClose={() => setQuotaClosed(true)} />}
-            />
-          )}
+          {!isMobile && !chatSurface && bodyFooter}
         </div>
       </div>
       {isMobile && !chatSurface && (
