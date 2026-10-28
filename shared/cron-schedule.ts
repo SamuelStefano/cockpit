@@ -1,5 +1,23 @@
 import type { Cron, CronSchedule } from './protocol';
 
+export type CronFireOutcome = 'started' | 'skipped' | 'blocked' | 'bot-busy' | 'bot-gone';
+
+declare module './protocol' {
+  interface CronSchedule {
+    weekdays?: number[];
+    monthDay?: number;
+  }
+  interface Cron {
+    retry?: boolean;
+    retryCount?: number;
+    retryAt?: number;
+    lastFire?: CronFireOutcome;
+  }
+}
+
+export const RETRY_DELAY_MS = 3_600_000;
+export const RETRY_MAX = 3;
+
 // Matemática de agendamento dos crons — pura (recebe `now`), compartilhada entre o
 // scheduler do servidor e o display da UI pra não divergirem.
 const DAY = 86_400_000;
@@ -13,6 +31,13 @@ const OFFSET_MS = CRON_TZ_OFFSET_MIN * 60_000;
 
 export function midnightInTz(now: number): number {
   return Math.floor((now + OFFSET_MS) / DAY) * DAY - OFFSET_MS;
+}
+
+export function dayAllowed(s: CronSchedule, dayStart: number): boolean {
+  const d = new Date(dayStart + OFFSET_MS + 12 * 3_600_000);
+  if (s.weekdays?.length && !s.weekdays.includes(d.getUTCDay())) return false;
+  if (s.monthDay && d.getUTCDate() !== s.monthDay) return false;
+  return true;
 }
 
 // The card, the timeline and the form preview all read Brasília, so the one-shot label
@@ -35,15 +60,22 @@ export function scheduleLabel(s: CronSchedule): string {
 // Próxima execução (pro display da UI). Intervalo: último + N min. Diário: o slot de
 // hoje se ainda não passou/não rodou, senão o de amanhã. Uma vez: o instante marcado.
 export function nextRunAt(c: Cron, now: number): number {
+  const regular = regularNextRunAt(c, now);
+  return c.retryAt && c.enabled && c.retryAt < regular ? c.retryAt : regular;
+}
+
+function regularNextRunAt(c: Cron, now: number): number {
   if (c.schedule.kind === 'once') return c.schedule.atMs ?? c.createdAt;
   if (c.schedule.kind === 'interval') {
     const every = Math.max(1, c.schedule.everyMinutes ?? 60) * 60_000;
     return (c.lastRun ?? c.createdAt) + every;
   }
   const at = Math.max(0, Math.min(1439, c.schedule.atMinute ?? 540)) * 60_000;
-  const today = midnightInTz(now) + at;
-  const ranToday = !!c.lastRun && c.lastRun >= midnightInTz(now);
-  return now < today && !ranToday ? today : today + DAY;
+  const base = midnightInTz(now);
+  const ranToday = !!c.lastRun && c.lastRun >= base;
+  if (dayAllowed(c.schedule, base) && now < base + at && !ranToday) return base + at;
+  for (let k = 1; k <= 400; k++) if (dayAllowed(c.schedule, base + k * DAY)) return base + k * DAY + at;
+  return base + DAY + at;
 }
 
 // Guarda de borda: o frame de `cron-save` vem cru do cliente, então a forma do
@@ -54,7 +86,11 @@ export function scheduleValid(s: CronSchedule | undefined): boolean {
   // Integers in range: `everyMinutes: -5` was clamped to 1 (fired every minute
   // while the card read "a cada -5min") and `atMinute: 540.5` printed "09:0.5".
   if (s.kind === 'interval') return Number.isInteger(s.everyMinutes) && (s.everyMinutes ?? 0) >= 1;
-  if (s.kind === 'daily') return Number.isInteger(s.atMinute) && (s.atMinute ?? -1) >= 0 && (s.atMinute ?? 1440) <= 1439;
+  if (s.kind === 'daily') {
+    if (s.weekdays !== undefined && !(Array.isArray(s.weekdays) && s.weekdays.every((d) => Number.isInteger(d) && d >= 0 && d <= 6))) return false;
+    if (s.monthDay !== undefined && !(Number.isInteger(s.monthDay) && s.monthDay >= 1 && s.monthDay <= 31)) return false;
+    return Number.isInteger(s.atMinute) && (s.atMinute ?? -1) >= 0 && (s.atMinute ?? 1440) <= 1439;
+  }
   if (s.kind === 'once') return Number.isFinite(s.atMs) && (s.atMs ?? 0) > 0;
   return false;
 }
@@ -62,6 +98,7 @@ export function scheduleValid(s: CronSchedule | undefined): boolean {
 // Está vencido AGORA (deve disparar)?
 export function isDue(c: Cron, now: number): boolean {
   if (!c.enabled) return false;
+  if (c.retryAt && now >= c.retryAt) return true;
   // lastRun < atMs (em vez de "nunca rodou") pra reagendar um one-shot já disparado
   // pra uma data futura voltar a valer.
   if (c.schedule.kind === 'once') {
@@ -72,6 +109,7 @@ export function isDue(c: Cron, now: number): boolean {
     const every = Math.max(1, c.schedule.everyMinutes ?? 60) * 60_000;
     return (c.lastRun ?? c.createdAt) + every <= now;
   }
+  if (!dayAllowed(c.schedule, midnightInTz(now))) return false;
   const slot = midnightInTz(now) + Math.max(0, Math.min(1439, c.schedule.atMinute ?? 540)) * 60_000;
   // A slot older than the cron itself never belonged to it: creating a 01:00 cron at
   // 23:30 used to fire an autonomous turn within the next tick, while the form preview

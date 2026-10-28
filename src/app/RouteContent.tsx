@@ -6,7 +6,7 @@ import type { AgentNav } from './useAgentNav';
 import { RouteFallback } from './RouteFallback';
 import { ChunkErrorBoundary } from './ChunkErrorBoundary';
 import {
-  Skills, Pontos, Crons, Observatorio,
+  Skills, Pontos, Observatorio,
   Graph, Canvas, Admin, Docs, DesignSystem, Onboarding, EquipePage, Agente,
 } from './lazyRoutes';
 import type { ChatPanelProps } from '../components/chat/chat-panel-props';
@@ -53,13 +53,14 @@ interface RouteContentProps {
 export function RouteContent({ route, agentRoute, skillRoute, isMobile, isAdmin, isRoot, connected, cockpit, chatProps, termProps, onOpenSession, agent, onOpenAgentChat, layout, mobile }: RouteContentProps) {
   const c = cockpit;
   const view = (() => {
-    if (route === '/equipe' || route === '/equipe/memoria') {
+    if (route === '/equipe' || route === '/equipe/rotinas' || route === '/equipe/memoria') {
       return (
         <EquipePage
-          tab={route === '/equipe/memoria' ? 'memoria' : 'agentes'}
+          tab={route === '/equipe/memoria' ? 'memoria' : route === '/equipe/rotinas' ? 'rotinas' : 'agentes'}
           memory={{ memories: c.memories, loaded: c.memoriesLoaded, onList: c.onMemList, onSave: c.onMemSave, onDelete: c.onMemDelete }}
           views={agent.views} connected={connected} isAdmin={isAdmin} usageStats={c.usageStats} paused={c.teamPaused}
-          cronCount={c.cronsLoaded ? c.crons.length : undefined}
+          bots={c.bots} onOpenChat={agent.open}
+          cron={{ crons: c.crons, loaded: c.cronsLoaded, onCronsGet: c.onCronsGet, onCronSave: c.onCronSave, onCronDelete: c.onCronDelete, onCronRun: c.onCronRun }}
           onOpenAgent={(id) => agentRoute?.open(id)} onNew={agent.openNew} onPauseSet={c.onTeamPauseSet} onUsageList={c.onUsageList} onGo={navigateTo} />
       );
     }
@@ -81,13 +82,6 @@ export function RouteContent({ route, agentRoute, skillRoute, isMobile, isAdmin,
           onDflGet={c.onDflGet} onDflSync={c.onDflSync} onDflChange={c.onDflChange} onDflInvoice={c.onDflInvoice}
           onPontosAgent={c.onPontosAgent}
           drafts={c.drafts} draftsLoaded={c.draftsLoaded} onDraftsGet={c.onDraftsGet} onDraftOp={c.onDraftOp} />
-      );
-    }
-    if (route === '/crons') {
-      return (
-        <Crons connected={connected} crons={c.crons} loaded={c.cronsLoaded}
-          onCronsGet={c.onCronsGet} onCronSave={c.onCronSave} onCronDelete={c.onCronDelete} onCronRun={c.onCronRun}
-          planUsage={c.planUsage} models={c.models} bots={c.bots} onTeamGet={c.onTeamGet} />
       );
     }
     if (route === '/uso') {

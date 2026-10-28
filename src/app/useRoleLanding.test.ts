@@ -29,7 +29,7 @@ describe('useRoleLanding', () => {
     expect(nav).not.toHaveBeenCalled();
   });
   it('a route outside the student menu always goes to the Equipe', () => {
-    for (const route of ['/painel', '/canvas', '/pontos', '/crons'] as Route[]) {
+    for (const route of ['/painel', '/canvas', '/pontos', '/equipe/rotinas'] as Route[]) {
       expect(mount({ route, chatId: '', capsKnown: true, role: 'student' }).nav).toHaveBeenCalledWith('/equipe');
     }
   });
