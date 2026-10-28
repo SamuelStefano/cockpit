@@ -6,7 +6,7 @@ import type { AgentNav } from './useAgentNav';
 import { RouteFallback } from './RouteFallback';
 import { ChunkErrorBoundary } from './ChunkErrorBoundary';
 import {
-  Contextos, Skills, Pontos, Crons, Observatorio,
+  Skills, Pontos, Crons, Observatorio,
   Graph, Canvas, Admin, Docs, DesignSystem, Onboarding, EquipePage, Agente,
 } from './lazyRoutes';
 import type { ChatPanelProps } from '../components/chat/chat-panel-props';
@@ -52,15 +52,11 @@ interface RouteContentProps {
 export function RouteContent({ route, agentRoute, isMobile, isAdmin, isRoot, connected, cockpit, chatProps, termProps, onOpenSession, agent, onOpenAgentChat, layout, mobile }: RouteContentProps) {
   const c = cockpit;
   const view = (() => {
-    if (route === '/contextos') {
-      return (
-        <Contextos connected={connected} contexts={c.contexts} loaded={c.ctxLoaded} openContext={c.openContext}
-          onCtxList={c.onCtxList} onCtxOpen={c.onCtxOpen} onCtxClose={c.onCtxClose} />
-      );
-    }
-    if (route === '/equipe') {
+    if (route === '/equipe' || route === '/equipe/memoria') {
       return (
         <EquipePage
+          tab={route === '/equipe/memoria' ? 'memoria' : 'agentes'}
+          memory={{ memories: c.memories, loaded: c.memoriesLoaded, onList: c.onMemList, onSave: c.onMemSave, onDelete: c.onMemDelete }}
           views={agent.views} connected={connected} isAdmin={isAdmin} usageStats={c.usageStats} paused={c.teamPaused}
           cronCount={c.cronsLoaded ? c.crons.length : undefined}
           onOpenAgent={(id) => agentRoute?.open(id)} onNew={agent.openNew} onPauseSet={c.onTeamPauseSet} onUsageList={c.onUsageList} onGo={navigateTo} />

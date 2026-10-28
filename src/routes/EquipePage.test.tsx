@@ -13,6 +13,7 @@ const v = (id: string, over: Partial<BotView['bot']> = {}, state: BotView['state
 const base = () => ({
   views: [v('lia', { primary: true }, 'waiting'), v('growth', { parentId: 'lia' }, 'working')],
   connected: true, isAdmin: true, usageStats: null, paused: false,
+  memory: { memories: [], loaded: true, onList: vi.fn(), onSave: vi.fn(), onDelete: vi.fn() },
   onOpenAgent: vi.fn(), onNew: vi.fn(), onPauseSet: vi.fn(), onUsageList: vi.fn(), onGo: vi.fn(),
 });
 
@@ -33,7 +34,14 @@ describe('EquipePage', () => {
     expect(p.onPauseSet).toHaveBeenCalledWith(true);
     fireEvent.click(screen.getByRole('tab', { name: /Rotinas/ }));
     fireEvent.click(screen.getByRole('tab', { name: /Memória/ }));
-    expect(p.onGo.mock.calls).toEqual([['/crons'], ['/contextos']]);
+    expect(p.onGo.mock.calls).toEqual([['/crons'], ['/equipe/memoria']]);
+  });
+  it('renders the memory screen inside the Memória tab', () => {
+    const p = { ...base(), tab: 'memoria' as const };
+    render(<EquipePage {...p} />);
+    expect(screen.getByText('Nenhuma memória ainda')).toBeTruthy();
+    expect(p.memory.onList).toHaveBeenCalled();
+    expect(screen.queryByText('trabalhando agora')).toBeNull();
   });
   it('hides admin actions and skips the usage request for a student', () => {
     const p = { ...base(), isAdmin: false };
@@ -41,6 +49,7 @@ describe('EquipePage', () => {
     expect(screen.queryByRole('button', { name: /Pausar equipe/ })).toBeNull();
     expect(screen.queryByRole('button', { name: /Novo agente/ })).toBeNull();
     expect(p.onUsageList).not.toHaveBeenCalled();
+    expect(screen.queryByRole('tab', { name: /Memória/ })).toBeNull();
   });
   it('keeps /equipe in the student menu and nothing else restricted', () => {
     expect(navFor('student').map((n) => n.to)).toEqual(['/', '/equipe', '/agentes']);

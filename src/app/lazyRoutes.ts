@@ -8,7 +8,6 @@ import { lazy } from 'react';
 //
 // As rotas exportam nomeado (o padrão do repo), e o React.lazy exige `default` —
 // daí o `.then` em cada uma.
-export const Contextos = lazy(() => import('../routes/Contextos').then((m) => ({ default: m.Contextos })));
 export const Skills = lazy(() => import('../routes/Skills').then((m) => ({ default: m.Skills })));
 export const Pontos = lazy(() => import('../routes/Pontos').then((m) => ({ default: m.Pontos })));
 export const Equipe = lazy(() => import('../routes/Equipe').then((m) => ({ default: m.Equipe })));
