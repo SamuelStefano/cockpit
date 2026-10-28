@@ -35,9 +35,12 @@ describe('acp agents', () => {
 describe('mcp hosts', () => {
   const host = (status: DflMcpsState['hosts'][number]['status']) => ({ host: 'work', endpoint: 'e', name: 'dfl-work', status });
   it.each([
-    ['connected', 'connected'], ['needs-auth', 'expired'], ['failed', 'error'], ['missing', 'off'],
+    ['connected', 'connected'], ['needs-auth', 'expired'], ['failed', 'error'],
   ] as const)('%s -> %s', (status, state) => {
     expect(mcpConnections({ hosts: [host(status)], source: 'manifest' })[0]).toMatchObject({ kind: 'tool', state });
+  });
+  it('leaves out hosts that were never added', () => {
+    expect(mcpConnections({ hosts: [host('missing'), host('connected')], source: 'manifest' })).toHaveLength(1);
   });
   it('carries the list error as the detail', () => {
     const [c] = mcpConnections({ hosts: [host('failed')], source: 'fallback', error: 'could not run' });
