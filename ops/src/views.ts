@@ -11,7 +11,7 @@ function layout(title: string, health: Health | null, body: Html): string {
 <span class="health">saúde: <span class="${health.ok ? 'ok' : 'bad'}">${health.text}</span></span>
 <form method="post" action="/logout"><button type="submit">Sair</button></form></header>`
     : html``;
-  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><title>${esc(title)} · deck-ops</title><link rel="stylesheet" href="/ops.css"></head><body>${head}<main>${body}</main></body></html>`;
+  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="same-origin"><title>${esc(title)} · deck-ops</title><link rel="stylesheet" href="/ops.css"></head><body>${head}<main>${body}</main></body></html>`;
 }
 
 export function loginPage(error: string | null): string {
