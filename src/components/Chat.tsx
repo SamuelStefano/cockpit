@@ -72,7 +72,7 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, draf
 
   return (
     <div
-      className="bg-grid-soft bg-doodle relative flex h-full flex-col bg-neutral-900"
+      className="bg-doodle relative flex h-full flex-col bg-[var(--bg-deep)]"
       onDragEnter={panelDnd.onDragEnter} onDragOver={panelDnd.onDragOver}
       onDragLeave={panelDnd.onDragLeave} onDrop={panelDnd.onDrop}
     >
