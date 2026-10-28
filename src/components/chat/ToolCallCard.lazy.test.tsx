@@ -15,3 +15,14 @@ describe('ToolCallCard output', () => {
     expect(container.querySelector('pre')?.textContent).toContain('b');
   });
 });
+
+describe('ToolCallCard command', () => {
+  it('keeps each line of a multi-line command on its own line', () => {
+    const multi = { id: 'm', name: 'Bash', input: { command: 'cd x\nls -la' }, command: 'cd x\nls -la', output: [], status: 'done' } as never;
+    const { container } = render(<ToolCallCard tool={multi} />);
+    const code = container.querySelector('code');
+    expect(code?.textContent).toBe('cd x\nls -la');
+    expect(code?.className).toContain('whitespace-pre');
+    expect(code?.className).not.toContain('whitespace-nowrap');
+  });
+});
