@@ -10,7 +10,7 @@ afterEach(cleanup);
 function setup(over: Partial<SidebarProps> = {}) {
   const props: SidebarProps = {
     route: '/', nav: vi.fn(), role: 'admin', onNew: vi.fn(), onPalette: vi.fn(), bitState: 'idle', conn: 'connected',
-    usage: { planUsage: null, stats: null }, account: {}, ...over,
+    account: {}, ...over,
   };
   render(<Sidebar {...props} />);
   return props;
@@ -48,10 +48,17 @@ describe('Sidebar', () => {
   it('shows the footer nav in the fixed order and navigates', () => {
     const p = setup({ role: 'root' });
     const names = within(screen.getByRole('navigation', { name: 'Rotas' })).getAllByRole('button').map((b) => b.getAttribute('aria-label'));
-    expect(names).toEqual(['Equipe', 'Skills', 'Conexões', 'Configurações']);
+    expect(names).toEqual(['Equipe', 'Skills', 'Conexões']);
     expect(screen.queryByRole('button', { name: 'Mais' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Skills' }));
     expect(p.nav).toHaveBeenCalledWith('/skills');
+  });
+
+  it('puts the settings gear in the footer, next to the account', () => {
+    const p = setup({ role: 'root' });
+    fireEvent.click(screen.getByRole('button', { name: 'Configurações' }));
+    expect(p.nav).toHaveBeenCalledWith('/uso');
+    expect(screen.queryByRole('button', { name: /^Uso do plano/ })).toBeNull();
   });
 
   it('keeps a student on the Equipe entry only', () => {
@@ -88,19 +95,6 @@ describe('Sidebar', () => {
     expect(onOpen).toHaveBeenCalledWith('bia02');
     fireEvent.click(screen.getByRole('button', { name: 'Recolher barra lateral' }));
     expect(screen.getByRole('button', { name: 'ANA01' })).toBeTruthy();
-  });
-
-  it('shows the usage reading in the ring button name, not as visible text', () => {
-    setup({ usage: { planUsage: { fiveHour: 48, sevenDay: 10, resetsAt: Date.now() + 3600_000, sevenDayResetsAt: null, limits: [] }, stats: null, planReadAt: Date.now() } });
-    const btn = screen.getByRole('button', { name: /^Uso do plano: 48%/ });
-    expect(btn.textContent).toBe('');
-  });
-
-  it('opens the usage popover with the VPS meters', () => {
-    setup({ usage: { planUsage: null, stats: { cpu: 42, load: 1, mem: { used: 1, total: 2 } } as never } });
-    fireEvent.click(screen.getByRole('button', { name: /^Uso do plano/ }));
-    expect(screen.getByRole('group', { name: /^CPU 42%/ })).toBeTruthy();
-    expect(screen.getByRole('group', { name: /^RAM 50%/ })).toBeTruthy();
   });
 
   it('drawer mode stays expanded, fills its container and the header button closes it', () => {

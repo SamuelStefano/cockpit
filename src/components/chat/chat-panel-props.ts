@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import type { UsageDockProps } from '../chrome/sidebar/UsageDock';
 import type { ComposerCost } from './send-cost';
 import type { Session, Message, ToolTodo } from '../../data/types';
 import type { PermMode, Effort, ModelInfo, TurnStats, Caps, SkillMeta, BgAgent, ClaudeLoginView } from '../../../shared/protocol';
@@ -114,6 +115,8 @@ export interface ChatPanelProps {
   focusSignal?: number;
   onTerminal?: () => void;
   terminalRunning?: boolean;
+  terminalOpen?: boolean;
+  usage?: UsageDockProps;
   isMobile?: boolean;
   onMenu?: () => void;
   // Teclado virtual aberto no celular: o chat enxuga tudo que não é mensagem

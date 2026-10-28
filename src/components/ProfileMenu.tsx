@@ -5,6 +5,7 @@ import type { NavRole } from './chrome/nav-routes';
 import { AvatarFace } from './avatar/AvatarFace';
 import { useProfileMenu } from './avatar/useProfileMenu';
 import { ChangePasswordForm } from './profile/ChangePasswordForm';
+import { AccountDevices } from './profile/AccountDevices';
 import { DevicesSection } from './profile/DevicesSection';
 import { DropButton } from './drop/DropButton';
 import type { DropApi } from '../cockpit/useDrops';
@@ -24,6 +25,7 @@ interface ProfileMenuProps {
   placement?: 'down-end' | 'up-start';
   // 'row' = the sidebar account line (avatar + name), 'rail' = its avatar-only form; 'icon' = the bare round avatar.
   variant?: 'icon' | 'row' | 'rail';
+  onDevices?: () => void;
 }
 
 const PANEL_PLACEMENT = {
@@ -34,7 +36,7 @@ const PANEL_PLACEMENT = {
 // Menu de perfil no header: define nome (usado nas iniciais do chat), faz
 // upload/limpa o avatar e, com conta Supabase, troca a senha. Perfil e toggles
 // vão pro cache local e sobem pra conta (ver lib/profile e lib/account-prefs).
-export function ProfileMenu({ userId, onSignOut, onChangePassword, drops, conn, role, placement = 'down-end', variant = 'icon' }: ProfileMenuProps = {}) {
+export function ProfileMenu({ userId, onSignOut, onChangePassword, drops, conn, role, placement = 'down-end', variant = 'icon', onDevices }: ProfileMenuProps = {}) {
   const { name, avatar, setName, setAvatar, synced, syncFailed, open, setOpen, uploadError, uploading, fileRef, wrapRef, onFile } = useProfileMenu(userId);
   const [showTools, setShowTools] = usePersisted<boolean>(SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT);
   const [groupNotes, setGroupNotes] = usePersisted<boolean>(GROUP_NOTES_KEY, GROUP_NOTES_DEFAULT);
@@ -98,6 +100,8 @@ export function ProfileMenu({ userId, onSignOut, onChangePassword, drops, conn, 
               </p>
             </div>
           </div>
+          <AccountDevices onDone={() => setOpen(false)} onManage={onDevices} />
+
           <label htmlFor="profile-name" className="mt-3 block text-[12px] font-medium text-neutral-500">Nome</label>
           <Input
             id="profile-name"

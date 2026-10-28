@@ -34,7 +34,7 @@ const FOOT: Partial<Record<ConnTab, string>> = {
 };
 
 export function Conexoes({ connected, items, loaded, bots, dflMcpsState, dflMcpsBusy, onGet, onToolAdd, onGo }: Props) {
-  const [tab, setTab] = useState<ConnTab>('provedores');
+  const [tab, setTab] = useState<ConnTab>(() => (location.hash === '#aparelhos' ? 'aparelhos' : 'provedores'));
   const [toolOpen, setToolOpen] = useState(false);
   const [removing, setRemoving] = useState<Connection | null>(null);
   const [now, setNow] = useState(() => Date.now());

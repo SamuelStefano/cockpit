@@ -19,7 +19,7 @@ export function DesktopLayout({ chatProps, termProps, center, hideTerminals = fa
       <div className="flex min-w-0 flex-1">
         {center ?? (
           <div className="min-w-0 flex-1">
-            <ChatPanel key={chatProps.session?.id ?? 'none'} {...chatProps} onTerminal={() => setTerminalOpen(true)} />
+            <ChatPanel key={chatProps.session?.id ?? 'none'} {...chatProps} onTerminal={() => setTerminalOpen((o) => !o)} terminalOpen={open} />
           </div>
         )}
       </div>

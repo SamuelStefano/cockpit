@@ -48,13 +48,24 @@ describe('ChatHeader', () => {
     expect(screen.queryByLabelText('Mais ações da conversa')).toBeNull();
   });
 
-  it('opens the terminal from the menu only with a handler', () => {
+  it('toggles the terminal from a header button, only with a handler, and not from the menu', () => {
     const onTerminal = vi.fn();
     setup({ onTerminal });
-    fireEvent.click(screen.getByLabelText('Mais ações da conversa'));
     fireEvent.click(screen.getByLabelText('Abrir terminais'));
     expect(onTerminal).toHaveBeenCalledTimes(1);
-    expect(screen.queryByLabelText('Abrir terminais')).toBeNull();
+    fireEvent.click(screen.getByLabelText('Mais ações da conversa'));
+    expect(screen.getAllByLabelText('Abrir terminais')).toHaveLength(1);
+  });
+
+  it('always renders the context ring and nova sessão, even with no context yet', () => {
+    setup({ contextTokens: 0 });
+    expect(screen.getByRole('button', { name: /nova sessão/ })).toBeTruthy();
+    expect(screen.getByLabelText(/^Contexto 0%/)).toBeTruthy();
+  });
+
+  it('shows the plan usage ring in the header', () => {
+    setup({ usage: { planUsage: null, stats: null } });
+    expect(screen.getByRole('button', { name: /^Uso do plano/ })).toBeTruthy();
   });
 
   it('renames from the menu by focusing the title input', () => {

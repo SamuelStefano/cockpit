@@ -11,6 +11,7 @@ import { ranOnOtherModel } from '../../cockpit/session-model';
 import { contextMeter, turnStatParts } from './toolbar-format';
 import type { TurnStats } from '../../../shared/protocol';
 import type { ChatAgentHeader } from './chat-panel-props';
+import { UsageDock, type UsageDockProps } from '../chrome/sidebar/UsageDock';
 
 export type ChatHeaderAgent = ChatAgentHeader & { name: string };
 
@@ -32,6 +33,8 @@ interface ChatHeaderProps {
   beforeGrow?: () => void;
   onTerminal?: () => void;
   terminalRunning?: boolean;
+  terminalOpen?: boolean;
+  usage?: UsageDockProps;
   onRename?: (id: string, title: string) => void;
   onDelete?: (id: string) => void;
   keyboardOpen?: boolean;
@@ -42,7 +45,7 @@ interface ChatHeaderProps {
   onMenu?: () => void;
 }
 
-export function ChatHeader({ session, messages, isEmpty, contextTokens, contextModel = null, lastTurn, onNew, fullLoaded, truncated, onOpenFull, onLoadOlder, onOpenSummary, setFullLoaded, beforeGrow, onTerminal, terminalRunning, onRename, onDelete, keyboardOpen = false, selectedModel, agent, onMenu }: ChatHeaderProps) {
+export function ChatHeader({ session, messages, isEmpty, contextTokens, contextModel = null, lastTurn, onNew, fullLoaded, truncated, onOpenFull, onLoadOlder, onOpenSummary, setFullLoaded, beforeGrow, onTerminal, terminalRunning, terminalOpen = false, usage, onRename, onDelete, keyboardOpen = false, selectedModel, agent, onMenu }: ChatHeaderProps) {
   const menu = useHeaderMenu();
   const [renameSignal, setRenameSignal] = useState(0);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -59,7 +62,7 @@ export function ChatHeader({ session, messages, isEmpty, contextTokens, contextM
   const canRename = saved && !agent && !!onRename;
   const canDelete = saved && !agent && !!onDelete;
   const ctx = contextMeter(contextTokens, contextModel);
-  const hasMenu = !!ctx || !!turnStatParts(lastTurn) || !!ranOn || !!history || canExport || !!profile || !!agent?.pause || !!onTerminal || canRename || canDelete;
+  const hasMenu = !!ctx || !!turnStatParts(lastTurn) || !!ranOn || !!history || canExport || !!profile || !!agent?.pause || canRename || canDelete;
 
   const moreMenu = hasMenu && (
     <Popover
@@ -69,17 +72,22 @@ export function ChatHeader({ session, messages, isEmpty, contextTokens, contextM
           title={session?.title || 'sessao'} messages={messages} lastTurn={lastTurn} ranOn={ranOn}
           selectedModel={selectedModel} history={history} canExport={canExport} profile={profile} pause={agent?.pause} onDone={menu.close}
           contextPct={ctx?.pct ?? null} onRename={canRename ? () => setRenameSignal((n) => n + 1) : undefined}
-          onTerminal={onTerminal} terminalRunning={terminalRunning} onDelete={canDelete ? () => setConfirmDelete(true) : undefined}
+          onDelete={canDelete ? () => setConfirmDelete(true) : undefined}
         />
       }
     >
       <span className="relative inline-flex">
         <IconButton icon="ellipsis" label="Mais ações da conversa" side="bottom" aria-expanded={menu.open} aria-haspopup="dialog" onClick={menu.toggle} />
-        {terminalRunning && (
-          <span className="pointer-events-none absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-neutral-900 bg-green-500" />
-        )}
       </span>
     </Popover>
+  );
+  const terminalButton = onTerminal && (
+    <span className="relative inline-flex">
+      <IconButton icon="terminal" label="Abrir terminais" side="bottom" aria-pressed={terminalOpen} onClick={onTerminal} className={terminalOpen ? 'bg-neutral-800 text-neutral-100' : ''} />
+      {terminalRunning && (
+        <span className="pointer-events-none absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-neutral-900 bg-green-500" />
+      )}
+    </span>
   );
   const confirm = confirmDelete && session && onDelete && (
     <ConfirmArchive
@@ -105,6 +113,9 @@ export function ChatHeader({ session, messages, isEmpty, contextTokens, contextM
           <div className="min-w-0 flex-1"><EditableTitle id={session?.id} title={title} editable={saved} onRename={onRename} startSignal={renameSignal} /></div>
         )}
         {agent?.actions}
+        {usage && <UsageDock {...usage} />}
+        {terminalButton}
+        {!fresh && <ContextRing tokens={contextTokens} model={contextModel} />}
         {fresh ? <IconButton icon="plus" label="Nova conversa" side="bottom" onClick={onNew} className="pointer-coarse:h-11 pointer-coarse:w-11" /> : moreMenu}
         {confirm}
       </div>
@@ -124,6 +135,8 @@ export function ChatHeader({ session, messages, isEmpty, contextTokens, contextM
       <div className="ml-auto flex shrink-0 items-center gap-2 pointer-coarse:gap-3">
         {agent?.actions}
         <ContextRing tokens={contextTokens} model={contextModel} onNew={onNew} />
+        {usage && <UsageDock {...usage} />}
+        {terminalButton}
         {moreMenu}
       </div>
       {confirm}
