@@ -1,6 +1,6 @@
-export type BitState = 'idle' | 'wave' | 'thinking' | 'working' | 'talking' | 'waiting' | 'happy' | 'sleeping' | 'error' | 'connecting';
+export type BitState = 'idle' | 'wave' | 'thinking' | 'working' | 'talking' | 'waiting' | 'happy' | 'sleeping' | 'error' | 'connecting' | 'sneaky' | 'surprised' | 'dizzy';
 
-export const BIT_STATES: BitState[] = ['idle', 'wave', 'thinking', 'working', 'talking', 'waiting', 'happy', 'sleeping', 'error', 'connecting'];
+export const BIT_STATES: BitState[] = ['idle', 'wave', 'thinking', 'working', 'talking', 'waiting', 'happy', 'sleeping', 'error', 'connecting', 'sneaky', 'surprised', 'dizzy'];
 
 export const BIT_STATE_LABEL: Record<BitState, string> = {
   idle: 'Bit, à disposição',
@@ -13,6 +13,9 @@ export const BIT_STATE_LABEL: Record<BitState, string> = {
   sleeping: 'Bit dormindo',
   error: 'Bit preocupado',
   connecting: 'Bit conectando',
+  sneaky: 'Bit aprontando',
+  surprised: 'Bit flagrado',
+  dizzy: 'Bit tonto',
 };
 
 export interface BitSignals {
