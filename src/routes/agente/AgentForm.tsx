@@ -2,12 +2,10 @@ import { useRef, useState, type ReactNode } from 'react';
 import type { ModelInfo, SkillMeta, TeamBot, TeamBotInput } from '../../../shared/protocol';
 import { Button, Input, Switch, tokens } from '../../components/primitives';
 import { useArmed } from '../../components/primitives/useArmed';
-import { modelOptions } from '../../components/chat/model-options';
-import { prettyModel } from '../../components/chat/toolbar-format';
-import { isAgentModel } from '../../../shared/agents';
 import { MascotPicker } from '../equipe/MascotPicker';
 import { ProfileNote } from '../equipe/ProfileNote';
 import { useBotForm } from '../equipe/useBotForm';
+import { ModelSection } from './ModelSection';
 import { Permissions } from './Permissions';
 import { SkillPicker } from './SkillPicker';
 import { permsFromProfile, profileFromPerms, type Perms } from './permissions';
@@ -60,12 +58,8 @@ export function AgentForm({ bot, bots, models, locked, skills = [], onSave, onSa
           value={draft.instructions} onChange={(e) => set('instructions', e.target.value)} className={`${field} resize-y`} />
       </Field>
       <Field label="Modelo">
-        <select aria-label="Modelo" value={draft.model} onChange={(e) => set('model', e.target.value)} className={field}>
-          <option value="">modelo do chat</option>
-          {modelOptions(models, draft.model).filter((o) => o.id !== '' && !(noAgents && isAgentModel(o.id))).map((o) => (
-            <option key={o.id} value={o.id}>{prettyModel(o.id, o.displayName)}</option>
-          ))}
-        </select>
+        <ModelSection model={draft.model} fallbackModel={draft.fallbackModel} models={models} noAgents={noAgents}
+          onModel={(id) => set('model', id)} onFallback={(id) => set('fallbackModel', id)} />
       </Field>
       <Field label="Permissões" help={'Sem "Escrever", o agente não altera arquivos nem publica — só entrega pra quem pode.'}>
         <Permissions value={perms} onChange={changePerms} disabled={locked} />

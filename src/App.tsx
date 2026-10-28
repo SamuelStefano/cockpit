@@ -44,6 +44,7 @@ import { useChatUrl } from './app/useChatUrl';
 import { usageAgentOf } from './components/chrome/usage-agent';
 import { withoutBotThreads } from './components/sessions/bot-threads';
 import { useCall } from './components/chat/call/useCall';
+import { ConnectionsContext } from './cockpit/ConnectionsContext';
 
 function CockpitBody() {
   const cockpit = useCockpit();
@@ -194,12 +195,14 @@ function CockpitBody() {
   const chatSurface = route === '/';
   const pageTitle = FOOTER_NAV.find((i) => i.to === route)?.label ?? NAV.find((n) => n.to === route)?.label ?? 'Deck';
 
+  const connectionsCtx = useMemo(() => ({ connections: cockpit.connections, loaded: cockpit.connectionsLoaded, refresh: cockpit.onConnectionsGet }), [cockpit.connections, cockpit.connectionsLoaded, cockpit.onConnectionsGet]);
   const gate = resolveAuthGate({ sbAuth, seal, ejectPairing, authRequired, submitToken });
   if (gate) return gate;
 
   return (
-    // Safe-area nos quatro lados: com `viewport-fit=cover` o notch em landscape
-    // come a lateral, e sem left/right o header e o composer ficam sob o entalhe.
+    <ConnectionsContext.Provider value={connectionsCtx}>
+    {/* Safe-area nos quatro lados: com `viewport-fit=cover` o notch em landscape
+        come a lateral, e sem left/right o header e o composer ficam sob o entalhe. */}
     <div
       className="relative flex h-full flex-col bg-neutral-950"
       style={{
@@ -265,6 +268,7 @@ function CockpitBody() {
       <Toaster />
       <ConfettiHost />
     </div>
+    </ConnectionsContext.Provider>
   );
 }
 

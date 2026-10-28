@@ -1,16 +1,18 @@
+import { useState } from 'react';
 import type { ModelInfo } from '../../../shared/protocol';
-import { prettyModel } from './toolbar-format';
-import type { VisibleOption } from '../../lib/model-visibility';
-import { useModelPicker, ADD_OPTION, MANAGE_OPTION } from './useModelPicker';
-import { Icon, tokens } from '../primitives';
+import { shortModelName } from '../../../shared/model-catalog';
+import { useModelPicker } from './useModelPicker';
+import { ModelPanel } from './ModelPanel';
+import { Icon, Sheet, tokens } from '../primitives';
+import { useConnectionsCtx } from '../../cockpit/ConnectionsContext';
+import { openAdminTab } from '../../lib/admin-nav';
+import { openConexoes } from '../../lib/conexoes-nav';
 
-const sel = 'max-w-[130px] rounded-md border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-[12px] font-medium text-neutral-300 outline-hidden transition hover:border-neutral-700 focus:border-orange-500/40 sm:max-w-none sm:px-1.5 sm:py-1';
-const chip = 'h-10 max-w-28 cursor-pointer appearance-none truncate rounded-md border-0 bg-transparent py-0 pl-2 pr-5 text-[13px] text-neutral-400 outline-hidden transition hover:bg-neutral-800 hover:text-neutral-100 focus-visible:ring-2 focus-visible:ring-orange-500/40 sm:max-w-44';
+const chip = 'inline-flex h-10 max-w-28 cursor-pointer items-center gap-1 truncate rounded-md border-0 bg-transparent pl-2 pr-1.5 text-[13px] text-neutral-400 outline-hidden transition hover:bg-neutral-800 hover:text-neutral-100 sm:max-w-44';
+const boxed = 'inline-flex items-center gap-1 rounded-md border border-neutral-800 bg-neutral-950 px-2 py-1 text-[12px] font-medium text-neutral-300 transition hover:border-neutral-700';
 const tag = 'hidden text-[12px] font-semibold uppercase tracking-wide text-neutral-600 sm:inline';
 
-const renderOpt = (o: VisibleOption) => (
-  <option key={o.id} value={o.id}>{prettyModel(o.id, o.displayName)}{o.hidden ? ' (oculto)' : ''}</option>
-);
+const nameOf = (id: string, models: ModelInfo[]) => shortModelName(id, models.find((m) => m.id === id)?.displayName);
 
 export function ModelPicker({ model, setModel, models, onRefreshModels, canManage = false, locked, compact = false }: {
   model: string; setModel: (m: string) => void;
@@ -18,7 +20,6 @@ export function ModelPicker({ model, setModel, models, onRefreshModels, canManag
   onRefreshModels: () => void;
   canManage?: boolean;
   locked?: string;
-  // Chip for the composer box: short name only, no tag and no refresh button.
   compact?: boolean;
 }) {
   if (locked) return <LockedModel model={model} models={models} reason={locked} compact={compact} />;
@@ -30,7 +31,7 @@ function LockedModel({ model, models, reason, compact }: { model: string; models
     return (
       <span className="hidden max-w-28 shrink-0 items-center gap-1 truncate px-2 text-[13px] text-neutral-400 sm:inline-flex sm:max-w-44" title={`Modelo ${reason} — troque no perfil do bot`}>
         <Icon name="lock" size={10} />
-        {prettyModel(model, models.find((m) => m.id === model)?.displayName)}
+        {nameOf(model, models)}
       </span>
     );
   }
@@ -39,7 +40,7 @@ function LockedModel({ model, models, reason, compact }: { model: string; models
       <span className={tag}>versão</span>
       <span className="inline-flex items-center gap-1 rounded-md border border-neutral-800 bg-neutral-900 px-2 py-1 text-[12px] font-medium text-neutral-300">
         <Icon name="lock" size={10} />
-        {prettyModel(model, models.find((m) => m.id === model)?.displayName)}
+        {nameOf(model, models)}
         <span className="text-neutral-600">· {reason}</span>
       </span>
     </span>
@@ -53,52 +54,34 @@ function ModelSelect({ model, setModel, models, onRefreshModels, canManage, comp
   canManage: boolean;
   compact: boolean;
 }) {
-  const { groups, refreshing, refresh, adding, custom, setCustom, onChange, commitCustom, cancelCustom } =
-    useModelPicker({ model, setModel, models, onRefreshModels });
+  const [open, setOpen] = useState(false);
+  const { options, refreshing, refresh, rememberCustom } = useModelPicker({ model, models, onRefreshModels });
+  const conns = useConnectionsCtx();
+  const toggle = () => { if (!open) conns.refresh(); setOpen((o) => !o); };
+  const close = () => setOpen(false);
 
   return (
-    <label className={`relative shrink-0 items-center gap-1 ${compact ? 'hidden sm:inline-flex' : 'inline-flex'}`} title="Versão do agente do próximo prompt">
+    <span className={`relative shrink-0 items-center gap-1 ${compact ? 'hidden sm:inline-flex' : 'inline-flex'}`} title="Versão do agente do próximo prompt">
       {!compact && <span className={tag}>versão</span>}
-      {adding ? (
-        <input
-          autoFocus
-          aria-label="ID do modelo"
-          placeholder="claude-opus-5"
-          value={custom}
-          onChange={(e) => setCustom(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.nativeEvent.isComposing) return;
-            if (e.key === 'Enter') { e.preventDefault(); commitCustom(); }
-            else if (e.key === 'Escape') { e.preventDefault(); cancelCustom(); }
-          }}
-          onBlur={commitCustom}
-          className={`${sel} w-36 font-mono`}
-        />
-      ) : (
-        <select
-          // The visible "versão" tag is hidden on mobile, which left the select nameless.
+      <Sheet open={open} onClose={close} label="Escolher modelo" side="top" align="end" className="w-[380px]"
+        content={
+          <ModelPanel
+            options={options} current={model} connections={conns.connections}
+            onPick={(id) => { rememberCustom(id); setModel(id); close(); }}
+            onAdd={() => { close(); openConexoes(true); }}
+            onExpired={() => { close(); openConexoes(); }}
+            onRefresh={refresh} refreshing={refreshing}
+            onManage={canManage ? () => { close(); openAdminTab('models'); } : undefined}
+            allowCustomId
+          />
+        }>
+        <button type="button" onClick={toggle} aria-haspopup="dialog" aria-expanded={open}
           aria-label="Versão do agente do próximo prompt"
-          value={model}
-          onChange={(e) => onChange(e.target.value)}
-          className={compact ? chip : sel}
-        >
-          {groups.anthropic.length > 0 && <optgroup label="Anthropic · Claude">{groups.anthropic.map(renderOpt)}</optgroup>}
-          {groups.others.length > 0 && <optgroup label="Outros agentes">{groups.others.map(renderOpt)}</optgroup>}
-          <option value={ADD_OPTION}>+ outro modelo…</option>
-          {canManage && <option value={MANAGE_OPTION}>Gerenciar modelos…</option>}
-        </select>
-      )}
-      {compact && !adding && <Icon name="chevronDown" size={12} className="pointer-events-none absolute right-1.5 text-neutral-500" />}
-      {!compact && <button
-        type="button"
-        onClick={refresh}
-        disabled={refreshing}
-        title="Buscar modelos novos da Anthropic agora"
-        aria-label={refreshing ? 'Buscando modelos…' : 'Buscar modelos novos da Anthropic agora'}
-        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-neutral-800 bg-neutral-950 text-neutral-500 transition hover:border-neutral-700 hover:text-neutral-200 sm:h-[22px] sm:w-[22px] ${tokens.focusRing}`}
-      >
-        <Icon name="rotate" size={12} className={refreshing ? 'spin text-orange-400' : ''} />
-      </button>}
-    </label>
+          className={`${compact ? chip : boxed} ${tokens.focusRing}`}>
+          <span className="truncate">{nameOf(model, models)}</span>
+          <Icon name="chevronDown" size={12} className="shrink-0 text-neutral-500" />
+        </button>
+      </Sheet>
+    </span>
   );
 }

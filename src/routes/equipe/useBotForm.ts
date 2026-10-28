@@ -14,6 +14,7 @@ export interface BotDraft {
   primary: boolean;
   profile: TeamProfile;
   model: string;
+  fallbackModel: string;
   mode: PermMode | '';
   effort: Effort | '';
   permissions?: BotPermissions;
@@ -23,16 +24,16 @@ export interface BotDraft {
 // locked = what the server forces on a non-admin's bot, shown up front in the form.
 export function draftFrom(bot: TeamBot | null, count: number, locked = false): BotDraft {
   const d = baseDraft(bot, count);
-  return locked ? { ...d, profile: 'restricted', mode: 'auto', model: isAgentModel(d.model) ? '' : d.model, ...(d.permissions ? { permissions: { ...d.permissions, write: false } } : {}) } : d;
+  return locked ? { ...d, profile: 'restricted', mode: 'auto', model: isAgentModel(d.model) ? '' : d.model, fallbackModel: isAgentModel(d.fallbackModel) ? '' : d.fallbackModel, ...(d.permissions ? { permissions: { ...d.permissions, write: false } } : {}) } : d;
 }
 
 function baseDraft(bot: TeamBot | null, count: number): BotDraft {
   if (!bot) {
-    return { name: '', label: '', instructions: '', shape: 'blob', color: MASCOT_COLORS[count % MASCOT_COLORS.length], parentId: '', primary: count === 0, profile: 'full', model: '', mode: '', effort: '', skills: [] };
+    return { name: '', label: '', instructions: '', shape: 'blob', color: MASCOT_COLORS[count % MASCOT_COLORS.length], parentId: '', primary: count === 0, profile: 'full', model: '', fallbackModel: '', mode: '', effort: '', skills: [] };
   }
   return {
     name: bot.name, label: bot.label, instructions: bot.instructions, shape: bot.mascot.shape, color: bot.mascot.color,
-    parentId: bot.parentId ?? '', primary: !!bot.primary, profile: bot.profile, model: bot.model ?? '', mode: bot.mode ?? '', effort: bot.effort ?? '',
+    parentId: bot.parentId ?? '', primary: !!bot.primary, profile: bot.profile, model: bot.model ?? '', fallbackModel: bot.fallbackModel ?? '', mode: bot.mode ?? '', effort: bot.effort ?? '',
     skills: bot.skills ?? [],
     ...(bot.permissions ? { permissions: bot.permissions } : {}),
   };
@@ -43,6 +44,7 @@ export function toInput(id: string, d: BotDraft): TeamBotInput {
   if (d.parentId) bot.parentId = d.parentId;
   if (d.primary) bot.primary = true;
   if (d.model) bot.model = d.model;
+  if (d.fallbackModel) bot.fallbackModel = d.fallbackModel;
   if (d.mode) bot.mode = d.mode;
   if (d.effort) bot.effort = d.effort;
   if (d.permissions) bot.permissions = d.permissions;
