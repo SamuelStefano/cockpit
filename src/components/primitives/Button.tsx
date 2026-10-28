@@ -83,7 +83,7 @@ export function Button({
       {/* Altura é fixa (leading-none): sem truncar, rótulo longo vaza pra fora da pílula.
           Glifo vem pela prop `icon`, nunca dentro do rótulo: o preflight deixa `svg`
           como bloco e um ícone aqui dentro quebraria o texto pra segunda linha. */}
-      {children != null && children !== false && <span className="min-w-0 truncate">{children}</span>}
+      {children != null && children !== false && <span className="min-w-0 truncate py-[0.2em] leading-[1.3]">{children}</span>}
       {glyph && iconRight && glyph}
       {inks.map((k) => (
         <span key={k.id} className="ripple-ink" style={{ left: k.x - k.d / 2, top: k.y - k.d / 2, width: k.d, height: k.d }} />

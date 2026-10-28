@@ -14,6 +14,9 @@ export function BitGallery() {
           </div>
         ))}
       </Row>
+      <Row label="saudação (hover acena, entrada com pop)">
+        <div className="bit-greet bit-pop rounded-xl p-2"><Bit state="idle" size={64} /></div>
+      </Row>
       <Row label="tamanhos">
         {[20, 28, 40, 64, 120].map((s) => <Bit key={s} size={s} />)}
       </Row>

@@ -101,7 +101,13 @@
    would compete with the one live turn for attention. */
 .bit.bit-still *, .bit.bit-still .bit-tip, .bit.bit-still .bit-cursor { animation: none !important; }
 
-.bit-greet:hover .bit-idle .bit-armR { animation: bitCheer 0.9s ease-in-out 2; }
+/* Hover on a .bit-greet parent: Bit waves with the antenna, then settles. */
+.bit-greet:hover .bit-idle .bit-armR { animation: bitWave 1.2s ease-in-out 1; }
+.bit-greet:hover .bit-idle .bit-ant { animation: bitAnt 0.6s ease-in-out 2; }
+/* One-shot entrance for greetings: a small springy pop, no loop. */
+@keyframes bitPop { 0% { transform: scale(0.6) translateY(8px); opacity: 0; } 60% { transform: scale(1.08) translateY(-3px); opacity: 1; } 100% { transform: none; } }
+.bit-pop { animation: bitPop 0.6s cubic-bezier(0.3, 1.4, 0.5, 1) both; }
+@media (prefers-reduced-motion: reduce) { .bit-pop { animation: none; } }
 
 @media (prefers-reduced-motion: reduce) {
   .bit *, .bit .bit-tip, .bit .bit-cursor { animation: none !important; }
