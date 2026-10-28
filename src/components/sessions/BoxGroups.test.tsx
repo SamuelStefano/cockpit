@@ -33,13 +33,11 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('sidebar grouped by box', () => {
-  it('stays a flat list with one box, and Nova sessão needs no question', () => {
-    const onNew = vi.fn();
-    render(<SessionsPanel {...base} onNew={onNew} />);
+  it('stays a flat list with one box, and leaves Nova conversa to the shell', () => {
+    render(<SessionsPanel {...base} />);
     push([info(A, 'VPS', true)]);
     expect(screen.queryByLabelText(/Recolher VPS/)).toBeNull();
-    fireEvent.click(screen.getByText('Nova sessão'));
-    expect(onNew).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText('Nova sessão')).toBeNull();
   });
 
   it('puts the current box first and opens no peek until a header is expanded', () => {
