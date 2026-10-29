@@ -8,6 +8,7 @@ export function SwitchRow({ label, hint, checked, onChange, danger = false }: { 
       hint={hint}
       onClick={onChange}
       switchChecked={checked}
+      ariaLabel={label}
       className="pointer-coarse:min-h-14"
       trailing={
         <span aria-hidden className={`relative h-5 w-9 shrink-0 rounded-full transition ${checked ? (danger ? 'bg-red-500/80' : 'bg-orange-500/80') : 'bg-neutral-700'}`}>
