@@ -6,7 +6,6 @@ import type { Route } from '../useRoute';
 import { SidebarItem } from './chrome/sidebar/SidebarItem';
 import { AvatarFace } from './avatar/AvatarFace';
 import { useProfileMenu } from './avatar/useProfileMenu';
-import { AccountDevices } from './profile/AccountDevices';
 import { DropButton } from './drop/DropButton';
 import type { DropApi } from '../cockpit/useDrops';
 
@@ -22,7 +21,6 @@ interface ProfileMenuProps {
   placement?: 'down-end' | 'up-start';
   // 'row' = the sidebar account line (avatar + name), 'rail' = its avatar-only form; 'icon' = the bare round avatar.
   variant?: 'icon' | 'row' | 'rail';
-  onDevices?: () => void;
   routes?: NavItem[];
   route?: Route;
   nav?: (to: Route) => void;
@@ -37,7 +35,7 @@ const PANEL_PLACEMENT = {
 // Menu de perfil no header: define nome (usado nas iniciais do chat), faz
 // upload/limpa o avatar e, com conta Supabase, troca a senha. Perfil e toggles
 // vão pro cache local e sobem pra conta (ver lib/profile e lib/account-prefs).
-export function ProfileMenu({ userId, onSignOut, onChangePassword, drops, conn, role, placement = 'down-end', variant = 'icon', onDevices, routes, route, nav, counts }: ProfileMenuProps = {}) {
+export function ProfileMenu({ userId, onSignOut, onChangePassword, drops, conn, role, placement = 'down-end', variant = 'icon', routes, route, nav, counts }: ProfileMenuProps = {}) {
   const { name, avatar, synced, syncFailed, open, setOpen, wrapRef } = useProfileMenu(userId);
 
   const badge = role ? roleBadge(role) : null;
@@ -105,7 +103,6 @@ export function ProfileMenu({ userId, onSignOut, onChangePassword, drops, conn, 
               ))}
             </nav>
           )}
-          <AccountDevices onDone={() => setOpen(false)} onManage={onDevices} />
 
           {drops && <DropButton api={drops} />}
 
