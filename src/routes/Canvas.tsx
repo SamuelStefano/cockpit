@@ -16,7 +16,7 @@ import { CanvasTimeline } from './canvas/CanvasTimeline';
 import { Kanban } from './canvas/Kanban';
 import { KanbanDock } from './canvas/KanbanDock';
 import { CanvasAnalysis } from './canvas/CanvasAnalysis';
-import { useDflPontos } from './canvas/useDflPontos';
+import { useDflPontos } from './pontos/useDflPontos';
 import { useCardTerminalAutoOpen } from './canvas/useCardTerminalAutoOpen';
 import { useCanvasPastView } from './canvas/useCanvasPastView';
 import { useKanbanCtxPoll } from './canvas/useKanbanCtxPoll';

@@ -45,7 +45,7 @@ describe('relPast', () => {
   });
 
   // As quatro cópias renderizavam o MESMO instante de formas diferentes: a sidebar dizia
-  // "ontem", outra tela dizia "há 2d" e /uso dizia "1d". Um único valor para cada faixa é o
+  // "ontem", /pontos dizia "há 2d" e /uso dizia "1d". Um único valor para cada faixa é o
   // ponto deste módulo.
   it('não emite nenhuma das formas antigas', () => {
     const amostras = [0, 30_000, 5 * MIN, 90 * MIN, 30 * H, 36 * H, 3 * D, 20 * D];

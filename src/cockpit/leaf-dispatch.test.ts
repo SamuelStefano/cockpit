@@ -5,6 +5,7 @@ import { useCrons } from './useCrons';
 import { usePoints } from './usePoints';
 import { useContexts } from './useContexts';
 import { useSkills } from './useSkills';
+import { useGraphs } from './useGraphs';
 import { useAdmin } from './useAdmin';
 import type { ClientMsg, ServerMsg } from '../../shared/protocol';
 
@@ -14,26 +15,32 @@ import type { ClientMsg, ServerMsg } from '../../shared/protocol';
 // Este teste é a guarda: as reivindicações têm que ser disjuntas.
 const send = vi.fn((_m: ClientMsg) => true);
 
-const CADEIA = ['crons', 'points', 'contexts', 'skills', 'admin'] as const;
+const CADEIA = ['crons', 'points', 'contexts', 'skills', 'graphs', 'admin'] as const;
 
 const montarCadeia = () => renderHook(() => ({
   crons: useCrons(send).onMsg,
   points: usePoints(send).onMsg,
   contexts: useContexts(send).onMsg,
   skills: useSkills(send).onMsg,
+  graphs: useGraphs(send).onMsg,
   admin: useAdmin(send).onMsg,
 })).result.current;
 
 // Um frame representativo de cada tipo que a corrente deve reivindicar, e de quem.
 const FRAMES: [ServerMsg, (typeof CADEIA)[number]][] = [
   [{ t: 'crons', items: [] }, 'crons'],
+  [{ t: 'points', entries: [], total: 0 }, 'points'],
   [{ t: 'points-dfl', snapshot: null }, 'points'],
   [{ t: 'points-dfl-syncing' }, 'points'],
-  [{ t: 'dfl-task-write', reqId: 'r', ok: true }, 'points'],
+  [{ t: 'drafts', items: [] }, 'points'],
+  [{ t: 'points-dfl-write', reqId: 'r', kind: 'change', ok: true }, 'points'],
   [{ t: 'contexts', items: [] }, 'contexts'],
   [{ t: 'context', id: 'c', title: 't', body: 'b' }, 'contexts'],
   [{ t: 'skills', items: [] }, 'skills'],
   [{ t: 'skill', id: 's', name: 'n', body: 'b' }, 'skills'],
+  [{ t: 'graphs', items: [] }, 'graphs'],
+  [{ t: 'graph-build-progress', line: 'l' }, 'graphs'],
+  [{ t: 'graph-build-done', ok: true }, 'graphs'],
   [{ t: 'health', health: { claudeCli: true, sqlite: true, disk: 0, uptime: 0 } as never }, 'admin'],
   [{ t: 'accounts', accounts: [] }, 'admin'],
   [{ t: 'admin-op', ok: true, message: '' }, 'admin'],

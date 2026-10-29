@@ -28,6 +28,7 @@ export const SECTIONS: Section[] = [
   { id: 'busca', label: 'Busca & navegação', icon: 'search' },
   { id: 'comandos', label: 'Comandos & atalhos', icon: 'command' },
   { id: 'modelos', label: 'Modelos', icon: 'claude' },
+  { id: 'graph', label: 'Graph (knowledge graph)', icon: 'zap' },
   { id: 'bench', label: 'Bench (repo externo)', icon: 'grip' },
   { id: 'rotas', label: 'Rotas de trabalho', icon: 'grip' },
   { id: 'admin', label: 'Administração', icon: 'shield' },

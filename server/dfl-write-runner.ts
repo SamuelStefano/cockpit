@@ -12,6 +12,8 @@ const here = dirname(fileURLToPath(import.meta.url));
 // entra no processo do WS. O comando vai como JSON no argv; o resultado volta numa
 // linha marcada no stdout do filho. Espelha runDflSync (leitura). Ver dfl-write.ts.
 export type DflWriteCmd =
+  | { kind: 'points-change'; taskId: string; taskName: string; currentPoints: number; newPoints: number; reason?: string }
+  | { kind: 'invoice-create'; deliveryId: string; deliveryName: string; projectId?: string | null; projectName?: string | null; referenceMonth: string; pricePerPoint: number; tasks: { id: string; title: string; points: number; deliveryId?: string; deliveryName?: string }[] }
   | { kind: 'task-create'; epicId: string; deliveryId: string; taskName: string; why: string; what: string }
   | { kind: 'task-status'; taskId: string; status: DflTaskDbStatus };
 

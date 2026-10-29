@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { sidebarNav, canOpenSettings } from './sidebar-nav';
 
 describe('sidebarNav', () => {
-  it('lays out every work surface for root', () => {
+  it('lays out every work surface for root; Pontos and Graph are off the nav', () => {
     expect(sidebarNav('root').map((i) => i.label)).toEqual(['Canvas', 'Skills', 'Conexões', 'Docs', 'Rotinas', 'Memória']);
   });
 

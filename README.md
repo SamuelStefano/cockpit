@@ -16,9 +16,9 @@ Topologia, protocolo e modelo de segurança em detalhe: **[ARCHITECTURE.md](ARCH
 - **Conversar com o Claude** com streaming, markdown, parar/retomar resposta.
 - **Operar terminais** da VPS (tmux + xterm.js) sem decorar comando.
 - **Salvar e evoluir contexto** — sessões, notas, skills e docs viram memória do projeto.
-- Painéis de **uso/custo**, **crons** e um **design system** vivo.
+- Painéis de **uso/custo**, **crons**, **pontos**, **grafo** do repo e um **design system** vivo.
 
-Rotas: `/` `/contextos` `/skills` `/notas` `/crons` `/uso`
+Rotas: `/` `/contextos` `/skills` `/notas` `/pontos` `/crons` `/uso` `/graph`
 `/canvas` `/harness` `/admin` `/docs` `/ds` `/play`.
 
 ---

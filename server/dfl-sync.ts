@@ -99,7 +99,7 @@ export function toFoldInput(b: RawBundle): DflRawInput {
 export async function writeSnapshotAtomic(snap: DflPointsSnapshot): Promise<void> {
   const f = dflSnapshotFile();
   await mkdir(dirname(f), { recursive: true });
-  // Unique per writer: the cron and "sync now" run as separate
+  // Unique per writer: the cron, "sync now" and the pontos agent run as separate
   // processes, and a shared name made the second rename fail with ENOENT.
   const tmp = `${f}.${process.pid}.${Date.now()}.tmp`;
   await writeFile(tmp, JSON.stringify(snap), { encoding: 'utf8', mode: 0o600 });

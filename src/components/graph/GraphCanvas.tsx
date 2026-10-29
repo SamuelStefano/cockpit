@@ -1,0 +1,95 @@
+import { useEffect, useRef } from 'react';
+import type { GraphData, GraphNode } from '../../../shared/protocol';
+import type { GraphNodeOp } from '../../useCockpit';
+import { useForceGraph } from './useForceGraph';
+import { useGraphExplorer } from './useGraphExplorer';
+import { communityColor, repoColor } from './community-color';
+import { GraphControls } from './GraphControls';
+import { GraphLegend } from './GraphLegend';
+import { GraphNodeDetail } from './GraphNodeDetail';
+
+interface Props {
+  graph: GraphData;
+  onNodeOp: (op: GraphNodeOp, a: string, b?: string) => void;
+}
+
+export function GraphCanvas({ graph, onNodeOp }: Props) {
+  const x = useGraphExplorer(graph);
+  // Clique num nó seleciona; shift+clique COM um nó já selecionado dispara o
+  // caminho entre os dois (a consulta `path` do graphify).
+  const onSelect = (n: GraphNode, mod?: { shiftKey?: boolean }) => {
+    if (mod?.shiftKey && x.selectedNode && x.selectedNode.id !== n.id) {
+      onNodeOp('path', x.selectedNode.label, n.label);
+      return;
+    }
+    x.selectNode(n);
+  };
+  const { canvasRef, hovered, resetView, focusNode } = useForceGraph(graph, {
+    selectedId: x.selectedId, onSelect,
+    colorMode: x.colorMode, query: x.query, focusRepo: x.focusRepo,
+  });
+
+  // Busca: ao digitar, centraliza no 1º match (feedback imediato de onde está).
+  const lastFocused = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (x.firstMatchId && x.firstMatchId !== lastFocused.current) {
+      lastFocused.current = x.firstMatchId;
+      focusNode(x.firstMatchId);
+    }
+    if (!x.query) lastFocused.current = undefined;
+  }, [x.firstMatchId, x.query, focusNode]);
+
+  const selectNeighbor = (n: GraphNode) => { x.selectNode(n); focusNode(n.id); };
+  const dotColor = (n: GraphNode) => (x.colorMode === 'repo' && n.repo ? repoColor(n.repo) : communityColor(n.community));
+
+  return (
+    <div className="relative min-h-0 flex-1 overflow-hidden bg-neutral-950">
+      <canvas ref={canvasRef} className="h-full w-full" style={{ cursor: 'grab', touchAction: 'none' }} />
+
+      {/* One overlay row: the stats (or the selected node's panel) on the left, the
+          search/controls on the right; below sm the controls come first and the
+          rest flows under them. Absolutely placed at both top corners they
+          overlapped on a phone: the search box covered the node count and the
+          "showing N of M" warning, and the node panel slid under the controls. */}
+      <div className="pointer-events-none absolute inset-3 flex flex-col items-start gap-2 sm:flex-row-reverse sm:justify-between">
+        <GraphControls
+          query={x.query} onQuery={x.setQuery} matchCount={x.matchCount}
+          colorMode={x.colorMode} onColorMode={x.setColorMode} showColorToggle={x.hasRepos}
+          onReset={resetView}
+        />
+        {x.selectedNode ? (
+          <GraphNodeDetail node={x.selectedNode} neighbors={x.neighbors} onSelectNeighbor={selectNeighbor} onClose={x.clearSelection} onNodeOp={onNodeOp} />
+        ) : (
+          <div className="flex min-w-0 flex-col gap-1 text-[12px] text-neutral-500">
+            <span><span className="text-neutral-300">{graph.nodes.length.toLocaleString('pt-BR')}</span> nós · <span className="text-neutral-300">{graph.edges.length.toLocaleString('pt-BR')}</span> arestas · <span className="text-neutral-300">{x.hasRepos ? x.repos.length : graph.communities.length}</span> {x.hasRepos ? 'apps' : 'comunidades'}</span>
+            {graph.truncated && (
+              <span className="text-amber-500/80">mostrando os {graph.nodes.length.toLocaleString('pt-BR')} nós mais conectados de {graph.totalNodes.toLocaleString('pt-BR')}</span>
+            )}
+            <span className="text-neutral-600">arraste · scroll p/ zoom · clique num nó · shift+clique: caminho</span>
+          </div>
+        )}
+      </div>
+
+      {/* On a phone the node panel is full width: the legend would paint over it. */}
+      {x.colorMode === 'repo' && (
+        <div className={x.selectedNode ? 'max-sm:hidden' : undefined}>
+          <GraphLegend repos={x.repos} focusRepo={x.focusRepo} onFocusRepo={x.setFocusRepo} />
+        </div>
+      )}
+
+      {!x.selectedNode && hovered ? (
+        <div className="pointer-events-none absolute bottom-3 left-3 max-w-xs rounded-lg border border-neutral-800 bg-neutral-900/95 px-3 py-2 shadow-lg">
+          <div className="flex items-center gap-2">
+            <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: dotColor(hovered) }} />
+            <span className="truncate font-mono text-[13px] text-neutral-100">{hovered.label}</span>
+            {hovered.repo && <span className="shrink-0 rounded-sm bg-neutral-800 px-1.5 py-0.5 font-mono text-[12px] text-orange-300">{hovered.repo}</span>}
+          </div>
+          {hovered.file && (
+            <div className="mt-1 truncate font-mono text-[12px] text-neutral-500">{hovered.file}{hovered.loc ? `:${hovered.loc}` : ''}</div>
+          )}
+          <div className="mt-1 text-[12px] text-neutral-500">{hovered.communityName ?? `Comunidade ${hovered.community}`} · {hovered.deg} conexões</div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
