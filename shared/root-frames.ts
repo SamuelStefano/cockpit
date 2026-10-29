@@ -22,7 +22,7 @@ export const ROOT_ONLY: ReadonlySet<ClientMsg['t']> = new Set<ClientMsg['t']>([
 
 // A frame whose own prefix says it belongs to the owner, even if a future one is
 // added to the protocol without being listed above.
-const ROOT_PREFIXES = ['points-', 'pontos-', 'drafts-', 'admin-env-', 'admin-mcp-', 'admin-cli-', 'admin-deck-', 'vault-'];
+const ROOT_PREFIXES = ['points-', 'pontos-', 'drafts-', 'admin-env-', 'admin-mcp-', 'admin-cli-', 'admin-deck-', 'vault-', 'byo-'];
 
 export function isRootOnly(t: string): boolean {
   return ROOT_ONLY.has(t as ClientMsg['t']) || ROOT_PREFIXES.some((p) => t.startsWith(p));

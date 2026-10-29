@@ -4,6 +4,8 @@ import type { WebSocket } from 'ws';
 import type { Cron, ResumeOfferReason } from '../../shared/protocol';
 import { run, resolveMcpSelection } from '../engine/claude';
 import { runAgent } from '../agents/acp-run';
+import { runByo } from '../agents/byo-run';
+import { byoModelOf } from '../../shared/byo-providers';
 import { restrictedModelError, stripRestricted } from '../engine/restricted-profile';
 import { agentIdOf, isAgentModel } from '../../shared/agents';
 import { CONFIG } from '../config';
@@ -911,7 +913,7 @@ export function startRun(o: StartRunOptions): 'pane' | 'rejected' | undefined {
   // thread is already registered and the cold slot held, so without this the
   // session stays busy forever with a no-op kill, and callers on timers turn the
   // throw into an uncaughtException that kills every other run.
-  const started = catchSpawn(() => (isAgentModel(params.model) ? runAgent : run)({
+  const started = catchSpawn(() => (byoModelOf(params.model) ? runByo : isAgentModel(params.model) ? runAgent : run)({
     ...params,
     prompt,
     resumeId,

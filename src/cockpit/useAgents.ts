@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import type { ClientMsg, ServerMsg } from '../../shared/protocol';
 import { useVersions, type VersionsApi } from './useVersions';
+import type { ByoKeyView } from '../../shared/byo-providers';
 import type { AgentCustomField, AgentPreset, AgentStatus, AgentView } from '../../shared/agents';
 
 export interface AgentTestResult {
@@ -44,6 +45,11 @@ export interface AgentsApi {
   customOutcome: CustomAgentOutcome | null;
   clearCustomOutcome: () => void;
   versions: VersionsApi;
+  byoKeys?: ByoKeyView[];
+  byoMessage?: { ok: boolean; message: string } | null;
+  saveByoKey?: (provider: string, key: string) => boolean;
+  removeByoKey?: (provider: string) => void;
+  refreshByoKeys?: () => void;
 }
 
 export function useAgents(send: (m: ClientMsg) => boolean) {
@@ -58,9 +64,16 @@ export function useAgents(send: (m: ClientMsg) => boolean) {
 
   const versions = useVersions(send, 'agent');
   const onVersionsMsg = versions.onMsg;
+  const [byoKeys, setByoKeys] = useState<ByoKeyView[]>([]);
+  const [byoMessage, setByoMessage] = useState<{ ok: boolean; message: string } | null>(null);
 
   const onMsg = useCallback((msg: ServerMsg) => {
     if (onVersionsMsg(msg)) return true;
+    if (msg.t === 'byo-keys') {
+      setByoKeys(msg.items);
+      if (msg.message) setByoMessage({ ok: msg.ok !== false, message: msg.message });
+      return true;
+    }
     if (msg.t === 'agents') {
       setItems(msg.items);
       setPresets(msg.presets);
@@ -88,7 +101,11 @@ export function useAgents(send: (m: ClientMsg) => boolean) {
 
   const agents: AgentsApi = {
     items, presets, customAllowed, loaded, testing, lastTest, customBusy, customOutcome,
+    byoKeys, byoMessage,
     refresh: useCallback(() => { send({ t: 'agents-get' }); }, [send]),
+    refreshByoKeys: useCallback(() => { send({ t: 'byo-keys-get' }); }, [send]),
+    saveByoKey: useCallback((provider: string, key: string) => send({ t: 'byo-key-set', provider, key }), [send]),
+    removeByoKey: useCallback((provider: string) => { send({ t: 'byo-key-remove', provider }); }, [send]),
     connect: useCallback((preset: string) => { send({ t: 'agent-connect', preset }); }, [send]),
     test: useCallback((id: string) => {
       if (!send({ t: 'agent-test', id })) return;

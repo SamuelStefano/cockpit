@@ -9,6 +9,7 @@ import type { McpsState } from './mcps';
 import type { Connection } from './connections';
 import type { ProbeResult } from './provider-probe';
 import type { ClaudeImportResult, ClaudeImportScan, ImportKind } from './claude-import';
+import type { ByoKeyView } from './byo-providers';
 import type { AgentView, AgentPreset, AgentStatus, AgentCustomField } from './agents';
 import type { TeamMessage } from './team-messages';
 import type { BoxHealth, SmokeResult } from './box-health';
@@ -878,6 +879,9 @@ export type ClientMsg =
   | { t: 'agent-probe-draft'; id: string; name: string; command: string; args: string[] }
   | { t: 'agent-remove'; id: string }
   | { t: 'agent-test'; id: string }
+  | { t: 'byo-keys-get' }
+  | { t: 'byo-key-set'; provider: string; key: string }
+  | { t: 'byo-key-remove'; provider: string }
   | { t: 'upload-chunk'; uploadId: string; sessionKey: string; name: string; seq: number; total: number; dataB64: string; clientId?: string }
   | { t: 'att-open'; path: string }
   | { t: 'term-open'; termId: string; cols: number; rows: number; watch?: string; botId?: string } // watch = session uuid to follow live; botId = abre no workspace do bot (o servidor resolve o caminho)
@@ -1031,6 +1035,7 @@ export type ServerMsg =
   | { t: 'context'; id: string; title: string; body: string }
   | { t: 'models'; models: ModelInfo[] }
   | { t: 'agents'; items: AgentView[]; presets: AgentPreset[]; customAllowed: boolean }
+  | { t: 'byo-keys'; items: ByoKeyView[]; ok?: boolean; message?: string }
   | { t: 'agent-test-result'; id: string; ok: boolean; status: AgentStatus; message: string }
   | { t: 'agent-custom-result'; ok: boolean; message: string; field?: AgentCustomField; id?: string }
   | { t: 'agent-draft-result'; ok: boolean; status: AgentStatus; message: string; field?: AgentCustomField }
