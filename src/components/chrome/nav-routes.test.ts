@@ -12,3 +12,12 @@ describe('/conexoes access', () => {
     expect(roleRedirect('student', '/conexoes', '', false)).toBe('/equipe');
   });
 });
+
+describe('navLabel', () => {
+  it('resolves exact and nested routes from the one table', async () => {
+    const { navLabel } = await import('./nav-routes');
+    expect(navLabel('/pontos')).toBe('Pontos');
+    expect(navLabel('/equipe/memoria')).toBe('Memória');
+    expect(navLabel('/configuracoes/uso')).toBe('Configurações');
+  });
+});

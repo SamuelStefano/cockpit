@@ -34,8 +34,7 @@ import { resolveAuthGate, useSealState } from './app/AuthGateView';
 import { relReset } from './lib/time';
 import { useTerminalTabs } from './app/useTerminalTabs';
 import { useGlobalShortcuts } from './app/useGlobalShortcuts';
-import { navRole, NAV } from './components/chrome/nav-routes';
-import { FOOTER_NAV } from './components/chrome/sidebar/sidebar-nav';
+import { navRole, navLabel } from './components/chrome/nav-routes';
 import { useRoleLanding } from './app/useRoleLanding';
 import { useIsMobile } from './app/useIsMobile';
 import { useKeyboardOpen } from './app/useKeyboardOpen';
@@ -177,6 +176,7 @@ function CockpitBody() {
 
   const sidebarSessions = useMemo(() => withoutBotThreads(sessions, cockpit.bots), [sessions, cockpit.bots]);
   const sessionsProps = { sessions: sidebarSessions, loading, activeId: activeSessionId, onSelect: selectSession, onNew: handleNew, marathon, onToggleMarathon, onRename: handleRename, onDescribe: handleDescribe, onClose: handleCloseSession, onDelete: handleDeleteSession, onStop: handleStop, archived, onUnhide: handleUnhide, running: runningAnywhere, stalled, updated, runStart, searchResults, onSearch, userId: sbAuth.session?.user.id };
+  const navCounts = useMemo(() => ({ '/canvas': sidebarSessions.filter((s) => s.waiting).length }), [sidebarSessions]);
   const usageDock = { usageAgent, planUsage, planBlockedUntil, planReadAt, planNextReadAt, onRefreshPlanUsage, grokUsage: cockpit.grokUsage, onRefreshGrokUsage: cockpit.onRefreshGrokUsage, quotaWarn: quotaGate.warn, quotaPaused: quotaGate.paused, quotaResetsAt: quotaGate.resetsAt, stats };
   const chatProps = { session: activeSession, messages, phase, terminalBusy, sessionTodos, draft, setDraft, onSend: handleSend, onPrompt: handleSend, onApproveWorkflow, onStop: handleStop, mode, setMode, caps, claudeReady, claudeLogin, agents: cockpit.agents, onClaudeLoginStart, onClaudeLoginCode, onClaudeLoginCancel, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, selectedMcps, setSelectedMcps, mcpServers, slashCommands, contextTokens, contextModel, sendCost, liveTurnTokens, turnStartedAt, bgAgents, lastTurn, lastEnd, onNew: handleNew, onHandoff, handoffBusy, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser: editUser, onQuote: quoteMsg, onMemorize: memorizeMsg, onRename: handleRename, onDelete: handleDeleteSession, onOpenFull, onLoadOlder, onOpenSummary, truncated, onShowHelp: () => setHelp(true), focusSignal, isMobile, onMenu: () => setDrawer(!drawer), keyboardOpen, quotaPaused: quotaGate.paused, quotaResetsAt: quotaGate.resetsAt, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueReleaseAt, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce, resumeOffer, resumeRun, conn: link, call, usage: usageDock, restoring };
   const termProps = { terminals, activeId: activeTermId, onSelect: setActiveTermId, onAdd: handleAddTerm, onClose: handleCloseTerm, term, attachable, onAttach: attachExisting };
@@ -206,9 +206,9 @@ function CockpitBody() {
   ) : null;
   const chatSurface = route === '/';
   const pageTitle = route === '/agentes'
-    ? (agentId === 'novo' ? 'Novo agente' : agentId ? agent.views.find((v) => v.bot.id === agentId)?.bot.name ?? 'Agente' : 'Agentes')
+    ? (agentId === 'novo' ? 'Novo agente' : agent.views.find((v) => v.bot.id === agentId)?.bot.name ?? 'Agente')
     : route === '/skills' && skillId ? skills.find((x) => x.id === skillId)?.name ?? skillId
-    : FOOTER_NAV.find((i) => i.to === route || route.startsWith(`${i.to}/`))?.label ?? NAV.find((n) => n.to === route)?.label ?? 'Deck';
+    : navLabel(route) ?? 'Deck';
 
   const connectionsCtx = useMemo(() => ({ connections: cockpit.connections, loaded: cockpit.connectionsLoaded, refresh: cockpit.onConnectionsGet }), [cockpit.connections, cockpit.connectionsLoaded, cockpit.onConnectionsGet]);
   const gate = resolveAuthGate({ sbAuth, seal, ejectPairing, authRequired, submitToken });
@@ -241,7 +241,7 @@ function CockpitBody() {
       <div className="flex min-h-0 flex-1">
         {!isMobile && (
           <Sidebar
-            route={route} nav={nav} role={role} onNew={handleNew} onPalette={() => setPalette(true)}
+            route={route} nav={nav} role={role} navCounts={navCounts} onNew={handleNew} onPalette={() => setPalette(true)}
             bitState={bitState} conn={conn.ws} account={account}
             sessions={<SessionsPanel {...sessionsProps} embedded />}
             rail={<RailChats sessions={sidebarSessions} running={runningAnywhere} activeId={activeSessionId} onSelect={selectSession} />}

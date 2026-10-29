@@ -5,10 +5,6 @@ import type { PermMode } from '../../shared/protocol';
 import type { Session } from '../data/types';
 import { navFor, type NavRole } from './chrome/nav-routes';
 
-const NAV_ICON: Partial<Record<Route, IconName>> = {
-  '/': 'message', '/equipe/memoria': 'sparkles', '/skills': 'zap', '/configuracoes': 'sliders', '/docs': 'file',
-};
-
 const MODE_LABEL: Record<PermMode, string> = { plan: 'Planejar', auto: 'Auto', acceptEdits: 'Executar' };
 
 interface PaletteCommandsArgs {
@@ -35,8 +31,8 @@ export function usePaletteCommands(args: PaletteCommandsArgs): Cmd[] {
     // to reach only 5 of them, so ⌘K could not open pontos, crons, canvas…
     const nav_: Cmd[] = navFor(role).map((n) => ({
       id: `go-${n.to === '/' ? 'chat' : n.to.slice(1)}`,
-      label: `Ir para ${n.label[0].toUpperCase()}${n.label.slice(1)}`,
-      icon: NAV_ICON[n.to] ?? 'file',
+      label: `Ir para ${n.label}`,
+      icon: n.icon,
       group: 'Navegar',
       run: go(n.to),
     }));

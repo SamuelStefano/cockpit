@@ -60,11 +60,6 @@ export function EquipePage(p: EquipePageProps) {
         <header className="mb-5 flex flex-wrap items-center gap-3 max-lg:hidden">
           <PageTitle icon="users" tone="sky">Equipe</PageTitle>
           <div className="ml-auto flex gap-2">
-            {isAdmin && tab !== 'rotinas' && views.length > 1 && (
-              <Button variant="ghost" size="sm" icon="pause" onClick={() => p.onPauseSet(!p.paused)}>
-                {p.paused ? 'Retomar equipe' : 'Pausar equipe'}
-              </Button>
-            )}
             {isAdmin && tab === 'rotinas' && <Button size="sm" variant="outline" icon="plus" onClick={r.openNew}>Nova rotina</Button>}
             {isAdmin && tab !== 'rotinas' && <Button size="sm" icon="plus" onClick={p.onNew}>Novo agente</Button>}
           </div>

@@ -1,18 +1,17 @@
 import { describe, it, expect } from 'vitest';
-import { footerNav, FOOTER_NAV } from './sidebar-nav';
+import { sidebarNav, canOpenSettings } from './sidebar-nav';
 
-describe('footerNav', () => {
-  it('lays out Equipe, Skills, Conexões, Configurações in that order for admin and root', () => {
-    for (const role of ['admin', 'root'] as const) {
-      expect(footerNav(role).map((i) => i.label)).toEqual(['Equipe', 'Skills', 'Conexões', 'Configurações']);
-    }
+describe('sidebarNav', () => {
+  it('lays out every work surface for root, with Pontos', () => {
+    expect(sidebarNav('root').map((i) => i.label)).toEqual(['Canvas', 'Pontos', 'Equipe', 'Skills', 'Conexões', 'Graph', 'Docs']);
   });
 
-  it('keeps a student on Equipe and Configurações: navFor still gates every entry', () => {
-    expect(footerNav('student').map((i) => i.id)).toEqual(['equipe', 'configuracoes']);
+  it('hides root-only Pontos from admin', () => {
+    expect(sidebarNav('admin').map((i) => i.label)).toEqual(['Canvas', 'Equipe', 'Skills', 'Conexões', 'Graph', 'Docs']);
   });
 
-  it('gives every entry its own route so only one is active at a time', () => {
-    expect(new Set(FOOTER_NAV.map((i) => i.to)).size).toBe(FOOTER_NAV.length);
+  it('keeps a student on Equipe: navFor still gates every entry', () => {
+    expect(sidebarNav('student').map((i) => i.label)).toEqual(['Equipe']);
+    expect(canOpenSettings('student')).toBe(true);
   });
 });

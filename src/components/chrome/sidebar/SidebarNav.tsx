@@ -1,6 +1,6 @@
 import type { Route } from '../../../useRoute';
 import type { NavRole } from '../nav-routes';
-import { footerNav } from './sidebar-nav';
+import { sidebarNav } from './sidebar-nav';
 import { SidebarItem } from './SidebarItem';
 
 interface SidebarNavProps {
@@ -12,12 +12,12 @@ interface SidebarNavProps {
 }
 
 export function SidebarNav({ route, nav, role, counts, expanded }: SidebarNavProps) {
-  const items = footerNav(role).filter((i) => i.id !== 'configuracoes');
+  const items = sidebarNav(role);
   if (!items.length) return null;
   return (
     <nav aria-label="Rotas" className="flex flex-col gap-0.5">
       {items.map((i) => (
-        <SidebarItem key={i.id} icon={i.icon} tile={i.tile} label={i.label} expanded={expanded} active={route === i.to || route.startsWith(`${i.to}/`)} count={counts?.[i.to]} onClick={() => nav(i.to)} />
+        <SidebarItem key={i.to} icon={i.icon} tile={i.tile} label={i.label} expanded={expanded} active={route === i.to || route.startsWith(`${i.to}/`)} count={counts?.[i.to]} onClick={() => nav(i.to)} />
       ))}
     </nav>
   );
