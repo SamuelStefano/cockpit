@@ -86,7 +86,7 @@ export function ChatInput(props: ChatInputProps) {
     <div className="relative z-20 shrink-0 px-3 py-3">
       <div className="mx-auto w-full max-w-[760px]">
       {mic.error && <ComposerNotice icon="mic" onDismiss={mic.dismissError}>{mic.error}</ComposerNotice>}
-      <FocusCollapse hidden={focusMode}>
+      <FocusCollapse hidden={!!focusMode}>
       {hasAtt && <AttachmentChips attachments={attachments} onRemoveAttachment={onRemoveAttachment} onOpen={onOpenAttachment} thumbs={attThumbs} onThumb={onAttThumb} />}
       {mic.hint && <ComposerNotice icon="mic" tone="info" onDismiss={mic.dismissHint}>{mic.hint}</ComposerNotice>}
       {queued.length > 0 && <QueuedBanner queued={queued} queuedIds={queuedIds} queuedAtts={queuedAtts} queuedModels={queuedModels} models={models} onRunBg={onRunQueuedBg} onRunNow={onRunQueuedNow} onCancelQueueAt={onCancelQueueAt} onEdit={onEditQueuedAt} onMove={onMoveQueued} held={queueHeld} onResume={onResumeQueue} paused={queuePaused} releaseAt={queueReleaseAt} onTogglePause={onToggleQueuePause} quotaHeld={paused} resetLabel={resetLabel} />}
