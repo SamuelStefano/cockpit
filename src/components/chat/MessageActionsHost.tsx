@@ -5,6 +5,9 @@ import { haptic } from '../../lib/haptics';
 import { useLongPress } from '../sessions/useLongPress';
 import { MessageActionsSheet, type MessageAction } from './MessageActionsSheet';
 
+const HOLD_MS = 600;
+const NATIVE_TARGETS = 'pre, code, a, button, [data-selectable]';
+
 export interface MessageActionsSpec {
   text: string;
   speak?: boolean;

@@ -126,6 +126,7 @@ export function UserMessageRow({ msg, onEditUser, onQuote, onOpenAttachment, att
           </div>
         )}
         {msg.triage && <TriageBadge action={msg.triage.action} reason={msg.triage.reason} />}
+        {msg.ts && <time className="hidden text-[11px] tabular-nums text-neutral-600 max-[719px]:block pointer-coarse:block">{fmtClock(msg.ts)}</time>}
       </div>
     </MessageActionsHost>
   );

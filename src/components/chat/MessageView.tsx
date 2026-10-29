@@ -117,6 +117,7 @@ export const MessageRow = memo(function MessageRow({ msg, avatar, bit, caretOnLa
             {msg.ts && <time className="whitespace-nowrap text-[12px] tabular-nums text-neutral-600">{fmtClock(msg.ts)}</time>}
           </div>
         )}
+        {hasText && !caretOnLast && msg.ts && <time className="hidden text-[11px] tabular-nums text-neutral-600 max-[719px]:block pointer-coarse:block">{fmtClock(msg.ts)}</time>}
       </MessageActionsHost>
     </div>
   );
