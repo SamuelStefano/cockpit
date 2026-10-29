@@ -44,8 +44,6 @@ interface ChatHeaderProps {
   // An agent's thread: its mascot and name stand in for the editable session title.
   agent?: ChatHeaderAgent;
   // Phone: the single top bar owns the drawer button (☰ · title · one action).
-  // Phone: the Bit takes the place of the menu icon and mirrors the turn state.
-  bitState?: BitState;
   // Phone: the Bit takes the menu icon's place and mirrors the turn state.
   bitState?: BitState;
   onMenu?: () => void;
