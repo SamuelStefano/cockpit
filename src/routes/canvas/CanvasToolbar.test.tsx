@@ -12,9 +12,9 @@ const base = {
 
 describe('CanvasToolbar mobile menu', () => {
   it('runs the chosen action and closes', () => {
-    const { getByTitle, getByText } = render(<CanvasToolbar {...base} />);
+    const { getByTitle, getAllByText } = render(<CanvasToolbar {...base} />);
     fireEvent.click(getByTitle('mais ações'));
-    fireEvent.click(getByText('terminal'));
+    fireEvent.click(getAllByText('terminal').at(-1)!);
     expect(base.onNewTerminal).toHaveBeenCalledOnce();
   });
 });
