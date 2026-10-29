@@ -7,7 +7,8 @@ import { DropButton } from '../../components/drop/DropButton';
 import type { DropApi } from '../../cockpit/useDrops';
 import { usePersisted } from '../../lib/persist';
 import { SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT, GROUP_NOTES_KEY, GROUP_NOTES_DEFAULT, NOTIFY_SOUND_KEY, NOTIFY_SOUND_DEFAULT } from '../../lib/prefs';
-import { isIOS } from '../../lib/platform';
+import { isIOS, isStandalone } from '../../lib/platform';
+import { requestNotifyPermission } from '../../lib/notify';
 import { SwitchRow } from './SwitchRow';
 import { DevicesSection } from '../../components/profile/DevicesSection';
 import { SendDiagButton } from '../../components/chrome/SendDiagButton';
@@ -53,8 +54,8 @@ export function Conta({ account, role }: { account: AccountProps; role: NavRole 
         <SwitchRow label="Agrupar notas do agente" hint="Só a resposta final fica solta" checked={groupNotes} onChange={() => setGroupNotes((v) => !v)} />
         <SwitchRow
           label="Som ao terminar o turno"
-          hint={isIOS() ? 'No iPhone/iPad o app em segundo plano fica pausado: o aviso só sai ao voltar' : 'Beep curto, só com a aba fora de foco'}
-          checked={notifySound} onChange={() => setNotifySound((v) => !v)}
+          hint={isIOS() ? (isStandalone() ? 'No iPhone/iPad o app em segundo plano fica pausado: o aviso só sai ao voltar' : 'Avisos no iPhone: instale o Deck na tela inicial (Compartilhar › Adicionar à Tela de Início)') : 'Beep curto, só com a aba fora de foco'}
+          checked={notifySound} onChange={() => { if (!notifySound) requestNotifyPermission(); setNotifySound((v) => !v); }}
         />
         {account.drops && (
           <ListRow label="Drop privado" hint="Entrega segredo ou script ao agente sem passar pelo chat" trailing={<DropButton api={account.drops} bare />} />
