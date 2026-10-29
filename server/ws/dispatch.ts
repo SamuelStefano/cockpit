@@ -43,7 +43,7 @@ import { usageStats, lastUsageOf } from '../db';
 import { hideSession, unhideSession, purgeSession, setTitle, setNote } from '../store';
 import { parseSession, parseFullSession } from '../sessions/parse';
 import { collectHealth } from '../health';
-import { setEnv, unsetEnv, addMcp, removeMcp, installCli, envNameAllowedRemotely } from '../admin-ops';
+import { setEnv, unsetEnv, addMcp, removeMcp, installCli, envNameAllowedRemotely, claudeReady } from '../admin-ops';
 import { updateClaudeCli, restartDeck } from '../deck-ops';
 import { CONFIG } from '../config';
 import { send, broadcast } from './broadcast';
