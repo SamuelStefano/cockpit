@@ -128,8 +128,6 @@ function CockpitBody() {
   const { drawer, setDrawer, termSheet, setTermSheet, palette, setPalette, help, setHelp } = useOverlays(route);
   const [focusSignal, setFocusSignal] = useState(0);
 
-  useGlobalShortcuts({ sessions, activeSessionId, setActiveSessionId: selectSession, updated, nav, setPalette, setHelp });
-
   // Citar uma mensagem: vira blockquote no topo do rascunho atual (trunca longos).
   // Ref + useCallback: identidade estável pro memo do MessageRow (setDraft não
   // aceita updater funcional — é keyed pela sessão ativa no hook).

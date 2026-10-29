@@ -6,6 +6,7 @@ import { InlineEdit } from './InlineEdit';
 import { useLongPress } from './useLongPress';
 import { rowStatus, STATUS_DOT } from './row-status';
 import { displayTitle } from './display-title';
+import { fmtRunElapsed } from './row-meta';
 
 export interface SessionRowProps {
   s: Session;
@@ -34,6 +35,7 @@ export function SessionRow({ s, active, running, stalled, updated, runStart, pin
   const { open: actionsOpen, setOpen: setActionsOpen, consumeTap, handlers } = useLongPress(() => {});
   const now = useRunClock(!!running);
   const status = rowStatus({ running, stalled, waiting: s.waiting, runStart, relative: s.relative, now });
+  const meta = running && runStart ? fmtRunElapsed(Math.max(0, now - runStart)) : s.relative;
   const dot = status ? STATUS_DOT[status.tone] : null;
 
   return (
@@ -62,6 +64,9 @@ export function SessionRow({ s, active, running, stalled, updated, runStart, pin
           {/* Fade instead of an ellipsis: the box spans the row, so only a title that reaches the edge fades. */}
           <span className="min-w-0 flex-1 overflow-hidden whitespace-nowrap [mask-image:linear-gradient(to_right,black_82%,transparent)]" title={s.title}>{displayTitle(s.title)}</span>
         </button>
+      )}
+      {!editing && meta && (
+        <span className="shrink-0 text-[12px] tabular-nums text-neutral-500 sm:pointer-fine:group-hover:hidden">{meta}</span>
       )}
       {!editing && (
         <SessionRowActions

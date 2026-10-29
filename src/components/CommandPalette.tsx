@@ -1,12 +1,15 @@
 import type { NavRole } from './chrome/nav-routes';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { Icon } from './primitives';
+import { useEscapeLayer } from './primitives/useEscapeLayer';
 import { filterCommands, capSessions } from './command-palette-filter';
 import { usePaletteCommands } from './usePaletteCommands';
 import { CommandPaletteResults, PALETTE_LIST_ID, paletteOptionId } from './CommandPaletteResults';
 import type { Route } from '../useRoute';
 import type { PermMode } from '../../shared/protocol';
 import type { Session } from '../data/types';
+
+const PAGE = 8;
 
 interface CommandPaletteProps {
   open: boolean;
@@ -32,6 +35,7 @@ export function CommandPalette({ open, onClose, nav, onNew, mode, setMode, sessi
   const commands = usePaletteCommands({ onClose, nav, onNew, mode, setMode, sessions, onSelectSession, running, onStop, onFocusComposer, onShowHelp, role });
   const filtered = useMemo(() => capSessions(filterCommands(commands, q), q), [q, commands]);
 
+  useEscapeLayer(open, onClose);
   useEffect(() => { setSel(0); }, [q, open]);
   useEffect(() => {
     if (!open) return;
@@ -45,10 +49,14 @@ export function CommandPalette({ open, onClose, nav, onNew, mode, setMode, sessi
   const onKey = (e: React.KeyboardEvent) => {
     // IME compondo: Enter/Esc confirmam/cancelam o candidato, não a paleta.
     if (e.nativeEvent.isComposing) return;
-    if (e.key === 'ArrowDown') { e.preventDefault(); setSel((s) => Math.min(s + 1, filtered.length - 1)); }
-    else if (e.key === 'ArrowUp') { e.preventDefault(); setSel((s) => Math.max(s - 1, 0)); }
+    const last = filtered.length - 1;
+    if (e.key === 'ArrowDown') { e.preventDefault(); setSel((s) => (s >= last ? 0 : s + 1)); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setSel((s) => (s <= 0 ? Math.max(last, 0) : s - 1)); }
+    else if (e.key === 'PageDown') { e.preventDefault(); setSel((s) => Math.min(s + PAGE, Math.max(last, 0))); }
+    else if (e.key === 'PageUp') { e.preventDefault(); setSel((s) => Math.max(s - PAGE, 0)); }
+    else if (e.key === 'Home' && !q) { e.preventDefault(); setSel(0); }
+    else if (e.key === 'End' && !q) { e.preventDefault(); setSel(Math.max(last, 0)); }
     else if (e.key === 'Enter') { e.preventDefault(); filtered[sel]?.run(); }
-    else if (e.key === 'Escape') { e.preventDefault(); onClose(); }
   };
 
   return (

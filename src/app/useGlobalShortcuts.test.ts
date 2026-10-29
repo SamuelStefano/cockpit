@@ -9,6 +9,8 @@ const sess = (id: string): Session => ({ id }) as Session;
 function mount(over: Partial<Parameters<typeof useGlobalShortcuts>[0]> = {}) {
   const args = {
     sessions: [sess('a'), sess('b'), sess('c')],
+    running: new Set<string>(),
+    onNew: vi.fn(),
     activeSessionId: 'a',
     setActiveSessionId: vi.fn(),
     updated: new Set<string>(),
@@ -110,5 +112,46 @@ describe('useGlobalShortcuts', () => {
     key({ key: 'ArrowDown', altKey: true });
     key({ key: 'n' });
     expect(setActiveSessionId).not.toHaveBeenCalled();
+  });
+
+  it('Alt+↓ also navigates to the chat', () => {
+    const { nav } = mount({ activeSessionId: 'a' });
+    key({ key: 'ArrowDown', altKey: true });
+    expect(nav).toHaveBeenCalledWith('/');
+  });
+
+  it('Alt+↓ follows the sidebar grouping: running sessions come first', () => {
+    const { setActiveSessionId } = mount({ activeSessionId: 'c', running: new Set(['b']) });
+    key({ key: 'ArrowDown', altKey: true });
+    // order: b (running), a, c → from c wraps to b
+    expect(setActiveSessionId).toHaveBeenCalledWith('b');
+  });
+
+  it('⌘⇧O starts a new chat and ⌘⇧K opens the canvas', () => {
+    const { onNew, nav } = mount();
+    key({ key: 'O', metaKey: true, shiftKey: true });
+    key({ key: 'K', ctrlKey: true, shiftKey: true });
+    expect(onNew).toHaveBeenCalledTimes(1);
+    expect(nav).toHaveBeenCalledWith('/canvas');
+  });
+
+  it('⌘2 jumps to the second sidebar session', () => {
+    const { setActiveSessionId, nav } = mount();
+    key({ key: '2', metaKey: true });
+    expect(setActiveSessionId).toHaveBeenCalledWith('b');
+    expect(nav).toHaveBeenCalledWith('/');
+  });
+
+  it('g then p opens pontos, but not while typing', () => {
+    const { nav } = mount();
+    key({ key: 'g' });
+    key({ key: 'p' });
+    expect(nav).toHaveBeenCalledWith('/pontos');
+  });
+
+  it('⌘B toggles the persisted sidebar state', () => {
+    mount();
+    key({ key: 'b', metaKey: true });
+    expect(localStorage.getItem('cockpit:sidebarCollapsed')).toBe('true');
   });
 });

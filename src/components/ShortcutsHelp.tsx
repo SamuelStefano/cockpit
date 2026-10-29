@@ -12,6 +12,12 @@ const GROUPS: { title: string; items: { keys: string[]; label: string }[] }[] = 
       { keys: ['⌥', '↓'], label: 'Próxima sessão' },
       { keys: ['⌥', '↑'], label: 'Sessão anterior' },
       { keys: ['n'], label: 'Próxima sessão com output novo' },
+      { keys: ['⌘', '1…9'], label: 'Ir pra n-ésima sessão da barra' },
+      { keys: ['⌘', '⇧', 'O'], label: 'Nova conversa' },
+      { keys: ['⌘', 'B'], label: 'Recolher / expandir a barra lateral' },
+      { keys: ['⌘', 'J'], label: 'Abrir / fechar o terminal' },
+      { keys: ['⌘', '⇧', 'K'], label: 'Ir pro canvas' },
+      { keys: ['g', 'p'], label: 'Ir pra pontos' },
     ],
   },
   {
@@ -28,7 +34,7 @@ const GROUPS: { title: string; items: { keys: string[]; label: string }[] }[] = 
   {
     title: 'Listas (sessões, skills, contextos)',
     items: [
-      { keys: ['⌘', '/'], label: 'Focar a busca' },
+      { keys: ['⌘', '/'], label: 'Focar a busca de conversas' },
     ],
   },
   {
