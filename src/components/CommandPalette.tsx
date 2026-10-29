@@ -2,6 +2,7 @@ import type { NavRole } from './chrome/nav-routes';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { Icon } from './primitives';
 import { useEscapeLayer } from './primitives/useEscapeLayer';
+import { useBackClose } from './primitives/useBackClose';
 import { filterCommands, capSessions } from './command-palette-filter';
 import { usePaletteCommands } from './usePaletteCommands';
 import { CommandPaletteResults, PALETTE_LIST_ID, paletteOptionId } from './CommandPaletteResults';
@@ -31,6 +32,7 @@ export function CommandPalette({ open, onClose, nav, onNew, mode, setMode, sessi
   const [q, setQ] = useState('');
   const [sel, setSel] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  useBackClose(open, onClose);
 
   const commands = usePaletteCommands({ onClose, nav, onNew, mode, setMode, sessions, onSelectSession, running, onStop, onFocusComposer, onShowHelp, role });
   const filtered = useMemo(() => capSessions(filterCommands(commands, q), q), [q, commands]);
@@ -60,7 +62,7 @@ export function CommandPalette({ open, onClose, nav, onNew, mode, setMode, sessi
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 pt-[12dvh] backdrop-blur-xs" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 pt-[12dvh] max-lg:pt-[calc(env(safe-area-inset-top)+0.5rem)] backdrop-blur-xs" onClick={onClose}>
       <div
         role="dialog"
         aria-modal="true"
@@ -75,7 +77,7 @@ export function CommandPalette({ open, onClose, nav, onNew, mode, setMode, sessi
             value={q}
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={onKey}
-            placeholder="Buscar comando ou sessão…"
+            placeholder="Buscar…"
             aria-label="Buscar comando ou sessão"
             role="combobox"
             aria-expanded={filtered.length > 0}
@@ -86,7 +88,7 @@ export function CommandPalette({ open, onClose, nav, onNew, mode, setMode, sessi
           />
           <kbd className="hidden rounded-sm border sm:inline border-neutral-700 bg-neutral-950 px-1.5 py-0.5 font-mono text-[12px] text-neutral-500">esc</kbd>
         </div>
-        <div className="scroll-thin max-h-[52dvh] overscroll-contain overflow-y-auto py-2">
+        <div className="scroll-thin max-h-[52dvh] max-lg:max-h-[calc(100dvh-5rem)] overscroll-contain overflow-y-auto py-2">
           <CommandPaletteResults filtered={filtered} sel={sel} setSel={setSel} />
         </div>
       </div>

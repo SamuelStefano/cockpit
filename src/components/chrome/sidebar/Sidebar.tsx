@@ -57,7 +57,7 @@ export function Sidebar({ route, nav, role, navCounts, onNew, onPalette, bitStat
         {expanded && <span className="flex-1" />}
         {!drawer && !expanded && <IconButton icon="squarePen" label="Nova conversa" side="right" onClick={onNew} />}
         <IconButton icon="search" label={`Comandos (${k})`} tip={`Buscar · ${k}`} side={expanded ? 'bottom' : 'right'} onClick={onPalette} />
-        {(expanded || drawer) && <IconButton icon="panelLeft" label={toggleLabel} side="bottom" aria-expanded={expanded} onClick={drawer ? drawer.onClose : toggle} />}
+        {(expanded || drawer) && <IconButton icon={drawer ? 'x' : 'panelLeft'} label={drawer ? 'Fechar menu' : toggleLabel} side="bottom" aria-expanded={expanded} onClick={drawer ? drawer.onClose : toggle} />}
       </div>
 
       {(drawer || expanded) && (
@@ -71,7 +71,7 @@ export function Sidebar({ route, nav, role, navCounts, onNew, onPalette, bitStat
       {/* Routes sit above the conversations (ChatGPT-style), so the list starts lower and a rule
           separates the two instead of the list running from the top to the account. */}
       <div className="mx-2 shrink-0 pb-2">
-        <SidebarNav route={route} nav={nav} role={role} counts={navCounts} expanded={expanded} />
+        <SidebarNav route={route} nav={nav} role={role} counts={navCounts} expanded={expanded} hideSingle={!!drawer} />
       </div>
 
       {expanded && <div className={`flex min-h-0 flex-1 flex-col ${list ? 'mx-2 border-t border-neutral-800/80' : ''}`}>

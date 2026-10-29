@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Popover, type PopoverAlign, type PopoverSide } from './Popover';
 import { escapeLayerOpen } from './useEscapeLayer';
 import { useCoarse } from './useCoarse';
+import { useBackClose } from './useBackClose';
 
 interface SheetProps {
   open: boolean;
@@ -19,6 +20,7 @@ interface SheetProps {
 function BottomSheet({ onClose, label, content }: Pick<SheetProps, 'onClose' | 'label' | 'content'>) {
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
+  useBackClose(true, onClose);
   useEffect(() => {
     const onEsc = (e: KeyboardEvent) => {
       if (e.key !== 'Escape' || e.defaultPrevented || e.isComposing || escapeLayerOpen()) return;

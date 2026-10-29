@@ -1,4 +1,5 @@
 import { useTurnHaptics } from './app/useTurnHaptics';
+import { useEdgeSwipeOpen } from './components/useEdgeSwipeOpen';
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { memorizePrompt } from './components/chat/memorize';
 import { TeamStack } from './components/team/TeamStack';
@@ -128,6 +129,7 @@ function CockpitBody() {
   const bitState = bitStateFor({ conn: link, agentOnline, running: anyRunning, thinking: phase === 'thinking', justDone });
 
   const { drawer, setDrawer, termSheet, setTermSheet, palette, setPalette, help, setHelp } = useOverlays(route);
+  useEdgeSwipeOpen(isMobile && !drawer, () => setDrawer(true));
   const [focusSignal, setFocusSignal] = useState(0);
 
   // Citar uma mensagem: vira blockquote no topo do rascunho atual (trunca longos).
