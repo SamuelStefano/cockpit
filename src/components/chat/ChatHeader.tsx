@@ -1,5 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { IconButton, Popover } from '../primitives';
+import { Bit } from '../bit/Bit';
+import type { BitState } from '../bit/bit-state';
 import { ConfirmArchive } from '../sessions/ConfirmArchive';
 import { ChatHeaderCompact } from './ChatHeaderCompact';
 import { ChatHeaderMenu } from './ChatHeaderMenu';
@@ -42,12 +44,16 @@ interface ChatHeaderProps {
   // An agent's thread: its mascot and name stand in for the editable session title.
   agent?: ChatHeaderAgent;
   // Phone: the single top bar owns the drawer button (☰ · title · one action).
+  // Phone: the Bit takes the place of the menu icon and mirrors the turn state.
+  bitState?: BitState;
+  // Phone: the Bit takes the menu icon's place and mirrors the turn state.
+  bitState?: BitState;
   onMenu?: () => void;
   teamSlot?: ReactNode;
   restoring?: boolean;
 }
 
-export function ChatHeader({ session, messages, isEmpty, contextTokens, contextModel = null, lastTurn, onNew, fullLoaded, truncated, onOpenFull, onLoadOlder, onOpenSummary, setFullLoaded, beforeGrow, onTerminal, terminalRunning, terminalOpen = false, usage, onRename, onDelete, keyboardOpen = false, selectedModel, agent, onMenu, teamSlot, restoring = false }: ChatHeaderProps) {
+export function ChatHeader({ session, messages, isEmpty, contextTokens, contextModel = null, lastTurn, onNew, fullLoaded, truncated, onOpenFull, onLoadOlder, onOpenSummary, setFullLoaded, beforeGrow, onTerminal, terminalRunning, terminalOpen = false, usage, onRename, onDelete, keyboardOpen = false, selectedModel, agent, onMenu, bitState = 'idle', teamSlot, restoring = false }: ChatHeaderProps) {
   const menu = useHeaderMenu();
   const [renameSignal, setRenameSignal] = useState(0);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -115,7 +121,9 @@ export function ChatHeader({ session, messages, isEmpty, contextTokens, contextM
     const fresh = !agent && isEmpty;
     return (
       <div className="flex h-[52px] shrink-0 items-center gap-1 px-2">
-        <IconButton icon="menu" label="Menu" side="bottom" onClick={onMenu} className="pointer-coarse:h-11 pointer-coarse:w-11" />
+        <button type="button" aria-label="Menu" data-turn-bit="" onClick={onMenu} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-orange-500/40">
+          <Bit state={bitState} size={28} title="Menu" />
+        </button>
         {agent ? (
           <span className="flex min-w-0 flex-1 items-center gap-2">
             {agent.avatar}

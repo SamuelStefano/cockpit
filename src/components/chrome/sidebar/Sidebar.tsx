@@ -2,6 +2,8 @@ import type { ReactNode } from 'react';
 import { useWidthTransition } from './useWidthTransition';
 import { Button, IconButton, Tooltip, type ConnState } from '../../primitives';
 import { Bit } from '../../bit/Bit';
+import { StreakBadge } from '../../bit/StreakBadge';
+import { useTurnTallyView } from '../../../lib/gamify/useTurnTally';
 import { BIT_STATE_LABEL, type BitState } from '../../bit/bit-state';
 import { comboLabel } from '../../../lib/platform';
 import type { Route } from '../../../useRoute';
@@ -35,12 +37,13 @@ export function Sidebar({ route, nav, role, navCounts, onNew, onPalette, bitStat
   const { collapsed, toggle } = useSidebarCollapsed();
   const expanded = drawer ? true : !collapsed;
   const animating = useWidthTransition(expanded);
+  const tally = useTurnTallyView();
   const k = comboLabel(['⌘', 'K']);
   const toggleLabel = drawer ? 'Fechar menu' : expanded ? 'Recolher barra lateral' : 'Expandir barra lateral';
   const list = expanded && sessions;
   const bitButton = (
     <Tooltip label={`Ir pro chat · ${BIT_STATE_LABEL[bitState]}`} side="right" disabled={!!drawer}>
-      <button type="button" onClick={() => nav('/')} aria-label="Ir pro chat" className="bit-greet flex h-11 items-center gap-2 rounded-xl px-1 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-orange-500/40">
+      <button type="button" onClick={() => nav('/')} aria-label="Ir pro chat" data-turn-bit="" className="bit-greet flex h-11 items-center gap-2 rounded-xl px-1 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-orange-500/40">
         <Bit state={bitState} size={expanded ? 36 : 30} />
         {expanded && <span className="font-display text-[28px] font-bold lowercase leading-none tracking-wide text-neutral-50">deck</span>}
       </button>
@@ -55,6 +58,7 @@ export function Sidebar({ route, nav, role, navCounts, onNew, onPalette, bitStat
       <div className={`flex shrink-0 p-2 ${expanded ? 'h-14 items-center gap-0.5' : 'flex-col items-center gap-1'}`}>
         {bitButton}
         {!drawer && !expanded && <IconButton icon="panelLeft" label={toggleLabel} side="right" aria-expanded={expanded} onClick={toggle} />}
+        {expanded && <StreakBadge streak={tally.streak} turns={tally.turns} />}
         {expanded && <span className="flex-1" />}
         {!drawer && !expanded && <IconButton icon="squarePen" label="Nova conversa" side="right" onClick={onNew} />}
         <IconButton icon="search" label={`Comandos (${k})`} tip={`Buscar · ${k}`} side={expanded ? 'bottom' : 'right'} onClick={onPalette} />

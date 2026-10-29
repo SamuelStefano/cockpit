@@ -20,8 +20,8 @@ interface Piece {
 
 interface Burst { id: number; pieces: Piece[] }
 
-function makePieces(count: number, spread: number, seq: () => number): Piece[] {
-  const mid = 50;
+function makePieces(count: number, spread: number, originX: number, seq: () => number): Piece[] {
+  const mid = originX * 100;
   const half = spread * 50;
   return Array.from({ length: count }, () => {
     const size = rand(6, 11);
@@ -54,7 +54,7 @@ export function ConfettiHost() {
       // Lido a cada disparo (não no mount) pra respeitar toggle de SO em runtime.
       if (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
       const id = ++seq.current;
-      const pieces = makePieces(opts.count, opts.spread, () => ++seq.current);
+      const pieces = makePieces(opts.count, opts.spread, opts.originX, () => ++seq.current);
       // Teto de 4 rajadas vivas: cliques repetidos não acumulam DOM sem limite.
       setBursts((b) => [...b, { id, pieces }].slice(-4));
       const t = window.setTimeout(() => { timers.delete(t); setBursts((b) => b.filter((x) => x.id !== id)); }, 3800);
