@@ -35,6 +35,7 @@ export const NAV: NavItem[] = [
   { to: '/conexoes', label: 'Conexões', icon: 'link', side: true, tile: 'bg-emerald-500/20 text-emerald-300' },
   { to: '/graph', label: 'Graph', icon: 'globe', side: true, tile: 'bg-rose-500/20 text-rose-300' },
   { to: '/docs', label: 'Docs', icon: 'book', side: true, tile: 'bg-neutral-500/20 text-neutral-300' },
+  { to: '/agentes', label: 'Agente', icon: 'users', student: true },
   { to: '/equipe/rotinas', label: 'Rotinas', icon: 'clock' },
   { to: '/equipe/memoria', label: 'Memória', icon: 'brain' },
   { to: '/configuracoes', label: 'Configurações', icon: 'sliders', student: true },
