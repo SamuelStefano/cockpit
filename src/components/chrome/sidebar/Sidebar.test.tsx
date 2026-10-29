@@ -59,7 +59,7 @@ describe('Sidebar', () => {
     expect(screen.queryByRole('navigation', { name: 'Rotas' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Perfil' }));
     const names = within(screen.getByRole('navigation', { name: 'Rotas' })).getAllByRole('button').map((b) => b.getAttribute('aria-label'));
-    expect(names).toEqual(['Canvas', 'Equipe', 'Skills', 'Conexões', 'Docs']);
+    expect(names).toEqual(['Canvas', 'Skills', 'Conexões', 'Docs', 'Rotinas', 'Memória']);
     fireEvent.click(screen.getByRole('button', { name: 'Skills' }));
     expect(p.nav).toHaveBeenCalledWith('/skills');
     expect(screen.queryByRole('navigation', { name: 'Rotas' })).toBeNull();
@@ -72,10 +72,12 @@ describe('Sidebar', () => {
     expect(screen.queryByRole('button', { name: /^Uso do plano/ })).toBeNull();
   });
 
-  it('keeps a student on Equipe and Configurações only', () => {
+  it('keeps a student on Configurações only (no Equipe, Rotinas or Memória)', () => {
     setup({ role: 'student' });
     fireEvent.click(screen.getByRole('button', { name: 'Perfil' }));
-    expect(screen.getByRole('button', { name: 'Equipe' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Equipe' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Rotinas' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Memória' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Skills' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Conexões' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Configurações' })).toBeTruthy();

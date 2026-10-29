@@ -8,8 +8,8 @@ describe('/conexoes access', () => {
     expect(navFor('student').some((n) => n.to === '/conexoes')).toBe(false);
   });
 
-  it('sends a student who opens the URL back to the Equipe', () => {
-    expect(roleRedirect('student', '/conexoes', '', false)).toBe('/equipe');
+  it('sends a student who opens the URL back to the home chat', () => {
+    expect(roleRedirect('student', '/conexoes')).toBe('/');
   });
 });
 

@@ -9,7 +9,7 @@ const SHOWN = 3;
 
 export type TeamStackProps = Omit<TeamSheetProps, 'entries' | 'onClose' | 'working'>;
 
-// Header chip for windows without the rail: 3 overlapping mascots, "+N", an orange
+// Header agent picker: 3 overlapping mascots, "+N", an orange
 // dot when someone waits on you. Opens the team sheet (bottom sheet on touch, popover on desktop).
 export function TeamStack(props: TeamStackProps) {
   const [open, setOpen] = useState(false);
@@ -20,7 +20,7 @@ export function TeamStack(props: TeamStackProps) {
   const waiting = waitingCount(views);
   const working = views.filter((v: BotView) => v.state === 'thinking' || v.state === 'working').length;
   return (
-    <span className="min-[1100px]:hidden">
+    <span>
       <Sheet
         open={open} onClose={() => setOpen(false)} label="Equipe" side="bottom" align="end" className="w-80"
         content={<TeamSheet {...props} entries={entries} working={working} onClose={() => setOpen(false)} />}

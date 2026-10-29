@@ -13,14 +13,14 @@ const view = (id: string, over: Omit<Partial<BotView>, 'bot'> & { bot?: Record<s
 };
 
 function setup(views: BotView[], over: Partial<TeamRailProps> = {}) {
-  const props: TeamRailProps = { views, activeId: null, onOpen: vi.fn(), onNew: vi.fn(), onAll: vi.fn(), canManage: true, onPauseSet: vi.fn(), ...over };
+  const props: TeamRailProps = { views, activeId: null, onOpen: vi.fn(), onNew: vi.fn(), canManage: true, onPauseSet: vi.fn(), ...over };
   render(<TeamRail {...props} />);
   return props;
 }
 
 describe('TeamRail', () => {
   it('renders nothing with no agents', () => {
-    const { container } = render(<TeamRail views={[]} activeId={null} onOpen={vi.fn()} onNew={vi.fn()} onAll={vi.fn()} canManage />);
+    const { container } = render(<TeamRail views={[]} activeId={null} onOpen={vi.fn()} onNew={vi.fn()} canManage />);
     expect(container.textContent).toBe('');
     expect(container.querySelector('aside')).toBeNull();
   });

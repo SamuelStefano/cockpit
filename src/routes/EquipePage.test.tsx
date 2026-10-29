@@ -15,35 +15,16 @@ const v = (id: string, over: Partial<BotView['bot']> = {}, state: BotView['state
 });
 const base = () => ({
   views: [v('lia', { primary: true }, 'waiting'), v('growth', { parentId: 'lia' }, 'working')],
-  connected: true, isAdmin: true, usageStats: null, paused: false, bots: [] as TeamBot[], onOpenChat: vi.fn(),
+  connected: true, isAdmin: true, bots: [] as TeamBot[], onOpenChat: vi.fn(),
   cron: { crons: [] as Cron[], loaded: true, onCronsGet: vi.fn(), onCronSave: vi.fn(), onCronDelete: vi.fn(), onCronRun: vi.fn() },
   memory: { memories: [], loaded: true, onList: vi.fn(), onSave: vi.fn(), onDelete: vi.fn() },
-  onOpenAgent: vi.fn(), onNew: vi.fn(), onPauseSet: vi.fn(), onUsageList: vi.fn(), onGo: vi.fn(),
+  onGo: vi.fn(),
 });
 
 describe('EquipePage', () => {
-  it('on phones shows a one-line summary and a tappable list instead of the org chart', () => {
-    media(true);
-    const p = base();
-    render(<EquipePage {...p} />);
-    expect(screen.getByLabelText('Resumo da equipe').textContent).toBe('1 trabalhando · 1 esperando você');
-    expect(screen.queryByLabelText('Organograma da equipe')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Abrir growth' }));
-    expect(p.onOpenAgent).toHaveBeenCalledWith('growth');
-  });
-  it('shows only numbers it can compute and opens an agent from its node', () => {
-    const p = base();
-    render(<EquipePage {...p} />);
-    expect(screen.getByText('trabalhando agora')).toBeTruthy();
-    expect(screen.queryByText('tarefas fechadas hoje')).toBeNull();
-    expect(screen.queryByText('gasto hoje · estimado')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Abrir growth' }));
-    expect(p.onOpenAgent).toHaveBeenCalledWith('growth');
-  });
   it('routes the Rotinas tab to /equipe/rotinas and Memória to the existing screen', () => {
     const p = base();
     render(<EquipePage {...p} />);
-    expect(screen.queryByRole('button', { name: /Pausar equipe/ })).toBeNull();
     fireEvent.click(screen.getByRole('tab', { name: /Rotinas/ }));
     fireEvent.click(screen.getByRole('tab', { name: /Memória/ }));
     expect(p.onGo.mock.calls).toEqual([['/equipe/rotinas'], ['/equipe/memoria']]);
@@ -55,7 +36,6 @@ describe('EquipePage', () => {
     expect(screen.getByText('Fechar o dia')).toBeTruthy();
     expect(screen.getByText('Todo dia útil às 18h')).toBeTruthy();
     expect(screen.getByRole('button', { name: /Nova rotina/ })).toBeTruthy();
-    expect(screen.queryByText('trabalhando agora')).toBeNull();
     expect(p.cron.onCronsGet).toHaveBeenCalled();
   });
   it('renders the memory screen inside the Memória tab', () => {
@@ -63,17 +43,19 @@ describe('EquipePage', () => {
     render(<EquipePage {...p} />);
     expect(screen.getByText('Nenhuma memória ainda')).toBeTruthy();
     expect(p.memory.onList).toHaveBeenCalled();
-    expect(screen.queryByText('trabalhando agora')).toBeNull();
   });
-  it('hides admin actions and skips the usage request for a student', () => {
+  it('hides admin actions and the Memória tab for a student', () => {
     const p = { ...base(), isAdmin: false };
     render(<EquipePage {...p} />);
-    expect(screen.queryByRole('button', { name: /Pausar equipe/ })).toBeNull();
-    expect(screen.queryByRole('button', { name: /Novo agente/ })).toBeNull();
-    expect(p.onUsageList).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: /Nova rotina/ })).toBeNull();
     expect(screen.queryByRole('tab', { name: /Memória/ })).toBeNull();
   });
-  it('keeps /equipe in the student menu and nothing else restricted', () => {
-    expect(navFor('student').map((n) => n.to)).toEqual(['/', '/equipe', '/configuracoes']);
+  it('bounces a student off /equipe/memoria to the home chat', () => {
+    const p = { ...base(), isAdmin: false, tab: 'memoria' as const };
+    render(<EquipePage {...p} />);
+    expect(p.onGo).toHaveBeenCalledWith('/');
+  });
+  it('keeps the student menu to chat and settings', () => {
+    expect(navFor('student').map((n) => n.to)).toEqual(['/', '/agentes', '/configuracoes']);
   });
 });

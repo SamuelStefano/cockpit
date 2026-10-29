@@ -39,9 +39,9 @@ describe('useAgentNav', () => {
     expect(result.current.active?.bot.id).toBe('ana01');
   });
 
-  it('does not open any agent just because /equipe is the route', () => {
+  it('does not open any agent just because the route is not /', () => {
     const t = input();
-    renderHook(() => useAgentNav(t, '/equipe' as Route, vi.fn(), vi.fn()));
+    renderHook(() => useAgentNav(t, '/equipe/rotinas' as Route, vi.fn(), vi.fn()));
     expect(t.onOpenBot).not.toHaveBeenCalled();
   });
 

@@ -5,7 +5,7 @@ import { useRoleLanding } from './useRoleLanding';
 import type { Route } from '../useRoute';
 import type { NavRole } from '../components/chrome/nav-routes';
 
-type P = { route: Route; chatId: string; capsKnown: boolean; role: NavRole };
+type P = { route: Route; capsKnown: boolean; role: NavRole };
 function mount(initial: P) {
   const nav = vi.fn();
   const h = renderHook((p: P) => useRoleLanding({ ...p, nav }), { initialProps: initial });
@@ -13,38 +13,38 @@ function mount(initial: P) {
 }
 
 describe('useRoleLanding', () => {
-  it('a student opening the root lands on the Equipe', () => {
-    expect(mount({ route: '/', chatId: '', capsKnown: true, role: 'student' }).nav).toHaveBeenCalledWith('/equipe');
+  it('a student opening the root stays on the home chat', () => {
+    expect(mount({ route: '/', capsKnown: true, role: 'student' }).nav).not.toHaveBeenCalled();
   });
   it('waits for caps before moving anyone', () => {
-    const { nav, rerender } = mount({ route: '/', chatId: '', capsKnown: false, role: 'student' });
+    const { nav, rerender } = mount({ route: '/', capsKnown: false, role: 'student' });
     expect(nav).not.toHaveBeenCalled();
-    rerender({ route: '/', chatId: '', capsKnown: true, role: 'student' });
-    expect(nav).toHaveBeenCalledWith('/equipe');
+    rerender({ route: '/equipe/rotinas', capsKnown: true, role: 'student' });
+    expect(nav).toHaveBeenCalledWith('/');
   });
   it('a chat URL stays, and going back to chat later is not undone', () => {
-    const { nav, rerender } = mount({ route: '/', chatId: 'abc', capsKnown: true, role: 'student' });
+    const { nav, rerender } = mount({ route: '/', capsKnown: true, role: 'student' });
     expect(nav).not.toHaveBeenCalled();
-    rerender({ route: '/', chatId: '', capsKnown: true, role: 'student' });
+    rerender({ route: '/', capsKnown: true, role: 'student' });
     expect(nav).not.toHaveBeenCalled();
   });
-  it('a route outside the student menu always goes to the Equipe', () => {
-    for (const route of ['/configuracoes/uso', '/canvas', '/pontos', '/equipe/rotinas'] as Route[]) {
-      expect(mount({ route, chatId: '', capsKnown: true, role: 'student' }).nav).toHaveBeenCalledWith('/equipe');
+  it('a route outside the student menu always goes home', () => {
+    for (const route of ['/configuracoes/uso', '/canvas', '/pontos', '/equipe/rotinas', '/equipe/memoria'] as Route[]) {
+      expect(mount({ route, capsKnown: true, role: 'student' }).nav).toHaveBeenCalledWith('/');
     }
   });
   it('admin stays on its own routes', () => {
-    expect(mount({ route: '/', chatId: '', capsKnown: true, role: 'admin' }).nav).not.toHaveBeenCalled();
-    expect(mount({ route: '/canvas', chatId: '', capsKnown: true, role: 'admin' }).nav).not.toHaveBeenCalled();
-    expect(mount({ route: '/conexoes', chatId: '', capsKnown: true, role: 'admin' }).nav).not.toHaveBeenCalled();
-    expect(mount({ route: '/ds', chatId: '', capsKnown: true, role: 'admin' }).nav).not.toHaveBeenCalled();
+    expect(mount({ route: '/', capsKnown: true, role: 'admin' }).nav).not.toHaveBeenCalled();
+    expect(mount({ route: '/canvas', capsKnown: true, role: 'admin' }).nav).not.toHaveBeenCalled();
+    expect(mount({ route: '/conexoes', capsKnown: true, role: 'admin' }).nav).not.toHaveBeenCalled();
+    expect(mount({ route: '/ds', capsKnown: true, role: 'admin' }).nav).not.toHaveBeenCalled();
   });
   it('admin opening /pontos goes to chat (root only)', () => {
-    expect(mount({ route: '/pontos', chatId: '', capsKnown: true, role: 'admin' }).nav).toHaveBeenCalledWith('/');
+    expect(mount({ route: '/pontos', capsKnown: true, role: 'admin' }).nav).toHaveBeenCalledWith('/');
   });
   it('root is never moved', () => {
     for (const route of ['/', '/pontos', '/conexoes', '/ds'] as Route[]) {
-      expect(mount({ route, chatId: '', capsKnown: true, role: 'root' }).nav).not.toHaveBeenCalled();
+      expect(mount({ route, capsKnown: true, role: 'root' }).nav).not.toHaveBeenCalled();
     }
   });
 });
