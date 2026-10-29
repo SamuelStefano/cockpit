@@ -38,6 +38,7 @@ export function OfflineNotice({ show, cause, box = null, reconnect, offlineSince
   const [showConnect, setShowConnect] = useState(false);
   const [open, setOpen] = useState(false);
   const [, tick] = useState(0);
+  const desktop = typeof window !== 'undefined' && window.matchMedia?.('(min-width: 1024px)').matches;
   useEffect(() => {
     if (!show) return;
     const id = setInterval(() => tick((n) => n + 1), 1000);
@@ -55,7 +56,7 @@ export function OfflineNotice({ show, cause, box = null, reconnect, offlineSince
             <Icon name="circle" size={13} />
           </span>
           <div className="min-w-0 flex-1 leading-tight">
-            <button type="button" aria-expanded={open} onClick={() => setOpen((v) => !v)} className="flex w-full items-center gap-1 text-left text-[13px] font-medium text-red-200 max-lg:min-h-11 lg:pointer-events-none">
+            <button type="button" tabIndex={desktop ? -1 : undefined} aria-expanded={open} onClick={() => setOpen((v) => !v)} className="flex w-full items-center gap-1 text-left text-[13px] font-medium text-red-200 max-lg:min-h-11 lg:pointer-events-none">
               <span className="min-w-0 flex-1 truncate lg:whitespace-normal">{msg.title}</span>
               <Icon name={open ? 'chevronDown' : 'chevronRight'} size={14} className="lg:hidden" />
             </button>
