@@ -11,11 +11,12 @@ interface EmptyStateProps {
   children?: ReactNode;
   className?: string;
   // `sm`: top-aligned and compact, for pages and panels. The default fills and
-  // centers its container.
-  size?: 'md' | 'sm';
+  // centers its container. `xs`: one muted line inside a list or column.
+  size?: 'md' | 'sm' | 'xs';
 }
 
 export function EmptyState({ icon, bit, title, description, children, className = '', size = 'md' }: EmptyStateProps) {
+  if (size === 'xs') return <p className={`px-1 py-3 text-center text-[12px] text-neutral-600 ${className}`}>{title}</p>;
   const sm = size === 'sm';
   return (
     <div className={`flex flex-col items-center text-center ${sm ? 'px-6 py-6' : 'h-full justify-center px-6'} ${className}`}>

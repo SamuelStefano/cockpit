@@ -45,10 +45,10 @@ describe('Kanban — "completar antigos (N)" bulk triage (canvas review item 2)'
     expect(onSessionStatus).toHaveBeenCalledWith('old-2', 'done');
   });
 
-  it('the antigos chip and count sit in the Done header, reachable without opening the list first', () => {
+  it('the stale chip and count sit in the board footer, reachable without opening the list first', () => {
     const items = [item('old-1', { mtime: STALE })];
     const { getByText } = render(<Kanban {...baseProps} sessionItems={items} />);
-    expect(getByText('1 antigos')).toBeTruthy();
+    expect(getByText('1 paradas há +24h')).toBeTruthy();
   });
 });
 
@@ -116,15 +116,24 @@ describe('Kanban — empty columns', () => {
     const sections = [...container.querySelectorAll('section')];
     expect(sections).toHaveLength(4);
     for (const s of sections) expect(s.className).toContain('md:flex-1');
-    expect(getAllByText('nada por aqui')).toHaveLength(4);
-    for (const p of getAllByText('nada por aqui')) expect(p.parentElement?.className).not.toContain('md:hidden');
+    expect(getAllByText('Nada por aqui')).toHaveLength(4);
+    for (const p of getAllByText('Nada por aqui')) expect(p.parentElement?.className).not.toContain('md:hidden');
   });
 });
 
-describe('Kanban — column headers', () => {
-  it('keeps the Done header as tall as the others when the "antigos" chip shows', () => {
-    const STALE = Date.now() - 25 * 3600_000;
-    const { getByText } = render(<Kanban {...baseProps} sessionItems={[item('old', { mtime: STALE })]} />);
-    expect(getByText(/1 antigos/).closest('button')?.className).toContain('-my-1.5');
+describe('Kanban — session drops', () => {
+  const dragOver = (section: Element, types: string[]) => fireEvent.dragOver(section, { dataTransfer: { types } });
+
+  it('does not accept a session drag over To do, and marks it refused', () => {
+    const { container } = render(<Kanban {...baseProps} sessionItems={[]} />);
+    const todo = container.querySelectorAll('section')[0];
+    expect(dragOver(todo, ['text/deck-session'])).toBe(true);
+    expect(todo.getAttribute('title')).toBe('sessões entram aqui sozinhas');
+  });
+
+  it('accepts a session drag over Review', () => {
+    const { container } = render(<Kanban {...baseProps} sessionItems={[]} />);
+    const review = container.querySelectorAll('section')[2];
+    expect(dragOver(review, ['text/deck-session'])).toBe(false);
   });
 });

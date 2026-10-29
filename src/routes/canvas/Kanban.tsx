@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CARD_STATUSES, type CanvasCard, type CardStatus, type SessionPeek, type TermStats } from '../../../shared/canvas';
-import { Badge, Button, Segmented, ToggleChip } from '../../components/primitives';
+import { Badge, Button, EmptyState, Segmented, ToggleChip } from '../../components/primitives';
 import { cardRun } from './canvas-board';
 import { STATUS_HINT, STATUS_LABEL } from './canvas-labels';
 import { KanbanCard } from './KanbanCard';
@@ -46,6 +46,7 @@ const MOBILE_STATUSES = CARD_STATUSES;
 
 export function Kanban(p: Props) {
   const [over, setOver] = useState<CardStatus | null>(null);
+  const [refused, setRefused] = useState<CardStatus | null>(null);
   const [openSessionId, setOpenSessionId] = useState<string | null>(null);
   const [antigosOpen, setAntigosOpen] = useState(false);
   const [mobileStatus, setMobileStatus] = useState<CardStatus>('doing');
@@ -63,6 +64,19 @@ export function Kanban(p: Props) {
   // scope filter) — without this, "Done" fills with hundreds of sessions
   // nobody is ever going to review (Samuel feedback, 2026-09-24).
   const triage = useMemo(() => triageSessionItems(shownItems, now), [shownItems, now]);
+
+  const selectedSet = useMemo(() => new Set(p.selected), [p.selected]);
+  const byStatus = useMemo(() => {
+    const out = {} as Record<CardStatus, { cards: CanvasCard[]; sessions: SessionKanbanItem[] }>;
+    for (const s of CARD_STATUSES) out[s] = { cards: [], sessions: [] };
+    for (const c of p.cards) out[c.status].cards.push(c);
+    for (const s of triage.visible) out[s.status].sessions.push(s);
+    for (const s of CARD_STATUSES) {
+      out[s].cards.sort((a, b) => b.updatedAt - a.updatedAt);
+      out[s].sessions.sort((a, b) => b.mtime - a.mtime);
+    }
+    return out;
+  }, [p.cards, triage.visible]);
 
   const counts = useMemo(() => {
     const out: Record<CardStatus, number> = { todo: 0, doing: 0, review: 0, done: 0 };
@@ -107,8 +121,7 @@ export function Kanban(p: Props) {
       </div>
       <div className="flex min-h-0 flex-1 flex-col gap-2 md:flex-row md:overflow-hidden">
       {CARD_STATUSES.map((status) => {
-        const cards = p.cards.filter((c) => c.status === status).sort((a, b) => b.updatedAt - a.updatedAt);
-        const sessions = triage.visible.filter((s) => s.status === status).sort((a, b) => b.mtime - a.mtime);
+        const { cards, sessions } = byStatus[status];
         const staleDone = status === 'review' ? triage.staleDone : [];
         const empty = !cards.length && !sessions.length && !staleDone.length;
         const rail = empty && !boardEmpty;
@@ -116,10 +129,18 @@ export function Kanban(p: Props) {
         return (
           <section
             key={status}
-            onDragOver={(e) => { e.preventDefault(); setOver(status); }}
-            onDragLeave={() => setOver((o) => (o === status ? null : o))}
+            title={refused === status ? 'sessões entram aqui sozinhas' : undefined}
+            onDragOver={(e) => {
+              // Sessions only move by hand to review/done: refuse the drop up front (not-allowed cursor).
+              if ((status === 'todo' || status === 'doing') && Array.from(e.dataTransfer.types).includes('text/deck-session')) {
+                setRefused(status);
+                return;
+              }
+              e.preventDefault(); setOver(status);
+            }}
+            onDragLeave={() => { setOver((o) => (o === status ? null : o)); setRefused((o) => (o === status ? null : o)); }}
             onDrop={(e) => {
-              e.preventDefault(); setOver(null);
+              e.preventDefault(); setOver(null); setRefused(null);
               const cardId = e.dataTransfer.getData('text/deck-card');
               const sessionId = e.dataTransfer.getData('text/deck-session');
               if (cardId) p.onMove(cardId, status);
@@ -129,7 +150,7 @@ export function Kanban(p: Props) {
             }}
             className={`${isMobileActive ? 'flex' : 'hidden'} min-h-0 flex-1 flex-col rounded-xl border bg-neutral-950/60 md:flex ${
               rail ? 'md:w-11 md:min-w-11 md:max-w-11 md:flex-none md:items-center' : 'md:min-w-0 md:flex-1'
-            } ${over === status ? 'border-orange-500/60' : 'border-neutral-800'}`}
+            } ${over === status ? 'border-orange-500/60' : refused === status ? 'border-red-500/40 opacity-70' : 'border-neutral-800'}`}
           >
             {rail ? (
               <>
@@ -150,22 +171,7 @@ export function Kanban(p: Props) {
               <header className="flex items-center gap-2 px-2.5 py-2" title={STATUS_HINT[status]}>
                 <span className="text-[12px] font-semibold text-neutral-200">{STATUS_LABEL[status]}</span>
                 <Badge>{cards.length + sessions.length}</Badge>
-                {/* -my-1.5: the chip is ~27px, the other headers' content ~17px —
-                    without it Done's header was 43px vs 33px and its title and
-                    first card sat lower than the three neighbours'. */}
-                {status === 'review' && staleDone.length > 0 && (
-                  <ToggleChip on={antigosOpen} icon="clock" onClick={() => setAntigosOpen((v) => !v)} className="-my-1.5 ml-auto">
-                    {staleDone.length} antigos
-                  </ToggleChip>
-                )}
               </header>
-            )}
-            {!empty && status === 'review' && staleDone.length > 0 && (
-              <div className="border-b border-neutral-800 px-2 py-1.5">
-                <Button size="sm" variant={bulk.armed ? 'primary' : 'secondary'} icon="check" onClick={() => bulk.fire(completeStale)}>
-                  {bulk.armed ? `marcar ${staleDone.length} como concluídas?` : `completar antigos (${staleDone.length})`}
-                </Button>
-              </div>
             )}
             <div className={`min-h-0 flex-1 space-y-1.5 overflow-y-auto px-2 pb-2 ${rail ? 'md:hidden' : ''}`}>
               {cards.map((c) => {
@@ -174,14 +180,14 @@ export function Kanban(p: Props) {
                 return (
                   <KanbanCard
                     key={c.id} card={c} sessions={boundIds} run={cardRun(c, boundIds, p.running)} sessionSummary={lastSession}
-                    selected={p.selected.includes(`k:${c.id}`)} onSelect={p.onSelect} onRun={p.onRun} onEdit={p.onEdit}
+                    selected={selectedSet.has(`k:${c.id}`)} onSelect={p.onSelect} onRun={p.onRun} onEdit={p.onEdit}
                     onReview={(id) => p.onMove(id, 'review')} onOpenSession={p.onOpenSession}
                   />
                 );
               })}
               {sessions.map((s) => (
                 <KanbanSessionItem
-                  key={s.nodeId} item={s} stats={p.termStats[s.sessionId]} selected={p.selected.includes(s.nodeId)}
+                  key={s.nodeId} item={s} stats={p.termStats[s.sessionId]} selected={selectedSet.has(s.nodeId)}
                   onSelect={(nodeId) => selectSession(nodeId, s.sessionId)} onOpenSession={p.onOpenSession} onOpenTerm={p.onOpenTerm}
                 />
               ))}
@@ -189,20 +195,30 @@ export function Kanban(p: Props) {
                 <div className="space-y-1.5 border-t border-neutral-800 pt-1.5">
                   {staleDone.map((s) => (
                     <KanbanSessionItem
-                      key={s.nodeId} item={s} stats={p.termStats[s.sessionId]} selected={p.selected.includes(s.nodeId)}
+                      key={s.nodeId} item={s} stats={p.termStats[s.sessionId]} selected={selectedSet.has(s.nodeId)}
                       onSelect={(nodeId) => selectSession(nodeId, s.sessionId)} onOpenSession={p.onOpenSession} onOpenTerm={p.onOpenTerm}
                     />
                   ))}
                 </div>
               )}
-              {empty && <p className="px-1 py-3 text-center text-[12px] text-neutral-600">nada por aqui</p>}
+              {empty && <EmptyState size="xs" title="Nada por aqui" />}
             </div>
           </section>
         );
       })}
       </div>
-      {(triage.hiddenIdle.length > 0 || p.hiddenSessionIds.size > 0) && (
-        <div className="flex shrink-0 items-center gap-2 px-1 text-[12px] text-neutral-600">
+      {(triage.hiddenIdle.length > 0 || p.hiddenSessionIds.size > 0 || triage.staleDone.length > 0) && (
+        <div className="flex shrink-0 flex-wrap items-center gap-2 px-1 text-[12px] text-neutral-600">
+          {triage.staleDone.length > 0 && (
+            <>
+              <ToggleChip on={antigosOpen} icon="clock" onClick={() => setAntigosOpen((v) => !v)}>
+                {triage.staleDone.length} paradas há +24h
+              </ToggleChip>
+              <Button size="sm" variant={bulk.armed ? 'primary' : 'secondary'} icon="check" onClick={() => bulk.fire(completeStale)}>
+                {bulk.armed ? `marcar ${triage.staleDone.length} como concluídas?` : `completar antigos (${triage.staleDone.length})`}
+              </Button>
+            </>
+          )}
           {triage.hiddenIdle.length > 0 && <span>{triage.hiddenIdle.length} sessões antigas sem pendência, fora do quadro</span>}
           {p.hiddenSessionIds.size > 0 && (
             <>
