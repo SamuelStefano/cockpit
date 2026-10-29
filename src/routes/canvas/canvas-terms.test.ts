@@ -110,7 +110,7 @@ describe('placeWindows', () => {
 
   it('groups windows by area into contiguous slots regardless of arrival order (#598 map cleanup)', () => {
     const areaOf = (id: string): string | undefined => ({ 's:1': 'deck', 's:2': 'itera', 's:3': 'deck' } as Record<string, string>)[id];
-    const out = placeWindows(pos, {}, ['s:2', 's:1', 's:3'], undefined, areaOf);
+    const out = placeWindows(pos, {}, ['s:2', 's:1', 's:3'], areaOf);
     // deck's two windows fill the first row (LANE_COLS 3 -> 2, canvas review
     // UX review 24/09 item 3, so a row is only 2 wide now); itera's lone window comes
     // after both, wrapped to the row above, not interleaved between them.
