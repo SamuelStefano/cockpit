@@ -152,7 +152,7 @@ export function RouteContent({ route, agentRoute, skillRoute, isMobile, isAdmin,
       return (
         <Onboarding agents={c.agents} claudeImport={isRoot ? c.claudeImport : undefined} claudeReady={c.claudeReady} login={c.claudeLogin}
           onStart={c.onClaudeLoginStart} onCode={c.onClaudeLoginCode} onCancel={c.onClaudeLoginCancel}
-          onDone={() => navigateTo('/')} />
+          onDone={() => navigateTo('/')} connected={connected} />
       );
     }
     // '/' and '/equipe' (a deep link that lands on the primary agent) share one surface.

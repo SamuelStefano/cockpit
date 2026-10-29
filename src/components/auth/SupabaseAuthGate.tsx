@@ -1,4 +1,5 @@
 import { BrandMark, Button, Input } from '../primitives';
+import { isTouchMobile } from '../chat/touch';
 import { AuthIntro } from './AuthIntro';
 import { AuthFeedback } from './AuthFeedback';
 import { AuthModeTabs } from './AuthModeTabs';
@@ -19,10 +20,11 @@ export function SupabaseAuthGate({ auth }: { auth: AuthGateActions }) {
   const [label, busyLabel] = CTA[mode];
 
   return (
-    <div className="flex h-full flex-1 items-center justify-center gap-12 bg-neutral-950 px-4">
+    <div className="flex h-full flex-1 items-center justify-center gap-12 overflow-y-auto bg-neutral-950 px-4 max-lg:items-start max-lg:py-10">
       <AuthIntro />
       <form onSubmit={submit} className="w-full max-w-sm rounded-2xl border border-neutral-800 bg-neutral-900/60 p-7 shadow-2xl">
-        <BrandMark title="deck" className="mb-5" />
+        <BrandMark title="deck" className="mb-3" />
+        <p className="mb-5 text-[13px] leading-relaxed text-neutral-400 lg:hidden">O cérebro roda na sua VPS; o Deck é só a tela.</p>
 
         {mode === 'forgot' ? (
           <p className="mb-4 text-[12px] leading-relaxed text-neutral-500">
@@ -36,7 +38,7 @@ export function SupabaseAuthGate({ auth }: { auth: AuthGateActions }) {
         <Input
           id="auth-email"
           type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-          autoComplete="email" inputMode="email" autoFocus placeholder="voce@exemplo.com"
+          autoComplete="email" inputMode="email" autoFocus={!isTouchMobile()} placeholder="voce@exemplo.com"
           className="mb-3"
         />
         {mode !== 'forgot' && (
