@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { clipboardKeyAction } from './useTerminalClipboard';
+import { clipboardKeyAction, decodeOsc52 } from './useTerminalClipboard';
 
 const key = (k: string, mods: Partial<{ ctrlKey: boolean; shiftKey: boolean; altKey: boolean; metaKey: boolean }> = {}, type = 'keydown') =>
   ({ type, key: k, ctrlKey: false, shiftKey: false, altKey: false, metaKey: false, ...mods });
@@ -35,5 +35,16 @@ describe('clipboardKeyAction', () => {
     expect(clipboardKeyAction(key('C', { ctrlKey: true, shiftKey: true }, 'keyup'), true)).toBeNull();
     expect(clipboardKeyAction(key('c', { ctrlKey: true, altKey: true }), true)).toBeNull();
     expect(clipboardKeyAction(key('a', { ctrlKey: true }), true)).toBeNull();
+  });
+});
+
+describe('decodeOsc52', () => {
+  it('decodes a utf-8 base64 payload', () => {
+    expect(decodeOsc52('c;' + btoa('https://claude.com/x?a=1&é'.replace('é', '\xc3\xa9')))).toBe('https://claude.com/x?a=1&é');
+  });
+  it('ignores read requests and malformed payloads', () => {
+    expect(decodeOsc52('c;?')).toBeNull();
+    expect(decodeOsc52('nosep')).toBeNull();
+    expect(decodeOsc52('c;***')).toBeNull();
   });
 });
