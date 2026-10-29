@@ -145,4 +145,20 @@ describe('ChatHeader phone bar', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Nova conversa' }));
     expect(onNew).toHaveBeenCalledOnce();
   });
+
+  describe('restart with a clean context', () => {
+    const FULL = 900_000;
+
+    it('plain chat: the ring button calls onNew', () => {
+      const onNew = vi.fn();
+      setup({ contextTokens: FULL, contextModel: 'claude-opus-4-8', onNew });
+      fireEvent.click(screen.getByRole('button', { name: 'Recomeçar com contexto limpo' }));
+      expect(onNew).toHaveBeenCalledTimes(1);
+    });
+
+    it('agent chat: no dead restart button (the bot keeps one bound thread)', () => {
+      setup({ contextTokens: FULL, contextModel: 'claude-opus-4-8', agent: { name: 'Capo', avatar: <span>m</span> } });
+      expect(screen.queryByRole('button', { name: 'Recomeçar com contexto limpo' })).toBeNull();
+    });
+  });
 });
