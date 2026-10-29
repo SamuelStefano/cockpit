@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ClientMsg, ServerMsg } from '../../shared/protocol';
-import type { AreaBudget, AreaId, CanvasBoard, CanvasCard, CanvasFlow, CanvasGraph, CanvasPos, CardStatus, OrchestratorActivity, OrchestratorInfo, SessionPeek, TermStats } from '../../shared/canvas';
+import type { AreaBudget, AreaId, CanvasBoard, CanvasCard, CanvasFlow, CanvasGraph, CanvasPos, CardStatus, SessionPeek, TermStats } from '../../shared/canvas';
 import { AREA_LABELS } from '../../shared/canvas';
 import type { AreaUsage } from '../../shared/canvas-budget';
 import { toast } from '../components/primitives';
@@ -46,17 +46,6 @@ export interface CanvasApi {
   // acts on), scoped to whatever ids the LAST onCanvasTermStats call asked
   // about. The client never estimates this itself (review #595 point 8).
   canvasAreaUsage: Partial<Record<AreaId, AreaUsage>>;
-  // Fetched independently of the canvas-get graph (see 'orchestrator-get' in
-  // shared/protocol.ts) — undefined = not answered yet, null = answered, no
-  // Orchestrator configured. Used by the normal chat view's banner: it
-  // shouldn't have to wait on (or trigger) the whole admin-only graph build
-  // just to know whether the open session IS the Orchestrator's.
-  orchestratorInfo: OrchestratorInfo | null | undefined;
-  onOrchestratorReconnect: () => void;
-  // The dock's "Em andamento" panel — only requested while it's open and
-  // expanded (useOrchestratorActivityPoll), never on every reconnect.
-  orchestratorActivity: OrchestratorActivity | null;
-  onOrchestratorActivityGet: () => void;
   // Sessions working in a `cockpit-cv-*` tmux shell (server-pushed 'cv-live').
   cvLiveSessionIds: string[];
   // Same push: a cv shell that's ALIVE (tmux + process) but idle — waiting on
@@ -98,10 +87,6 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
   const [canvasFlowFired, setFlowFired] = useState<Record<string, number>>({});
   const [canvasFlowRuns, setFlowRuns] = useState<Record<string, { key: string; at: number }>>({});
   const [canvasAreaUsage, setAreaUsage] = useState<Partial<Record<AreaId, AreaUsage>>>({});
-  const [orchestratorInfo, setOrchestratorInfo] = useState<OrchestratorInfo | null | undefined>(undefined);
-  const onOrchestratorReconnect = useCallback(() => { send({ t: 'orchestrator-get' }); }, [send]);
-  const [orchestratorActivity, setOrchestratorActivity] = useState<OrchestratorActivity | null>(null);
-  const onOrchestratorActivityGet = useCallback(() => { send({ t: 'orchestrator-activity-get' }); }, [send]);
   const [cvLiveSessionIds, setCvLive] = useState<string[]>([]);
   const [cvIdleSessionIds, setCvIdle] = useState<string[]>([]);
   const [sessionPeeks, setSessionPeeks] = useState<Record<string, SessionPeek | null>>({});
@@ -194,8 +179,6 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
       return true;
     }
     if (msg.t === 'canvas-graph') { setGraph(msg.graph); setStale(false); settle(); return true; }
-    if (msg.t === 'orchestrator-info') { setOrchestratorInfo(msg.info ?? null); return true; }
-    if (msg.t === 'orchestrator-activity') { setOrchestratorActivity(msg.activity); return true; }
     if (msg.t === 'cv-live') { setCvLive(msg.sessionIds); setCvIdle(msg.idleSessionIds ?? []); return true; }
     if (msg.t === 'canvas-session-peek') { setSessionPeeks((prev) => ({ ...prev, [msg.sessionId]: msg.peek })); return true; }
     // Slim patch (card-review.ts auto-moving a card to "review"): update just
@@ -464,6 +447,6 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
     onCanvasSessionStatusBulk, onCanvasHideSession, onCanvasUnhideAllSessions,
     onCanvasFlowSave, onCanvasFlowDelete, canvasFlowFired, canvasFlowRuns, onCanvasBudgetSave,
     canvasTermStats, onCanvasTermStats, onCanvasCtxStats, canvasAreaUsage,
-    orchestratorInfo, onOrchestratorReconnect, orchestratorActivity, onOrchestratorActivityGet, cvLiveSessionIds, cvIdleSessionIds, sessionPeeks, onSessionPeek, onMsg,
+    cvLiveSessionIds, cvIdleSessionIds, sessionPeeks, onSessionPeek, onMsg,
   };
 }

@@ -28,7 +28,7 @@ describe('CanvasChain narrow list', () => {
       total += parseFloat(el.style.marginLeft || '0');
       el = el.parentElement;
     }
-    // root(orchestrator) > area > fork 0 > 1 > 2 > 3 > 4 = 6 nested levels.
+    // root > area > fork 0 > 1 > 2 > 3 > 4 = 6 nested levels.
     expect(total).toBe(6 * CHAIN_LIST_INDENT);
   });
 });

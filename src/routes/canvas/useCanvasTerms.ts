@@ -16,16 +16,8 @@ export function termTarget(n: CanvasNode): TermTarget | null {
   return null;
 }
 
-// Only one Orchestrator surface may ever exist on the canvas: the real `cv-`
-// shell (or the sidebar dock). A `w-<sessionId>` follower window opened onto
-// its OWN session would be a second, redundant view of the same live pane
-// (and a second `tmux attach` client — see server/terminals.ts) — the
-// "duplicate window" confusion Samuel hit live on 2026-09-24. `excludeId`
-// filters that one node id out of every window-opening path below; nothing
-// else about session windows changes.
-export function useCanvasTerms(term: TermApi, discovered: string[], listTerms: () => void, orchestratorSessionId?: string) {
+export function useCanvasTerms(term: TermApi, discovered: string[], listTerms: () => void) {
   const [open, setOpen] = usePersisted<string[]>('canvas.openTerms', []);
-  const excludeId = orchestratorSessionId ? sessionNodeId(orchestratorSessionId) : undefined;
   const [created, setCreated] = useState<string[]>([]);
   const [active, setActive] = useState<string | null>(null);
   const [focusN, setFocusN] = useState(0);
@@ -50,20 +42,16 @@ export function useCanvasTerms(term: TermApi, discovered: string[], listTerms: (
   const shells = useMemo(() => shellNodes([...new Set([...discovered, ...created])], now), [discovered, created, now]);
   const shellIds = useMemo(() => new Set(shells.map((s) => s.id)), [shells]);
 
-  // Shell nodes are always windows; sessions only while opened. Also drops a
-  // `w-` follower for the Orchestrator's session left over in a PREVIOUSLY
-  // persisted `open` list (from before this exclusion existed) — the guards
-  // below stop a NEW one from ever being added, this one cleans up an old one.
+  // Shell nodes are always windows; sessions only while opened.
   const windows = useMemo(
-    () => [...open.filter((id) => !id.startsWith('t:') && id !== excludeId), ...shellIds],
-    [open, shellIds, excludeId],
+    () => [...open.filter((id) => !id.startsWith('t:')), ...shellIds],
+    [open, shellIds],
   );
 
   const openWindow = useCallback((id: string) => {
-    if (id === excludeId) return;
     dismissed.current.delete(id);
     setOpen((cur) => capOpen(cur, id));
-  }, [setOpen, excludeId]);
+  }, [setOpen]);
 
   const focus = useCallback((id: string) => {
     setActive(id);
@@ -119,15 +107,14 @@ export function useCanvasTerms(term: TermApi, discovered: string[], listTerms: (
   const blur = useCallback(() => setActive(null), []);
 
   const openMany = useCallback((ids: string[]) => {
-    const wanted = ids.filter((id) => id !== excludeId);
-    for (const id of wanted) dismissed.current.delete(id);
-    setOpen((cur) => wanted.reduce((acc, id) => capOpen(acc, id), cur));
-  }, [setOpen, excludeId]);
+    for (const id of ids) dismissed.current.delete(id);
+    setOpen((cur) => ids.reduce((acc, id) => capOpen(acc, id), cur));
+  }, [setOpen]);
 
   const autoOpen = useCallback((ids: string[]) => {
-    const running = ids.filter((id) => id !== excludeId && !dismissed.current.has(id));
+    const running = ids.filter((id) => !dismissed.current.has(id));
     if (autoAdd(openRef.current, running) !== openRef.current) setOpen((cur) => autoAdd(cur, running));
-  }, [setOpen, excludeId]);
+  }, [setOpen]);
 
   return {
     open: windows, shells, active, focusN, maximized, resuming, resumedLive,

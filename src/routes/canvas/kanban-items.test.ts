@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { CanvasCard, CanvasEdge, CanvasNode } from '../../../shared/canvas';
 import {
-  deriveSessionItems, deriveSessionStatus, doneRecentSessionIds, isOrchestratorChildText, isOverrideActive, KANBAN_STALE_MS,
-  orchestratorKanbanItem, resolvePendingBoundIds, triageSessionItems, type SessionKanbanItem,
+  deriveSessionItems, deriveSessionStatus, doneRecentSessionIds, isOverrideActive, KANBAN_STALE_MS,
+  resolvePendingBoundIds, triageSessionItems, type SessionKanbanItem,
 } from './kanban-items';
 
 describe('isOverrideActive', () => {
@@ -189,35 +189,6 @@ describe('deriveSessionItems', () => {
     expect(items).toHaveLength(1);
     expect(items[0].sessionId).toBe('b');
   });
-
-  it('excludes the orchestrator session — it never shows as a normal item', () => {
-    const items = deriveSessionItems({
-      nodes: [session('a'), session('b')], edges: [], cards: [], running: new Set(), overrides: {}, turnStartedAt: {},
-      showAutomation: false, orchestratorSessionId: 'a',
-    });
-    expect(items).toHaveLength(1);
-    expect(items[0].sessionId).toBe('b');
-  });
-});
-
-describe('orchestratorKanbanItem', () => {
-  const session = (id: string, extra: Partial<CanvasNode> = {}): CanvasNode => ({
-    id: `s:${id}`, kind: 'session', ref: id, title: `sessão ${id}`, subtitle: '', mtime: 10, count: 3, ...extra,
-  });
-  const opts = { running: new Set<string>(), overrides: {}, turnStartedAt: {} };
-
-  it('is undefined with no orchestrator configured', () => {
-    expect(orchestratorKanbanItem([session('a')], opts, undefined)).toBeUndefined();
-  });
-
-  it('is undefined when the orchestrator session has no node yet', () => {
-    expect(orchestratorKanbanItem([session('a')], opts, 'missing')).toBeUndefined();
-  });
-
-  it('finds the item unconditionally — no automation/bound filtering', () => {
-    const item = orchestratorKanbanItem([session('a')], opts, 'a');
-    expect(item).toMatchObject({ sessionId: 'a', nodeId: 's:a' });
-  });
 });
 
 describe('resolvePendingBoundIds', () => {
@@ -262,56 +233,18 @@ describe('deriveSessionItems with a migrated pending session', () => {
   });
 });
 
-describe('isOrchestratorChildText', () => {
-  it('matches the buildTaskPrompt-style opening line', () => {
-    expect(isOrchestratorChildText('You are a delegated worker of the Orchestrator (Samuel\'s main agent). Work in...')).toBe(true);
-  });
-
-  it('matches case-insensitively', () => {
-    expect(isOrchestratorChildText('you are a delegated worker of the orchestrator, go')).toBe(true);
-  });
-
-  it('matches the short opt-in marker anywhere in the text', () => {
-    expect(isOrchestratorChildText('quick check [orch] on the deploy')).toBe(true);
-  });
-
-  it('does not match an unrelated first message', () => {
-    expect(isOrchestratorChildText('Duvida sobre o skills. O app é aberto')).toBe(false);
-  });
-
-  it('does not match a session merely mentioning the orchestrator in passing', () => {
-    expect(isOrchestratorChildText('ask the orchestrator later, not now')).toBe(false);
-  });
-});
-
-describe('deriveSessionItems — orchestratorChild', () => {
+describe('deriveSessionItems — cv shells', () => {
   const session = (id: string, extra: Partial<CanvasNode> = {}): CanvasNode => ({
     id: `s:${id}`, kind: 'session', ref: id, title: id, subtitle: '', mtime: 10, count: 3, ...extra,
   });
 
-  it('tags a delegated-worker session so the kanban can group it', () => {
-    const items = deriveSessionItems({
-      nodes: [session('a', { subtitle: 'You are a delegated worker of the Orchestrator (Samuel\'s main agent). Fix X.' })],
-      edges: [], cards: [], running: new Set(), overrides: {}, turnStartedAt: {}, showAutomation: false,
-    });
-    expect(items[0].orchestratorChild).toBe(true);
-  });
-
-  it('a normal session is not tagged', () => {
-    const items = deriveSessionItems({
-      nodes: [session('a', { subtitle: 'preciso de ajuda com o deploy' })],
-      edges: [], cards: [], running: new Set(), overrides: {}, turnStartedAt: {}, showAutomation: false,
-    });
-    expect(items[0].orchestratorChild).toBe(false);
-  });
-
-  it('a session live in a cv shell is running, In progress and in the orchestrator lane', () => {
+  it('a session live in a cv shell is running and In progress', () => {
     const items = deriveSessionItems({
       nodes: [session('a', { subtitle: 'preciso de ajuda com o deploy' }), session('b')],
       edges: [], cards: [], running: new Set(), overrides: {}, turnStartedAt: {}, showAutomation: false, cvLive: new Set(['a']),
     });
-    expect(items[0]).toMatchObject({ sessionId: 'a', status: 'doing', running: true, orchestratorChild: true });
-    expect(items[1]).toMatchObject({ sessionId: 'b', status: 'review', running: false, orchestratorChild: false });
+    expect(items[0]).toMatchObject({ sessionId: 'a', status: 'doing', running: true });
+    expect(items[1]).toMatchObject({ sessionId: 'b', status: 'review', running: false });
   });
 
   // UX bug: a cv shell that's alive but idle (waiting on Samuel) drops out of
@@ -330,7 +263,7 @@ describe('deriveSessionItems — orchestratorChild', () => {
 describe('triageSessionItems', () => {
   const NOW = 100 * KANBAN_STALE_MS;
   const item = (id: string, extra: Partial<SessionKanbanItem> = {}): SessionKanbanItem => ({
-    nodeId: `s:${id}`, sessionId: id, title: id, subtitle: '', status: 'review', orchestratorChild: false,
+    nodeId: `s:${id}`, sessionId: id, title: id, subtitle: '', status: 'review',
     running: false, waitingOnUser: false, needsAttention: false, mtime: NOW, ...extra,
   });
 

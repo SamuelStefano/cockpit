@@ -12,10 +12,6 @@ import { useArmed } from '../../components/primitives/useArmed';
 interface Props {
   cards: CanvasCard[];
   sessionItems: SessionKanbanItem[];
-  // Pinned above the columns — never one of the 4, see kanban-items.ts
-  // orchestratorKanbanItem. Undefined when no orchestrator is configured or
-  // its session hasn't shown up on the canvas yet.
-  orchestratorItem?: SessionKanbanItem;
   termStats: Record<string, TermStats>;
   selected: string[];
   running: Set<string>;
@@ -86,7 +82,6 @@ export function Kanban(p: Props) {
   };
   const openItem = openSessionId
     ? triage.visible.find((s) => s.sessionId === openSessionId) ?? triage.staleDone.find((s) => s.sessionId === openSessionId)
-    ?? (p.orchestratorItem?.sessionId === openSessionId ? p.orchestratorItem : undefined)
     : undefined;
 
   // "completar antigos (N)": ONE wire frame when the caller has wired
@@ -104,13 +99,6 @@ export function Kanban(p: Props) {
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2 md:overflow-hidden">
-      {p.orchestratorItem && (
-        <KanbanSessionItem
-          item={p.orchestratorItem} orchestrator stats={p.termStats[p.orchestratorItem.sessionId]}
-          selected={p.selected.includes(p.orchestratorItem.nodeId)}
-          onSelect={(nodeId) => selectSession(nodeId, p.orchestratorItem!.sessionId)} onOpenSession={p.onOpenSession} onOpenTerm={p.onOpenTerm}
-        />
-      )}
       <div className="shrink-0 md:hidden">
         <Segmented
           label="coluna do kanban" value={mobileStatus} onChange={setMobileStatus}
@@ -121,11 +109,6 @@ export function Kanban(p: Props) {
       {CARD_STATUSES.map((status) => {
         const cards = p.cards.filter((c) => c.status === status).sort((a, b) => b.updatedAt - a.updatedAt);
         const sessions = triage.visible.filter((s) => s.status === status).sort((a, b) => b.mtime - a.mtime);
-        // "In progress" gets its own fuchsia sub-lane for whoever the
-        // Orchestrator delegated to — those never blend into Samuel's own
-        // running sessions (canvas review, 2026-09-24).
-        const orchChildren = status === 'doing' ? sessions.filter((s) => s.orchestratorChild) : [];
-        const own = status === 'doing' ? sessions.filter((s) => !s.orchestratorChild) : sessions;
         const staleDone = status === 'review' ? triage.staleDone : [];
         const empty = !cards.length && !sessions.length && !staleDone.length;
         const rail = empty && !boardEmpty;
@@ -196,20 +179,7 @@ export function Kanban(p: Props) {
                   />
                 );
               })}
-              {orchChildren.length > 0 && (
-                <div className="rounded-lg border border-fuchsia-500/30 bg-fuchsia-500/[0.04] p-1">
-                  <div className="px-1 py-0.5 text-[12px] font-medium uppercase tracking-wide text-fuchsia-400">Orchestrator</div>
-                  <div className="space-y-1.5">
-                    {orchChildren.map((s) => (
-                      <KanbanSessionItem
-                        key={s.nodeId} item={s} stats={p.termStats[s.sessionId]} selected={p.selected.includes(s.nodeId)}
-                        onSelect={(nodeId) => selectSession(nodeId, s.sessionId)} onOpenSession={p.onOpenSession} onOpenTerm={p.onOpenTerm}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-              {own.map((s) => (
+              {sessions.map((s) => (
                 <KanbanSessionItem
                   key={s.nodeId} item={s} stats={p.termStats[s.sessionId]} selected={p.selected.includes(s.nodeId)}
                   onSelect={(nodeId) => selectSession(nodeId, s.sessionId)} onOpenSession={p.onOpenSession} onOpenTerm={p.onOpenTerm}

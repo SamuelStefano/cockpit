@@ -1,7 +1,7 @@
-// A session open in the browser while it runs elsewhere (the Orchestrator in
+// A session open in the browser while it runs elsewhere (a tmux worker in
 // tmux, a turn started by deckctl in the other backend) gets a session-touched
 // about every 1.5 s. Each one re-parsed the whole transcript on the server and
-// shipped the full history back (≈400 KB for the Orchestrator, MBs for big
+// shipped the full history back (≈400 KB for a long worker, MBs for big
 // sessions). One reopen per window per session is enough to follow along.
 export const REOPEN_THROTTLE_MS = 5000;
 

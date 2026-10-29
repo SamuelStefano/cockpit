@@ -31,9 +31,6 @@ interface Props {
   // Below this the glyphs read as a grey smear, not text — clicking the body
   // then maximizes instead of typing (UX review 24/09 item 3).
   zoom: number;
-  // The one session that commands every other one (shared/canvas.ts
-  // OrchestratorInfo) — distinct chrome so it never blends into the rest.
-  orchestrator: boolean;
   // The pane is (or was last put into) an interactive `claude --resume`,
   // outside Deck's own run tracking — sending through the prompt bar here
   // would start a SECOND writer on the same transcript.
@@ -52,8 +49,6 @@ interface Props {
   onSendTo: (sessionId: string, text: string) => boolean;
   sendError: { sessionId: string; text: string; message: string } | null;
   onDismissSendError: () => void;
-  // Only set on the orchestrator's own window — pins it into the sidebar dock.
-  onDock?: () => void;
 }
 
 // Same floor useCanvasViewport's centerOn uses for a node — below it a
@@ -82,16 +77,14 @@ export const TerminalWindow = memo(function TerminalWindow(p: Props) {
       style={{ transform: `translate(${p.pos.x}px, ${p.pos.y}px)`, width: TERM_W, height: TERM_H }}
       className={`absolute left-0 top-0 flex flex-col overflow-hidden rounded-lg border bg-[#0a0a0a] shadow-2xl shadow-black/60
         ${p.instant ? '' : 'transition-opacity'}
-        ${p.orchestrator
-          ? 'border-fuchsia-500 ring-2 ring-fuchsia-500/40 shadow-[0_0_28px_-4px_rgba(217,70,239,0.6)]'
-          : p.active ? 'border-orange-500/80 ring-2 ring-orange-500/30' : p.selected ? 'border-orange-400/60' : 'border-neutral-700'}
+        ${p.active ? 'border-orange-500/80 ring-2 ring-orange-500/30' : p.selected ? 'border-orange-400/60' : 'border-neutral-700'}
         ${p.dim ? 'opacity-40' : ''}`}
     >
       <AlertRing kind={alert} />
       <TerminalWindowHeader
-        node={n} session={session} orchestrator={p.orchestrator} running={p.running} waiting={p.waiting} resuming={p.resuming}
+        node={n} session={session} running={p.running} waiting={p.waiting} resuming={p.resuming}
         alert={alert} pct={pct} onPointerDown={p.onPointerDown} onMaximize={p.onMaximize} onCollapse={p.onCollapse} onKill={p.onKill}
-        onResume={p.onResume} onOpenChat={p.onOpenChat} onDock={p.onDock}
+        onResume={p.onResume} onOpenChat={p.onOpenChat}
       />
       <TermStatsBar stats={p.stats} running={p.running} session={session} />
       {showBanner && (

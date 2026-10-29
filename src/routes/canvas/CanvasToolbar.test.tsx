@@ -11,17 +11,10 @@ const base = {
 };
 
 describe('CanvasToolbar mobile menu', () => {
-  it('labels the two orchestrator entries by what they do', () => {
-    const onToggleDock = vi.fn();
-    const onFocusOrchestrator = vi.fn();
-    const { getByTitle, getByText } = render(
-      <CanvasToolbar {...base} dockOpen={false} onToggleDock={onToggleDock} onFocusOrchestrator={onFocusOrchestrator} />,
-    );
+  it('runs the chosen action and closes', () => {
+    const { getByTitle, getAllByText } = render(<CanvasToolbar {...base} />);
     fireEvent.click(getByTitle('mais ações'));
-    fireEvent.click(getByText('abrir orchestrator'));
-    expect(onToggleDock).toHaveBeenCalledOnce();
-    fireEvent.click(getByTitle('mais ações'));
-    fireEvent.click(getByText('ir pra janela dele'));
-    expect(onFocusOrchestrator).toHaveBeenCalledOnce();
+    fireEvent.click(getAllByText('terminal').at(-1)!);
+    expect(base.onNewTerminal).toHaveBeenCalledOnce();
   });
 });

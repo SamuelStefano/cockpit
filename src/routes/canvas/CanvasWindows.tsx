@@ -1,6 +1,5 @@
-import type { CanvasNode, CanvasPos, OrchestratorInfo, TermStats } from '../../../shared/canvas';
+import type { CanvasNode, CanvasPos, TermStats } from '../../../shared/canvas';
 import type { TermApi } from '../../useCockpit';
-import { isOrchestratorNode } from './orchestrator';
 import { TerminalWindow } from './TerminalWindow';
 import { termTarget, type CanvasTerms } from './useCanvasTerms';
 
@@ -13,7 +12,6 @@ interface Props {
   focus: Set<string>;
   running: Set<string>;
   waiting: Set<string>;
-  orchestrator: OrchestratorInfo | undefined;
   // Session ids alive in a `cockpit-cv-*` shell — `running` alone missed these,
   // so a cv-shell worker's window read "fantasma" forever (UX review 24/09
   // item 3). Optional: absent until Canvas.tsx wires up `r.cvLive` (PR body).
@@ -24,7 +22,6 @@ interface Props {
   onSendTo: (sessionId: string, text: string) => boolean;
   sendError: { sessionId: string; text: string; message: string } | null;
   onDismissSendError: () => void;
-  onDock?: () => void;
   stats: Record<string, TermStats>;
   past: boolean; // timeline scrubbed away from live: every window shows the overlay
   pastAlive: Set<string> | null; // and one not alive at T also fades
@@ -32,12 +29,11 @@ interface Props {
 }
 
 // Paint order (lowest first, so later entries sit on top of earlier ones
-// where they overlap): plain window, active window, orchestrator window —
-// the orchestrator outranks even the active window, so it's always findable.
+// where they overlap): plain window, then the active window.
 export function CanvasWindows(p: Props) {
   const t = p.terms;
   const list = [...p.nodes].sort((a, b) => {
-    const rank = (n: CanvasNode) => (isOrchestratorNode(n, p.orchestrator) ? 2 : n.id === t.active ? 1 : 0);
+    const rank = (n: CanvasNode) => (n.id === t.active ? 1 : 0);
     return rank(a) - rank(b);
   });
   return (
@@ -46,7 +42,6 @@ export function CanvasWindows(p: Props) {
         const target = termTarget(n);
         const at = p.pos[n.id];
         if (!target || !at) return null;
-        const isOrch = isOrchestratorNode(n, p.orchestrator);
         return (
           <TerminalWindow
             key={n.id} node={n} pos={at} target={target} term={p.term}
@@ -54,8 +49,7 @@ export function CanvasWindows(p: Props) {
             selected={p.selected.has(n.id)}
             dim={(p.focus.size > 0 && !p.focus.has(n.id) && t.active !== n.id) || (p.pastAlive !== null && !p.pastAlive.has(n.id))}
             running={n.kind === 'session' && (p.running.has(n.ref) || !!p.cvLive?.has(n.ref))} waiting={n.kind === 'session' && p.waiting.has(n.ref)}
-            orchestrator={isOrch} zoom={p.zoom}
-            onDock={isOrch ? p.onDock : undefined}
+            zoom={p.zoom}
             promptDisabled={t.resumedLive.has(n.ref)}
             past={p.past} instant={p.instant}
             onPointerDown={p.onPointerDown} onActivate={t.focus} onCollapse={t.collapse} onKill={t.kill}

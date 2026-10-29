@@ -26,7 +26,7 @@ export interface CanvasPastView {
 // already-narrowed r.visible; same automation/archived filters the live exec
 // scope already applies), falling back to the normal exec set the moment
 // "agora" brings the timeline back live.
-export function useCanvasPastView(r: CanvasRoute, p: CanvasRouteProps, dockedNodeId: string | null): CanvasPastView {
+export function useCanvasPastView(r: CanvasRoute, p: CanvasRouteProps): CanvasPastView {
   const timeline = useTimeline();
   const pastExecNodeIds = useMemo(
     () => (r.scope === 'exec' && !timeline.live
@@ -34,24 +34,13 @@ export function useCanvasPastView(r: CanvasRoute, p: CanvasRouteProps, dockedNod
       : null),
     [r.scope, timeline.live, timeline.t, r.merged.nodes, r.merged.edges, p.runStart, r.showAutomation, r.archived, p.running],
   );
-  const pastNodesUnfiltered = useMemo(
+  const pastNodes = useMemo(
     () => (pastExecNodeIds ? r.merged.nodes.filter((n) => pastExecNodeIds.has(n.id)) : r.visible.nodes),
     [pastExecNodeIds, r.merged.nodes, r.visible.nodes],
   );
-  const pastEdgesUnfiltered = useMemo(
+  const pastEdges = useMemo(
     () => (pastExecNodeIds ? r.merged.edges.filter((e) => pastExecNodeIds.has(e.source) && pastExecNodeIds.has(e.target)) : r.visible.edges),
     [pastExecNodeIds, r.merged.edges, r.visible.edges],
-  );
-  // Docked: the orchestrator's node is dropped from the map entirely (not just
-  // from the window set) — it lives in the sidebar now, so it must not also
-  // show up as a plain card. Edges pointing at it would otherwise dangle.
-  const pastNodes = useMemo(
-    () => (dockedNodeId ? pastNodesUnfiltered.filter((n) => n.id !== dockedNodeId) : pastNodesUnfiltered),
-    [dockedNodeId, pastNodesUnfiltered],
-  );
-  const pastEdges = useMemo(
-    () => (dockedNodeId ? pastEdgesUnfiltered.filter((e) => e.source !== dockedNodeId && e.target !== dockedNodeId) : pastEdgesUnfiltered),
-    [dockedNodeId, pastEdgesUnfiltered],
   );
   const pastWindows = useMemo(
     () => (pastExecNodeIds ? [...r.windows].filter((id) => pastExecNodeIds.has(id)) : [...r.windows]),

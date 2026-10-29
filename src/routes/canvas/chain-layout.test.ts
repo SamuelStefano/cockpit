@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { CanvasFlow, CanvasNode, OrchestratorInfo } from '../../../shared/canvas';
+import type { CanvasFlow, CanvasNode } from '../../../shared/canvas';
 import {
   buildChainTree, CHAIN_AREA_GAP, CHAIN_AREA_H, CHAIN_AREA_W, CHAIN_ROOT_H, CHAIN_ROOT_W, CHAIN_SESSION_GAP, CHAIN_SESSION_H,
   countRunning, estimateAreaHeight, hasLiveSession, layoutChainTree, sortSessions,
@@ -33,7 +33,7 @@ describe('buildChainTree', () => {
   it('hangs a root session with no known parent under its area', () => {
     const nodes = [session(S1, { area: 'dfl' })];
     const tree = buildChainTree(nodes, [], new Set());
-    expect(tree.kind).toBe('orchestrator');
+    expect(tree.kind).toBe('root');
     expect(tree.children).toHaveLength(1);
     expect(tree.children[0].id).toBe('area:dfl');
     expect(tree.children[0].children.map((c) => c.node?.ref)).toEqual([S1]);
@@ -93,15 +93,6 @@ describe('buildChainTree', () => {
     expect(tree.children[0].children).toHaveLength(1); // exactly one area root, not two
   });
 
-  it('puts the orchestrator\'s own session at the root, not under its area', () => {
-    const orchInfo: OrchestratorInfo = { name: 'Orch', sessionId: S1, tmux: 'cockpit-cv-x' };
-    const orchSession = session(S1, { area: 'dfl' });
-    const other = session(S2, { area: 'dfl' });
-    const tree = buildChainTree([orchSession, other], [], new Set(), orchInfo);
-    expect(tree.node?.ref).toBe(S1);
-    const area = tree.children[0];
-    expect(area.children.map((c) => c.node?.ref)).toEqual([S2]);
-  });
 });
 
 describe('countRunning / hasLiveSession', () => {
@@ -171,12 +162,12 @@ describe('layoutChainTree', () => {
     expect(childPos.width).toBeLessThan(parentPos.width); // narrower to fit the column
   });
 
-  it('centers the orchestrator root over the full column span', () => {
+  it('centers the root over the full column span', () => {
     const a = session(S1, { area: 'dfl' });
     const b = session(S2, { area: 'itera' });
     const tree = buildChainTree([a, b], [], new Set());
     const { positions } = layoutChainTree(tree, { collapsedAreas: new Set(), collapsedSessions: new Set() });
-    const root = positions.find((p) => p.id === 'orchestrator')!;
+    const root = positions.find((p) => p.id === 'root')!;
     const areaDfl = positions.find((p) => p.id === 'area:dfl')!;
     const areaItera = positions.find((p) => p.id === 'area:itera')!;
     const spanCenter = (areaDfl.x + areaItera.x + CHAIN_AREA_W) / 2;
@@ -199,7 +190,7 @@ describe('layoutChainTree', () => {
     const a = session(S1, { area: 'dfl' });
     const tree = buildChainTree([a], [], new Set());
     const { positions } = layoutChainTree(tree, { collapsedAreas: new Set(['dfl']), collapsedSessions: new Set() });
-    expect(positions.map((p) => p.id).sort()).toEqual(['area:dfl', 'orchestrator']);
+    expect(positions.map((p) => p.id).sort()).toEqual(['area:dfl', 'root']);
     expect(positions.find((p) => p.id === 'area:dfl')?.descendantCount).toBe(1);
     expect(positions.find((p) => p.id === 'area:dfl')?.height).toBe(CHAIN_AREA_H); // collapsed: header only, not the whole column
   });
@@ -214,6 +205,6 @@ describe('layoutChainTree', () => {
   it('root height never depends on how tall the tallest column is', () => {
     const tree = buildChainTree([session(S1, { area: 'dfl' })], [], new Set());
     const { positions } = layoutChainTree(tree, { collapsedAreas: new Set(), collapsedSessions: new Set() });
-    expect(positions.find((p) => p.id === 'orchestrator')?.height).toBe(CHAIN_ROOT_H);
+    expect(positions.find((p) => p.id === 'root')?.height).toBe(CHAIN_ROOT_H);
   });
 });

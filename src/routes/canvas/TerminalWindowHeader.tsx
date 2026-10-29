@@ -7,7 +7,6 @@ import type { AlertKind } from './canvas-alerts';
 interface Props {
   node: CanvasNode;
   session: boolean;
-  orchestrator: boolean;
   running: boolean;
   waiting: boolean;
   resuming: boolean;
@@ -19,7 +18,6 @@ interface Props {
   onKill: (n: CanvasNode) => void;
   onResume: (sessionId: string) => void;
   onOpenChat: (sessionId: string) => void;
-  onDock?: () => void;
 }
 
 const stop = (e: React.PointerEvent) => e.stopPropagation();
@@ -47,21 +45,15 @@ export function TerminalWindowHeader(p: Props) {
     <header
       onPointerDown={(e) => p.onPointerDown(e, n.id)}
       onDoubleClick={() => p.onMaximize(n.id)}
-      className={`flex h-8 shrink-0 cursor-grab touch-none select-none items-center gap-1.5 border-b pl-2.5 pr-1 active:cursor-grabbing ${p.orchestrator ? 'border-fuchsia-500/40 bg-fuchsia-500/10' : 'border-neutral-800 bg-neutral-900'}`}
+      className={`flex h-8 shrink-0 cursor-grab touch-none select-none items-center gap-1.5 border-b pl-2.5 pr-1 active:cursor-grabbing border-neutral-800 bg-neutral-900`}
     >
-      {p.orchestrator
-        ? <Icon name="command" size={12} className="text-fuchsia-400" />
-        : p.session ? <Dot running={p.running} waiting={p.waiting} /> : <Icon name="terminal" size={12} className="text-orange-400" />}
-      <span className="min-w-0 flex-1 truncate font-mono text-[12px] text-neutral-200">{p.orchestrator ? 'Orchestrator' : n.title}</span>
-      {p.orchestrator && <Badge tone="purple">ORCHESTRATOR</Badge>}
+      {p.session ? <Dot running={p.running} waiting={p.waiting} /> : <Icon name="terminal" size={12} className="text-orange-400" />}
+      <span className="min-w-0 flex-1 truncate font-mono text-[12px] text-neutral-200">{n.title}</span>
       {p.alert && <AlertBadge kind={p.alert} pct={p.pct} />}
       {p.session
         ? <Badge tone={p.running ? 'green' : 'neutral'}>{p.running ? 'ao vivo' : 'fantasma'}</Badge>
-        : !p.orchestrator && <Badge tone="orange">shell</Badge>}
+        : <Badge tone="orange">shell</Badge>}
       <span onPointerDown={stop} onDoubleClick={(e) => e.stopPropagation()} className="flex items-center">
-        {p.orchestrator && p.onDock && (
-          <Button variant="ghost" size="sm" square icon="panelRight" title="fixar no sidebar (Ctrl+.)" onClick={p.onDock} />
-        )}
         {p.session && (
           <Button
             variant="ghost" size="sm" icon="play" disabled={p.running || p.resuming} loading={p.resuming}
@@ -73,15 +65,13 @@ export function TerminalWindowHeader(p: Props) {
         <Button variant="ghost" size="sm" square icon="maximize" title="tela cheia" onClick={() => p.onMaximize(n.id)} />
         {p.session && <Button variant="ghost" size="sm" square icon="minimize" title="recolher (tmux segue vivo)" onClick={() => p.onCollapse(n.id)} />}
         {/* Gap before the destructive ✕: it sat flush against maximize/collapse. */}
-        {!p.orchestrator && <span className="mx-1 h-4 w-px bg-neutral-800" aria-hidden />}
-        {!p.orchestrator && (
-          <Button
-            variant={killArmed ? 'danger' : 'ghost'} size="sm" square icon="x"
-            title={killArmed ? 'toque de novo pra matar a sessão tmux' : 'matar a sessão tmux'}
-            aria-label={killArmed ? 'confirmar: matar a sessão tmux' : 'matar a sessão tmux'}
-            onClick={() => { if (killArmed) { setKillArmed(false); p.onKill(n); } else setKillArmed(true); }}
-          />
-        )}
+        <span className="mx-1 h-4 w-px bg-neutral-800" aria-hidden />
+        <Button
+          variant={killArmed ? 'danger' : 'ghost'} size="sm" square icon="x"
+          title={killArmed ? 'toque de novo pra matar a sessão tmux' : 'matar a sessão tmux'}
+          aria-label={killArmed ? 'confirmar: matar a sessão tmux' : 'matar a sessão tmux'}
+          onClick={() => { if (killArmed) { setKillArmed(false); p.onKill(n); } else setKillArmed(true); }}
+        />
       </span>
     </header>
   );

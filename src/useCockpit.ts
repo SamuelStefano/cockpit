@@ -93,9 +93,9 @@ const HEARTBEAT_STALE_MS = 40_000;
 const CANVAS_SEND_PENDING_MS = 20_000;
 
 // A superfície pública dos domínios-folha é a dos próprios hooks, menos os canais
-// internos: `onMsg` (dispatch), `onGraphReconnect` e `onOrchestratorReconnect`
-// (ganchos do socket).
-type LeafApis = Omit<Drops & Crons & Team & BotFiles & BotComputers & GrokUsage & Points & Contexts & Memories & Skills & Graphs & CanvasApi & Admin, 'onMsg' | 'onGraphReconnect' | 'onOrchestratorReconnect'>;
+// internos: `onMsg` (dispatch), `onGraphReconnect`
+// (gancho do socket).
+type LeafApis = Omit<Drops & Crons & Team & BotFiles & BotComputers & GrokUsage & Points & Contexts & Memories & Skills & Graphs & CanvasApi & Admin, 'onMsg' | 'onGraphReconnect'>;
 
 export interface Cockpit extends LeafApis {
   agents: AgentsApi;
@@ -534,7 +534,6 @@ export function useCockpit(): Cockpit {
   const isRoot = caps?.role === 'root';
   useEffect(() => { if (isRoot && conn.ws === 'connected') onPointsGet(); }, [isRoot, conn.ws, onPointsGet]);
   const { onGraphReconnect } = graphsApi;
-  const { onOrchestratorReconnect } = canvasApi;
 
   // Re-abertura automática (reconnect, session-touched, reconciliação de busy):
   // preserva a visão escolhida. Traz sempre a última página; o mergeHistory com
@@ -1453,7 +1452,6 @@ export function useCockpit(): Cockpit {
       thumbPending.current.clear();
       setConn({ ws: 'connected', sse: 'connected' });
       onGraphReconnect();
-      onOrchestratorReconnect();
       reconcile();
       // Watchdog de socket meio-aberto (o "chat para e só volta com F5"): no desktop,
       // aba visível, um socket que morre sem FIN (relay/NAT/idle-timeout) NÃO dispara
@@ -1529,7 +1527,7 @@ export function useCockpit(): Cockpit {
     };
     ws.onerror = () => { if (isCurrent()) { try { ws.close(); } catch { /* noop */ } } };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [send, onServer, reattach, onGraphReconnect, onOrchestratorReconnect]);
+  }, [send, onServer, reattach, onGraphReconnect]);
   connectRef.current = connect;
 
   const scheduleRetry = useCallback(() => {

@@ -98,10 +98,6 @@ export function capOpen(order: string[], id: string, max = MAX_OPEN_TERMS): stri
 
 // Windows the user dragged keep their spot; the rest queue up in the lane. The
 // map rect ignores windows so the lane never drifts up as more of them open.
-// `priority` (e.g. the orchestrator's window) goes through the queue FIRST,
-// so on a fresh board it claims lane slot 0 — top-left, the most predictable
-// spot — instead of wherever iteration order happens to put it.
-//
 // Windows must NEVER overlap (canvas review, 2026-09-24): a saved (dragged)
 // position is still checked against every OTHER window already placed this
 // pass — one dropped on top of another, or two whose saved spots happen to
@@ -110,7 +106,7 @@ export function capOpen(order: string[], id: string, max = MAX_OPEN_TERMS): stri
 // placeWindows call, so it covers first placement, a newly opened window, AND
 // a fresh drag in one path — there's no separate "resolve collisions" step.
 export function placeWindows(
-  pos: Record<string, CanvasPos>, saved: Record<string, CanvasPos>, windows: string[], priority?: Set<string>,
+  pos: Record<string, CanvasPos>, saved: Record<string, CanvasPos>, windows: string[],
   // Windows sharing an area queue up next to each other in the lane, so the
   // grid reads as loose per-area groups instead of arrival order (#598 map
   // cleanup) — absent id (a shell, no memory trail) sorts after every area.
@@ -122,7 +118,6 @@ export function placeWindows(
   const taken: Rect[] = [];
   let ordered = windows;
   if (areaOf) ordered = [...ordered].sort((a, b) => (areaOf(a) ?? '￿').localeCompare(areaOf(b) ?? '￿'));
-  if (priority?.size) ordered = [...ordered].sort((a, b) => Number(priority.has(b)) - Number(priority.has(a)));
   for (const id of ordered) {
     const at = saved[winKey(id)];
     const slot = at ? nudgeToFreeSlot(at, taken) : laneSlot(map, taken);

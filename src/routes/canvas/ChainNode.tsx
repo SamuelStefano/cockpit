@@ -13,7 +13,7 @@ interface Props {
   stats?: TermStats;
   descendantCount: number;
   collapsed: boolean;
-  runningCount: number; // area/orchestrator kind only — count of RUNNING descendants
+  runningCount: number; // area/root kind only — count of RUNNING descendants
   onToggleCollapse?: () => void;
   onOpenTerm?: () => void;
   onOpenChat?: () => void;
@@ -26,23 +26,22 @@ function StateDot({ running, waiting, archived }: { running: boolean; waiting: b
 }
 
 // One card for the org-chart view — same visual language as CanvasNodeCard
-// (fuchsia = orchestrator, status dot, ctx bar) at a compact, uniform
+// (status dot, ctx bar) at a compact, uniform
 // footprint per kind (chain-layout.ts's CHAIN_ROOT_H/CHAIN_AREA_H/
 // CHAIN_SESSION_H) so a column reads as one tight list, not cards with dead
 // space inside them (review #609 point 3).
 export const ChainNode = memo(function ChainNode({ item, running, waiting, stats, descendantCount, collapsed, runningCount, onToggleCollapse, onOpenTerm, onOpenChat }: Props) {
   const pct = stats ? ctxPct(stats) : null;
 
-  if (item.kind === 'orchestrator') {
+  if (item.kind === 'root') {
     return (
       // min-w-0: a flex item's default min-width is its content's, which
       // fights `w-full` and defeats the title's `truncate` inside — on a
       // narrow viewport the row grew past it instead of clipping the text
       // (UX review 24/09 item 11).
-      <div className="flex h-full w-full min-w-0 items-center gap-1.5 rounded-lg border border-fuchsia-500 bg-neutral-900/95 px-2.5 shadow-[0_0_16px_-4px_rgba(217,70,239,0.6)]">
-        <Icon name="command" size={13} className="shrink-0 text-fuchsia-400" />
-        <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-fuchsia-100">{item.node?.title ?? 'Orchestrator'}</span>
-        <Badge tone="purple" className="shrink-0">ORCHESTRATOR</Badge>
+      <div className="flex h-full w-full min-w-0 items-center gap-1.5 rounded-lg border border-neutral-700 bg-neutral-900/95 px-2.5">
+        <Icon name="layers" size={13} className="shrink-0 text-neutral-400" />
+        <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-neutral-100">Sessões</span>
       </div>
     );
   }

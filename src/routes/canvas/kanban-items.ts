@@ -57,21 +57,6 @@ export function deriveSessionStatus(i: DeriveSessionStatusInput): CardStatus {
   return 'review';
 }
 
-// A session deckctl (or the orchestrator itself) launched AS a delegated
-// worker names itself in its very first message — buildTaskPrompt-style
-// briefs open with this line, and a hand-rolled one can opt in with the
-// short `[orch]` marker. That first message is exactly what `subtitle`
-// already carries (server/sessions/index.ts snippet, 120 chars of the first
-// user message), so no server plumbing is needed for THIS source — see
-// canvas-automation.ts for the same trick applied to automation noise.
-// tmux-shell-sourced children (a `cockpit-cv-*` worker started by hand) are a
-// SEPARATE source this text match can't see — while one is live
-// (NodeStatusOpts.cvLive) it joins the same lane.
-const ORCH_CHILD_MARKER_RE = /^you are a delegated worker of the orchestrator\b|\[orch\]/i;
-export function isOrchestratorChildText(subtitle: string): boolean {
-  return ORCH_CHILD_MARKER_RE.test(subtitle);
-}
-
 export interface SessionKanbanItem {
   nodeId: string; // 's:<uuid>'
   sessionId: string;
@@ -81,10 +66,6 @@ export interface SessionKanbanItem {
   // no memory trail yet (areas.ts hasn't classified it). Samuel asked the
   // kanban to say WHERE a session belongs, not just what it's doing.
   area?: AreaId;
-  // A worker the Orchestrator delegated to (isOrchestratorChildText) — while
-  // alive (running/waiting/doing) it groups into its own fuchsia swimlane
-  // inside "In progress" instead of blending into Samuel's own sessions.
-  orchestratorChild: boolean;
   status: CardStatus;
   running: boolean;
   waitingOnUser: boolean;
@@ -149,17 +130,11 @@ export interface DeriveSessionItemsOpts extends NodeStatusOpts {
   // Without this, that same session doubles as its own standalone item until
   // the graph catches up.
   extraBoundIds?: Iterable<string>;
-  // The orchestrator's session (shared/canvas.ts OrchestratorInfo.sessionId,
-  // when one is configured) never becomes a normal ToDo/Doing/Review/Done
-  // item — Kanban.tsx pins it above the columns instead, via
-  // orchestratorKanbanItem below.
-  orchestratorSessionId?: string;
 }
 
 // Every session becomes a kanban item EXCEPT one already represented by a
 // card (its run IS the card — canvas-board.ts boundSessions, plus whatever
-// extraBoundIds the caller adds), the orchestrator's own session, and
-// automation noise (canvas-automation.ts), unless the user asked to see
+// extraBoundIds the caller adds) and automation noise (canvas-automation.ts), unless the user asked to see
 // automations.
 export function deriveSessionItems(o: DeriveSessionItemsOpts): SessionKanbanItem[] {
   const boundIds = new Set<string>();
@@ -169,7 +144,6 @@ export function deriveSessionItems(o: DeriveSessionItemsOpts): SessionKanbanItem
   const out: SessionKanbanItem[] = [];
   for (const n of o.nodes) {
     if (n.kind !== 'session') continue;
-    if (n.ref === o.orchestratorSessionId) continue;
     if (boundIds.has(n.ref)) continue;
     // A session Samuel archived (Deck sidebar hide, server/sessions/index.ts
     // listArchived) is "I'm done with this" — it stays on the map's
@@ -180,25 +154,11 @@ export function deriveSessionItems(o: DeriveSessionItemsOpts): SessionKanbanItem
     if (!o.showAutomation && isAutomationSession({ title: n.title, subtitle: n.subtitle })) continue;
     const ns = nodeStatus(n, o);
     out.push({
-      nodeId: n.id, sessionId: n.ref, title: n.title, subtitle: n.subtitle, area: n.area, orchestratorChild: ns.shellLive || isOrchestratorChildText(n.subtitle),
+      nodeId: n.id, sessionId: n.ref, title: n.title, subtitle: n.subtitle, area: n.area,
       status: ns.status, running: ns.running, waitingOnUser: ns.waiting, needsAttention: ns.needsAttention, mtime: ns.mtime,
     });
   }
   return out;
-}
-
-// The item pinned above the kanban columns (Kanban.tsx) — same shape as any
-// other row, computed the same way, just never filtered by automation/bound
-// status: the orchestrator always shows, however it's wired up.
-export function orchestratorKanbanItem(nodes: CanvasNode[], o: NodeStatusOpts, orchestratorSessionId: string | undefined): SessionKanbanItem | undefined {
-  if (!orchestratorSessionId) return undefined;
-  const n = nodes.find((x) => x.kind === 'session' && x.ref === orchestratorSessionId);
-  if (!n) return undefined;
-  const ns = nodeStatus(n, o);
-  return {
-    nodeId: n.id, sessionId: n.ref, title: n.title, subtitle: n.subtitle, area: n.area, orchestratorChild: ns.shellLive || isOrchestratorChildText(n.subtitle),
-    status: ns.status, running: ns.running, waitingOnUser: ns.waiting, needsAttention: ns.needsAttention, mtime: ns.mtime,
-  };
 }
 
 // A card launched via runCard (or a #592 flow run) is bound under its

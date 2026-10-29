@@ -12,7 +12,7 @@ afterEach(cleanup);
 // stale item passes its own mtime explicitly.
 function sessionItem(id: string, status: SessionKanbanItem['status'], mtime = Date.now()): SessionKanbanItem {
   return {
-    nodeId: `s:${id}`, sessionId: id, title: `sessão ${id}`, subtitle: 'trabalho real', orchestratorChild: false,
+    nodeId: `s:${id}`, sessionId: id, title: `sessão ${id}`, subtitle: 'trabalho real',
     status, running: status === 'doing', waitingOnUser: false, needsAttention: false, mtime,
   };
 }

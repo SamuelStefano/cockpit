@@ -7,7 +7,7 @@ import type { SessionKanbanItem } from './kanban-items';
 afterEach(cleanup);
 
 const base: SessionKanbanItem = {
-  nodeId: 's:a', sessionId: 'a', title: 'sessão a', subtitle: 'primeira mensagem', orchestratorChild: false,
+  nodeId: 's:a', sessionId: 'a', title: 'sessão a', subtitle: 'primeira mensagem',
   status: 'review', running: false, waitingOnUser: false, needsAttention: false, mtime: Date.now() - 7 * 60_000,
 };
 const noop = () => {};

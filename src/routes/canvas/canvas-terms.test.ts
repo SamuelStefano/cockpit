@@ -110,7 +110,7 @@ describe('placeWindows', () => {
 
   it('groups windows by area into contiguous slots regardless of arrival order (#598 map cleanup)', () => {
     const areaOf = (id: string): string | undefined => ({ 's:1': 'deck', 's:2': 'itera', 's:3': 'deck' } as Record<string, string>)[id];
-    const out = placeWindows(pos, {}, ['s:2', 's:1', 's:3'], undefined, areaOf);
+    const out = placeWindows(pos, {}, ['s:2', 's:1', 's:3'], areaOf);
     // deck's two windows fill the first row (LANE_COLS 3 -> 2, canvas review
     // UX review 24/09 item 3, so a row is only 2 wide now); itera's lone window comes
     // after both, wrapped to the row above, not interleaved between them.
@@ -127,14 +127,6 @@ describe('placeWindows', () => {
     const a = { ...out['s:1'], w: TERM_W, h: TERM_H };
     const b = { ...out['s:2'], w: TERM_W, h: TERM_H };
     expect(a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h).toBe(false);
-  });
-
-  it('priority still wins the first slot even with area grouping active', () => {
-    const areaOf = () => 'outros';
-    const out = placeWindows(pos, {}, ['s:1', 's:2'], new Set(['s:2']), areaOf);
-    expect(out['s:2'].x).toBe(0);
-    expect(out['s:2'].y).toBe(out['s:1'].y);
-    expect(out['s:1'].x).toBeGreaterThanOrEqual(TERM_W);
   });
 });
 
