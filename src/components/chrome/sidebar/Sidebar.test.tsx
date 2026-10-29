@@ -57,7 +57,7 @@ describe('Sidebar', () => {
   it('shows the footer nav in the fixed order and navigates', () => {
     const p = setup({ role: 'root' });
     const names = within(screen.getByRole('navigation', { name: 'Rotas' })).getAllByRole('button').map((b) => b.getAttribute('aria-label'));
-    expect(names).toEqual(['Equipe', 'Skills', 'Conexões']);
+    expect(names).toEqual(['Canvas', 'Pontos', 'Equipe', 'Skills', 'Conexões', 'Graph', 'Docs']);
     expect(screen.queryByRole('button', { name: 'Mais' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Skills' }));
     expect(p.nav).toHaveBeenCalledWith('/skills');

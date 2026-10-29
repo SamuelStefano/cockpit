@@ -40,11 +40,10 @@ describe('EquipePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Abrir growth' }));
     expect(p.onOpenAgent).toHaveBeenCalledWith('growth');
   });
-  it('pauses the team and routes the Rotinas tab to /equipe/rotinas and Memória to the existing screen', () => {
+  it('routes the Rotinas tab to /equipe/rotinas and Memória to the existing screen', () => {
     const p = base();
     render(<EquipePage {...p} />);
-    fireEvent.click(screen.getByRole('button', { name: /Pausar equipe/ }));
-    expect(p.onPauseSet).toHaveBeenCalledWith(true);
+    expect(screen.queryByRole('button', { name: /Pausar equipe/ })).toBeNull();
     fireEvent.click(screen.getByRole('tab', { name: /Rotinas/ }));
     fireEvent.click(screen.getByRole('tab', { name: /Memória/ }));
     expect(p.onGo.mock.calls).toEqual([['/equipe/rotinas'], ['/equipe/memoria']]);
