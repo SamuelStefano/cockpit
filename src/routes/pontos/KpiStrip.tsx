@@ -53,7 +53,7 @@ export function KpiStrip({ m, totals, offPoints, offAmountCents, drafts, onSync 
       <span className="tabular-nums">{brlShort(cap.billedCents)} / {brlShort(cap.capCents)} · {pct}%</span>
       <Icon name={open ? 'chevronUp' : 'chevronDown'} size={14} className="ml-auto text-neutral-500" />
     </button>
-    <div className={`${open ? 'grid' : 'hidden'} lg:flex grid-cols-3 gap-x-3 sm:grid-cols-4 gap-y-2.5 border-b border-neutral-800/80 px-4 py-2.5 lg:flex lg:divide-x lg:divide-neutral-800/70">
+    <div className={`${open ? 'grid' : 'hidden'} grid-cols-3 gap-x-3 sm:grid-cols-4 gap-y-2.5 border-b border-neutral-800/80 px-4 py-2.5 lg:flex lg:divide-x lg:divide-neutral-800/70`}>
       <Stat compact className={CELL} label="faturado" tone="green" value={brlShort(cap.billedCents)} />
       <Stat compact className={CELL} label="cabe agora" tone="orange" value={brlShort(cap.invoiceableCents)} />
       <Stat compact className={CELL} label="em espera" tone={cap.waitingCents > 0 ? 'yellow' : 'neutral'} value={brlShort(cap.waitingCents)} />
