@@ -13,7 +13,6 @@ import type { BotView } from './equipe/team-view';
 import { useRotinas } from './equipe/rotinas/useRotinas';
 import { AgentForm } from './agente/AgentForm';
 import { AgentHeader } from './agente/AgentHeader';
-import { AgentList } from './agente/AgentList';
 
 export interface AgentePageApi extends CronApi, BotFilesApi, BotComputerApi {
   bots: TeamBot[];
@@ -55,7 +54,6 @@ export function Agente({ agentId, tab, views, api, connected, isAdmin, isMobile,
       <div className="mx-auto w-full max-w-240 px-4 pb-8 pt-6 max-lg:pt-2 sm:px-8">{children}</div>
     </div>
   );
-  if (!agentId) return shell(<AgentList views={views} bots={api.bots} onOpen={(id) => onTab(id, 'perfil')} onNew={() => onTab('novo', 'perfil')} />);
   if (agentId === 'novo') {
     return shell(
       <div className="max-w-95">

@@ -1,4 +1,5 @@
 import type { Route } from '../../useRoute';
+import type { IconName } from '../primitives';
 import type { Caps } from '../../../shared/protocol';
 
 // The account role as far as navigation goes. Default-deny: no caps yet = student.
@@ -14,20 +15,37 @@ export function navRole(role: Caps['role'] | undefined): NavRole {
 // is either refused by the server (STUDENT_ALLOWED) or useless without a terminal.
 // `root`: the owner only — the server refuses its frames to anyone else
 // (shared/root-frames.ts).
-export const NAV: { to: Route; label: string; student?: true; root?: true }[] = [
-  { to: '/', label: 'chat', student: true },
-    { to: '/skills', label: 'skills' },
-  { to: '/pontos', label: 'pontos', root: true },
-  { to: '/equipe', label: 'equipe', student: true },
-  { to: '/equipe/rotinas', label: 'rotinas' },
-  { to: '/equipe/memoria', label: 'memória' },
-  { to: '/agentes', label: 'Agentes', student: true },
-  { to: '/configuracoes', label: 'configurações', student: true },
-  { to: '/canvas', label: 'canvas' },
-  { to: '/graph', label: 'graph' },
-  { to: '/conexoes', label: 'conexões' },
-  { to: '/docs', label: 'docs' },
+export interface NavItem {
+  to: Route;
+  label: string;
+  icon: IconName;
+  student?: true;
+  root?: true;
+  // Listed in the sidebar nav, in this order; `tile` is the coloured square behind the icon.
+  side?: true;
+  tile?: string;
+}
+
+export const NAV: NavItem[] = [
+  { to: '/', label: 'Chat', icon: 'message', student: true },
+  { to: '/canvas', label: 'Canvas', icon: 'grip', side: true, tile: 'bg-amber-500/20 text-amber-300' },
+  { to: '/pontos', label: 'Pontos', icon: 'star', root: true, side: true, tile: 'bg-green-500/20 text-green-300' },
+  { to: '/equipe', label: 'Equipe', icon: 'users', student: true, side: true, tile: 'bg-sky-500/20 text-sky-300' },
+  { to: '/skills', label: 'Skills', icon: 'sparkles', side: true, tile: 'bg-violet-500/20 text-violet-300' },
+  { to: '/conexoes', label: 'Conexões', icon: 'link', side: true, tile: 'bg-emerald-500/20 text-emerald-300' },
+  { to: '/graph', label: 'Graph', icon: 'globe', side: true, tile: 'bg-rose-500/20 text-rose-300' },
+  { to: '/docs', label: 'Docs', icon: 'book', side: true, tile: 'bg-neutral-500/20 text-neutral-300' },
+  { to: '/equipe/rotinas', label: 'Rotinas', icon: 'clock' },
+  { to: '/equipe/memoria', label: 'Memória', icon: 'brain' },
+  { to: '/configuracoes', label: 'Configurações', icon: 'sliders', student: true },
 ];
+
+// Page title for a route: the exact entry, else the longest entry it lives under.
+export function navLabel(route: Route): string | undefined {
+  const hit = NAV.find((n) => n.to === route)
+    ?? NAV.filter((n) => n.to !== '/' && route.startsWith(`${n.to}/`)).sort((a, b) => b.to.length - a.to.length)[0];
+  return hit?.label;
+}
 
 export function navFor(role: NavRole) {
   if (role === 'root') return NAV;

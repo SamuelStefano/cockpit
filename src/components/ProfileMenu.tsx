@@ -21,8 +21,6 @@ interface ProfileMenuProps {
   // 'row' = the sidebar account line (avatar + name), 'rail' = its avatar-only form; 'icon' = the bare round avatar.
   variant?: 'icon' | 'row' | 'rail';
   onDevices?: () => void;
-  // Name, image, chat toggles, password and paired devices live in Configurações → Conta.
-  onAccount?: () => void;
 }
 
 const PANEL_PLACEMENT = {
@@ -33,7 +31,7 @@ const PANEL_PLACEMENT = {
 // Menu de perfil no header: define nome (usado nas iniciais do chat), faz
 // upload/limpa o avatar e, com conta Supabase, troca a senha. Perfil e toggles
 // vão pro cache local e sobem pra conta (ver lib/profile e lib/account-prefs).
-export function ProfileMenu({ userId, onSignOut, onChangePassword, drops, conn, role, placement = 'down-end', variant = 'icon', onDevices, onAccount }: ProfileMenuProps = {}) {
+export function ProfileMenu({ userId, onSignOut, onChangePassword, drops, conn, role, placement = 'down-end', variant = 'icon', onDevices }: ProfileMenuProps = {}) {
   const { name, avatar, synced, syncFailed, open, setOpen, wrapRef } = useProfileMenu(userId);
 
   const badge = role ? roleBadge(role) : null;
@@ -97,12 +95,6 @@ export function ProfileMenu({ userId, onSignOut, onChangePassword, drops, conn, 
           <AccountDevices onDone={() => setOpen(false)} onManage={onDevices} />
 
           {drops && <DropButton api={drops} />}
-
-          {onAccount && (
-            <Button variant="ghost" size="sm" icon="sliders" className="mt-3 w-full justify-start" onClick={() => { setOpen(false); onAccount(); }}>
-              Editar perfil e preferências
-            </Button>
-          )}
 
           {onSignOut && (
             <div className="mt-3 border-t border-neutral-800 pt-3">

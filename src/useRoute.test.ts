@@ -147,8 +147,15 @@ describe('useRoute', () => {
     const { result } = renderHook(() => useRoute());
     expect(result.current).toMatchObject({ route: '/agentes', agentId: 'ana01', agentTab: 'rotinas' });
     act(() => result.current.navAgent(''));
-    expect(location.pathname).toBe('/agentes');
-    expect(result.current).toMatchObject({ route: '/agentes', agentId: '' });
+    expect(location.pathname).toBe('/equipe');
+    expect(result.current).toMatchObject({ route: '/equipe', agentId: '' });
+  });
+
+  it('redirects the bare /agentes list to /equipe', () => {
+    history.replaceState(null, '', '/agentes');
+    const { result } = renderHook(() => useRoute());
+    expect(location.pathname).toBe('/equipe');
+    expect(result.current.route).toBe('/equipe');
   });
 
   it('navAgent writes the tab in the query and falls back to perfil on a bad one', () => {

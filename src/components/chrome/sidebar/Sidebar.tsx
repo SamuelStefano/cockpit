@@ -8,7 +8,8 @@ import type { Route } from '../../../useRoute';
 import type { NavRole } from '../nav-routes';
 import { SidebarNav } from './SidebarNav';
 import { SidebarFooter, type AccountProps } from './SidebarFooter';
-import { FOOTER_NAV, footerNav } from './sidebar-nav';
+import { canOpenSettings } from './sidebar-nav';
+import { openAparelhos } from '../../../lib/conexoes-nav';
 import { useSidebarCollapsed } from './useSidebarCollapsed';
 
 export interface SidebarProps {
@@ -28,8 +29,6 @@ export interface SidebarProps {
   // Phone drawer: always expanded, fills its container, and the header button closes it.
   drawer?: { onClose: () => void };
 }
-
-const SETTINGS_TO = FOOTER_NAV.find((i) => i.id === 'configuracoes')!.to;
 
 export function Sidebar({ route, nav, role, navCounts, onNew, onPalette, bitState, conn, account, sessions, rail, drawer }: SidebarProps) {
   const { collapsed, toggle } = useSidebarCollapsed();
@@ -79,7 +78,7 @@ export function Sidebar({ route, nav, role, navCounts, onNew, onPalette, bitStat
         {list ? <div className="-mx-2 min-h-0 flex-1">{sessions}</div> : <div className="flex-1" />}
       </div>}
 
-      <SidebarFooter expanded={expanded} onSettings={footerNav(role).some((i) => i.id === 'configuracoes') ? () => nav(SETTINGS_TO) : undefined} onDevices={() => { nav('/conexoes'); history.replaceState(null, '', '/conexoes#aparelhos'); window.dispatchEvent(new PopStateEvent('popstate')); }} account={account} conn={conn} role={role} />
+      <SidebarFooter expanded={expanded} onSettings={canOpenSettings(role) ? () => nav('/configuracoes') : undefined} onDevices={() => { drawer?.onClose(); openAparelhos(); }} account={account} conn={conn} role={role} />
       </div>
     </aside>
   );

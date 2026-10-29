@@ -75,6 +75,6 @@ describe('EquipePage', () => {
     expect(screen.queryByRole('tab', { name: /Memória/ })).toBeNull();
   });
   it('keeps /equipe in the student menu and nothing else restricted', () => {
-    expect(navFor('student').map((n) => n.to)).toEqual(['/', '/equipe', '/agentes', '/configuracoes']);
+    expect(navFor('student').map((n) => n.to)).toEqual(['/', '/equipe', '/configuracoes']);
   });
 });

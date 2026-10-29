@@ -40,7 +40,7 @@ export const chatPath = (id: string) => CHAT + encodeURIComponent(id);
 export const skillPath = (id: string) => (id ? SKILLS + encodeURIComponent(id) : '/skills');
 
 export function agentPath(id: string, tab: AgentTab = 'perfil'): string {
-  if (!id) return '/agentes';
+  if (!id) return '/equipe';
   return AGENTS + encodeURIComponent(id) + (tab === 'perfil' ? '' : `?aba=${tab}`);
 }
 
@@ -55,6 +55,10 @@ function current(): RouteState {
     if (id) return plain('/', id);
   }
   if (p.startsWith(SKILLS)) return plain('/skills', '', decodeURIComponent(p.slice(SKILLS.length).split('/')[0]));
+  if (p === '/agentes') {
+    history.replaceState(null, '', '/equipe');
+    return plain('/equipe');
+  }
   if (p.startsWith(AGENTS)) {
     const id = decodeURIComponent(p.slice(AGENTS.length).split('/')[0]);
     if (id) {
@@ -92,6 +96,7 @@ export function useRoute() {
       if (replace) history.replaceState(null, '', path);
       else history.pushState(null, '', path);
     }
+    if (!id) { setState(plain('/equipe')); return; }
     setState({ ...plain('/agentes'), agentId: id, agentTab: tab });
   }, []);
   const navSkill = useCallback((id: string) => {
