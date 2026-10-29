@@ -10,7 +10,7 @@ export function ComposerGhost({ value, ghostShown, acceptGhost, chip = true }: {
   chip?: boolean;
 }) {
   return (
-    <div style={{ maxHeight: composerMaxH() }} className="pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap wrap-break-word py-1 text-[15px] leading-7 text-neutral-600">
+    <div style={{ maxHeight: composerMaxH() }} className="pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap wrap-break-word py-1 pr-3 text-[15px] leading-7 text-neutral-600">
       <span aria-hidden className="invisible">{value}</span><span aria-hidden>{ghostShown}</span>
       {/* z-10 + pointer-events-auto: o chip fica clicável MESMO sob o textarea
           (que pinta por cima do overlay) — no mobile não existe Tab. */}

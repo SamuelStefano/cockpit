@@ -6,6 +6,8 @@ import { MessageRow } from './chat/MessageView';
 import { LiveLine } from './chat/LiveLine';
 import { ChatEmpty, ChatInput } from './chat/ChatInput';
 import { ChatHeader } from './chat/ChatHeader';
+import { FocusCollapse } from './chat/FocusCollapse';
+import { useFocusMode, blurActiveEditable } from './chat/useFocusMode';
 import { CallDock } from './chat/call/CallDock';
 import { ScrollAffordances } from './chat/ScrollAffordances';
 import { ChatTopics } from './chat/ChatTopics';
@@ -49,6 +51,7 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, draf
   const rows = useMemo(() => interleaveByTime(shown, botDecor?.extras ?? []), [shown, botDecor]);
   const lastUserIdx = shown.findLastIndex((m) => m.role === 'user');
   const topics = useChatTopics(c.scrollRef, messages);
+  const focus = useFocusMode(isMobile, keyboardOpen, draft);
 
   const renderRow = (m: ShownMessage, i: number) => (
     <MessageRow key={m.id} msg={m} caretOnLast={c.streaming && i === shown.length - 1 && m.role === 'assistant'} modelLabel={botDecor ? botDecor.name : m.role === 'assistant' && m.model ? c.labelFor(m.model) : c.modelLabel} avatar={botDecor?.avatar} bit={i === shown.length - 1 && m.role === 'assistant' ? turnBit : undefined} showModelLabel={!!botDecor} thinking={phase !== 'idle' && !c.pendingQuestion && i === shown.length - 1 && m.role === 'assistant'} live={i === shown.length - 1 && m.role === 'assistant' && !c.pendingQuestion ? live : undefined} onEditUser={onEditUser} onQuote={onQuote} onMemorize={onMemorize} answerable={(phase === 'idle' || c.pendingQuestion) && i === shown.length - 1 && m.role === 'assistant'} onAnswer={onPrompt} reviewable={phase === 'idle' && i > lastUserIdx && m.role === 'assistant'} onApproveWorkflow={onApproveWorkflow} onRegenerate={phase === 'idle' && !c.pendingQuestion && i === shown.length - 1 && m.role === 'assistant' ? c.retryLast : undefined} onOpenAttachment={onAttOpen} attThumbs={attThumbs} onAttThumb={onAttThumb} />
@@ -64,7 +67,7 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, draf
       queued={c.queued} queuedIds={c.queuedIds} queuedAtts={c.queuedAtts} queuedModels={c.queuedModels} onRunQueuedBg={c.runQueuedInBgAt} onRunQueuedNow={c.runQueuedNowAt} onQueue={c.enqueue} onCancelQueueAt={c.cancelQueueAt} onEditQueuedAt={c.editQueuedAt} onMoveQueued={c.moveQueuedItem} history={c.sentHistory} pendingConfirm={c.bannerConfirm} onNew={onNew} onShowHelp={onShowHelp}
       queuePaused={queuePaused} queueReleaseAt={queueReleaseAt} onToggleQueuePause={() => queueSetPaused(!queuePaused)}
       queueHeld={c.queueHeld} onResumeQueue={c.resumeQueue}
-      paused={quotaPaused} quotaResetsAt={quotaResetsAt} onCall={call.supported ? call.dial : undefined} />
+      paused={quotaPaused} quotaResetsAt={quotaResetsAt} focusMode={focus} onCall={call.supported ? call.dial : undefined} />
   );
   const hero = c.isEmpty && phase === 'idle' && !botDecor && !restoring;
 
@@ -80,6 +83,7 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, draf
           <Icon name="paperclip" size={22} /> Solte os arquivos pra anexar
         </div>
       )}
+      <FocusCollapse hidden={focus}>
       <ChatHeader
         session={session} messages={messages} isEmpty={c.isEmpty} isMobile={isMobile}
         contextTokens={contextTokens} contextModel={contextModel} lastTurn={lastTurn} onNew={onNew}
@@ -89,13 +93,13 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, draf
         keyboardOpen={keyboardOpen} selectedModel={model} onMenu={isMobile ? onMenu : undefined} teamSlot={teamSlot} restoring={restoring}
         agent={botDecor && { name: botDecor.name, avatar: botDecor.avatar, ...botDecor.header }}
       />
+      </FocusCollapse>
 
-      {/* Wrapper relativo: as afordâncias de scroll ancoram no fim da ÁREA DE
           SCROLL, não do painel — antes (bottom fixo no painel) um composer alto
           engolia os botões pra dentro do input. */}
-      {hero ? <ChatEmpty onPrompt={onPrompt} onSeed={setDraft} needsProvider={!claudeReady && !isAgentModel(model)}>{composer}</ChatEmpty> : (
+      {hero ? <ChatEmpty compact={keyboardOpen} onPrompt={onPrompt} onSeed={setDraft} needsProvider={!claudeReady && !isAgentModel(model)}>{composer}</ChatEmpty> : (
       <div className="relative flex min-h-0 flex-1 flex-col">
-      <div ref={c.scrollRef} onScroll={c.onScroll} className="print-thread scroll-thin flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-3">
+      <div ref={c.scrollRef} onScroll={c.onScroll} onPointerDown={keyboardOpen ? blurActiveEditable : undefined} className="print-thread scroll-thin flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-3">
         {c.isEmpty && phase === 'idle' && !botDecor?.extras.length ? (
           botDecor?.empty
         ) : (
@@ -130,11 +134,12 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, draf
         <SaturationBanner sessionId={session?.id} contextTokens={contextTokens} contextModel={contextModel} busy={handoffBusy} onHandoff={onHandoff} cost={sendCost ?? null} />
       )}
 
-      {turnStatus}
+      <FocusCollapse hidden={focus}>{turnStatus}</FocusCollapse>
 
+      <FocusCollapse hidden={focus}>
       <TurnBanners phase={phase} failed={c.failed} resumeOffer={resumeOffer} onResume={resumeOffer && resumeRun ? () => resumeRun(resumeOffer.sessionKey) : undefined} planPending={c.planPending} pendingQuestion={c.pendingQuestion} queuedCount={c.queued.length} lastEnd={lastEnd} retryLast={c.retryLast} retryText={c.retryText} onSend={onSend} onForceQueue={session ? () => queueForce(session.id) : undefined} />
-
       <CallDock call={call} />
+      </FocusCollapse>
 
       {!hero && composer}
 
