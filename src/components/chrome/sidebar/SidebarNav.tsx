@@ -9,11 +9,12 @@ interface SidebarNavProps {
   role: NavRole;
   counts?: Partial<Record<Route, number>>;
   expanded: boolean;
+  hideSingle?: boolean;
 }
 
-export function SidebarNav({ route, nav, role, counts, expanded }: SidebarNavProps) {
+export function SidebarNav({ route, nav, role, counts, expanded, hideSingle }: SidebarNavProps) {
   const items = sidebarNav(role);
-  if (!items.length) return null;
+  if (!items.length || (hideSingle && items.length === 1)) return null;
   return (
     <nav aria-label="Rotas" className="flex flex-col gap-0.5">
       {items.map((i) => (

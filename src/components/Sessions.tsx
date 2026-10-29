@@ -1,3 +1,4 @@
+import { SessionsLoadingNote } from './sessions/SessionsLoadingNote';
 import { memo } from 'react';
 import { Icon, Input } from './primitives';
 import type { Session } from '../data/types';
@@ -83,7 +84,7 @@ function SessionsPanelImpl({ sessions, loading, activeId, onSelect, onNew, marat
       <div className="scroll-thin mt-1.5 flex-1 space-y-0 overflow-y-auto overscroll-contain px-2 pb-3">
         {loading && sessions.length === 0 ? (
           <div className="space-y-1.5" role="status" aria-label="Carregando sessões">
-            <p className="px-1 text-[11.5px] text-neutral-500">Carregando sessões…</p>
+            <SessionsLoadingNote />
             {Array.from({ length: 4 }).map((_, i) => <SessionSkeletonRow key={i} />)}
           </div>
         ) : filtered.length === 0 ? null : (
