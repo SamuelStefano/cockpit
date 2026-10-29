@@ -52,6 +52,8 @@ export function Configuracoes({ route, role, nav, isMobile, connected, cockpit: 
               stats={c.stats} health={c.health} onHealthList={c.onHealthList} isRoot={isRoot} adminOp={c.adminOp}
               onEnvSet={c.onEnvSet} onEnvUnset={c.onEnvUnset} onMcpAdd={c.onMcpAdd} onMcpRemove={c.onMcpRemove}
               onCliInstall={c.onCliInstall} onCliUpdate={c.onCliUpdate} onDeckRestart={c.onDeckRestart}
+              claudeAccount={c.claudeAccount} claudeLogin={c.claudeLogin} onClaudeAccountGet={c.onClaudeAccountGet} onClaudeLogout={c.onClaudeLogout}
+              onClaudeLoginStart={c.onClaudeLoginStart} onClaudeLoginCode={c.onClaudeLoginCode} onClaudeLoginCancel={c.onClaudeLoginCancel}
             />
           )}
           {section === 'avancado' && (

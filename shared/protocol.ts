@@ -701,6 +701,7 @@ export interface DflPointsSnapshot {
 export type ClaudeLoginState = 'waiting-url' | 'url' | 'verifying' | 'done' | 'error';
 
 // optimistic = set by the client on start, cleared by the first real server frame.
+export interface ClaudeAccount { loggedIn: boolean; email?: string; orgName?: string; authMethod?: string }
 export interface ClaudeLoginView { state: 'idle' | ClaudeLoginState; url?: string; error?: string; optimistic?: boolean }
 
 export type ClientMsg =
@@ -848,6 +849,8 @@ export type ClientMsg =
   | { t: 'claude-login-start' }
   | { t: 'claude-login-code'; code: string }
   | { t: 'claude-login-cancel' }
+  | { t: 'claude-account-get' }
+  | { t: 'claude-logout' }
   | { t: 'mcps-get' }
   | { t: 'connections-get' }
   // Lists the models of an OpenAI-compatible endpoint. The key is used once and never stored, logged or echoed.
@@ -992,6 +995,7 @@ export type ServerMsg =
   // É fato do ENGINE (a VPS), não do viewer — por isso vai à parte do caps, que
   // o agente T3 não reanuncia.
   | { t: 'claude-auth'; ready: boolean }
+  | { t: 'claude-account'; account: ClaudeAccount | null }
   | { t: 'agent-health'; health: BoxHealth }
   | ({ t: 'box-smoke' } & SmokeResult)
   | { t: 'claude-login'; state: ClaudeLoginState; url?: string; error?: string }
