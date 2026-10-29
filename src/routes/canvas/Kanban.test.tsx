@@ -122,24 +122,18 @@ describe('Kanban — empty columns', () => {
 });
 
 describe('Kanban — session drops', () => {
-  const dragOver = (section: Element, types: string[]) => {
-    const ev = new Event('dragover', { bubbles: true, cancelable: true });
-    Object.defineProperty(ev, 'dataTransfer', { value: { types } });
-    section.dispatchEvent(ev);
-    return ev;
-  };
+  const dragOver = (section: Element, types: string[]) => fireEvent.dragOver(section, { dataTransfer: { types } });
 
   it('does not accept a session drag over To do, and marks it refused', () => {
     const { container } = render(<Kanban {...baseProps} sessionItems={[]} />);
     const todo = container.querySelectorAll('section')[0];
-    const ev = dragOver(todo, ['text/deck-session']);
-    expect(ev.defaultPrevented).toBe(false);
+    expect(dragOver(todo, ['text/deck-session'])).toBe(true);
     expect(todo.getAttribute('title')).toBe('sessões entram aqui sozinhas');
   });
 
   it('accepts a session drag over Review', () => {
     const { container } = render(<Kanban {...baseProps} sessionItems={[]} />);
     const review = container.querySelectorAll('section')[2];
-    expect(dragOver(review, ['text/deck-session']).defaultPrevented).toBe(true);
+    expect(dragOver(review, ['text/deck-session'])).toBe(false);
   });
 });
