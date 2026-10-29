@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ALL_PERMS, disallowedTools, permsFromProfile, profileFromPerms } from './permissions';
+import { ALL_PERMS, disallowedTools, permsFromProfile, profileFromPerms } from './perms';
 
 describe('agent permissions', () => {
   it('maps a full profile to everything on and a restricted one to read + net', () => {

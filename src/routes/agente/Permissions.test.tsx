@@ -2,7 +2,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { Permissions } from './Permissions';
-import { ALL_PERMS } from './permissions';
+import { ALL_PERMS } from './perms';
 
 describe('Permissions', () => {
   it('toggles one permission at a time', () => {

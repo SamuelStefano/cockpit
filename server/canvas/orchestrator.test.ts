@@ -70,6 +70,10 @@ describe('isTmuxAliveSync', () => {
     execFileSync('tmux', ['new-session', '-d', '-s', `${name}-wrapped`, `bash -c "${bin}/claude; exec bash"`]);
     execFileSync('tmux', ['new-session', '-d', '-s', `${name}-other`, 'sleep 30']);
     try {
+      // The wrapped pane forks claude asynchronously: poll until the tree settles
+      // instead of reading it the instant the session is created.
+      const deadline = Date.now() + 5000;
+      while (paneLostClaudeSync(`${name}-wrapped`) && Date.now() < deadline) execFileSync('sleep', ['0.1']);
       expect(paneLostClaudeSync(`${name}-sh`)).toBe(true);
       expect(paneLostClaudeSync(`${name}-other`)).toBe(true);
       expect(paneLostClaudeSync(`${name}-wrapped`)).toBe(false);

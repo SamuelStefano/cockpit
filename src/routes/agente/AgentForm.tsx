@@ -12,7 +12,7 @@ import { useBuilderPanels } from './useBuilderPanels';
 import { ModelSection } from './ModelSection';
 import { Permissions } from './Permissions';
 import { SkillPicker } from './SkillPicker';
-import { permsFromProfile, profileFromPerms, type Perms } from './permissions';
+import { permsFromProfile, profileFromPerms, type Perms } from './perms';
 
 const field = 'w-full rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-[13px] text-neutral-200 outline-hidden focus:border-orange-500/40';
 
