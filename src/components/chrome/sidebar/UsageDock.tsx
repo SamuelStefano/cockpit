@@ -8,6 +8,7 @@ import { UsagePanel } from '../UsagePanel';
 import { useOpenRefresh } from '../useUsagePanel';
 import { usageSummary } from './usage-summary';
 import { VpsMeters } from './VpsMeters';
+import { paceOf } from '../../../lib/gamify/pace';
 
 export interface UsageDockProps {
   usageAgent?: UsageAgent;
@@ -45,6 +46,7 @@ export function UsageDock(props: UsageDockProps) {
   const { chip, warn, paused, gateResetAt, s } = readUsage(props);
   useOpenRefresh(open, chip.agent === 'grok' ? onRefreshGrokUsage : onRefreshPlanUsage);
   const p = HEADER;
+  const pace = chip.agent === 'grok' ? null : paceOf(chip.usage, Date.now());
   const title = chip.agent === 'grok' ? 'Uso do Grok' : 'Uso do plano';
 
   return (
@@ -52,6 +54,7 @@ export function UsageDock(props: UsageDockProps) {
       open={open} onClose={() => setOpen(false)} label={`${title} e VPS`} side={p.side} align="end"
       content={
         <>
+          {pace && <p className="px-3 pt-2 text-[12px] text-neutral-400">Semana: {pace.sentence}</p>}
           <UsagePanel inline rows={usageRows(chip.usage)} reset={gateResetAt ? relReset(gateResetAt) : ''} warn={warn || paused} blockedUntil={chip.blockedUntil} readAt={chip.readAt} nextReadAt={chip.nextReadAt} title={title} secondary={chip.secondary} />
           <VpsMeters stats={stats} />
         </>
@@ -62,7 +65,7 @@ export function UsageDock(props: UsageDockProps) {
           type="button" onClick={() => setOpen((o) => !o)} aria-label={s.aria} aria-expanded={open} aria-haspopup="dialog"
           className={`relative flex ${p.box} items-center justify-center rounded-lg text-neutral-400 transition hover:bg-neutral-800/70 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-orange-500/40`}
         >
-          <UsageRing value={s.pct} tone={s.tone} size={p.size} label={s.aria} />
+          <UsageRing value={s.pct} tone={s.tone} size={p.size} label={s.aria} tick={pace?.ideal ?? null} />
           {(paused || warn) && <span aria-hidden="true" className={`absolute right-1.5 top-1.5 h-2 w-2 rounded-full ring-2 ring-neutral-950 ${paused ? 'animate-pulse bg-red-400' : 'bg-amber-400'}`} />}
         </button>
       </Tooltip>

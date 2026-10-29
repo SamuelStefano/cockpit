@@ -16,6 +16,7 @@ import type { ShownMessage } from './chat/shown';
 import { useCompacting } from './chat/useCompacting';
 import { TurnBanners } from './chat/TurnBanners';
 import { SaturationBanner } from './chat/SaturationBanner';
+import { ContextLifeBar } from './chat/ContextLifeBar';
 import { useChatPanel, type Phase } from './chat/useChatPanel';
 import { useFileDrop } from './chat/useFileDrop';
 import { useTurnBit } from './chat/useTurnBit';
@@ -89,6 +90,7 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, draf
         keyboardOpen={keyboardOpen} selectedModel={model} onMenu={isMobile ? onMenu : undefined} teamSlot={teamSlot} restoring={restoring}
         agent={botDecor && { name: botDecor.name, avatar: botDecor.avatar, ...botDecor.header }}
       />
+      <ContextLifeBar sessionId={session?.id} contextTokens={contextTokens} contextModel={contextModel} />
 
       {/* Wrapper relativo: as afordâncias de scroll ancoram no fim da ÁREA DE
           SCROLL, não do painel — antes (bottom fixo no painel) um composer alto

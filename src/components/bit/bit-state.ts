@@ -22,6 +22,8 @@ export interface BitSignals {
   thinking?: boolean;
   error?: boolean;
   justDone?: boolean;
+  // Running, waiting and queued work all just reached zero (see useAllClear).
+  allClear?: boolean;
 }
 
 // One reading of the app's state for the header Bit, in priority order: a dead
@@ -32,5 +34,5 @@ export function bitStateFor(s: BitSignals): BitState {
   if (s.conn === 'connecting' || s.agentOnline === false) return 'connecting';
   if (s.error) return 'error';
   if (s.running) return s.thinking ? 'thinking' : 'working';
-  return s.justDone ? 'happy' : 'idle';
+  return s.justDone || s.allClear ? 'happy' : 'idle';
 }

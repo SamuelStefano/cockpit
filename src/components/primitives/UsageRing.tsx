@@ -8,6 +8,8 @@ interface UsageRingProps {
   tone?: RingTone;
   // Spoken description; the visible number lives in a Tooltip, never in the ring.
   label?: string;
+  // 0–100 marker on the track (the ideal pace), drawn as a short radial tick.
+  tick?: number | null;
   className?: string;
 }
 
@@ -26,7 +28,7 @@ export function ringToneOf(value: number | null): RingTone {
   return 'ok';
 }
 
-export function UsageRing({ value, size = 24, tone, label, className = '' }: UsageRingProps) {
+export function UsageRing({ value, size = 24, tone, label, tick = null, className = '' }: UsageRingProps) {
   const pct = value === null ? 0 : Math.max(0, Math.min(100, value));
   const r = (size - STROKE) / 2;
   const c = 2 * Math.PI * r;
@@ -43,6 +45,12 @@ export function UsageRing({ value, size = 24, tone, label, className = '' }: Usa
         strokeDasharray={c} strokeDashoffset={c * (1 - pct / 100)}
         className={`transition-[stroke-dashoffset] duration-500 ${STROKES[t]}`}
       />
+      {tick !== null && (
+        <line
+          data-testid="ring-tick" x1={r + STROKE} y1={0} x2={r - STROKE} y2={0} strokeWidth={1.5} strokeLinecap="round"
+          className="stroke-neutral-200" transform={`translate(${size / 2} ${size / 2}) rotate(${Math.max(0, Math.min(100, tick)) * 3.6})`}
+        />
+      )}
     </svg>
   );
 }

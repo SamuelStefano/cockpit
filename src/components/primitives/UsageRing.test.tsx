@@ -32,3 +32,15 @@ describe('UsageRing', () => {
     expect(Number(arc.getAttribute('stroke-dashoffset'))).toBeCloseTo(0);
   });
 });
+
+describe('UsageRing tick', () => {
+  it('draws the pace tick only when asked', async () => {
+    const { render, cleanup } = await import('@testing-library/react');
+    const a = render(<UsageRing value={30} tick={50} />);
+    expect(a.queryByTestId('ring-tick')).toBeTruthy();
+    cleanup();
+    const b = render(<UsageRing value={30} />);
+    expect(b.queryByTestId('ring-tick')).toBeNull();
+    cleanup();
+  });
+});
