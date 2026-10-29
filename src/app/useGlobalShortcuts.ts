@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, type Dispatch, type SetStateAction } from 'react';
 import { usePersisted } from '../lib/persist';
+import { isApple } from '../lib/platform';
 import { WAITING_DISMISSED_KEY } from '../lib/prefs';
 import { useSidebarCollapsed } from '../components/chrome/sidebar/useSidebarCollapsed';
 import { requestTerminal, requestTerminalToggle } from '../lib/terminal-request';
@@ -59,11 +60,14 @@ export function useGlobalShortcuts({ sessions, running, activeSessionId, setActi
         return;
       }
       if (modalOpen()) return;
-      if (mod && !e.altKey) {
+      // App shortcuts: ⌘ on Apple keyboards, Alt elsewhere (Ctrl+letter belongs to the browser and the terminal).
+      const appMod = isApple() ? e.metaKey && !e.ctrlKey : e.altKey && !e.ctrlKey && !e.metaKey;
+      if (appMod) {
+        if ((e.target as Element | null)?.closest?.('.xterm')) return;
         if (e.shiftKey && k === 'o') { e.preventDefault(); L.onNew(); return; }
         if (e.shiftKey && k === 'k') { e.preventDefault(); L.nav('/canvas'); return; }
-        if (!e.shiftKey && k === 'b') { e.preventDefault(); L.toggleSidebar(); return; }
-        if (!e.shiftKey && k === 'j') {
+        if (!e.shiftKey && k === 'b' && !isTyping()) { e.preventDefault(); L.toggleSidebar(); return; }
+        if (!e.shiftKey && k === 'j' && !isTyping()) {
           e.preventDefault();
           if (location.pathname === '/' || location.pathname.startsWith('/c/')) requestTerminalToggle();
           else { requestTerminal(); L.nav('/'); }
@@ -75,7 +79,7 @@ export function useGlobalShortcuts({ sessions, running, activeSessionId, setActi
           return;
         }
       }
-      if (mod || e.altKey) return;
+      if (mod || e.altKey) return; // chord keys are bare; any modifier (incl. Alt) means a different shortcut
       // Alt+↑/↓ is handled below; `g p` is a two-key chord for typing-free contexts.
       if (k === 'g' && !isTyping()) { chord = Date.now(); return; }
       if (k === 'p' && chord && Date.now() - chord < CHORD_MS && !isTyping()) {

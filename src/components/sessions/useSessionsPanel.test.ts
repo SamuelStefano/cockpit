@@ -43,14 +43,14 @@ describe('useSessionsPanel', () => {
     expect(result.current.deleteId).toBeNull();
   });
 
-  it('onSearch dispara com debounce de 150ms após o query mudar', () => {
+  it('onSearch dispara com debounce de 350ms após o query mudar', () => {
     vi.useFakeTimers();
     const onSearch = vi.fn();
     const { result } = renderHook(() => useSessionsPanel({ ...base, onSearch }));
     onSearch.mockClear(); // ignora o disparo inicial (query='')
     act(() => result.current.setQuery('foo'));
     expect(onSearch).not.toHaveBeenCalled(); // ainda dentro do debounce
-    act(() => vi.advanceTimersByTime(150));
+    act(() => vi.advanceTimersByTime(350));
     expect(onSearch).toHaveBeenCalledWith('foo');
   });
 });

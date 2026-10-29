@@ -129,15 +129,15 @@ describe('useGlobalShortcuts', () => {
 
   it('⌘⇧O starts a new chat and ⌘⇧K opens the canvas', () => {
     const { onNew, nav } = mount();
-    key({ key: 'O', metaKey: true, shiftKey: true });
-    key({ key: 'K', ctrlKey: true, shiftKey: true });
+    key({ key: 'O', altKey: true, shiftKey: true });
+    key({ key: 'K', altKey: true, shiftKey: true });
     expect(onNew).toHaveBeenCalledTimes(1);
     expect(nav).toHaveBeenCalledWith('/canvas');
   });
 
   it('⌘2 jumps to the second sidebar session', () => {
     const { setActiveSessionId, nav } = mount();
-    key({ key: '2', metaKey: true });
+    key({ key: '2', altKey: true });
     expect(setActiveSessionId).toHaveBeenCalledWith('b');
     expect(nav).toHaveBeenCalledWith('/');
   });
@@ -149,9 +149,31 @@ describe('useGlobalShortcuts', () => {
     expect(nav).toHaveBeenCalledWith('/pontos');
   });
 
-  it('⌘B toggles the persisted sidebar state', () => {
+  it('Alt+B (non-Apple modifier) toggles the persisted sidebar state', () => {
     mount();
-    key({ key: 'b', metaKey: true });
+    key({ key: 'b', altKey: true });
     expect(localStorage.getItem('cockpit:sidebarCollapsed')).toBe('true');
+  });
+
+  it('ignores Ctrl+B and skips B/J while typing', () => {
+    mount();
+    key({ key: 'b', ctrlKey: true });
+    expect(localStorage.getItem('cockpit:sidebarCollapsed')).toBeNull();
+    const ta = document.createElement('textarea');
+    document.body.appendChild(ta);
+    ta.focus();
+    key({ key: 'b', altKey: true });
+    expect(localStorage.getItem('cockpit:sidebarCollapsed')).toBeNull();
+    ta.remove();
+  });
+
+  it('ignores shortcuts that originate inside the terminal', () => {
+    const { onNew } = mount();
+    const x = document.createElement('div');
+    x.className = 'xterm';
+    document.body.appendChild(x);
+    x.dispatchEvent(new KeyboardEvent('keydown', { key: 'O', altKey: true, shiftKey: true, bubbles: true, cancelable: true }));
+    expect(onNew).not.toHaveBeenCalled();
+    x.remove();
   });
 });
