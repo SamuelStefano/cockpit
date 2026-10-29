@@ -40,6 +40,7 @@ export function useSessionsPanel({ sessions, archived = [], searchResults, onSea
 
   const { dismissed: dismissedWaiting, dismissWaiting } = useWaitingDismissed(sessions);
   const searchRef = useRef<HTMLInputElement>(null);
+  const lastSent = useRef('');
 
   // ⌘/ foca a busca de sessões (⌘K virou o command palette). Esc limpa+desfoca.
   useEffect(() => {
@@ -58,11 +59,13 @@ export function useSessionsPanel({ sessions, archived = [], searchResults, onSea
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  // Busca de conteúdo no backend (debounce 150ms). O filtro local (título/snippet)
+  // Busca de conteúdo no backend (debounce 350ms, só se a query mudou). O filtro local (título/snippet)
   // aparece na hora; os hits por CONTEÚDO chegam logo depois e são mesclados.
   useEffect(() => {
     if (!onSearch) return;
-    const id = setTimeout(() => onSearch(query), 150);
+    const trimmed = query.trim();
+    if (trimmed === lastSent.current) return;
+    const id = setTimeout(() => { lastSent.current = trimmed; onSearch(trimmed); }, 350);
     return () => clearTimeout(id);
   }, [query, onSearch]);
 

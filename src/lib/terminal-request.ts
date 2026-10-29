@@ -9,3 +9,10 @@ export function takeTerminalRequest(): boolean {
   pending = false;
   return p;
 }
+
+export const TERMINAL_TOGGLE_EVENT = 'deck:toggle-terminal';
+
+// ⌘J: DesktopLayout owns the panel state and listens for this.
+export function requestTerminalToggle(): void {
+  window.dispatchEvent(new Event(TERMINAL_TOGGLE_EVENT));
+}

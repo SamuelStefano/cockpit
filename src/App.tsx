@@ -130,8 +130,6 @@ function CockpitBody() {
   const { drawer, setDrawer, termSheet, setTermSheet, palette, setPalette, help, setHelp } = useOverlays(route);
   const [focusSignal, setFocusSignal] = useState(0);
 
-  useGlobalShortcuts({ sessions, activeSessionId, setActiveSessionId: selectSession, updated, nav, setPalette, setHelp });
-
   // Citar uma mensagem: vira blockquote no topo do rascunho atual (trunca longos).
   // Ref + useCallback: identidade estável pro memo do MessageRow (setDraft não
   // aceita updater funcional — é keyed pela sessão ativa no hook).
@@ -178,6 +176,7 @@ function CockpitBody() {
 
   const sidebarSessions = useMemo(() => withoutBotThreads(sessions, cockpit.bots), [sessions, cockpit.bots]);
   const sessionsProps = { sessions: sidebarSessions, loading, activeId: activeSessionId, onSelect: selectSession, onNew: handleNew, marathon, onToggleMarathon, onRename: handleRename, onDescribe: handleDescribe, onClose: handleCloseSession, onDelete: handleDeleteSession, onStop: handleStop, archived, onUnhide: handleUnhide, running: runningAnywhere, stalled, updated, runStart, searchResults, onSearch, userId: sbAuth.session?.user.id };
+  useGlobalShortcuts({ sessions: sidebarSessions, running: runningAnywhere, activeSessionId, setActiveSessionId: selectSession, updated, nav, onNew: handleNew, setPalette, setHelp });
   const navCounts = useMemo(() => ({ '/canvas': sidebarSessions.filter((s) => s.waiting).length }), [sidebarSessions]);
   const usageDock = { usageAgent, planUsage, planBlockedUntil, planReadAt, planNextReadAt, onRefreshPlanUsage, grokUsage: cockpit.grokUsage, onRefreshGrokUsage: cockpit.onRefreshGrokUsage, quotaWarn: quotaGate.warn, quotaPaused: quotaGate.paused, quotaResetsAt: quotaGate.resetsAt, stats };
   const chatProps = { session: activeSession, messages, phase, terminalBusy, sessionTodos, draft, setDraft, onSend: handleSend, onPrompt: handleSend, onApproveWorkflow, onStop: handleStop, mode, setMode, caps, claudeReady, claudeLogin, agents: cockpit.agents, onClaudeLoginStart, onClaudeLoginCode, onClaudeLoginCancel, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, selectedMcps, setSelectedMcps, mcpServers, slashCommands, contextTokens, contextModel, sendCost, liveTurnTokens, turnStartedAt, bgAgents, lastTurn, lastEnd, onNew: handleNew, onHandoff, handoffBusy, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser: editUser, onQuote: quoteMsg, onMemorize: memorizeMsg, onRename: handleRename, onDelete: handleDeleteSession, onOpenFull, onLoadOlder, onOpenSummary, truncated, onShowHelp: () => setHelp(true), focusSignal, isMobile, onMenu: () => setDrawer(!drawer), keyboardOpen, quotaPaused: quotaGate.paused, quotaResetsAt: quotaGate.resetsAt, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueReleaseAt, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce, resumeOffer, resumeRun, conn: link, call, usage: usageDock, restoring };

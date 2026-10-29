@@ -65,11 +65,11 @@ export function usePaletteCommands(args: PaletteCommandsArgs): Cmd[] {
         run: () => { onSelectSession(key); nav('/'); onClose(); },
       };
     });
-    const modes: Cmd[] = (['plan', 'auto', 'acceptEdits'] as PermMode[]).map((m) => ({
+    const modes: Cmd[] = (['auto', 'acceptEdits'] as PermMode[]).map((m) => ({
       id: `mode-${m}`,
       label: `Modo: ${MODE_LABEL[m]}`,
       hint: mode === m ? 'atual' : undefined,
-      icon: m === 'plan' ? 'pencil' : m === 'auto' ? 'sparkles' : 'play',
+      icon: m === 'auto' ? 'sparkles' : 'play',
       group: 'Modo',
       run: setM(m),
     }));
@@ -82,6 +82,7 @@ export function usePaletteCommands(args: PaletteCommandsArgs): Cmd[] {
       group: 'Sessões',
       run: () => { onSelectSession(s.id); nav('/'); onClose(); },
     }));
-    return [...nav_, ...actions, ...runningCmds, ...modes, ...sess];
+    // Empty-palette order: what is running, recent sessions, actions, then routes.
+    return [...runningCmds, ...sess, ...actions, ...nav_, ...modes];
   }, [role, nav, onClose, onNew, mode, setMode, sessions, onSelectSession, running, onStop, onFocusComposer, onShowHelp]);
 }

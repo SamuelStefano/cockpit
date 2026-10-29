@@ -1,5 +1,8 @@
 import { Button, Icon } from './primitives';
-import { keyLabel } from '../lib/platform';
+import { isApple, keyLabel } from '../lib/platform';
+
+// 'mod' is the app-shortcut modifier: ⌘ on Apple keyboards, Alt elsewhere.
+const shown = (k: string) => (k === 'mod' ? (isApple() ? '⌘' : 'Alt') : keyLabel(k));
 import { useEscapeLayer } from './primitives/useEscapeLayer';
 
 const GROUPS: { title: string; items: { keys: string[]; label: string }[] }[] = [
@@ -12,6 +15,12 @@ const GROUPS: { title: string; items: { keys: string[]; label: string }[] }[] = 
       { keys: ['⌥', '↓'], label: 'Próxima sessão' },
       { keys: ['⌥', '↑'], label: 'Sessão anterior' },
       { keys: ['n'], label: 'Próxima sessão com output novo' },
+      { keys: ['mod', '1…9'], label: 'Ir pra n-ésima sessão da barra' },
+      { keys: ['mod', '⇧', 'O'], label: 'Nova conversa' },
+      { keys: ['mod', 'B'], label: 'Recolher / expandir a barra lateral' },
+      { keys: ['mod', 'J'], label: 'Abrir / fechar o terminal' },
+      { keys: ['mod', '⇧', 'K'], label: 'Ir pro canvas' },
+      { keys: ['g', 'p'], label: 'Ir pra pontos' },
     ],
   },
   {
@@ -28,7 +37,7 @@ const GROUPS: { title: string; items: { keys: string[]; label: string }[] }[] = 
   {
     title: 'Listas (sessões, skills, contextos)',
     items: [
-      { keys: ['⌘', '/'], label: 'Focar a busca' },
+      { keys: ['⌘', '/'], label: 'Focar a busca de conversas' },
     ],
   },
   {
@@ -53,7 +62,7 @@ function Keys({ keys }: { keys: string[] }) {
   return (
     <span className="flex shrink-0 items-center gap-1">
       {keys.map((k) => (
-        <kbd key={k} className="rounded-sm border border-neutral-700 bg-neutral-950 px-1.5 py-0.5 font-mono text-[12px] text-neutral-400">{keyLabel(k)}</kbd>
+        <kbd key={k} className="rounded-sm border border-neutral-700 bg-neutral-950 px-1.5 py-0.5 font-mono text-[12px] text-neutral-400">{shown(k)}</kbd>
       ))}
     </span>
   );

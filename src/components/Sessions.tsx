@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { Button, Icon } from './primitives';
+import { Icon, Input } from './primitives';
 import type { Session } from '../data/types';
 import { groupByRecency } from './sessions/group-by-recency';
 import { SessionGroup } from './sessions/SessionGroup';
@@ -10,6 +10,7 @@ import { ArchivedSection } from './sessions/ArchivedSection';
 import { ConfirmArchive } from './sessions/ConfirmArchive';
 import { useSessionsPanel } from './sessions/useSessionsPanel';
 
+const NO_RESULTS: Session[] = [];
 
 export interface SessionsPanelProps {
   sessions: Session[];
@@ -32,12 +33,15 @@ export interface SessionsPanelProps {
   updated?: Set<string>;
   runStart?: Record<string, number>;
   userId?: string;
+  // Backend content search: hits are merged with the local title/snippet filter.
+  searchResults?: Session[];
+  onSearch?: (q: string) => void;
   // Inside the shell sidebar, which already owns the title and "Nova conversa".
   embedded?: boolean;
 }
 
-function SessionsPanelImpl({ sessions, loading, activeId, onSelect, onNew, marathon, onToggleMarathon, onRename, onDescribe, onClose, onDelete, onStop, archived = [], onUnhide, onCloseMobile, running, stalled, updated, runStart = {}, userId, embedded = false }: SessionsPanelProps) {
-  const { confirmId, setConfirmId, deleteId, setDeleteId, pinned, togglePin, dismissedWaiting, dismissWaiting, filtered } = useSessionsPanel({ sessions, archived, searchResults: [], userId });
+function SessionsPanelImpl({ sessions, loading, activeId, onSelect, onNew, marathon, onToggleMarathon, onRename, onDescribe, onClose, onDelete, onStop, archived = [], onUnhide, onCloseMobile, running, stalled, updated, runStart = {}, userId, searchResults = NO_RESULTS, onSearch, embedded = false }: SessionsPanelProps) {
+  const { query, setQuery, searchRef, confirmId, setConfirmId, deleteId, setDeleteId, pinned, togglePin, dismissedWaiting, dismissWaiting, filtered } = useSessionsPanel({ sessions, archived, searchResults, onSearch, userId });
 
   const renderRow = (s: Session) => (
     <SessionRow key={s.id} s={s} active={s.id === activeId}
@@ -68,6 +72,13 @@ function SessionsPanelImpl({ sessions, loading, activeId, onSelect, onNew, marat
           </div>
         </div>
       )}
+
+      <div className="shrink-0 px-2 pt-1.5">
+        <Input
+          ref={searchRef} size="sm" icon="search" value={query} onChange={(e) => setQuery(e.target.value)}
+          placeholder="Buscar conversas" aria-label="Buscar conversas" type="search"
+        />
+      </div>
 
       <div className="scroll-thin mt-1.5 flex-1 space-y-0 overflow-y-auto overscroll-contain px-2 pb-3">
         {loading && sessions.length === 0 ? (
