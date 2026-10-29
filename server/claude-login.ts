@@ -4,6 +4,7 @@ import type { ClaudeLoginState, ServerMsg } from '../shared/protocol';
 import { claudeReady } from './admin-ops';
 import { cliPath } from './engine/cli-path';
 import { broadcast } from './ws/broadcast';
+import { readClaudeAccount } from './claude-account';
 
 export interface LoginPty {
   onData: (cb: (data: string) => void) => unknown;
@@ -183,6 +184,9 @@ function defaultSpawn(): LoginPty {
 export const claudeLogin = createClaudeLogin({
   spawn: defaultSpawn,
   ready: () => claudeReady(),
-  emit: broadcast,
+  emit: (msg) => {
+    broadcast(msg);
+    if (msg.t === 'claude-auth' && msg.ready) void readClaudeAccount().then((account) => broadcast({ t: 'claude-account', account }));
+  },
   timeoutMs: LOGIN_TIMEOUT_MS,
 });

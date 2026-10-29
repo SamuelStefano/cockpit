@@ -48,6 +48,7 @@ import { updateClaudeCli, restartDeck } from '../deck-ops';
 import { CONFIG } from '../config';
 import { send, broadcast } from './broadcast';
 import { claudeLogin } from '../claude-login';
+import { logoutClaude, readClaudeAccount } from '../claude-account';
 import { mcpsState } from '../mcps';
 import { listConnections } from '../connections';
 import { probe } from '../providers';
@@ -1017,6 +1018,13 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     case 'claude-login-start': { claudeLogin.start(); return; }
     case 'claude-login-code': { claudeLogin.submitCode(msg.code); return; }
     case 'claude-login-cancel': { claudeLogin.cancel(); return; }
+    case 'claude-account-get': { send(ws, { t: 'claude-account', account: await readClaudeAccount() }); return; }
+    case 'claude-logout': {
+      await logoutClaude();
+      broadcast({ t: 'claude-auth', ready: claudeReady() });
+      broadcast({ t: 'claude-account', account: await readClaudeAccount() });
+      return;
+    }
     case 'mcps-get': { send(ws, { t: 'mcps', state: await mcpsState() }); return; }
     case 'connections-get': { send(ws, { t: 'connections', items: await listConnections() }); return; }
     case 'provider-probe': { send(ws, { t: 'provider-probe', result: await probe(msg.endpoint, msg.key) }); return; }

@@ -15,7 +15,7 @@ export const ROOT_ONLY: ReadonlySet<ClientMsg['t']> = new Set<ClientMsg['t']>([
   'admin-env-set', 'admin-env-unset', 'admin-mcp-add', 'admin-mcp-remove',
   'admin-cli-install', 'admin-cli-update', 'admin-deck-restart',
   'agent-add-custom', 'agent-probe-draft', 'provider-probe',
-  'claude-import-scan', 'claude-import-apply',
+  'claude-import-scan', 'claude-import-apply', 'claude-account-get', 'claude-logout',
   'versions-restore',
   'vault-put', 'vault-list', 'vault-rm',
 ]);

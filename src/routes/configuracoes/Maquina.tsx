@@ -6,7 +6,8 @@ import { AdminHostOps } from '../AdminHostOps';
 import { AdminDeckUpdate } from '../AdminDeckUpdate';
 import { AdminInventory } from '../AdminInventory';
 import { Collapsible } from '../Collapsible';
-import type { AdminHealth, SysStats } from '../../../shared/protocol';
+import { ClaudeAccountCard } from './ClaudeAccountCard';
+import type { AdminHealth, ClaudeAccount, ClaudeLoginView, SysStats } from '../../../shared/protocol';
 import { useAdminOpToast } from './useAdminOpToast';
 
 interface MaquinaProps {
@@ -22,6 +23,13 @@ interface MaquinaProps {
   onCliInstall: (name: string) => void;
   onCliUpdate: () => void;
   onDeckRestart: (mode: 'idle' | 'now') => void;
+  claudeAccount: ClaudeAccount | null;
+  claudeLogin: ClaudeLoginView;
+  onClaudeAccountGet: () => void;
+  onClaudeLogout: () => void;
+  onClaudeLoginStart: () => void;
+  onClaudeLoginCode: (code: string) => void;
+  onClaudeLoginCancel: () => void;
 }
 
 export function Maquina(p: MaquinaProps) {
@@ -51,6 +59,10 @@ export function Maquina(p: MaquinaProps) {
       {p.health && <Collapsible title="Inventário"><AdminInventory health={p.health} /></Collapsible>}
       {p.isRoot && (
         <div className="mt-6 max-lg:mt-0">
+          <ClaudeAccountCard
+            account={p.claudeAccount} login={p.claudeLogin} onGet={p.onClaudeAccountGet} onLogout={p.onClaudeLogout}
+            onLoginStart={p.onClaudeLoginStart} onLoginCode={p.onClaudeLoginCode} onLoginCancel={p.onClaudeLoginCancel}
+          />
           <AdminDeckUpdate health={p.health} adminOp={p.adminOp} onCliUpdate={p.onCliUpdate} onDeckRestart={p.onDeckRestart} />
           <AdminHostOps health={p.health} adminOp={p.adminOp} onEnvSet={p.onEnvSet} onEnvUnset={p.onEnvUnset} onMcpAdd={p.onMcpAdd} onMcpRemove={p.onMcpRemove} onCliInstall={p.onCliInstall} />
         </div>
