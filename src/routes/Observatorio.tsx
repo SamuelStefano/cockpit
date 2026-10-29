@@ -68,10 +68,10 @@ export function Observatorio({ connected, usageStats, onUsageList, sessions, rat
             <div className="stagger-fade mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
               <Stat label="custo estimado · 90d" value={fmtCost(usageStats?.totalCost ?? 0)} icon="zap" />
               <Stat label="custo hoje" value={fmtCost(costToday)} icon="clock" />
-              <Stat label="média/sessão" value={fmtCost(avgPerSession)} icon="message" />
-              <Stat label="tokens de saída" value={fmt(usageStats?.totalOutput ?? 0)} icon="arrowUp" />
-              <Stat label="amostras" value={fmt(usageStats?.totalSamples ?? 0)} icon="zap" />
-              <Stat label="sessões" value={String(rows.length)} icon="message" />
+              <div className="max-sm:hidden"><Stat label="média/sessão" value={fmtCost(avgPerSession)} icon="message" /></div>
+              <div className="max-sm:hidden"><Stat label="tokens de saída" value={fmt(usageStats?.totalOutput ?? 0)} icon="arrowUp" /></div>
+              <div className="max-sm:hidden"><Stat label="amostras" value={fmt(usageStats?.totalSamples ?? 0)} icon="zap" /></div>
+              <div className="max-sm:hidden"><Stat label="sessões" value={String(rows.length)} icon="message" /></div>
             </div>
           )}
 

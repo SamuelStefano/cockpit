@@ -7,10 +7,13 @@ interface ListRowProps {
   value?: ReactNode;
   trailing?: ReactNode;
   onClick?: () => void;
+  // Whole-row toggle: the row itself is the switch (a 36x20 track is a poor tap target).
+  switchChecked?: boolean;
+  ariaLabel?: string;
   className?: string;
 }
 
-export function ListRow({ label, hint, leading, value, trailing, onClick, className = '' }: ListRowProps) {
+export function ListRow({ label, hint, leading, value, trailing, onClick, switchChecked, ariaLabel, className = '' }: ListRowProps) {
   const body = (
     <>
       {leading}
@@ -23,6 +26,6 @@ export function ListRow({ label, hint, leading, value, trailing, onClick, classN
     </>
   );
   const cls = `flex min-h-13 w-full items-center gap-3 border-t border-neutral-800 px-4 py-2.5 text-left first:border-t-0 ${className}`;
-  if (onClick) return <button type="button" onClick={onClick} className={`${cls} transition-colors hover:bg-neutral-800/60`}>{body}</button>;
+  if (onClick) return <button type="button" onClick={onClick} {...(switchChecked !== undefined ? { role: 'switch', 'aria-checked': switchChecked, 'aria-label': ariaLabel } : {})} className={`${cls} transition-colors hover:bg-neutral-800/60`}>{body}</button>;
   return <div className={cls}>{body}</div>;
 }

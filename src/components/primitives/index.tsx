@@ -32,6 +32,7 @@ export { SectionHeader } from './SectionHeader';
 export { InlineEdit } from './InlineEdit';
 export { ProgressBar, type ProgressSegment } from './ProgressBar';
 export { Tabs, type TabItem } from './Tabs';
+export { SideNav, type SideNavItem } from './SideNav';
 export { SkeletonCards } from './SkeletonCards';
 export { Toaster } from './Toast';
 export { toast, type ToastTone, type ToastOptions } from './toast-bus';

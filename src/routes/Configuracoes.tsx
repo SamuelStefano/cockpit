@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Icon } from '../components/primitives';
+import { SideNav } from '../components/primitives';
 import type { NavRole } from '../components/chrome/nav-routes';
 import type { UsageDockProps } from '../components/chrome/sidebar/UsageDock';
 import type { Route } from '../useRoute';
@@ -37,16 +37,7 @@ export function Configuracoes({ route, role, nav, isMobile, connected, cockpit: 
     <div className="scroll-thin min-h-0 flex-1 overflow-y-auto">
       <div className="mx-auto flex w-full max-w-[980px] flex-col gap-4 px-4 py-5 max-lg:pt-1 md:flex-row md:gap-8 md:px-8 md:py-7">
         {items.length > 1 && (
-          <nav aria-label="Seções de configurações" className="scroll-thin flex shrink-0 gap-1 overflow-x-auto md:w-44 md:flex-col md:overflow-visible">
-            {items.map((i) => (
-              <button
-                key={i.id} type="button" aria-current={i.id === section ? 'page' : undefined} onClick={() => nav(SECTION_ROUTE[i.id])}
-                className={`flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-lg px-3 text-[13px] font-medium lift focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-orange-500/40 ${i.id === section ? 'bg-orange-500/15 text-orange-200 shadow-[inset_0_0_0_1px_rgba(249,115,22,0.35)]' : 'text-neutral-400 hover:bg-neutral-800/60 hover:text-neutral-200'}`}
-              >
-                <Icon name={i.icon} size={14} />{i.label}
-              </button>
-            ))}
-          </nav>
+          <SideNav label="Seções de configurações" items={items} active={section} onSelect={(id) => nav(SECTION_ROUTE[id])} className="md:w-44" />
         )}
         <div className="min-w-0 flex-1">
           {section === 'conta' && <Conta account={account} role={role} />}
