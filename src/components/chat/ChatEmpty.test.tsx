@@ -72,3 +72,12 @@ describe('ChatEmpty provider hint', () => {
     expect(push).toHaveBeenCalledWith(null, '', '/onboarding');
   });
 });
+
+describe('ChatEmpty compact', () => {
+  it('renders only the composer while the keyboard is open', () => {
+    const { queryByText, getByText } = render(<ChatEmpty compact onPrompt={vi.fn()}><div>composer</div></ChatEmpty>);
+    expect(getByText('composer')).toBeTruthy();
+    expect(queryByText(/O que vamos trabalhar/)).toBeNull();
+    expect(queryByText(/Escrever um rascunho/)).toBeNull();
+  });
+});

@@ -12,6 +12,8 @@ import type { PermMode, Effort, ModelInfo, Caps } from '../../../shared/protocol
 import type { Attachment } from '../../useCockpit';
 import { useChatInput } from './useChatInput';
 import { composerMaxH } from './fit-height';
+import { FocusCollapse } from './FocusCollapse';
+import { FocusSummary } from './FocusSummary';
 
 export { ChatEmpty } from './ChatEmpty';
 
@@ -67,10 +69,11 @@ interface ChatInputProps {
   onNew: () => void;
   onShowHelp?: () => void;
   onCall?: () => void;
+  focusMode?: boolean;
 }
 
 export function ChatInput(props: ChatInputProps) {
-  const { disabled, placeholder, onStop, value, setValue, mode, setMode, caps, bypass, setBypass, model, setModel, modelLocked, models, onRefreshModels, effort, setEffort, mcpServers, selectedMcps, setSelectedMcps, attachments, onRemoveAttachment, onOpenAttachment, attThumbs, onAttThumb, queued, queuedIds, queuedAtts, queuedModels, onRunQueuedBg, onRunQueuedNow, onCancelQueueAt, onEditQueuedAt, onMoveQueued, queueHeld = false, onResumeQueue, queuePaused = false, queueReleaseAt = 0, onToggleQueuePause, paused = false, quotaResetsAt, onCall } = props;
+  const { disabled, placeholder, onStop, value, setValue, mode, setMode, caps, bypass, setBypass, model, setModel, modelLocked, models, onRefreshModels, effort, setEffort, mcpServers, selectedMcps, setSelectedMcps, attachments, onRemoveAttachment, onOpenAttachment, attThumbs, onAttThumb, queued, queuedIds, queuedAtts, queuedModels, onRunQueuedBg, onRunQueuedNow, onCancelQueueAt, onEditQueuedAt, onMoveQueued, queueHeld = false, onResumeQueue, queuePaused = false, queueReleaseAt = 0, onToggleQueuePause, paused = false, quotaResetsAt, onCall, focusMode } = props;
   const hasAtt = attachments.length > 0;
   const attUploading = attachments.some((a) => a.uploading);
   const resetLabel = quotaResetsAt ? new Date(quotaResetsAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : null;
@@ -82,8 +85,9 @@ export function ChatInput(props: ChatInputProps) {
   return (
     <div className="relative z-20 shrink-0 px-3 py-3">
       <div className="mx-auto w-full max-w-[760px]">
-      {hasAtt && <AttachmentChips attachments={attachments} onRemoveAttachment={onRemoveAttachment} onOpen={onOpenAttachment} thumbs={attThumbs} onThumb={onAttThumb} />}
       {mic.error && <ComposerNotice icon="mic" onDismiss={mic.dismissError}>{mic.error}</ComposerNotice>}
+      <FocusCollapse hidden={!!focusMode}>
+      {hasAtt && <AttachmentChips attachments={attachments} onRemoveAttachment={onRemoveAttachment} onOpen={onOpenAttachment} thumbs={attThumbs} onThumb={onAttThumb} />}
       {mic.hint && <ComposerNotice icon="mic" tone="info" onDismiss={mic.dismissHint}>{mic.hint}</ComposerNotice>}
       {queued.length > 0 && <QueuedBanner queued={queued} queuedIds={queuedIds} queuedAtts={queuedAtts} queuedModels={queuedModels} models={models} onRunBg={onRunQueuedBg} onRunNow={onRunQueuedNow} onCancelQueueAt={onCancelQueueAt} onEdit={onEditQueuedAt} onMove={onMoveQueued} held={queueHeld} onResume={onResumeQueue} paused={queuePaused} releaseAt={queueReleaseAt} onTogglePause={onToggleQueuePause} quotaHeld={paused} resetLabel={resetLabel} />}
       {paused && (
@@ -91,8 +95,10 @@ export function ChatInput(props: ChatInputProps) {
           Tokens do plano esgotados — chat pausado{resetLabel ? ` até ${resetLabel}` : ''}. Nada é perdido: a fila retoma sozinha quando a janela resetar.
         </ComposerNotice>
       )}
+      </FocusCollapse>
       <input ref={fileRef} type="file" multiple onChange={pick} className="hidden" />
       <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={pick} className="hidden" />
+      {focusMode && <div><FocusSummary queued={queued.length} attachments={attachments.length} /></div>}
       <div className="relative" onDragEnter={onDragEnter} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
       {dragging && (
         <div className="absolute inset-0 z-40 flex items-center justify-center gap-2 rounded-3xl border-2 border-dashed border-orange-500/60 bg-neutral-950/85 text-[13px] font-medium text-orange-300 backdrop-blur-xs">
@@ -125,7 +131,7 @@ export function ChatInput(props: ChatInputProps) {
             enterKeyHint={touch ? 'enter' : 'send'}
             placeholder={paused ? 'Enfileirar mensagem…' : mic.listening ? 'Ouvindo…' : placeholder ?? (touch && !hintSeen ? 'Mensagem · Enter quebra linha' : 'Mensagem')}
             style={{ maxHeight: composerMaxH() }}
-            className="scroll-thin relative w-full resize-none bg-transparent py-1 text-[16px] leading-7 text-neutral-100 placeholder-neutral-600 outline-hidden"
+            className="scroll-thin relative w-full resize-none pr-3 bg-transparent py-1 text-[16px] leading-7 text-neutral-100 placeholder-neutral-600 outline-hidden"
           />
         </div>
         <div className="flex shrink-0 items-center pointer-coarse:ml-auto">

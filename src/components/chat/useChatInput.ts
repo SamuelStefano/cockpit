@@ -98,7 +98,7 @@ export function useChatInput(args: UseChatInputArgs) {
   // ⌘. opens the model sheet, ⌘⇧A attaches a file (keyboard path to both composer controls).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
+      if (!(e.metaKey || e.ctrlKey) || e.altKey || document.activeElement !== taRef.current) return;
       if (e.key === '.' && !e.shiftKey) { e.preventDefault(); window.dispatchEvent(new Event(OPEN_MODEL_EVENT)); }
       else if (e.key.toLowerCase() === 'a' && e.shiftKey) { e.preventDefault(); fileRef.current?.click(); }
     };
