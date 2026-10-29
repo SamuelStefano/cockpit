@@ -27,6 +27,12 @@ const MAX_PENDING = 32;
 export const MAX_CHANNEL_MS = 12 * 3600_000;
 const SWEEP_MS = 10_000;
 const DROPPABLE = /^\{"t":"(delta|thinking|stats|bgAgents)"/;
+// A peek (another box's sidebar) subscribes to the summary: only these frames
+// are sealed for it, and the only thing it may ask for is the session list.
+const SUMMARY_OUT = /^\{"t":"(sessions|busy|agent-[a-z-]+)"/;
+const SUMMARY_IN = new Set(['list']);
+
+export type PeerScope = 'full' | 'summary';
 
 export interface AgentKeys { pub: Bytes; sign: CryptoKey }
 
@@ -80,6 +86,7 @@ export class SealedPeer extends EventEmitter {
   readonly OPEN = 1;
   readonly openedAt = Date.now();
   readyState = 1;
+  scope: PeerScope = 'full';
   private chain: Promise<unknown> = Promise.resolve();
 
   constructor(
@@ -97,6 +104,7 @@ export class SealedPeer extends EventEmitter {
   // Callers expect a synchronous send; the chain keeps frames in order.
   send(data: string): void {
     if (this.readyState !== 1) return;
+    if (this.scope === 'summary' && !SUMMARY_OUT.test(data.slice(0, 32))) return;
     const droppable = DROPPABLE.test(data.slice(0, 24));
     const p = droppable ? 1 : 0;
     this.chain = this.chain.then(async () => {
@@ -109,9 +117,20 @@ export class SealedPeer extends EventEmitter {
   deliver(frame: { s: unknown; d: unknown }): void {
     this.chain = this.chain.then(async () => {
       const text = await this.channel.open(frame);
-      if (this.readyState !== 1 || this.intercept(this, text)) return;
+      if (this.readyState !== 1 || this.subscribe(text) || this.intercept(this, text)) return;
       this.emit('message', Buffer.from(text));
     }).catch(() => this.close(true));
+  }
+
+  // Narrowing is one-way: a summary peer never widens back to the full stream.
+  // While summary, anything but the allowed asks is swallowed here.
+  private subscribe(text: string): boolean {
+    const sub = text.startsWith('{"t":"subscribe"');
+    if (!sub && this.scope === 'full') return false;
+    let m: { t?: unknown; scope?: unknown } = {};
+    try { m = JSON.parse(text); } catch { return true; }
+    if (sub) { if (m.scope === 'summary') this.scope = 'summary'; return true; }
+    return !SUMMARY_IN.has(m.t as string);
   }
 
   ping(): void { this.emit('pong'); }

@@ -726,3 +726,64 @@ describe('device management frames', () => {
     expect(listDevices()).toHaveLength(1);
   });
 });
+
+describe('summary subscription (a peek from another box\'s sidebar)', () => {
+  async function peek() {
+    const h = await setup();
+    const dev = await deviceKeys();
+    const channel = await open(h, dev, [await enroll(h, dev)]);
+    const say = async (m: Record<string, unknown>) => { h.hub.handle(toAgent({ t: 'e2e', ...(await channel.seal(JSON.stringify(m))) })); await flush(); };
+    const wire = () => h.sent.filter((s) => s.includes('"t":"e2e"'));
+    const read = async (frames: string[]) => { const out: string[] = []; for (const f of frames) out.push(await channel.open(JSON.parse(f))); return out; };
+    return { h, say, wire, read };
+  }
+
+  it('seals only sessions, busy and agent-* frames once subscribed', async () => {
+    const { h, say, wire, read } = await peek();
+    await say({ t: 'subscribe', scope: 'summary' });
+    const before = wire().length;
+    const peer = h.served[0];
+    for (const f of [
+      { t: 'sessions', items: [] }, { t: 'delta', sessionKey: 'k', text: 'secret' }, { t: 'busy', keys: ['k'] },
+      { t: 'history', sessionId: 's', messages: [] }, { t: 'agent-custom-result', ok: true, message: '' }, { t: 'stats', stats: {} },
+      { t: 'term-data', id: 't', data: 'x' }, { t: 'agents', items: [] },
+    ]) peer.send(JSON.stringify(f));
+    await flush();
+    const types = (await read(wire().slice(before))).map((s) => JSON.parse(s).t);
+    expect(types).toEqual(['sessions', 'busy', 'agent-custom-result']);
+  });
+
+  it('a peer that never subscribed keeps the whole stream', async () => {
+    const { h, wire, read } = await peek();
+    const before = wire().length;
+    h.served[0].send('{"t":"delta","text":"x"}'); await flush();
+    expect((await read(wire().slice(before))).map((s) => JSON.parse(s).t)).toEqual(['delta']);
+  });
+
+  it('a summary peer may only ask for the session list, and the subscribe never reaches the app', async () => {
+    const { h, say } = await peek();
+    await say({ t: 'subscribe', scope: 'summary' });
+    await say({ t: 'prompt', sessionKey: 'k', text: 'rm -rf' });
+    await say({ t: 'term-input', id: 't', data: 'x' });
+    await say({ t: 'list' });
+    expect(h.got).toEqual(['{"t":"list"}']);
+  });
+
+  it('cannot widen back to the full stream', async () => {
+    const { h, say, wire, read } = await peek();
+    await say({ t: 'subscribe', scope: 'summary' });
+    await say({ t: 'subscribe', scope: 'full' });
+    const before = wire().length;
+    h.served[0].send('{"t":"delta","text":"x"}');
+    h.served[0].send('{"t":"busy","keys":[]}'); await flush();
+    expect((await read(wire().slice(before))).map((s) => JSON.parse(s).t)).toEqual(['busy']);
+  });
+
+  it('ignores an unknown scope', async () => {
+    const { h, say, wire, read } = await peek();
+    await say({ t: 'subscribe', scope: 'everything' });
+    const before = wire().length;
+    h.served[0].send('{"t":"delta","text":"x"}'); await flush();
+    expect((await read(wire().slice(before))).map((s) => JSON.parse(s).t)).toEqual(['delta']);
+  });
+});
