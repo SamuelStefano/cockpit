@@ -11,6 +11,7 @@ import { AssistantBlocks } from './AssistantBlocks';
 import type { LiveTurn } from './Thinking';
 import { LiveLine } from './LiveLine';
 import { QuoteButton, CopyMessageButton, RegenerateButton, SpeakButton, MemorizeButton } from './MessageActions';
+import { MessageActionsHost } from './MessageActionsHost';
 import { UserMessageRow } from './UserMessageRow';
 import { CompactDivider } from './CompactDivider';
 import { ActivityRow } from './ActivityRow';
@@ -94,7 +95,7 @@ export const MessageRow = memo(function MessageRow({ msg, avatar, bit, caretOnLa
           <span className="max-w-[260px] truncate">{modelLabel || 'Claude'}</span>
         </div>
       )}
-      <div className="min-w-0 flex-1">
+      <MessageActionsHost className="min-w-0 flex-1" spec={{ text: hasText ? messageToText(msg.blocks) : '', speak: true, onRegenerate, onQuote, onMemorize }}>
         {msg.quick && (
           <div className="mb-1 inline-flex items-center gap-1 rounded-full bg-sky-500/15 px-2 py-0.5 text-[12px] font-medium text-sky-300">
             <Icon name="zap" size={10} /> resposta rápida (paralela)
@@ -104,7 +105,7 @@ export const MessageRow = memo(function MessageRow({ msg, avatar, bit, caretOnLa
         {thinking && <LiveLine live={live} bit={bit} avatar={avatar} bare={showModelLabel} />}
         {!caretOnLast && !thinking && msg.stats?.durationMs ? <ThoughtFor ms={msg.stats.durationMs} /> : null}
         {hasText && !caretOnLast && (
-          <div className="-ml-1.5 mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 opacity-100 transition sm:pointer-fine:opacity-0 sm:focus-within:opacity-100 sm:group-hover/msg:opacity-100">
+          <div className="-ml-1.5 mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 opacity-100 transition max-[719px]:hidden pointer-coarse:hidden sm:pointer-fine:opacity-0 sm:focus-within:opacity-100 sm:group-hover/msg:opacity-100">
             <div className="flex flex-wrap items-center gap-x-2">
               <CopyMessageButton blocks={msg.blocks} />
               <SpeakButton blocks={msg.blocks} />
@@ -116,7 +117,8 @@ export const MessageRow = memo(function MessageRow({ msg, avatar, bit, caretOnLa
             {msg.ts && <time className="whitespace-nowrap text-[12px] tabular-nums text-neutral-600">{fmtClock(msg.ts)}</time>}
           </div>
         )}
-      </div>
+        {hasText && !caretOnLast && msg.ts && <time className="hidden text-[11px] tabular-nums text-neutral-600 max-[719px]:block pointer-coarse:block">{fmtClock(msg.ts)}</time>}
+      </MessageActionsHost>
     </div>
   );
 });

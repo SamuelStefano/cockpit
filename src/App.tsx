@@ -1,3 +1,4 @@
+import { useTurnHaptics } from './app/useTurnHaptics';
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { memorizePrompt } from './components/chat/memorize';
 import { TeamStack } from './components/team/TeamStack';
@@ -123,6 +124,7 @@ function CockpitBody() {
   const link: LinkState = conn.ws === 'connected' ? 'open' : conn.ws === 'reconnecting' ? 'connecting' : 'closed';
   const anyRunning = runningAnywhere.size > 0;
   const justDone = useJustDone(anyRunning);
+  useTurnHaptics(phase, justDone);
   const bitState = bitStateFor({ conn: link, agentOnline, running: anyRunning, thinking: phase === 'thinking', justDone });
 
   const { drawer, setDrawer, termSheet, setTermSheet, palette, setPalette, help, setHelp } = useOverlays(route);

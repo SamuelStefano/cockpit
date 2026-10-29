@@ -7,6 +7,7 @@ import { McpAppFrame } from './McpAppFrame';
 import { TodoPanel } from './TodoPanel';
 import { CopyTextButton } from './MessageActions';
 import { permissionDeniedTool } from './permission-deny';
+import { useCoarse } from '../primitives/useCoarse';
 import { fmtToolDuration } from './message-format';
 
 interface ToolCallCardProps {
@@ -19,9 +20,14 @@ export function ToolCallCard({ tool }: ToolCallCardProps) {
   // hundreds of collapsed tool cards, each holding a full <pre> of every line.
   const [everOpened, setEverOpened] = useState(open);
   if (open && !everOpened) setEverOpened(true);
+  const coarse = useCoarse();
+  const [showAll, setShowAll] = useState(false);
   const [showShellCmd, setShowShellCmd] = usePersisted('showShellCmd', true);
   const { status } = tool;
   const lines = tool.output || [];
+  const PHONE_LINES = 12;
+  const clipped = coarse && !showAll && lines.length > PHONE_LINES;
+  const shown = clipped ? lines.slice(-PHONE_LINES) : lines;
   const deniedTool = status === 'error' ? permissionDeniedTool(lines) : null;
 
   const statusEl = {
@@ -140,7 +146,8 @@ export function ToolCallCard({ tool }: ToolCallCardProps) {
           <div className={`grid transition-[grid-template-rows] duration-200 ease-out ${open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
             <div className="overflow-hidden">
             {everOpened && <pre className="scroll-thin max-h-52 overflow-auto border-t border-neutral-800 bg-[#070707] px-3 py-2.5 font-mono text-[12px] leading-relaxed text-neutral-400">
-              {lines.map((l, i) => (
+              {clipped && <button onClick={() => setShowAll(true)} className={`mb-1 block min-h-11 text-[12px] text-orange-300 ${tokens.focusRing}`}>… {lines.length - PHONE_LINES} linhas antes · ver tudo</button>}
+              {shown.map((l, i) => (
                 <div key={i} className={l.startsWith('##') || l.startsWith('?') ? 'text-sky-400/80' : l.startsWith(' M') ? 'text-orange-400/80' : ''}>{l || ' '}</div>
               ))}
             </pre>}

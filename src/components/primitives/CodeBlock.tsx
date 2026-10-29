@@ -51,14 +51,14 @@ function HighlightedCode({ code, lang }: CodeBlockProps) {
             title={wrap ? 'Não quebrar linhas' : 'Quebrar linhas longas'}
             aria-label="Quebrar linhas longas"
             aria-pressed={wrap}
-            className={`flex items-center gap-1 rounded-sm px-2 py-1 text-[12px] transition hover:bg-neutral-800 ${wrap ? 'text-orange-300' : 'text-neutral-500 hover:text-neutral-300'}`}
+            className={`flex items-center gap-1 rounded-sm px-2 py-1 pointer-coarse:min-h-9 pointer-coarse:min-w-9 pointer-coarse:justify-center text-[12px] transition hover:bg-neutral-800 ${wrap ? 'text-orange-300' : 'text-neutral-500 hover:text-neutral-300'}`}
           >
             <Icon name="wrapText" size={11} />
           </button>
-          <button onClick={save} title="Baixar trecho" aria-label="Baixar trecho" className="flex items-center gap-1 rounded-sm px-2 py-1 text-[12px] text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-300">
+          <button onClick={save} title="Baixar trecho" aria-label="Baixar trecho" className="flex items-center gap-1 rounded-sm px-2 py-1 pointer-coarse:min-h-9 pointer-coarse:min-w-9 pointer-coarse:justify-center text-[12px] text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-300">
             <Icon name="download" size={11} />
           </button>
-          <button onClick={() => copy(code)} className={`flex items-center gap-1 rounded-sm px-2 py-1 text-[12px] transition hover:bg-neutral-800 ${failed ? 'text-red-400' : 'text-neutral-500 hover:text-neutral-300'}`}>
+          <button onClick={() => copy(code)} className={`flex items-center gap-1 rounded-sm px-2 py-1 pointer-coarse:min-h-9 pointer-coarse:min-w-9 pointer-coarse:justify-center text-[12px] transition hover:bg-neutral-800 ${failed ? 'text-red-400' : 'text-neutral-500 hover:text-neutral-300'}`}>
             <Icon name={copied ? 'check' : failed ? 'x' : 'copy'} size={11} />
             {copied ? 'copiado' : failed ? 'falhou' : 'copiar'}
           </button>
@@ -66,7 +66,7 @@ function HighlightedCode({ code, lang }: CodeBlockProps) {
       </div>
       {/* Focusable when not wrapping (lines may run past the edge): otherwise a
           keyboard user cannot reach them. A named focus stop needs a role. */}
-      <pre tabIndex={wrap ? undefined : 0} role={wrap ? undefined : 'region'} aria-label={wrap ? undefined : 'código'} className={`scroll-thin overflow-x-auto px-3 py-2.5 text-[13px] leading-relaxed ${wrap ? 'whitespace-pre-wrap wrap-break-word' : 'whitespace-pre'}`}>
+      <pre tabIndex={wrap ? undefined : 0} role={wrap ? undefined : 'region'} aria-label={wrap ? undefined : 'código'} className={`scroll-thin overflow-x-auto overscroll-x-contain px-3 py-2.5 text-[13px] leading-relaxed ${wrap ? 'whitespace-pre-wrap wrap-break-word' : 'whitespace-pre'}`}>
         {/* Sem tokens (carregando/offline) = texto puro, sem flash nem erro. */}
         <code className="font-mono text-neutral-200">{tokens ? renderTokens(tokens) : code}</code>
       </pre>
