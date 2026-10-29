@@ -14,7 +14,7 @@ function ToastCard({ item, onDismiss }: { item: ToastItem; onDismiss: (id: numbe
   return (
     <div className="fade-up pointer-events-auto flex w-full max-w-sm items-center gap-3 rounded-lg border border-neutral-800 bg-neutral-900 px-3.5 py-2.5 shadow-lg max-lg:min-h-11 max-lg:py-1.5 shadow-black/40">
       {item.tone === 'error' && <Icon name="x" size={14} className="shrink-0 text-red-400" />}
-      <span className={`min-w-0 flex-1 text-[13px] leading-snug max-lg:truncate ${item.tone === 'error' ? 'text-red-200' : 'text-neutral-100'}`}>
+      <span className={`min-w-0 flex-1 text-[13px] leading-snug max-lg:line-clamp-2 ${item.tone === 'error' ? 'text-red-200' : 'text-neutral-100'}`}>
         {item.message}
       </span>
       {item.action && (
@@ -53,7 +53,7 @@ export function Toaster({ phoneTop = false }: { phoneTop?: boolean }) {
     <div
       role="status"
       aria-live="polite"
-      className={`pointer-events-none fixed inset-x-0 z-50 flex flex-col items-center gap-2 px-4 ${phoneTop ? 'max-lg:top-14 lg:bottom-0' : 'bottom-0'}`}
+      className={`pointer-events-none fixed inset-x-0 z-50 flex flex-col items-center gap-2 px-4 ${phoneTop ? 'max-lg:top-[calc(env(safe-area-inset-top)+3.5rem)] lg:bottom-0' : 'bottom-0'}`}
       style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 1rem)' }}
     >
       {items.map((t) => <ToastCard key={t.id} item={t} onDismiss={dismiss} />)}
