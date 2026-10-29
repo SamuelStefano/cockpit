@@ -95,6 +95,7 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, draf
       />
       </FocusCollapse>
 
+      {/* Wrapper relativo: as afordâncias de scroll ancoram no fim da ÁREA DE
           SCROLL, não do painel — antes (bottom fixo no painel) um composer alto
           engolia os botões pra dentro do input. */}
       {hero ? <ChatEmpty compact={keyboardOpen} onPrompt={onPrompt} onSeed={setDraft} needsProvider={!claudeReady && !isAgentModel(model)}>{composer}</ChatEmpty> : (
@@ -136,8 +137,10 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, draf
 
       <FocusCollapse hidden={focus}>{turnStatus}</FocusCollapse>
 
-      <FocusCollapse hidden={focus}>
+      <FocusCollapse hidden={focus && !c.failed && !resumeOffer && !c.planPending}>
       <TurnBanners phase={phase} failed={c.failed} resumeOffer={resumeOffer} onResume={resumeOffer && resumeRun ? () => resumeRun(resumeOffer.sessionKey) : undefined} planPending={c.planPending} pendingQuestion={c.pendingQuestion} queuedCount={c.queued.length} lastEnd={lastEnd} retryLast={c.retryLast} retryText={c.retryText} onSend={onSend} onForceQueue={session ? () => queueForce(session.id) : undefined} />
+      </FocusCollapse>
+      <FocusCollapse hidden={focus && call.state.phase === 'off'}>
       <CallDock call={call} />
       </FocusCollapse>
 

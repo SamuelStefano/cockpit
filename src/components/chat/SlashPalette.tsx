@@ -16,10 +16,11 @@ interface SlashPaletteProps {
 
 export function SlashPalette({ matches, sel, setSel, complete, onDismiss }: SlashPaletteProps) {
   return (
-    <div role="listbox" id={SLASH_LIST_ID} aria-label="Comandos de barra" className="scroll-thin absolute bottom-full left-0 z-30 mb-2 max-h-60 pointer-coarse:max-h-[30dvh] w-full overscroll-contain overflow-auto rounded-lg border border-neutral-700 bg-neutral-900 py-1 shadow-xl shadow-black/50">
+    <div className="scroll-thin absolute bottom-full left-0 z-30 mb-2 max-h-60 pointer-coarse:max-h-[30dvh] w-full overscroll-contain overflow-auto rounded-lg border border-neutral-700 bg-neutral-900 py-1 shadow-xl shadow-black/50">
       {onDismiss && (
         <button type="button" onPointerDown={(e) => e.preventDefault()} onClick={onDismiss} className="sticky top-0 flex h-9 w-full items-center justify-end bg-neutral-900 px-3 text-[12px] text-neutral-500">Fechar</button>
       )}
+      <div role="listbox" id={SLASH_LIST_ID} aria-label="Comandos de barra">
       {matches.map((c, i) => {
         const local = isLocalSlash(c);
         return (
@@ -43,6 +44,7 @@ export function SlashPalette({ matches, sel, setSel, complete, onDismiss }: Slas
           </button>
         );
       })}
+      </div>
     </div>
   );
 }
