@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { COARSE_QUERY } from '../primitives/useCoarse';
 import { useCopied } from '../../lib/useCopied';
 import { haptic } from '../../lib/haptics';
-import { useLongPress } from './useLongPress';
+import { useLongPress } from '../sessions/useLongPress';
 import { MessageActionsSheet, type MessageAction } from './MessageActionsSheet';
 
 export interface MessageActionsSpec {
@@ -45,7 +45,7 @@ interface MessageActionsHostProps {
 export function MessageActionsHost({ spec, className, mid, children }: MessageActionsHostProps) {
   const [open, setOpen] = useState(false);
   const [, copy] = useCopied();
-  const press = useLongPress(() => {
+  const { handlers: press } = useLongPress(() => {
     if (typeof window.matchMedia !== 'function' || !window.matchMedia(COARSE_QUERY).matches) return;
     haptic('tap');
     setOpen(true);
