@@ -3,7 +3,7 @@ import { Badge, Button, ButtonGroup, Checkbox, Drawer, Input, ProgressBar, Radio
 import { Section } from './Section';
 import { Row } from './Row';
 
-// Pieces for dense workspaces (/pontos): tables, navigators, KPI strips.
+// Pieces for dense workspaces (admin tables): tables, navigators, KPI strips.
 export function DenseGallery() {
   const [checked, setChecked] = useState(true);
   const [seg, setSeg] = useState<'all' | 'open' | 'paid'>('all');

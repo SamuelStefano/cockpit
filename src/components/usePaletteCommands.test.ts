@@ -15,7 +15,7 @@ describe('usePaletteCommands navigation', () => {
   it('offers every route the header offers', () => {
     expect(navIds('student')).toHaveLength(navFor('student').length);
     expect(navIds('student')).toEqual(['go-chat', 'go-agentes', 'go-configuracoes']);
-    expect(navIds('root')).toEqual(expect.arrayContaining(['go-chat', 'go-pontos', 'go-equipe/rotinas', 'go-equipe/memoria']));
+    expect(navIds('root')).toEqual(expect.arrayContaining(['go-chat', 'go-canvas', 'go-equipe/rotinas', 'go-equipe/memoria']));
   });
 
   it('adds the admin-only routes only for admins', () => {

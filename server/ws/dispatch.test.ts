@@ -104,12 +104,7 @@ const crons = vi.hoisted(() => ({
 }));
 vi.mock('../crons', () => crons);
 vi.mock('../team', () => ({ getTeam: vi.fn(async () => []), saveBot: vi.fn(), deleteBot: vi.fn(), bindBotSession: vi.fn() }));
-const drafts = vi.hoisted(() => ({
-  readDrafts: vi.fn(async () => []),
-  mutateDrafts: vi.fn(async () => [{ id: 'ep-1', title: 'E', status: 'draft', createdAt: 0, tasks: [] }]),
-}));
-vi.mock('../dfl-drafts', () => drafts);
-const fin = vi.hoisted(() => ({ registerFinanceClient: vi.fn(), emitFinanceMsg: vi.fn() }));
+const fin = vi.hoisted(() => ({ registerFinanceClient: vi.fn() }));
 vi.mock('./finance-clients', () => fin);
 // Minimal stand-ins for the 'canvas-get' path (only readBoardChained,
 // buildCanvas, activeFlowRuns, registerCanvasClient and
@@ -568,50 +563,6 @@ describe('purge broadcasts to all clients', () => {
   });
 });
 
-describe('pontos-agent-tasks (botão "criar tasks com agente")', () => {
-  const msg = (over: Record<string, unknown> = {}): ClientMsg => ({
-    t: 'pontos-agent-tasks', reqId: 'r1', note: 'lesson studio',
-    epicCapCents: 500_000, monthCapCents: 400_000, pointValue: 75, ...over,
-  } as ClientMsg);
-
-  it('abre um turno autônomo com o prompt que carrega os dois tetos', async () => {
-    await handle(ws, msg(), 'admin');
-    expect(runs.startRun).toHaveBeenCalledOnce();
-    const opts = runs.startRun.mock.calls[0][0] as { ws: unknown; sessionKey: string; prompt: string; mode: string };
-    expect(opts.ws).toBeNull();
-    expect(opts.sessionKey).toMatch(/^pontos-agent-/);
-    expect(opts.mode).toBe('acceptEdits');
-    expect(opts.prompt).toContain('R$ 5.000,00');
-    expect(opts.prompt).toContain('R$ 4.000,00');
-    expect(opts.prompt).toContain('lesson studio');
-  });
-
-  it('target drafts: o agente monta no Deck (deck-drafts), não no DFL', async () => {
-    await handle(ws, msg({ target: 'drafts' }), 'admin');
-    const opts = runs.startRun.mock.calls[0][0] as { prompt: string };
-    expect(opts.prompt).toContain('~/bin/deck-drafts import');
-    expect(opts.prompt).toContain('NÃO use o MCP dfl-work');
-  });
-
-  it('responde ok com a sessão pra a UI mandar ele acompanhar', async () => {
-    await handle(ws, msg(), 'admin');
-    expect(bc.send).toHaveBeenCalledWith(ws, expect.objectContaining({ t: 'points-dfl-write', reqId: 'r1', kind: 'agent', ok: true }));
-  });
-
-  it('fora do loopback não dispara nada', async () => {
-    cfg.CONFIG.localOnly = false;
-    await handle(ws, msg(), 'admin');
-    expect(runs.startRun).not.toHaveBeenCalled();
-    expect(bc.send).toHaveBeenCalledWith(ws, expect.objectContaining({ kind: 'agent', ok: false }));
-  });
-
-  it('recusa nota grande demais em vez de estourar o teto de prompt', async () => {
-    await handle(ws, msg({ note: 'x'.repeat(9000) }), 'admin');
-    expect(runs.startRun).not.toHaveBeenCalled();
-    expect(bc.send).toHaveBeenCalledWith(ws, expect.objectContaining({ kind: 'agent', ok: false, message: 'nota grande demais' }));
-  });
-});
-
 describe('ações da fila estacionada', () => {
   beforeEach(() => {
     runs.runParkedNow.mockReturnValue({ ok: true as const });
@@ -724,34 +675,6 @@ describe('canvas-ctx-stats (session-reuse.ts pool lookup)', () => {
   it('drops non-string entries instead of forwarding a malformed sessions array', async () => {
     await handle(ws, { t: 'canvas-ctx-stats', sessions: ['ok', 42, null] } as unknown as ClientMsg, 'admin');
     expect(termStats.collectCtxOnly).toHaveBeenCalledWith(['ok']);
-  });
-});
-
-describe('drafts (Rascunhos para o DFL)', () => {
-  it('drafts-get answers only the asking socket and registers it for pushes', async () => {
-    await handle(ws, { t: 'drafts-get' }, 'admin');
-    expect(fin.registerFinanceClient).toHaveBeenCalledWith(ws);
-    expect(bc.send).toHaveBeenCalledWith(ws, { t: 'drafts', items: [] });
-    expect(bc.broadcast).not.toHaveBeenCalled();
-  });
-
-  it('a valid op is applied and pushed to finance sockets, never the global broadcast', async () => {
-    await handle(ws, { t: 'drafts-op', op: { op: 'delete-epic', id: 'ep-9' } }, 'admin');
-    expect(drafts.mutateDrafts).toHaveBeenCalledWith({ op: 'delete-epic', id: 'ep-9' });
-    expect(fin.emitFinanceMsg).toHaveBeenCalledWith(expect.objectContaining({ t: 'drafts' }));
-    expect(bc.broadcast).not.toHaveBeenCalled();
-  });
-
-  it('an unknown op is refused without touching the file', async () => {
-    await handle(ws, { t: 'drafts-op', op: { op: 'rm' } } as unknown as ClientMsg, 'admin');
-    expect(drafts.mutateDrafts).not.toHaveBeenCalled();
-    expect(bc.send).toHaveBeenCalledWith(ws, expect.objectContaining({ t: 'error' }));
-  });
-
-  it('a rule violation comes back as an error message', async () => {
-    drafts.mutateDrafts.mockRejectedValueOnce(new Error('épico ep-x não existe'));
-    await handle(ws, { t: 'drafts-op', op: { op: 'delete-task', epicId: 'ep-x', taskId: 't' } }, 'admin');
-    expect(bc.send).toHaveBeenCalledWith(ws, { t: 'error', message: 'épico ep-x não existe' });
   });
 });
 

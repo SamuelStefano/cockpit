@@ -30,8 +30,6 @@ const isTyping = () => {
 // an editor that still pointed at the previous session.
 const modalOpen = () => !!document.querySelector('[aria-modal="true"]');
 
-const CHORD_MS = 1000;
-
 export function useGlobalShortcuts({ sessions, running, activeSessionId, setActiveSessionId, updated, nav, onNew, setPalette, setHelp }: Args) {
   const [navPins] = usePersisted<string[]>('pinned', []);
   const [dismissedMap] = usePersisted<Record<string, number>>(WAITING_DISMISSED_KEY, {});
@@ -45,7 +43,6 @@ export function useGlobalShortcuts({ sessions, running, activeSessionId, setActi
   live.current = { ordered, activeSessionId, updated, onNew, toggleSidebar, setActiveSessionId, nav };
 
   useEffect(() => {
-    let chord = 0;
     const onKey = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey;
       const k = e.key.toLowerCase();
@@ -79,16 +76,6 @@ export function useGlobalShortcuts({ sessions, running, activeSessionId, setActi
           return;
         }
       }
-      if (mod || e.altKey) return; // chord keys are bare; any modifier (incl. Alt) means a different shortcut
-      // Alt+↑/↓ is handled below; `g p` is a two-key chord for typing-free contexts.
-      if (k === 'g' && !isTyping()) { chord = Date.now(); return; }
-      if (k === 'p' && chord && Date.now() - chord < CHORD_MS && !isTyping()) {
-        chord = 0;
-        e.preventDefault();
-        L.nav('/pontos');
-        return;
-      }
-      chord = 0;
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);

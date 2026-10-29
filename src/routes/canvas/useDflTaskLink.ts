@@ -29,8 +29,8 @@ export function searchDflTasks(tasks: DflTaskOption[], query: string, limit = 8)
   return [...byName, ...byContext].slice(0, limit);
 }
 
-// Flattens the project›epic›delivery›task tree (same snapshot /pontos already
-// fetches — server/dfl-sync.ts's fetchDflBundle, owner-filtered at the
+// Flattens the project›epic›delivery›task tree (the DFL snapshot
+// comes from server/dfl-sync.ts's fetchDflBundle, owner-filtered at the
 // source) into the two flat lists the link picker searches over.
 export function flattenDflTasks(snapshot: DflPointsSnapshot | null): DflTaskOption[] {
   if (!snapshot) return [];

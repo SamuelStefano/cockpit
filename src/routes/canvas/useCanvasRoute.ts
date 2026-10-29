@@ -82,7 +82,7 @@ export interface CanvasRouteProps {
   // client-only supplement to the server-persisted lastTurnOk on p.sessions.
   interrupted: Record<string, string>;
   // Kanban<->DFL card link (CardEditor's "vincular à task DFL"): the same
-  // owner-filtered read channel /pontos already uses (usePoints.ts), reused
+  // owner-filtered DFL snapshot channel (usePoints.ts), reused
   // here rather than a second fetch of the same data.
   dflSnapshot: DflPointsSnapshot | null;
   onDflGet: () => void;

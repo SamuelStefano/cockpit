@@ -15,11 +15,6 @@ export function WorkRoutes() {
           Custo estimado de 90 dias, custo de hoje, média por sessão e a tendência por período. A tabela por sessão
           ordena por custo, saída ou último uso e mostra 50 de cada vez. Com a página aberta, atualiza a cada minuto.
         </InfoCard>
-        <InfoCard icon="star" title="Pontos">
-          Só do root. O ledger de pontos, os épicos do DFL e os rascunhos num lugar só. Uma fatura por delivery, só com tasks
-          concluídas e ainda não faturadas, dentro do teto do mês; ela nasce <Pill>submitted</Pill> e passa pela
-          revisão do DFL antes de virar cobrança.
-        </InfoCard>
       </div>
     </section>
   );

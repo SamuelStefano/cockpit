@@ -9,15 +9,10 @@ import { funnelSessions } from '../funnel';
 import { getNotes, saveNotes } from '../notes';
 import { putDrop, listDrops, openDrop, removeDrop } from '../drop';
 import { putSecret, listSecrets, removeSecret } from '../vault';
-import { readPoints, createEntry, correctPoints, noteEntry, deleteEntry } from '../points';
 import { readDflSnapshot } from '../dfl-points';
-import { readDrafts, mutateDrafts } from '../dfl-drafts';
-import { isDraftOp } from '../../shared/dfl-drafts';
-import { registerFinanceClient, emitFinanceMsg } from './finance-clients';
+import { registerFinanceClient } from './finance-clients';
 import { runDflSync } from '../dfl-sync-runner';
 import { runDflWrite } from '../dfl-write-runner';
-import { buildAgentTasksPrompt, agentSessionKey, MAX_NOTE_BYTES } from '../pontos-agent';
-import { buildStageDraftsPrompt } from '../pontos-stage-prompt';
 import { getCrons, saveCron, deleteCron, runCronNow, pauseBotRoutines } from '../crons';
 import { coerceBotForRole, visibleCrons, cronWriteError, coerceCronForRole } from './student-team';
 import { botRoutineError } from '../../shared/bot-routine';
@@ -43,7 +38,7 @@ import { usageStats, lastUsageOf } from '../db';
 import { hideSession, unhideSession, purgeSession, setTitle, setNote } from '../store';
 import { parseSession, parseFullSession } from '../sessions/parse';
 import { collectHealth } from '../health';
-import { setEnv, unsetEnv, addMcp, removeMcp, installCli, envNameAllowedRemotely } from '../admin-ops';
+import { setEnv, unsetEnv, addMcp, removeMcp, installCli, envNameAllowedRemotely, claudeReady } from '../admin-ops';
 import { updateClaudeCli, restartDeck } from '../deck-ops';
 import { CONFIG } from '../config';
 import { send, broadcast } from './broadcast';
@@ -70,7 +65,6 @@ import { setMarathon, marathonKeys } from './marathon';
 import { sendDurableSnapshot } from './snapshot';
 import { requestPlanUsageRefresh, planUsageFrame } from './usage-plan';
 import { requestGrokUsageRefresh, grokUsageFrame } from './usage-grok';
-import { listGraphs, readGraph, buildGraph, deleteGraph, queryGraph, nodeOp } from '../graph';
 import { buildBench } from '../bench';
 import { buildCanvas } from '../canvas/index';
 import { readOrchestrator } from '../canvas/orchestrator';
@@ -163,47 +157,6 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     case 'box-roster': {
       const boxes = parseRoster(msg.boxes);
       if (boxes) { try { saveRoster(boxes); } catch { /* best effort: the context falls back to "unknown" */ } }
-      return;
-    }
-    case 'graph-list': {
-      send(ws, { t: 'graphs', items: await listGraphs() });
-      return;
-    }
-    case 'graph-open': {
-      const graph = await readGraph(msg.id);
-      if (!graph) { send(ws, { t: 'error', message: 'grafo não encontrado' }); return; }
-      send(ws, { t: 'graph-data', id: msg.id, graph });
-      return;
-    }
-    case 'graph-query': {
-      const res = await queryGraph(msg.id, msg.question, msg.budget);
-      if (!res) { send(ws, { t: 'error', message: 'grafo não encontrado' }); return; }
-      send(ws, { t: 'graph-query-result', id: msg.id, question: msg.question, answer: res.answer, tokens: res.tokens, miss: res.miss });
-      return;
-    }
-    case 'graph-node-op': {
-      const res = await nodeOp(msg.id, msg.op, msg.a, msg.b);
-      if (!res) { send(ws, { t: 'error', message: 'operação inválida no grafo' }); return; }
-      const label = msg.op === 'explain' ? `explicar ${msg.a}` : msg.op === 'affected' ? `impacto de ${msg.a}` : `caminho ${msg.a} → ${msg.b}`;
-      send(ws, { t: 'graph-query-result', id: msg.id, question: label, answer: res.answer, tokens: res.tokens, miss: res.miss });
-      return;
-    }
-    case 'graph-build': {
-      // Progresso em streaming: o graphify loga o avanço da extração no stdout; cada
-      // linha vira um frame p/ a UI mostrar o build vivo. build é longo (spawn AST).
-      const result = await buildGraph(msg.repo, (line) => send(ws, { t: 'graph-build-progress', line }));
-      send(ws, { t: 'graph-build-done', ok: result.ok, id: result.id, error: result.error });
-      if (result.ok && result.id) {
-        send(ws, { t: 'graphs', items: await listGraphs() });
-        const graph = await readGraph(result.id);
-        if (graph) send(ws, { t: 'graph-data', id: result.id, graph });
-      }
-      return;
-    }
-    case 'graph-delete': {
-      const ok = await deleteGraph(msg.id);
-      if (!ok) { send(ws, { t: 'error', message: 'não foi possível excluir o grafo' }); return; }
-      send(ws, { t: 'graphs', items: await listGraphs() });
       return;
     }
     case 'canvas-term-stats': {
@@ -710,54 +663,6 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       send(ws, { t: 'vault', items: listSecrets() });
       return;
     }
-    case 'points-get': {
-      const { entries, total } = await readPoints();
-      send(ws, { t: 'points', entries, total });
-      return;
-    }
-    // Escrita by:user. Após appendar o evento, re-fold e broadcast pra TODOS os
-    // aparelhos (o agente appenda via CLI; todos atualizam ao vivo). Validação de
-    // borda (frame cru): points finito 0..100000, strings presentes.
-    case 'points-add': {
-      if (typeof msg.title !== 'string' || !msg.title.trim() || typeof msg.points !== 'number' || !Number.isFinite(msg.points) || msg.points < 0 || msg.points > 100_000) {
-        send(ws, { t: 'error', message: 'ponto inválido' });
-        return;
-      }
-      await createEntry({ title: msg.title.trim(), points: msg.points, description: typeof msg.description === 'string' ? msg.description : undefined, by: 'user' });
-      const p = await readPoints();
-      broadcast({ t: 'points', entries: p.entries, total: p.total });
-      return;
-    }
-    case 'points-correct': {
-      if (typeof msg.entryId !== 'string' || typeof msg.points !== 'number' || !Number.isFinite(msg.points) || msg.points < 0 || msg.points > 100_000) {
-        send(ws, { t: 'error', message: 'correção inválida' });
-        return;
-      }
-      await correctPoints(msg.entryId, msg.points, 'user');
-      const p = await readPoints();
-      broadcast({ t: 'points', entries: p.entries, total: p.total });
-      return;
-    }
-    case 'points-note': {
-      if (typeof msg.entryId !== 'string' || typeof msg.description !== 'string') {
-        send(ws, { t: 'error', message: 'nota inválida' });
-        return;
-      }
-      await noteEntry(msg.entryId, msg.description, 'user');
-      const p = await readPoints();
-      broadcast({ t: 'points', entries: p.entries, total: p.total });
-      return;
-    }
-    case 'points-delete': {
-      if (typeof msg.entryId !== 'string') {
-        send(ws, { t: 'error', message: 'id inválido' });
-        return;
-      }
-      await deleteEntry(msg.entryId, 'user');
-      const p = await readPoints();
-      broadcast({ t: 'points', entries: p.entries, total: p.total });
-      return;
-    }
     // Snapshot financeiro DFL: UNICAST (send), nunca broadcast. Só chega aqui quem
     // passou pelo authorize (admin/root — points-dfl-* fora do STUDENT_ALLOWED).
     // Registra o socket p/ receber PUSH quando o cron reescrever o arquivo.
@@ -772,69 +677,6 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       registerFinanceClient(ws);
       send(ws, { t: 'points-dfl-syncing' });
       runDflSync().then((r) => { if (!r.ok) send(ws, { t: 'error', message: 'sync DFL falhou' }); }).catch(() => {});
-      return;
-    }
-    // Escritas no DFL prod (mudar pontos / gerar fatura). Gate DURO: só no loopback
-    // (box do dono) — o agente federado NUNCA escreve no financeiro do Samuel. Roda
-    // num processo filho (token fora deste processo) e, no sucesso, dispara um resync
-    // pra o snapshot refletir a mudança. Ação disparada por clique do usuário.
-    case 'points-dfl-change': {
-      if (!CONFIG.localOnly) { send(ws, { t: 'points-dfl-write', reqId: msg.reqId, kind: 'change', ok: false, message: 'escrita DFL só no loopback' }); return; }
-      registerFinanceClient(ws);
-      const r = await runDflWrite({ kind: 'points-change', taskId: msg.taskId, taskName: msg.taskName, currentPoints: msg.currentPoints, newPoints: msg.newPoints, reason: msg.reason });
-      send(ws, { t: 'points-dfl-write', reqId: msg.reqId, kind: 'change', ok: r.ok, message: r.ok ? undefined : r.error });
-      if (r.ok) runDflSync().catch(() => {});
-      return;
-    }
-    case 'points-dfl-invoice': {
-      if (!CONFIG.localOnly) { send(ws, { t: 'points-dfl-write', reqId: msg.reqId, kind: 'invoice', ok: false, message: 'escrita DFL só no loopback' }); return; }
-      registerFinanceClient(ws);
-      const r = await runDflWrite({ kind: 'invoice-create', deliveryId: msg.deliveryId, deliveryName: msg.deliveryName, projectId: msg.projectId, projectName: msg.projectName, referenceMonth: msg.referenceMonth, pricePerPoint: msg.pricePerPoint, tasks: msg.tasks });
-      send(ws, { t: 'points-dfl-write', reqId: msg.reqId, kind: 'invoice', ok: r.ok, message: r.ok ? undefined : r.error });
-      if (r.ok) runDflSync().catch(() => {});
-      return;
-    }
-    // Botão "criar tasks com agente": não escreve no DFL daqui — abre um turno
-    // autônomo (mesmo caminho do cron) com o prompt que carrega as duas regras de
-    // teto. Mesmo gate de loopback das escritas: o agente federado não dispara
-    // turno que mexe no financeiro do Samuel.
-    case 'pontos-agent-tasks': {
-      if (!CONFIG.localOnly) { send(ws, { t: 'points-dfl-write', reqId: msg.reqId, kind: 'agent', ok: false, message: 'agente de tasks só no loopback' }); return; }
-      const note = typeof msg.note === 'string' ? msg.note : '';
-      if (Buffer.byteLength(note) > MAX_NOTE_BYTES) { send(ws, { t: 'points-dfl-write', reqId: msg.reqId, kind: 'agent', ok: false, message: 'nota grande demais' }); return; }
-      const now = Date.now();
-      const sessionKey = agentSessionKey(now);
-      const req = { note, epicCapCents: msg.epicCapCents, monthCapCents: msg.monthCapCents, pointValue: msg.pointValue };
-      startRun({
-        ws: null,
-        sessionKey,
-        // 'drafts' = "Novo épico com agente": stages in the Deck, never in DFL.
-        prompt: msg.target === 'drafts' ? buildStageDraftsPrompt(req) : buildAgentTasksPrompt(req),
-        msgId: `pontos-${Date.now().toString(36)}`,
-        // Turno sem cliente atrelado: sem acceptEdits ele para no primeiro pedido
-        // de permissão e ninguém está lá pra aprovar. Não é bypass.
-        mode: 'acceptEdits',
-        effort: 'medium',
-      });
-      send(ws, { t: 'points-dfl-write', reqId: msg.reqId, kind: 'agent', ok: true, message: sessionKey });
-      return;
-    }
-    // Staged DFL epics: Deck-local data (no DFL write), owner-only like the finance
-    // snapshot. After a mutation every finance socket gets the new list; the file
-    // watcher also covers writes made by the deck-drafts CLI.
-    case 'drafts-get': {
-      registerFinanceClient(ws);
-      send(ws, { t: 'drafts', items: await readDrafts() });
-      return;
-    }
-    case 'drafts-op': {
-      registerFinanceClient(ws);
-      if (!isDraftOp(msg.op)) { send(ws, { t: 'error', message: 'operação de rascunho inválida' }); return; }
-      try {
-        emitFinanceMsg({ t: 'drafts', items: await mutateDrafts(msg.op) });
-      } catch (e) {
-        send(ws, { t: 'error', message: e instanceof Error ? e.message : 'rascunho: falhou' });
-      }
       return;
     }
     case 'crons-get': {
