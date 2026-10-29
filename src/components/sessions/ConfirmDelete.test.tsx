@@ -1,18 +1,18 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, cleanup, fireEvent } from '@testing-library/react';
-import { ConfirmArchive } from './ConfirmArchive';
+import { ConfirmDelete } from './ConfirmDelete';
 
 afterEach(cleanup);
 
 function setup() {
   const onConfirm = vi.fn();
   const onCancel = vi.fn();
-  render(<ConfirmArchive title="Sessão X" onConfirm={onConfirm} onCancel={onCancel} />);
+  render(<ConfirmDelete title="Sessão X" onConfirm={onConfirm} onCancel={onCancel} />);
   return { onConfirm, onCancel };
 }
 
-describe('ConfirmArchive (atalhos de teclado)', () => {
+describe('ConfirmDelete (atalhos de teclado)', () => {
   it('Enter fora de campos confirma; Esc cancela', () => {
     const { onConfirm, onCancel } = setup();
     fireEvent.keyDown(document.body, { key: 'Enter' });

@@ -4,7 +4,7 @@ import { renderHook, act } from '@testing-library/react';
 import { useSessionsPanel } from './useSessionsPanel';
 import type { Session } from '../../data/types';
 
-const base = { sessions: [], searchResults: [] };
+const base = { sessions: [], searchResults: [], onClose: () => {}, onSelect: () => {} };
 
 const sess = (id: string): Session =>
   ({ id, title: id, relative: 'agora', snippet: '', mtime: Date.now(), hasTerminal: false, active: false });
@@ -19,17 +19,6 @@ describe('useSessionsPanel', () => {
     expect(result.current.pinned.has('a')).toBe(true);
     act(() => result.current.togglePin('a'));
     expect(result.current.pinned.has('a')).toBe(false);
-  });
-
-  it('fecha o confirm de arquivar se a sessão sumir (deletada/arquivada remotamente)', () => {
-    const { result, rerender } = renderHook(
-      ({ sessions }) => useSessionsPanel({ ...base, sessions }),
-      { initialProps: { sessions: [sess('a')] } },
-    );
-    act(() => result.current.setConfirmId('a'));
-    expect(result.current.confirmId).toBe('a');
-    rerender({ sessions: [] });
-    expect(result.current.confirmId).toBeNull();
   });
 
   it('confirm de excluir vale para sessão arquivada e fecha quando ela some de ambas as listas', () => {

@@ -2087,7 +2087,7 @@ export function useCockpit(): Cockpit {
   // a ativa, cai pra próxima (abrindo o history dela).
   // Remoção local do sidebar (some na hora, escolhe fallback ativo, limpa estado
   // por sessão). Compartilhada por arquivar e excluir — só muda a msg ao backend.
-  const dropFromSidebar = useCallback((id: string) => {
+  const dropFromSidebar = useCallback((id: string, keepDraft = false) => {
     setSessions((prev) => {
       const next = prev.filter((s) => s.id !== id);
       if (activeRef.current !== id) return next;
@@ -2098,7 +2098,7 @@ export function useCockpit(): Cockpit {
     });
     setThreads((prev) => { const n = { ...prev }; delete n[id]; return n; });
     setPhases((prev) => { const n = { ...prev }; delete n[id]; return n; });
-    setDrafts((prev) => { const n = { ...prev }; delete n[id]; return n; });
+    if (!keepDraft) setDrafts((prev) => { const n = { ...prev }; delete n[id]; return n; });
     setUsage((prev) => { const n = { ...prev }; delete n[id]; return n; });
     setTurnStats((prev) => { if (!(id in prev)) return prev; const n = { ...prev }; delete n[id]; return n; });
     setInterrupted((prev) => { if (!(id in prev)) return prev; const n = { ...prev }; delete n[id]; return n; });
@@ -2120,8 +2120,10 @@ export function useCockpit(): Cockpit {
   }, [send, focusSession]);
 
   const onClose = useCallback((id: string) => {
-    if (id && !id.startsWith('new-')) send({ t: 'hide', sessionId: id });
-    dropFromSidebar(id);
+    const real = !!id && !id.startsWith('new-');
+    if (real) send({ t: 'hide', sessionId: id });
+    // Archive is undoable: the unsent draft must still be there on Desfazer.
+    dropFromSidebar(id, real);
   }, [send, dropFromSidebar]);
 
   // Excluir: some do cockpit por completo (nem em Arquivadas). O .jsonl no disco

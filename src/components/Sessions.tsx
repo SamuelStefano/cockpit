@@ -11,7 +11,7 @@ import { SessionRow } from './sessions/SessionRow';
 import { SessionSkeletonRow } from './sessions/SessionSkeletonRow';
 import { BoxSwitcher } from './sessions/BoxSwitcher';
 import { ArchivedSection } from './sessions/ArchivedSection';
-import { ConfirmArchive } from './sessions/ConfirmArchive';
+import { ConfirmDelete } from './sessions/ConfirmDelete';
 import { useSessionsPanel } from './sessions/useSessionsPanel';
 
 const NO_RESULTS: Session[] = [];
@@ -45,7 +45,7 @@ export interface SessionsPanelProps {
 }
 
 function SessionsPanelImpl({ sessions, loading, activeId, onSelect, onNew, marathon, onToggleMarathon, onRename, onDescribe, onClose, onDelete, onStop, archived = [], onUnhide, onCloseMobile, running, stalled, updated, runStart = {}, userId, searchResults = NO_RESULTS, onSearch, embedded = false }: SessionsPanelProps) {
-  const { query, setQuery, searchRef, confirmId, setConfirmId, deleteId, setDeleteId, pinned, togglePin, dismissedWaiting, dismissWaiting, filtered } = useSessionsPanel({ sessions, archived, searchResults, onSearch, userId });
+  const { query, setQuery, searchRef, archive, deleteId, setDeleteId, pinned, togglePin, dismissedWaiting, dismissWaiting, filtered } = useSessionsPanel({ sessions, archived, searchResults, onSearch, userId, activeId, onClose, onUnhide, onSelect });
   const boxes = useBoxGroups({ onNew });
 
   const renderRow = (s: Session) => (
@@ -54,7 +54,7 @@ function SessionsPanelImpl({ sessions, loading, activeId, onSelect, onNew, marat
       running={running?.has(s.id)} stalled={stalled?.has(s.id)} updated={updated?.has(s.id)} runStart={runStart[s.id]} pinned={pinned.has(s.id)} onTogglePin={togglePin}
       marathon={marathon?.has(s.id)} onToggleMarathon={onToggleMarathon}
       onSelect={(id) => { onSelect(id); onCloseMobile && onCloseMobile(); }}
-      onRename={onRename} onDescribe={onDescribe} onClose={setConfirmId} onDelete={onDelete ? setDeleteId : undefined} onStop={onStop} />
+      onRename={onRename} onDescribe={onDescribe} onClose={archive} onDelete={onDelete ? setDeleteId : undefined} onStop={onStop} />
   );
 
   return (
@@ -108,16 +108,8 @@ function SessionsPanelImpl({ sessions, loading, activeId, onSelect, onNew, marat
         {!loading && onUnhide && <ArchivedSection archived={archived} onUnhide={onUnhide} onDelete={onDelete ? setDeleteId : undefined} onView={(id) => { onSelect(id); onCloseMobile && onCloseMobile(); }} />}
         </BoxGroups>
       </div>
-      {confirmId && (
-        <ConfirmArchive
-          title={sessions.find((s) => s.id === confirmId)?.title || 'esta sessão'}
-          onConfirm={() => { onClose(confirmId); setConfirmId(null); }}
-          onCancel={() => setConfirmId(null)}
-        />
-      )}
       {deleteId && onDelete && (
-        <ConfirmArchive
-          mode="delete"
+        <ConfirmDelete
           title={(sessions.find((s) => s.id === deleteId) || archived.find((s) => s.id === deleteId))?.title || 'esta sessão'}
           onConfirm={() => { onDelete(deleteId); setDeleteId(null); }}
           onCancel={() => setDeleteId(null)}

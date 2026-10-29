@@ -23,7 +23,7 @@ export function AdminConfirm({
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.isComposing) return;
-      // Mesma guarda do ConfirmArchive: Enter digitado num campo (ou num botão já
+      // Mesma guarda do ConfirmDelete: Enter digitado num campo (ou num botão já
       // focado) não pode confirmar sozinho uma ação destrutiva de admin.
       const t = e.target as HTMLElement | null;
       const typing = !!t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'BUTTON' || t.isContentEditable);

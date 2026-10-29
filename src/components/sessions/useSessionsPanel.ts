@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import type { Session } from '../../data/types';
 import { usePersisted } from '../../lib/persist';
 import { PINS_KEY, syncEnabled, pushPinsRemote } from '../../lib/session-prefs';
+import { toast } from '../primitives/toast-bus';
 import { filterSessions } from './filter';
 import { useWaitingDismissed } from './useWaitingDismissed';
 
@@ -11,18 +12,28 @@ interface UseSessionsPanelArgs {
   searchResults: Session[];
   onSearch?: (q: string) => void;
   userId?: string;
+  activeId?: string;
+  onClose: (id: string) => void;
+  onUnhide?: (id: string) => void;
+  onSelect: (id: string) => void;
 }
 
-export function useSessionsPanel({ sessions, archived = [], searchResults, onSearch, userId }: UseSessionsPanelArgs) {
+export function useSessionsPanel({ sessions, archived = [], searchResults, onSearch, userId, activeId, onClose, onUnhide, onSelect }: UseSessionsPanelArgs) {
   const [query, setQuery] = useState('');
-  const [confirmId, setConfirmId] = useState<string | null>(null);
+  // Archiving only flips metadata on the server, so it runs at once and the toast
+  // offers the way back. Local `new-` sessions have nothing to restore: no toast.
+  const archive = useCallback((id: string) => {
+    const wasActive = activeId === id;
+    onClose(id);
+    if (!onUnhide || id.startsWith('new-')) return;
+    toast('Sessão arquivada', {
+      action: { label: 'Desfazer', onClick: () => { onUnhide(id); if (wasActive) onSelect(id); } },
+    });
+  }, [activeId, onClose, onUnhide, onSelect]);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  // Sessão sumiu (deletada/arquivada por outro cliente) com o modal aberto:
-  // fecha em vez de deixar um confirm órfão agindo num id que não existe mais.
-  useEffect(() => {
-    if (confirmId && !sessions.some((s) => s.id === confirmId)) setConfirmId(null);
-  }, [confirmId, sessions]);
+  // Sessão sumiu (deletada por outro cliente) com o modal aberto: fecha em vez
+  // de deixar um confirm órfão agindo num id que não existe mais.
   useEffect(() => {
     if (deleteId && !sessions.some((s) => s.id === deleteId) && !archived.some((s) => s.id === deleteId)) setDeleteId(null);
   }, [deleteId, sessions, archived]);
@@ -76,7 +87,7 @@ export function useSessionsPanel({ sessions, archived = [], searchResults, onSea
 
   return {
     query, setQuery,
-    confirmId, setConfirmId,
+    archive,
     deleteId, setDeleteId,
     pinned, togglePin,
     dismissedWaiting, dismissWaiting,
