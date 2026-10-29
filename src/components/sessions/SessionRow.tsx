@@ -29,14 +29,15 @@ export interface SessionRowProps {
   onDismissWaiting?: (id: string) => void;
 }
 
-// One conversation: one line of plain text; a dot only while working or waiting.
+// One conversation: one line of plain text; a dot while working, waiting, or finished with unseen output.
 export function SessionRow({ s, active, running, stalled, updated, runStart, pinned, marathon, onToggleMarathon, onTogglePin, onSelect, onRename, onDescribe, onClose, onDelete, onStop, waitingDismissed, onDismissWaiting }: SessionRowProps) {
   const { editing, setEditing, draft, setDraft, setDescEditing, setDescDraft, rowRef, commit } = useSessionRow({ s, onRename, onDescribe });
   const { open: actionsOpen, setOpen: setActionsOpen, consumeTap, handlers } = useLongPress(() => {});
   const now = useRunClock(!!running);
   const status = rowStatus({ running, stalled, waiting: s.waiting, runStart, relative: s.relative, now });
   const meta = running && runStart ? fmtRunElapsed(Math.max(0, now - runStart)) : s.relative;
-  const dot = status ? STATUS_DOT[status.tone] : null;
+  const finished = !status && !!updated && !active;
+  const dot = status ? STATUS_DOT[status.tone] : finished ? 'bg-orange-500 shadow-[0_0_6px_rgba(249,115,22,0.8)]' : null;
 
   return (
     <div
@@ -60,7 +61,7 @@ export function SessionRow({ s, active, running, stalled, updated, runStart, pin
           aria-current={active ? 'true' : undefined}
           className={`flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-left text-[14px] leading-tight outline-hidden ${active ? 'font-semibold text-orange-50' : updated ? 'font-medium text-neutral-100' : 'text-neutral-300 group-hover:text-neutral-100'}`}
         >
-          {dot && <span className={`h-2 w-2 shrink-0 rounded-full ${dot}`} title={status?.title ?? 'Novo output desde a última vez que você abriu'} />}
+          {dot && <span className={`h-2 w-2 shrink-0 rounded-full ${dot}`} title={status?.title ?? 'Terminou — resposta nova desde a última vez que você abriu'} />}
           {/* Fade instead of an ellipsis: the box spans the row, so only a title that reaches the edge fades. */}
           <span className="min-w-0 flex-1 overflow-hidden whitespace-nowrap [mask-image:linear-gradient(to_right,black_82%,transparent)]" title={s.title}>{displayTitle(s.title)}</span>
         </button>
