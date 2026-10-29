@@ -1,7 +1,7 @@
 // Formatadores que aparecem em MAIS DE UMA tela. Vivem em shared/ porque o rótulo de
-// tempo é produzido no servidor (`SessionMeta.relative`) e também no front (uso,
+// tempo é produzido no servidor (`SessionMeta.relative`) e também no front (pontos, uso,
 // harness): com uma cópia de cada lado o mesmo instante saía como "ontem" na sidebar,
-// "há 2d" numa tela e "1d" em /uso. Antes disso eram 4 relTime e 4 fmtCost divergentes.
+// "há 2d" em /pontos e "1d" em /uso. Antes disso eram 4 relTime e 4 fmtCost divergentes.
 
 // Tempo decorrido: "agora" / "42min" / "3h" / "2d" / "5sem".
 // Sem "há"/"atrás": o sufixo repetido em toda linha roubava largura do título (era o que

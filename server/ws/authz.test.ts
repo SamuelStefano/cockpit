@@ -92,7 +92,9 @@ describe('authorize', () => {
 
   it('every owner frame needs root: admin without it is denied, the owner passes', () => {
     const owner = [
-      'points-dfl-get', 'points-dfl-sync',
+      'points-get', 'points-add', 'points-correct', 'points-note', 'points-delete',
+      'points-dfl-get', 'points-dfl-sync', 'points-dfl-change', 'points-dfl-invoice',
+      'pontos-agent-tasks', 'drafts-get', 'drafts-op',
       'admin-env-set', 'admin-env-unset', 'admin-mcp-add', 'admin-mcp-remove',
       'admin-cli-install', 'admin-cli-update', 'admin-deck-restart',
       'agent-add-custom', 'agent-probe-draft', 'provider-probe',

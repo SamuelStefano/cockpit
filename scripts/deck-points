@@ -1,0 +1,61 @@
+#!/usr/bin/env node
+// deck-points — CLI que o AGENTE roda pra registrar pontos (story points) no
+// ledger vivo do Deck. Appenda um evento `create` by:agent no points.jsonl; o
+// watcher do backend vê a mudança e atualiza o app ao vivo em todos os aparelhos.
+//
+// Uso:
+//   deck-points add "<título>" <pontos> ["<descrição>"]
+//
+// Standalone de propósito (sem depender do build TS): duplica a lógica mínima de
+// append/validação de server/points.ts. Respeita COCKPIT_POINTS se setado.
+
+import { appendFileSync, mkdirSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join, dirname } from 'node:path';
+import { randomUUID } from 'node:crypto';
+
+const MAX_TITLE = 500;
+const MAX_DESC = 4000;
+const MAX_POINTS = 100000;
+
+function pointsFile() {
+  return process.env.COCKPIT_POINTS || join(homedir(), '.cockpit', 'points.jsonl');
+}
+
+function die(msg) {
+  process.stderr.write(`erro: ${msg}\n`);
+  process.stderr.write('uso: deck-points add "<título>" <pontos> ["<descrição>"]\n');
+  process.exit(1);
+}
+
+function add(argv) {
+  const [title, rawPoints, description] = argv;
+  if (!title || !title.trim()) die('título obrigatório');
+  if (rawPoints === undefined) die('pontos obrigatórios');
+  const points = Number(rawPoints);
+  if (!Number.isFinite(points) || points < 0 || points > MAX_POINTS) die(`pontos inválidos (0..${MAX_POINTS})`);
+
+  const ev = {
+    id: randomUUID(),
+    entryId: randomUUID(),
+    kind: 'create',
+    title: title.slice(0, MAX_TITLE),
+    points,
+    by: 'agent',
+    at: Date.now(),
+  };
+  if (typeof description === 'string' && description.length) ev.description = description.slice(0, MAX_DESC);
+
+  const f = pointsFile();
+  mkdirSync(dirname(f), { recursive: true });
+  appendFileSync(f, JSON.stringify(ev) + '\n', 'utf8');
+  process.stdout.write(`✓ registrado: ${ev.title} (${points} pts)\n`);
+}
+
+function main() {
+  const [cmd, ...rest] = process.argv.slice(2);
+  if (cmd === 'add') return add(rest);
+  die(`comando desconhecido: ${cmd || '(vazio)'}`);
+}
+
+main();

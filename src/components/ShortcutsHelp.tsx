@@ -20,6 +20,7 @@ const GROUPS: { title: string; items: { keys: string[]; label: string }[] }[] = 
       { keys: ['mod', 'B'], label: 'Recolher / expandir a barra lateral' },
       { keys: ['mod', 'J'], label: 'Abrir / fechar o terminal' },
       { keys: ['mod', '⇧', 'K'], label: 'Ir pro canvas' },
+      { keys: ['g', 'p'], label: 'Ir pra pontos' },
     ],
   },
   {

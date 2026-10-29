@@ -142,6 +142,13 @@ describe('useGlobalShortcuts', () => {
     expect(nav).toHaveBeenCalledWith('/');
   });
 
+  it('g then p opens pontos, but not while typing', () => {
+    const { nav } = mount();
+    key({ key: 'g' });
+    key({ key: 'p' });
+    expect(nav).toHaveBeenCalledWith('/pontos');
+  });
+
   it('Alt+B (non-Apple modifier) toggles the persisted sidebar state', () => {
     mount();
     key({ key: 'b', altKey: true });

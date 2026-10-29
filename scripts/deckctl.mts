@@ -425,9 +425,7 @@ async function cmdNew(text: string, flags: Flags): Promise<void> {
   }
   const sessionKey = `new-${randomUUID()}`;
   const client = await connect();
-  const mode = flagStr(flags, 'mode');
-  if (mode && mode !== 'auto' && mode !== 'acceptEdits') { client.close(); fail('--mode must be auto or acceptEdits'); }
-  const sys = await startNewTurn(client, sessionKey, { text, model: flagStr(flags, 'model'), effort: flagStr(flags, 'effort') as Effort | undefined, mode: mode as 'auto' | 'acceptEdits' | undefined });
+  const sys = await startNewTurn(client, sessionKey, { text, model: flagStr(flags, 'model'), effort: flagStr(flags, 'effort') as Effort | undefined });
   if (!sys) { client.close(); fail('no sessionId assigned by server (timeout) — turn may have failed to start'); }
   if (sys.kind === 'rejected') { client.close(); fail(`send rejected: ${sys.message}`); }
   if (sys.kind === 'parked') parked(client, 'the new session', sys.message);
@@ -1292,7 +1290,7 @@ Usage: deckctl <command> [args] [--json]
   board                                     kanban cards grouped by column + session items
   read <sessionId> [--chars N]              tail of a session's transcript (no WS)
   send <sessionId> "<text>" [--model M] [--effort E]   prompt an existing session (queues if busy)
-  new "<text>" [--cwd DIR] [--model M] [--mode auto|acceptEdits] [--title T]  start a new session, prints its sessionId
+  new "<text>" [--cwd DIR] [--model M] [--title T]     start a new session, prints its sessionId
   stop <sessionId>                          stop a running turn
   wait <sessionId> [--timeout S]            block until the turn ends (default 15s)
   rename <sessionId> "<title>" [--summary S]   set-meta: title (and optionally summary)

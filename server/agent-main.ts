@@ -31,7 +31,9 @@ import { startGrokUsageLoop, grokUsageFrame, requestGrokUsageRefresh } from './w
 import { getLastRate } from './ws/rate';
 import { startStatsLoop } from './ws/stats-loop';
 import { startSessionsWatch } from './sessions/watch';
+import { startPointsWatch } from './points-watch';
 import { startDflPointsWatch } from './dfl-points-watch';
+import { startDflDraftsWatch } from './dfl-drafts-watch';
 import { loadManagedEnv } from './admin-ops';
 import { startAutoPauseLoop } from './canvas/autopause-loop';
 import { SealedHub, loadE2eKeys, tofuWindow, type AgentKeys } from './e2e/hub';
@@ -402,7 +404,9 @@ export function runAgent(relayUrl: string): void {
   startHealthLoop(hasClients, broadcast);
   startAuthKeepAlive();
   startSessionsWatch(hasClients);
+  startPointsWatch(hasClients);
   startDflPointsWatch();
+  startDflDraftsWatch();
   // Só o agente liga (mesma trava de startParkedDrainer): o loop para/reenfileira
   // turno, e dois processos fariam a mesma escrita compartilhada em corrida.
   startAutoPauseLoop(); // canvas: para o turno mais pesado de uma área com orçamento estourado (opt-in por área)

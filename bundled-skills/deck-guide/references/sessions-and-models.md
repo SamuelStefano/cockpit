@@ -47,4 +47,4 @@ Per chat, the composer has a model picker and an effort picker.
 
 The sidebar footer opens Equipe (team bots, with Rotinas = crons and Memória under it),
 Skills, Conexões (providers, keys, tools and devices) and Configurações. Also: canvas
-(kanban of tasks run by sessions), docs.
+(kanban of tasks run by sessions), graph (repo graph), docs, pontos (owner-only ledger).
