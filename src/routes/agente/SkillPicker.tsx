@@ -28,7 +28,7 @@ export function SkillPicker({ skills, value, perms, onChange }: Props) {
         ))}
       </div>
       <Input aria-label="Buscar skill" placeholder="Buscar skill" value={q} onChange={(e) => setQ(e.target.value)} />
-      <p className="text-[12px] text-neutral-500">{value.length === 0 ? `Todas as ${skills.length} ligadas` : `${on.size} de ${skills.length} ligadas`}</p>
+      <p className="text-[12px] text-neutral-500">{value.length === 0 ? `Todas as ${skills.length} ligadas` : `${on.size} de ${skills.length} ligadas · as outras ficam bloqueadas`}</p>
       <div className="max-h-80 overflow-y-auto rounded-xl border border-neutral-800 bg-neutral-900/60">
         {groups.length === 0 && <p className="px-3 py-3 text-[13px] text-neutral-500">Nenhuma skill encontrada.</p>}
         {groups.map(([source, items]) => (

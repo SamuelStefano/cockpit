@@ -24,6 +24,12 @@ export function Admin() {
           Pelo relay, o acesso é por <span className="font-medium text-neutral-300">conta</span>. Em qualquer caso o token nunca é exposto: viaja só na conexão e fica no navegador.
         </InfoCard>
       </div>
+      <InfoCard icon="terminal" title="Agente externo como worker">
+        Turno roda sem TTY: <Pill>acceptEdits</Pill> nega Bash. Worker precisa de allow list em <Pill>~/.claude/settings.json</Pill> ou bypass.
+        MCP: o turno usa <Pill>--strict-mcp-config</Pill> e só carrega os escolhidos do <Pill>~/.claude.json</Pill>; <Pill>.mcp.json</Pill> do diretório é ignorado.
+        Skills: selecionar qualquer uma bloqueia as demais. <Pill>imported-*</Pill> é do Deck; sync externo não deve tocar.
+        Enviar e ler por script: <Pill>deckctl send</Pill>, <Pill>deckctl wait</Pill>, <Pill>deckctl read</Pill>.
+      </InfoCard>
       <Callout icon="shield" tone="red">
         <span className="font-medium">Default-deny por papel ·</span> as telas de administração ficam escondidas pra quem não é admin, Host e Contas só aparecem pro root, e o backend nega toda
         ação administrativa que não venha do papel certo — qualquer comando novo já entra negado por padrão até ser liberado explicitamente.
