@@ -8,7 +8,7 @@ import { keyboardOpen as isKeyboardOpen } from '../../app/useKeyboardOpen';
 // composer crescia até engolir as poucas linhas de thread que sobraram.
 // Keyboard open: never above 40% of what is left (landscape would otherwise give the
 // box most of a ~200px viewport), with a 96px floor.
-export const composerMaxH = (keyboardOpen = typeof window !== 'undefined' && isKeyboardOpen()): number => {
+export const composerMaxH = (keyboardOpen = typeof window !== 'undefined' && typeof window.matchMedia === 'function' && isKeyboardOpen()): number => {
   const vh = typeof window !== 'undefined' ? (window.visualViewport?.height ?? window.innerHeight) : 800;
   const base = Math.min(Math.max(Math.round(vh * 0.28), 120), 260);
   return keyboardOpen ? Math.max(96, Math.min(base, Math.round(vh * 0.4))) : base;
