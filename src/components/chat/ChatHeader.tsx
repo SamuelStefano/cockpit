@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { IconButton, Popover } from '../primitives';
-import { ConfirmArchive } from '../sessions/ConfirmArchive';
+import { ConfirmDelete } from '../sessions/ConfirmDelete';
 import { ChatHeaderCompact } from './ChatHeaderCompact';
 import { ChatHeaderMenu } from './ChatHeaderMenu';
 import { ContextRing } from './ContextRing';
@@ -105,7 +105,7 @@ export function ChatHeader({ session, messages, isEmpty, contextTokens, contextM
     </span>
   );
   const confirm = confirmDelete && session && onDelete && (
-    <ConfirmArchive
+    <ConfirmDelete
       title={session.title || 'esta sessão'}
       onConfirm={() => { onDelete(session.id); setConfirmDelete(false); }}
       onCancel={() => setConfirmDelete(false)}

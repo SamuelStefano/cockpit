@@ -11,7 +11,7 @@ import { SessionRow } from './sessions/SessionRow';
 import { SessionSkeletonRow } from './sessions/SessionSkeletonRow';
 import { BoxSwitcher } from './sessions/BoxSwitcher';
 import { ArchivedSection } from './sessions/ArchivedSection';
-import { ConfirmArchive } from './sessions/ConfirmArchive';
+import { ConfirmDelete } from './sessions/ConfirmDelete';
 import { useSessionsPanel } from './sessions/useSessionsPanel';
 
 const NO_RESULTS: Session[] = [];
@@ -109,7 +109,7 @@ function SessionsPanelImpl({ sessions, loading, activeId, onSelect, onNew, marat
         </BoxGroups>
       </div>
       {deleteId && onDelete && (
-        <ConfirmArchive
+        <ConfirmDelete
           title={(sessions.find((s) => s.id === deleteId) || archived.find((s) => s.id === deleteId))?.title || 'esta sessão'}
           onConfirm={() => { onDelete(deleteId); setDeleteId(null); }}
           onCancel={() => setDeleteId(null)}
