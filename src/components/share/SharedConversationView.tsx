@@ -32,7 +32,7 @@ export default function SharedConversationView({ pathname }: { pathname: string 
   }
   const { snap } = state;
   return (
-    <div className="min-h-dvh bg-neutral-950 text-neutral-100">
+    <div className="h-dvh overflow-y-auto overscroll-contain bg-neutral-950 text-neutral-100">
       <header className="border-b border-neutral-800 px-4 py-3">
         <h1 className="truncate text-[16px] font-bold">{snap.title}</h1>
         <p className="text-[12px] text-neutral-500">Compartilhado pelo Deck</p>
