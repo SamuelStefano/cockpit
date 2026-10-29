@@ -46,7 +46,7 @@ export function Observatorio({ connected, usageStats, onUsageList, sessions, rat
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-neutral-950">
-      <RouteHeader variant="bar" title="uso" badge={<Badge tone="neutral">{rows.length} sessões</Badge>} />
+      <RouteHeader variant="bar" hideOnPhone title="uso" badge={<Badge tone="neutral">{rows.length} sessões</Badge>} />
 
       {!connected ? (
         <Offline />

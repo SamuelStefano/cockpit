@@ -31,12 +31,13 @@ export function TeamStack(props: TeamStackProps) {
         >
           <span className="flex items-center">
             {entries.slice(0, SHOWN).map(({ view }, i) => (
-              <span key={view.bot.id} className={`rounded-full ring-2 ring-neutral-900 ${i ? '-ml-1.5' : ''}`}>
+              <span key={view.bot.id} className={`rounded-full ring-2 ring-neutral-900 ${i ? '-ml-1.5 max-lg:hidden' : ''}`}>
                 <Mascot mascot={view.bot.mascot} state={view.state} size={24} />
               </span>
             ))}
           </span>
-          {extra > 0 && <span className="text-[12px] text-neutral-400">+{extra}</span>}
+          {extra > 0 && <span className="text-[12px] text-neutral-400 max-lg:hidden">+{extra}</span>}
+          {views.length > 1 && <span className="text-[12px] text-neutral-400 lg:hidden">+{views.length - 1}</span>}
           {waiting > 0 && <span aria-hidden className="absolute right-0.5 top-0.5 h-2 w-2 rounded-full bg-orange-500 ring-2 ring-neutral-900" />}
         </button>
       </Sheet>

@@ -36,6 +36,7 @@ interface Props {
 // App mounts under the header.
 export function OfflineNotice({ show, cause, box = null, reconnect, offlineSince }: Props) {
   const [showConnect, setShowConnect] = useState(false);
+  const [open, setOpen] = useState(false);
   const [, tick] = useState(0);
   useEffect(() => {
     if (!show) return;
@@ -47,20 +48,31 @@ export function OfflineNotice({ show, cause, box = null, reconnect, offlineSince
   const diag = diagnosticLine(getLastClose()?.code, offlineSince);
   const network = !cause || cause === 'relay-unreachable' || cause === 'no-internet';
   return (
-    <div className="fade-up pointer-events-none absolute left-1/2 top-2.5 z-40 w-[min(92vw,30rem)] -translate-x-1/2">
-      <div role="alert" className="pointer-events-auto max-h-[80vh] overflow-y-auto rounded-lg border border-red-500/30 bg-red-500/12 px-3 py-2 shadow-2xl shadow-black/40 backdrop-blur-md">
+    <div className="fade-up pointer-events-none absolute left-1/2 top-2.5 z-40 w-[min(92vw,30rem)] -translate-x-1/2 max-lg:static max-lg:w-full max-lg:translate-x-0">
+      <div role="alert" className="pointer-events-auto max-h-[80vh] overflow-y-auto rounded-lg border border-red-500/30 bg-red-500/12 px-3 py-2 shadow-2xl shadow-black/40 backdrop-blur-md max-lg:min-h-11 max-lg:rounded-none max-lg:border-x-0 max-lg:border-t-0 max-lg:py-1 max-lg:shadow-none">
         <div className="flex items-start gap-2.5">
           <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-red-500/15 text-red-400">
             <Icon name="circle" size={13} />
           </span>
           <div className="min-w-0 flex-1 leading-tight">
-            <p className="text-[13px] font-medium text-red-200">{msg.title}</p>
-            <p className="text-[12px] text-red-200/70">{msg.body}</p>
-            <p className="mt-0.5 text-[12px] text-red-100">{msg.step}</p>
-            {msg.commands && <BoxRecoverySteps />}
-            {diag && <p className="mt-1 text-[12px] text-red-200/50">{diag}</p>}
-            {reconnect?.status === 'failed' && <p className="mt-1 text-[12px] text-red-200">Ainda sem conexão. {msg.step}</p>}
-            <div className="mt-2 flex flex-wrap items-center gap-2">
+            <button type="button" aria-expanded={open} onClick={() => setOpen((v) => !v)} className="hidden min-h-11 w-full items-center gap-1 text-left text-[13px] font-medium text-red-200 max-lg:flex">
+              <span className="min-w-0 flex-1 truncate">{msg.title}</span>
+              <Icon name={open ? 'chevronDown' : 'chevronRight'} size={14} />
+            </button>
+            {reconnect && !open && (
+              <Button variant="secondary" size="sm" icon="rotate" loading={reconnect.status === 'trying'} disabled={reconnect.status === 'trying'} onClick={reconnect.trigger} className="shrink-0 lg:hidden">
+                Reconectar
+              </Button>
+            )}
+            <p className="text-[13px] font-medium text-red-200 max-lg:hidden">{msg.title}</p>
+            <div className={open ? '' : 'max-lg:hidden'}>
+              <p className="text-[12px] text-red-200/70">{msg.body}</p>
+              <p className="mt-0.5 text-[12px] text-red-100">{msg.step}</p>
+              {msg.commands && <BoxRecoverySteps />}
+              {diag && <p className="mt-1 text-[12px] text-red-200/50">{diag}</p>}
+              {reconnect?.status === 'failed' && <p className="mt-1 text-[12px] text-red-200">Ainda sem conexão. {msg.step}</p>}
+            </div>
+            <div className={`mt-2 flex flex-wrap items-center gap-2 ${open ? '' : 'max-lg:hidden'}`}>
               {reconnect && (
                 <Button variant="secondary" size="xs" icon="rotate" loading={reconnect.status === 'trying'} disabled={reconnect.status === 'trying'} onClick={reconnect.trigger}>
                   {reconnect.status === 'trying' ? 'Reconectando…' : 'Reconectar agora'}

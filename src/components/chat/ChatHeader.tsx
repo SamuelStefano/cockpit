@@ -90,8 +90,8 @@ export function ChatHeader({ session, messages, isEmpty, contextTokens, contextM
       }
     >
       <span className="relative inline-flex">
-        <IconButton icon="ellipsis" label="Mais ações da conversa" side="bottom" aria-expanded={menu.open} aria-haspopup="dialog" onClick={menu.toggle} />
-        {(ctxHot || usageHot) && phoneMenu && <span aria-hidden className="pointer-events-none absolute right-1 top-1 h-2 w-2 rounded-full bg-red-400 ring-2 ring-neutral-950" />}
+        <IconButton icon="ellipsis" label={phoneMenu && (ctxHot || usageHot) ? `Mais ações da conversa, ${[ctxHot && 'contexto cheio', usageHot && 'uso do plano alto'].filter(Boolean).join(' e ')}` : 'Mais ações da conversa'} side="bottom" aria-expanded={menu.open} aria-haspopup="dialog" onClick={menu.toggle} />
+        {(ctxHot || usageHot) && phoneMenu && <span aria-hidden className={`pointer-events-none absolute right-1 top-1 h-2 w-2 rounded-full ring-2 ring-neutral-950 ${ctxHot ? 'bg-red-400' : 'bg-amber-400'}`} />}
       </span>
     </Popover>
   );

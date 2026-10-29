@@ -208,7 +208,7 @@ function CockpitBody() {
   const pageTitle = route === '/agentes'
     ? (agentId === 'novo' ? 'Novo agente' : agent.views.find((v) => v.bot.id === agentId)?.bot.name ?? 'Agente')
     : route === '/skills' && skillId ? skills.find((x) => x.id === skillId)?.name ?? skillId
-    : navLabel(route) ?? 'Deck';
+    : navLabel(route) ?? (route === '/onboarding' ? 'Começar' : 'Deck');
 
   const connectionsCtx = useMemo(() => ({ connections: cockpit.connections, loaded: cockpit.connectionsLoaded, refresh: cockpit.onConnectionsGet }), [cockpit.connections, cockpit.connectionsLoaded, cockpit.onConnectionsGet]);
   const gate = resolveAuthGate({ sbAuth, seal, ejectPairing, authRequired, submitToken });
