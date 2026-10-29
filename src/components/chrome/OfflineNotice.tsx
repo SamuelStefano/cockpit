@@ -55,16 +55,15 @@ export function OfflineNotice({ show, cause, box = null, reconnect, offlineSince
             <Icon name="circle" size={13} />
           </span>
           <div className="min-w-0 flex-1 leading-tight">
-            <button type="button" aria-expanded={open} onClick={() => setOpen((v) => !v)} className="hidden min-h-11 w-full items-center gap-1 text-left text-[13px] font-medium text-red-200 max-lg:flex">
-              <span className="min-w-0 flex-1 truncate">{msg.title}</span>
-              <Icon name={open ? 'chevronDown' : 'chevronRight'} size={14} />
+            <button type="button" aria-expanded={open} onClick={() => setOpen((v) => !v)} className="flex w-full items-center gap-1 text-left text-[13px] font-medium text-red-200 max-lg:min-h-11 lg:pointer-events-none">
+              <span className="min-w-0 flex-1 truncate lg:whitespace-normal">{msg.title}</span>
+              <Icon name={open ? 'chevronDown' : 'chevronRight'} size={14} className="lg:hidden" />
             </button>
             {reconnect && !open && (
               <Button variant="secondary" size="sm" icon="rotate" loading={reconnect.status === 'trying'} disabled={reconnect.status === 'trying'} onClick={reconnect.trigger} className="shrink-0 lg:hidden">
                 Reconectar
               </Button>
             )}
-            <p className="text-[13px] font-medium text-red-200 max-lg:hidden">{msg.title}</p>
             <div className={open ? '' : 'max-lg:hidden'}>
               <p className="text-[12px] text-red-200/70">{msg.body}</p>
               <p className="mt-0.5 text-[12px] text-red-100">{msg.step}</p>
