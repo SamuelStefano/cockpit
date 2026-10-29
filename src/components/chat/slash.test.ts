@@ -57,6 +57,13 @@ describe('classifySlash', () => {
     expect(imp && 'text' in imp && imp.text).toContain('conversations.json');
   });
 
+  it('never pins memory prompts to one home directory', () => {
+    for (const cmd of ['/attcontext', '/importgpt']) {
+      const r = classifySlash(cmd);
+      expect(r && 'text' in r && r.text).not.toMatch(/\/home\//);
+    }
+  });
+
   it('is case-insensitive on the command and model arg', () => {
     expect(classifySlash('/HELP')).toEqual({ kind: 'help' });
     expect(classifySlash('/Model Opus')).toEqual({ kind: 'model', model: 'opus' });

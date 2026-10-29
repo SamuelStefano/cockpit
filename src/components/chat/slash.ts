@@ -18,7 +18,8 @@ export const SLASH_HINTS: Record<string, string> = {
 export const isLocalSlash = (c: string) => c in SLASH_HINTS;
 export const slashHint = (c: string) => SLASH_HINTS[c] ?? 'enviado ao Claude como texto';
 
-const MEMORY_DIR = '/home/samuel/.claude/projects/-home-samuel/memory';
+// Resolved by Claude on the user's own box: a fixed path only worked for one home dir.
+const MEMORY_DIR = 'o diretório de memória persistente do Claude Code para esta pasta de trabalho (~/.claude/projects/<pasta-codificada>/memory — o mesmo que você já carrega)';
 
 // Prompt do /attcontext: destila o assunto da sessão atual (o claude já tem a
 // conversa inteira via --resume) e grava/atualiza um arquivo de memória.
@@ -26,7 +27,7 @@ const ATTCONTEXT_PROMPT = `Atualize a memória de contexto com base nesta sessã
 
 Leia toda a nossa conversa até aqui e destile o CONTEXTO DURÁVEL do assunto desta sessão — o que vale a pena lembrar em conversas futuras: objetivo, decisões firmes, restrições, estado atual e pendências. Ignore detalhes efêmeros (mensagens pontuais, ruído).
 
-Salve em ${MEMORY_DIR}/ como um arquivo markdown com frontmatter (name, description, metadata.type entre user|project|reference|feedback) e adicione/atualize o ponteiro de uma linha em MEMORY.md. Se já existir um arquivo sobre este assunto, ATUALIZE-O em vez de duplicar.
+Salve em ${MEMORY_DIR}, como um arquivo markdown com frontmatter (name, description, metadata.type entre user|project|reference|feedback) e adicione/atualize o ponteiro de uma linha em MEMORY.md. Se já existir um arquivo sobre este assunto, ATUALIZE-O em vez de duplicar.
 
 Ao terminar, responda em 2-3 linhas: o que salvou e onde.`;
 
@@ -36,9 +37,9 @@ const IMPORTGPT_PROMPT = `Importe meus contextos do ChatGPT.
 
 Anexei (ou vou anexar) o export do ChatGPT — o arquivo conversations.json. Leia o arquivo anexado; ele pode ser grande, então leia em lotes/offsets se precisar. MINERE os contextos DURÁVEIS sobre MIM e meus projetos: perfil, preferências, decisões, objetivos de vida e de projeto, pessoas e ferramentas recorrentes. Ignore perguntas pontuais e conversa descartável.
 
-Antes de gravar qualquer coisa: leia os arquivos atuais em ${MEMORY_DIR}/ pra não duplicar, e me mostre um RESUMO em lista dos contextos candidatos (título + 1 linha + tipo). Pergunte se pode gravar.
+Antes de gravar qualquer coisa: leia os arquivos atuais em ${MEMORY_DIR}, pra não duplicar, e me mostre um RESUMO em lista dos contextos candidatos (título + 1 linha + tipo). Pergunte se pode gravar.
 
-Quando eu confirmar, salve cada contexto como um arquivo markdown em ${MEMORY_DIR}/ com frontmatter (name, description, metadata.type entre user|project|reference|feedback) e adicione o ponteiro em MEMORY.md; ATUALIZE o que já existe em vez de duplicar.
+Quando eu confirmar, salve cada contexto como um arquivo markdown em ${MEMORY_DIR}, com frontmatter (name, description, metadata.type entre user|project|reference|feedback) e adicione o ponteiro em MEMORY.md; ATUALIZE o que já existe em vez de duplicar.
 
 Se eu ainda NÃO tiver anexado o conversations.json, me explique como exportar (ChatGPT → Settings → Data Controls → Export data, chega um .zip por email com o conversations.json) e peça pra anexar.`;
 
