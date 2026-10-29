@@ -1,5 +1,5 @@
 import { Icon, tokens, type IconName } from '../../components/primitives';
-import type { Perms } from './permissions';
+import type { Perms } from './perms';
 
 const ITEMS: { key: keyof Perms; label: string; icon: IconName }[] = [
   { key: 'read', label: 'Ler', icon: 'file' },
