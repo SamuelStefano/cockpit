@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import type { Session } from '../../data/types';
 import { usePersisted } from '../../lib/persist';
-import { PINS_KEY, TAGS_KEY, syncEnabled, pushPinsRemote, pushTagsRemote } from '../../lib/session-prefs';
+import { PINS_KEY, syncEnabled, pushPinsRemote } from '../../lib/session-prefs';
 import { filterSessions } from './filter';
 import { useWaitingDismissed } from './useWaitingDismissed';
 
@@ -27,7 +27,7 @@ export function useSessionsPanel({ sessions, archived = [], searchResults, onSea
     if (deleteId && !sessions.some((s) => s.id === deleteId) && !archived.some((s) => s.id === deleteId)) setDeleteId(null);
   }, [deleteId, sessions, archived]);
   // Logado no produto multi-conta: além do cache local, empurra o estado completo
-  // pro Supabase pra favoritos/tags seguirem a conta em outro device (a hidratação
+  // pro Supabase pra favoritos seguirem a conta em outro device (a hidratação
   // em [[session-prefs.ts]] traz de volta no login). No loopback fica só local.
   const synced = syncEnabled(userId);
   const [pins, setPins] = usePersisted<string[]>(PINS_KEY, []);
@@ -38,29 +38,6 @@ export function useSessionsPanel({ sessions, archived = [], searchResults, onSea
     if (synced) pushPinsRemote(userId!, next);
   }, [pins, setPins, synced, userId]);
 
-  // Etiquetas por sessão. Permite organizar/filtrar além da recência — o "tags"
-  // pedido junto do grupo "trabalhando agora" (#144).
-  const [tagMap, setTagMap] = usePersisted<Record<string, string[]>>(TAGS_KEY, {});
-  const [tagFilter, setTagFilter] = useState<string | null>(null);
-  const addTag = useCallback((id: string, tag: string) => {
-    const cur = tagMap[id] || [];
-    if (cur.includes(tag)) return;
-    const next = { ...tagMap, [id]: [...cur, tag] };
-    setTagMap(next);
-    if (synced) pushTagsRemote(userId!, next);
-  }, [tagMap, setTagMap, synced, userId]);
-  const removeTag = useCallback((id: string, tag: string) => {
-    const cur = (tagMap[id] || []).filter((t) => t !== tag);
-    const next = { ...tagMap };
-    if (cur.length) next[id] = cur; else delete next[id];
-    setTagMap(next);
-    if (synced) pushTagsRemote(userId!, next);
-  }, [tagMap, setTagMap, synced, userId]);
-  const allTags = useMemo(() => {
-    const set = new Set<string>();
-    for (const arr of Object.values(tagMap)) for (const t of arr) set.add(t);
-    return [...set].sort();
-  }, [tagMap]);
   const { dismissed: dismissedWaiting, dismissWaiting } = useWaitingDismissed(sessions);
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -90,8 +67,8 @@ export function useSessionsPanel({ sessions, archived = [], searchResults, onSea
   }, [query, onSearch]);
 
   const filtered = useMemo(
-    () => filterSessions(sessions, query, searchResults, pinned, tagFilter, tagMap),
-    [sessions, query, searchResults, pinned, tagFilter, tagMap],
+    () => filterSessions(sessions, query, searchResults, pinned),
+    [sessions, query, searchResults, pinned],
   );
 
   return {
@@ -99,7 +76,6 @@ export function useSessionsPanel({ sessions, archived = [], searchResults, onSea
     confirmId, setConfirmId,
     deleteId, setDeleteId,
     pinned, togglePin,
-    tagMap, tagFilter, setTagFilter, addTag, removeTag, allTags,
     dismissedWaiting, dismissWaiting,
     searchRef,
     filtered,

@@ -16,7 +16,7 @@ export function Overview() {
         </Card>
         <Card>
           <div className="mb-2 text-[13px] font-semibold uppercase tracking-wide text-sky-400/80">Operação</div>
-          <p className="text-[13px] leading-relaxed text-neutral-400">Telemetria da VPS, terminais reais e painel de saúde pra você ver e controlar o que está acontecendo.</p>
+          <p className="text-[13px] leading-relaxed text-neutral-400">Telemetria da VPS, terminais reais e saúde da máquina (Configurações → Máquina) pra você ver e controlar o que está acontecendo.</p>
         </Card>
       </div>
     </section>

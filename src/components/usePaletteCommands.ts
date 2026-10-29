@@ -3,7 +3,6 @@ import type { Cmd, IconName } from './command-palette-types';
 import type { Route } from '../useRoute';
 import type { PermMode } from '../../shared/protocol';
 import type { Session } from '../data/types';
-import { UI_SEEDS } from './paletteSeeds';
 import { navFor, type NavRole } from './chrome/nav-routes';
 
 const NAV_ICON: Partial<Record<Route, IconName>> = {
@@ -23,13 +22,12 @@ interface PaletteCommandsArgs {
   running: Set<string>;
   onStop: (key?: string) => void;
   onFocusComposer: () => void;
-  onSeedComposer: (text: string) => void;
   onShowHelp: () => void;
   role?: NavRole;
 }
 
 export function usePaletteCommands(args: PaletteCommandsArgs): Cmd[] {
-  const { onClose, nav, onNew, mode, setMode, sessions, onSelectSession, running, onStop, onFocusComposer, onSeedComposer, onShowHelp, role = 'student' } = args;
+  const { onClose, nav, onNew, mode, setMode, sessions, onSelectSession, running, onStop, onFocusComposer, onShowHelp, role = 'student' } = args;
   return useMemo<Cmd[]>(() => {
     const go = (to: Route) => () => { nav(to); onClose(); };
     const setM = (m: PermMode) => () => { setMode(m); onClose(); };
@@ -71,14 +69,6 @@ export function usePaletteCommands(args: PaletteCommandsArgs): Cmd[] {
         run: () => { onSelectSession(key); nav('/'); onClose(); },
       };
     });
-    const seeds: Cmd[] = UI_SEEDS.map((s) => ({
-      id: s.id,
-      label: s.label,
-      hint: '↵ envia',
-      icon: s.icon,
-      group: 'Gerar UI',
-      run: () => { nav('/'); onSeedComposer(s.prompt); onFocusComposer(); onClose(); },
-    }));
     const modes: Cmd[] = (['plan', 'auto', 'acceptEdits'] as PermMode[]).map((m) => ({
       id: `mode-${m}`,
       label: `Modo: ${MODE_LABEL[m]}`,
@@ -96,6 +86,6 @@ export function usePaletteCommands(args: PaletteCommandsArgs): Cmd[] {
       group: 'Sessões',
       run: () => { onSelectSession(s.id); nav('/'); onClose(); },
     }));
-    return [...nav_, ...actions, ...seeds, ...runningCmds, ...modes, ...sess];
-  }, [role, nav, onClose, onNew, mode, setMode, sessions, onSelectSession, running, onStop, onFocusComposer, onSeedComposer, onShowHelp]);
+    return [...nav_, ...actions, ...runningCmds, ...modes, ...sess];
+  }, [role, nav, onClose, onNew, mode, setMode, sessions, onSelectSession, running, onStop, onFocusComposer, onShowHelp]);
 }

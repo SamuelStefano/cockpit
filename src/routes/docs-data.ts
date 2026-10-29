@@ -31,7 +31,7 @@ export const SECTIONS: Section[] = [
   { id: 'graph', label: 'Graph (knowledge graph)', icon: 'zap' },
   { id: 'bench', label: 'Bench (repo externo)', icon: 'grip' },
   { id: 'rotas', label: 'Rotas de trabalho', icon: 'grip' },
-  { id: 'admin', label: 'Painel', icon: 'shield' },
+  { id: 'admin', label: 'Administração', icon: 'shield' },
   { id: 'bastidores', label: 'Por trás dos panos', icon: 'terminal' },
   { id: 'repo', label: 'Mapa do repositório', icon: 'file' },
 ];
@@ -58,7 +58,6 @@ export const FILEMAP: { group: string; tone: string; files: { path: string; what
       { path: 'src/useCockpit.ts', what: 'O cérebro do cliente: conexão WebSocket, sessões, envio de mensagens, telemetria, anexos.' },
       { path: 'src/useRoute.ts', what: 'Roteador minúsculo entre as abas (/, /contextos, /skills, /uso, /admin, /docs) e o chat aberto (/c/<id>).' },
       { path: 'src/app/DesktopLayout.tsx', what: 'Layout de 3 painéis do desktop (sessões · chat · terminais), com recolher/redimensionar.' },
-      { path: 'src/app/usePanelResize.ts', what: 'Lógica de arrastar pra redimensionar os painéis laterais.' },
       { path: 'src/app/useGlobalShortcuts.ts', what: 'Atalhos globais de teclado (⌘K, navegação entre sessões, Esc).' },
       { path: 'src/app/useTerminalTabs.ts', what: 'Estado das abas de terminal abertas.' },
     ],
@@ -76,8 +75,6 @@ export const FILEMAP: { group: string; tone: string; files: { path: string; what
       { path: 'src/components/Avatar.tsx', what: 'Avatares do usuário e da IA + menu de perfil com o seletor de ícone.' },
       { path: 'src/components/bit/turn-bit-state.ts', what: 'Estado do Bit no chat derivado do turno (pensando, ferramenta, escrevendo, esperando, erro, feito, offline).' },
       { path: 'src/components/CommandPalette.tsx', what: 'Paleta global de ações (⌘K).' },
-      { path: 'src/components/StatusBar.tsx', what: 'Rodapé com telemetria da máquina (CPU/RAM/disco/load).' },
-      { path: 'src/components/DocViewer.tsx', what: 'Visualizador de markdown reusado por Contextos e Skills.' },
       { path: 'src/components/primitives.tsx', what: 'Átomos de UI compartilhados: Icon, Badge, render de markdown.' },
       { path: 'src/components/primitives/livepreview/', what: 'Preview ao vivo do chat: runtimes em iframe, e o card do bench (```bench:<slug>) que roda componente de outro repo.' },
     ],
@@ -202,6 +199,6 @@ export const FEATURES: { icon: IconName; tone: string; title: string; body: Reac
   { icon: 'sparkles', tone: 'text-violet-300 border-violet-500/30 bg-violet-500/10', title: 'Contextos', body: 'A memória do agente em modo leitura. São arquivos markdown tipados (usuário, projeto, feedback, referência) que o agente escreve sozinho e consulta entre conversas. Aqui você vê e pesquisa tudo.' },
   { icon: 'star', tone: 'text-amber-300 border-amber-500/30 bg-amber-500/10', title: 'Skills', body: 'As habilidades instaladas — pacotes de instruções que o agente carrega sob demanda (ex.: spec-driven, squad-review). Visualize cada uma e compartilhe em markdown ou json.' },
   { icon: 'zap', tone: 'text-emerald-300 border-emerald-500/30 bg-emerald-500/10', title: 'Uso', body: 'O observatório de consumo: custo estimado, tokens, número de turnos por sessão e a janela de rate-limit do plano. É onde você entende pra onde o orçamento está indo.' },
-  { icon: 'shield', tone: 'text-sky-300 border-sky-500/30 bg-sky-500/10', title: 'Admin', body: 'Saúde da máquina e da infra: CPU/RAM/disco, estado do CLI, SSH, MCPs, contagem de sessões e memórias. O painel de controle de quem opera a VPS.' },
+  { icon: 'shield', tone: 'text-sky-300 border-sky-500/30 bg-sky-500/10', title: 'Admin', body: 'Saúde da máquina e da infra: CPU/RAM/disco, estado do CLI, SSH, MCPs, contagem de sessões e memórias. Fica em Configurações → Máquina, Pessoas e Conexões.' },
   { icon: 'terminal', tone: 'text-neutral-300 border-neutral-600 bg-neutral-800/60', title: 'Terminais', body: 'Shells reais (PTY) da VPS dentro do app, com abas. Multi-dispositivo: o mesmo terminal segue vivo se você abrir de outro aparelho. Bom pra acompanhar o que o agente faz no sistema.' },
 ];
