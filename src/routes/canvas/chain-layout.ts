@@ -1,17 +1,16 @@
 import {
-  AREA_IDS, sessionNodeId, type AreaId, type CanvasFlow, type CanvasNode, type OrchestratorInfo,
+  AREA_IDS, sessionNodeId, type AreaId, type CanvasFlow, type CanvasNode,
 } from '../../../shared/canvas';
-import { isOrchestratorNode } from './orchestrator';
 
-// Org-chart tree for the canvas' "cadeia" view: Orchestrator at the top,
+// Org-chart tree for the canvas' "cadeia" view: a root at the top,
 // areas below it, each area's root sessions below that, then each session's
 // own children (fork / flow successor) recursively. Pure and layout-agnostic
 // on purpose — CanvasChain.tsx only consumes the ChainPos[] this produces.
 
-export type ChainItemKind = 'orchestrator' | 'area' | 'session';
+export type ChainItemKind = 'root' | 'area' | 'session';
 
 export interface ChainItem {
-  id: string; // 'orchestrator' | `area:${AreaId}` | the session's own node id (s:<uuid>)
+  id: string; // 'root' | `area:${AreaId}` | the session's own node id (s:<uuid>)
   kind: ChainItemKind;
   node?: CanvasNode; // session kind only
   areaId?: AreaId; // area kind, and session kind (which area chip it inherits)
@@ -48,16 +47,10 @@ function flowParents(nodes: CanvasNode[], flows: CanvasFlow[]): Map<string, stri
 }
 
 export function buildChainTree(
-  nodes: CanvasNode[], flows: CanvasFlow[], running: Set<string>, orchestrator?: OrchestratorInfo,
+  nodes: CanvasNode[], flows: CanvasFlow[], running: Set<string>,
 ): ChainItem {
   const sessions = nodes.filter((n) => n.kind === 'session');
   const byId = new Map(sessions.map((n) => [n.id, n]));
-
-  // The session node the orchestrator itself runs in (if it's in this node
-  // set at all) becomes the root — it must never also show up a second time
-  // under its own area.
-  const orchestratorNode = orchestrator ? sessions.find((n) => isOrchestratorNode(n, orchestrator)) : undefined;
-  const rootNodeId = orchestratorNode?.id;
 
   // Parent resolution, in priority order: an explicit fork parent (server/
   // canvas/fork-sessions.ts), then a fired flow's source, else none (hangs
@@ -66,7 +59,6 @@ export function buildChainTree(
   const parentOf = new Map<string, string>(); // child node id -> parent node id
   const viaOf = new Map<string, 'fork' | 'flow'>();
   for (const n of sessions) {
-    if (n.id === rootNodeId) continue;
     const forkParentId = n.parentSessionId ? sessionNodeId(n.parentSessionId) : undefined;
     const isFork = !!forkParentId && byId.has(forkParentId);
     const parentId = isFork ? forkParentId : flowParentOf.get(n.id);
@@ -103,7 +95,6 @@ export function buildChainTree(
 
   const rootSessionsByArea = new Map<AreaId, CanvasNode[]>();
   for (const n of sessions) {
-    if (n.id === rootNodeId) continue;
     if (parentOf.has(n.id)) continue; // not a root — hangs under its parent above
     const area = n.area ?? 'outros';
     rootSessionsByArea.set(area, [...(rootSessionsByArea.get(area) ?? []), n]);
@@ -116,7 +107,7 @@ export function buildChainTree(
       children: sortSessions(rootSessionsByArea.get(a) ?? [], running).map(sessionItem),
     }));
 
-  return { id: 'orchestrator', kind: 'orchestrator', node: orchestratorNode, children: areaItems };
+  return { id: 'root', kind: 'root', children: areaItems };
 }
 
 // Level 2 (areas) are horizontal COLUMNS sized to fit the viewport (6 areas
@@ -247,7 +238,7 @@ export function layoutChainTree(root: ChainItem, opts: ChainLayoutOpts): { posit
     colX += CHAIN_AREA_W + CHAIN_AREA_GAP;
   }
 
-  // Root centers over the full column span (point 1: "orchestrator centered
+  // Root centers over the full column span (point 1: "root centered
   // above"), even with zero areas (degenerates to centering over one
   // notional empty column rather than crashing on an empty min/max).
   const firstX = areaXs[0] ?? 0;

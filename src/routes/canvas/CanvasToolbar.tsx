@@ -1,4 +1,4 @@
-import { Button, ButtonGroup } from '../../components/primitives';
+import { Button } from '../../components/primitives';
 import { useToolbarMenu } from './useToolbarMenu';
 
 interface Props {
@@ -10,40 +10,10 @@ interface Props {
   onOpenRecent: () => void;
   analysisOn: boolean;
   onToggleAnalysis: () => void;
-  // Absent when no orchestrator.json is configured, or its session/shell
-  // hasn't shown up on the canvas yet — the button has nowhere to jump to.
-  onFocusOrchestrator?: () => void;
-  // Absent when there's no orchestrator.json at all — nothing to dock.
-  dockOpen?: boolean;
-  onToggleDock?: () => void;
-}
-
-// Orchestrator's two actions (dock, jump) used to be two adjacent buttons
-// both labelled "orchestrator" — one caption, two square icon buttons instead
-// (UX review 24/09 item 10).
-function OrchestratorGroup({ dockOpen, onToggleDock, onFocusOrchestrator }: Pick<Props, 'dockOpen' | 'onToggleDock' | 'onFocusOrchestrator'>) {
-  if (!onToggleDock && !onFocusOrchestrator) return null;
-  return (
-    <ButtonGroup label="orchestrator">
-      {onToggleDock && (
-        <Button
-          variant={dockOpen ? 'secondary' : 'ghost'} size="sm" square icon="panelRight" onClick={onToggleDock}
-          title="fixar o orchestrator no sidebar (Ctrl+.)" className="text-fuchsia-400 hover:text-fuchsia-300"
-        />
-      )}
-      {!dockOpen && onFocusOrchestrator && (
-        <Button
-          variant="ghost" size="sm" square icon="command" onClick={onFocusOrchestrator}
-          title="ir para a janela do orchestrator" className="text-fuchsia-400 hover:text-fuchsia-300"
-        />
-      )}
-    </ButtonGroup>
-  );
 }
 
 export function CanvasToolbar({
-  zoom, onZoom, onFit, onResetLayout, onNewTerminal, onOpenRecent, analysisOn, onToggleAnalysis, onFocusOrchestrator,
-  dockOpen, onToggleDock,
+  zoom, onZoom, onFit, onResetLayout, onNewTerminal, onOpenRecent, analysisOn, onToggleAnalysis,
 }: Props) {
   const menu = useToolbarMenu();
   return (
@@ -52,8 +22,6 @@ export function CanvasToolbar({
           before "sessões" off-screen on a 390px phone (UX review 24/09
           item 10) — below `sm` these fold into the "…" menu instead. */}
       <div className="hidden items-center gap-1 sm:flex">
-        <OrchestratorGroup dockOpen={dockOpen} onToggleDock={onToggleDock} onFocusOrchestrator={onFocusOrchestrator} />
-        {(onToggleDock || onFocusOrchestrator) && <span className="mx-1 h-4 w-px bg-neutral-700" />}
         <Button variant="ghost" size="sm" icon="zap" onClick={onOpenRecent} title="abrir o terminal das sessões mais recentes">sessões</Button>
         <Button variant="ghost" size="sm" icon="terminal" onClick={onNewTerminal} title="novo terminal (tmux) no canvas">terminal</Button>
         <Button variant={analysisOn ? 'secondary' : 'ghost'} size="sm" icon="sliders" onClick={onToggleAnalysis} title="cpu, memória, contexto e tempo de cada terminal">análise</Button>
@@ -62,19 +30,10 @@ export function CanvasToolbar({
         <Button variant="ghost" size="sm" icon="maximize" onClick={onFit} title="enquadrar tudo" />
         <span className="mx-1 h-4 w-px bg-neutral-700" />
       </div>
-      {/* On a phone this menu is the map's only way into the orchestrator
-          (Canvas.tsx hides the floating ⌘ button here), so its two entries
-          say what they do instead of both reading "orchestrator". */}
       <div ref={menu.ref} className="relative sm:hidden">
         <Button variant="ghost" size="sm" square icon="ellipsis" onClick={menu.toggle} title="mais ações" />
         {menu.open && (
           <div className="absolute bottom-full right-0 z-20 mb-2 flex w-44 flex-col gap-0.5 rounded-lg border border-neutral-700 bg-neutral-900 p-1 shadow-2xl">
-            {onToggleDock && (
-              <Button variant={dockOpen ? 'secondary' : 'ghost'} size="sm" icon="panelRight" className="text-fuchsia-400" onClick={() => { onToggleDock(); menu.close(); }}>{dockOpen ? 'fechar orchestrator' : 'abrir orchestrator'}</Button>
-            )}
-            {!dockOpen && onFocusOrchestrator && (
-              <Button variant="ghost" size="sm" icon="command" className="text-fuchsia-400" onClick={() => { onFocusOrchestrator(); menu.close(); }}>ir pra janela dele</Button>
-            )}
             <Button variant="ghost" size="sm" icon="zap" onClick={() => { onOpenRecent(); menu.close(); }}>sessões</Button>
             <Button variant="ghost" size="sm" icon="terminal" onClick={() => { onNewTerminal(); menu.close(); }}>terminal</Button>
             <Button variant={analysisOn ? 'secondary' : 'ghost'} size="sm" icon="sliders" onClick={() => { onToggleAnalysis(); menu.close(); }}>análise</Button>

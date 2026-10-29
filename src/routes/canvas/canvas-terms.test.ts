@@ -128,14 +128,6 @@ describe('placeWindows', () => {
     const b = { ...out['s:2'], w: TERM_W, h: TERM_H };
     expect(a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h).toBe(false);
   });
-
-  it('priority still wins the first slot even with area grouping active', () => {
-    const areaOf = () => 'outros';
-    const out = placeWindows(pos, {}, ['s:1', 's:2'], new Set(['s:2']), areaOf);
-    expect(out['s:2'].x).toBe(0);
-    expect(out['s:2'].y).toBe(out['s:1'].y);
-    expect(out['s:1'].x).toBeGreaterThanOrEqual(TERM_W);
-  });
 });
 
 describe('winKey', () => {

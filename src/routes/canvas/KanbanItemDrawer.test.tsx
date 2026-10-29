@@ -7,7 +7,7 @@ import type { SessionKanbanItem } from './kanban-items';
 afterEach(cleanup);
 
 const item: SessionKanbanItem = {
-  nodeId: 's:a', sessionId: 'a', title: 'worker', subtitle: 'first message', orchestratorChild: true,
+  nodeId: 's:a', sessionId: 'a', title: 'worker', subtitle: 'first message',
   status: 'doing', running: true, waitingOnUser: false, needsAttention: false, mtime: 10,
 };
 const noop = () => {};

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import type { AreaId, CanvasFlow, CanvasNode, OrchestratorInfo, TermStats } from '../../../shared/canvas';
+import type { AreaId, CanvasFlow, CanvasNode, TermStats } from '../../../shared/canvas';
 import { EmptyState } from '../../components/primitives';
 import { ChainNode } from './ChainNode';
 import { CHAIN_AREA_H, CHAIN_ROOT_W, CHAIN_SESSION_H, countRunning, type ChainItem } from './chain-layout';
@@ -11,17 +11,16 @@ interface Props {
   running: Set<string>;
   waiting: Set<string>;
   stats: Record<string, TermStats>;
-  orchestrator?: OrchestratorInfo;
   onOpenTerm: (nodeId: string) => void;
   onOpenChat: (sessionId: string) => void;
 }
 
-// Org-chart / top-down tree: Orchestrator -> area -> session -> its own fork
+// Org-chart / top-down tree: root -> area -> session -> its own fork
 // or flow children. Desktop/tablet gets the absolute-positioned SVG-elbow
 // layout (useCanvasChain); a narrow viewport (<=640px) falls back to a
 // plain indented list — no horizontal scroll to fight on a phone.
 export function CanvasChain(p: Props) {
-  const chain = useCanvasChain(p.nodes, p.flows, p.running, p.orchestrator);
+  const chain = useCanvasChain(p.nodes, p.flows, p.running);
 
   if (chain.tree.children.length === 0) {
     return <EmptyState icon="command" title="Nada na cadeia" description="Ajuste os filtros — o mesmo escopo do canvas/kanban vale aqui." />;
@@ -32,7 +31,7 @@ export function CanvasChain(p: Props) {
       // min-w-0 + overflow-x-hidden: without them a deep tree's row content
       // (title + badges + buttons, none of it wrapping) pushed the list wider
       // than the 390px viewport instead of truncating (UX review 24/09
-      // item 11 — the Orchestrator row was cut mid-word at "ORCHE").
+      // item 11 — the root row was cut mid-word at "ORCHE").
       <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-3">
         <ChainTreeList
           item={chain.tree} depth={0} running={p.running} waiting={p.waiting} stats={p.stats}
@@ -50,12 +49,12 @@ export function CanvasChain(p: Props) {
 // The root centers over ALL its area children (chain-layout.ts's classic
 // tree-layout math), which on a wide org chart sits far to the right of x=0
 // — without this, opening "cadeia" shows only the first area's leaves,
-// orchestrator and area rows scrolled clean out of view. Scrolled ONCE per
+// root and area rows scrolled clean out of view. Scrolled ONCE per
 // tree width (not on every reposition from a collapse toggle, which would
 // yank the view back to center after the user just scrolled somewhere else).
 function ChainCanvas({ chain, p }: { chain: ReturnType<typeof useCanvasChain>; p: Props }) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const rootX = chain.positions.find((pos) => pos.item.kind === 'orchestrator')?.x ?? 0;
+  const rootX = chain.positions.find((pos) => pos.item.kind === 'root')?.x ?? 0;
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;

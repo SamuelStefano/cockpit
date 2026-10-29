@@ -10,7 +10,7 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 const item = (i: number): SessionKanbanItem => ({
-  nodeId: `s:${i}`, sessionId: `${i}`, title: `session ${i}`, subtitle: '', orchestratorChild: false,
+  nodeId: `s:${i}`, sessionId: `${i}`, title: `session ${i}`, subtitle: '',
   status: 'doing', running: true, waitingOnUser: false, needsAttention: false, mtime: i,
 });
 

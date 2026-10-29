@@ -7,7 +7,7 @@ import type { SessionKanbanItem } from './kanban-items';
 afterEach(cleanup);
 
 const item = (id: string, extra: Partial<SessionKanbanItem> = {}): SessionKanbanItem => ({
-  nodeId: `s:${id}`, sessionId: id, title: `sessão ${id}`, subtitle: '', status: 'review', orchestratorChild: false,
+  nodeId: `s:${id}`, sessionId: id, title: `sessão ${id}`, subtitle: '', status: 'review',
   running: false, waitingOnUser: false, needsAttention: false, mtime: Date.now(), ...extra,
 });
 const noop = () => {};

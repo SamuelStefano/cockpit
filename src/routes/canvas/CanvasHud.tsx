@@ -14,7 +14,7 @@ const SHOWN = 6;
 // Floating roster of what is alive right now — running first, then waiting on
 // you, then the most recent — so a glance at the map answers "who is working".
 // `items` is the SAME set CanvasFilters' status line summarizes (sessionItems
-// + orchestratorItem, running already folded with cv-live — kanban-items.ts)
+// running already folded with cv-live — kanban-items.ts)
 // so this roster's own "N rodando" never disagrees with that line's chip.
 export function CanvasHud({ items, onPick }: Props) {
   const [open, setOpen] = useState(() => window.matchMedia('(min-width: 768px)').matches);

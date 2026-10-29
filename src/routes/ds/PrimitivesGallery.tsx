@@ -100,7 +100,7 @@ export function PrimitivesGallery() {
           <Badge tone="green" dot>online</Badge>
           <Badge tone="red" dot>erro</Badge>
           <Badge tone="yellow">aviso</Badge>
-          <Badge tone="purple">orchestrator</Badge>
+          <Badge tone="purple">roxo</Badge>
         </Row>
         <Row label="clicável">
           <Badge tone="green" dot onClick={() => toast('foco no primeiro item')}>2 rodando</Badge>

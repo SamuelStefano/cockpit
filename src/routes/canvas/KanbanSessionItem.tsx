@@ -9,10 +9,6 @@ interface Props {
   item: SessionKanbanItem;
   stats?: TermStats;
   selected: boolean;
-  // The orchestrator's pinned item (Kanban.tsx) reuses this same card, just
-  // with the distinct chrome — never draggable INTO a status column, since
-  // it isn't part of the ToDo/Doing/Review/Done set.
-  orchestrator?: boolean;
   onSelect: (id: string) => void;
   onOpenSession: (id: string) => void;
   onOpenTerm: (nodeId: string) => void;
@@ -24,7 +20,7 @@ interface Props {
 // carries both actions plus everything else, so touch never loses them. The
 // per-item "marcar completo" button is gone — the bulk "completar antigos"
 // action and the drawer's own status control cover it now.
-export const KanbanSessionItem = memo(function KanbanSessionItem({ item, stats, selected, orchestrator, onSelect, onOpenSession, onOpenTerm }: Props) {
+export const KanbanSessionItem = memo(function KanbanSessionItem({ item, stats, selected, onSelect, onOpenSession, onOpenTerm }: Props) {
   const pct = stats ? ctxPct(stats) : null;
   const badge = item.needsAttention
     ? { tone: 'red' as const, text: 'precisa de atenção' }
@@ -38,17 +34,16 @@ export const KanbanSessionItem = memo(function KanbanSessionItem({ item, stats, 
       // Not a button itself: it holds the terminal/chat buttons, and a button
       // wrapping buttons is "nested interactive" for screen readers. The title
       // is the button; a click anywhere on the item bubbles here.
-      draggable={!orchestrator}
+      draggable
       onDragStart={(e) => { e.dataTransfer.setData('text/deck-session', item.sessionId); e.dataTransfer.effectAllowed = 'move'; }}
       onClick={() => onSelect(item.nodeId)}
       title={item.subtitle}
-      className={`group rounded-lg border px-2.5 py-2 has-[[data-item-select]:focus-visible]:ring-2 has-[[data-item-select]:focus-visible]:ring-orange-500/40 ${orchestrator ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'} ${
-        orchestrator ? 'border-fuchsia-500/60 bg-fuchsia-500/[0.08]' : selected ? 'border-orange-400/70 bg-neutral-900/70' : 'border-neutral-800 bg-neutral-900/70 hover:border-neutral-700'}`}
+      className={`group rounded-lg border px-2.5 py-2 has-[[data-item-select]:focus-visible]:ring-2 has-[[data-item-select]:focus-visible]:ring-orange-500/40 cursor-grab active:cursor-grabbing ${
+        selected ? 'border-orange-400/70 bg-neutral-900/70' : 'border-neutral-800 bg-neutral-900/70 hover:border-neutral-700'}`}
     >
       <div className="flex items-start gap-1.5">
-        <Icon name={orchestrator ? 'command' : 'terminal'} size={12} className={`mt-0.5 shrink-0 ${orchestrator ? 'text-fuchsia-400' : 'text-neutral-500'}`} />
+        <Icon name="terminal" size={12} className="mt-0.5 shrink-0 text-neutral-500" />
         <button type="button" data-item-select="" aria-current={selected ? 'true' : undefined} className="min-w-0 flex-1 cursor-pointer truncate text-left text-[13px] font-medium leading-snug text-neutral-200 outline-hidden">{item.title}</button>
-        {orchestrator && <Badge tone="purple">ORCHESTRATOR</Badge>}
       </div>
       <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[12px] text-neutral-500">
         {item.area && <span className="rounded border border-neutral-700 px-1 py-0.5 text-neutral-400">{AREA_LABELS[item.area]}</span>}
