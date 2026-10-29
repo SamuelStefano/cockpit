@@ -36,7 +36,7 @@ export function Uso({ dock, connected, usageStats, onUsageList, sessions, rate, 
         <UsagePanel inline rows={usageRows(chip.usage)} reset={resetAt ? relReset(resetAt) : ''} warn={warn || paused} blockedUntil={chip.blockedUntil} readAt={chip.readAt} nextReadAt={chip.nextReadAt} title={title} secondary={chip.secondary} />
       </div>
       <SectionTitle>Por conversa e por modelo</SectionTitle>
-      <div className="flex h-[640px] flex-col overflow-hidden rounded-xl border border-neutral-800">
+      <div className="flex flex-col lg:h-[640px] overflow-hidden rounded-xl border border-neutral-800">
         <Observatorio connected={connected} usageStats={usageStats} onUsageList={onUsageList} sessions={sessions} rate={rate} onOpenSession={onOpenSession} />
       </div>
     </>

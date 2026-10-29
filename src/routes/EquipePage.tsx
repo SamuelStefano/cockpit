@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import { Button, PageTitle, IconButton, Tabs, type TabItem } from '../components/primitives';
+import { Button, EmptyState, PageTitle, IconButton, Tabs, type TabItem } from '../components/primitives';
+import { navigateTo } from '../lib/route-nav';
 import { useIsMobile } from '../app/useIsMobile';
 import { TopBarAction } from '../components/chrome/sidebar/TopBarSlot';
 import type { Memory, MemoryInput, TeamBot, UsageStats } from '../../shared/protocol';
@@ -44,7 +45,11 @@ interface EquipePageProps {
 export function EquipePage(p: EquipePageProps) {
   const { views, isAdmin, connected, onUsageList } = p;
   useEffect(() => { if (connected && isAdmin) onUsageList(); }, [connected, isAdmin, onUsageList]);
-  const tab = p.tab ?? 'agentes';
+  const canSeeMemory = isAdmin && !!p.memory;
+  // /equipe/memoria has no tab for non-admins: fall back instead of an orphan tab strip.
+  const tab = p.tab === 'memoria' && !canSeeMemory ? 'agentes' : p.tab ?? 'agentes';
+  const { onGo } = p;
+  useEffect(() => { if (p.tab === 'memoria' && !canSeeMemory) onGo('/equipe'); }, [p.tab, canSeeMemory, onGo]);
   const phone = useIsMobile();
   const counts = todayCounts(views, p.usageStats?.series);
   const r = useRotinas({ ...p.cron, bots: p.bots, connected });
@@ -85,8 +90,12 @@ export function EquipePage(p: EquipePageProps) {
           <>
             {phone ? (
               <>
-                <p aria-label="Resumo da equipe" className="mb-2 text-[13px] text-neutral-400">{counts.working} trabalhando · {counts.waiting} esperando você</p>
-                <OrgList views={views} onOpen={p.onOpenAgent} />
+                {views.length > 0 && <p aria-label="Resumo da equipe" className="mb-2 text-[13px] text-neutral-400">{counts.working} trabalhando · {counts.waiting} esperando você</p>}
+                {views.length === 0 ? (
+                  <EmptyState bit="wave" size="sm" title="Nenhum agente ainda" description="Agentes trabalham sozinhos em rotinas e respondem no chat.">
+                    {isAdmin ? <Button icon="plus" onClick={p.onNew}>Novo agente</Button> : <Button variant="secondary" onClick={() => navigateTo('/')}>Ver no chat</Button>}
+                  </EmptyState>
+                ) : <OrgList views={views} onOpen={p.onOpenAgent} />}
               </>
             ) : (
               <>

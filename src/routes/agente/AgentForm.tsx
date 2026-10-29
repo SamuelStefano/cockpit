@@ -70,7 +70,7 @@ export function AgentForm({ bot, bots, models, locked, skills = [], onSave, onSa
         </Field>
         <Field label="Instruções" help="Em português, como se explicasse pra uma pessoa nova no time.">
           <textarea aria-label="Instruções" placeholder="O que esse agente faz, como fala, o que nunca faz…" rows={6}
-            value={draft.instructions} onChange={(e) => set('instructions', e.target.value)} className={`${field} resize-y`} />
+            value={draft.instructions} onChange={(e) => set('instructions', e.target.value)} className={`${field} resize-none`} />
         </Field>
         <Field label="Modelo">
           <ModelSection model={draft.model} fallbackModel={draft.fallbackModel} models={models} noAgents={noAgents}

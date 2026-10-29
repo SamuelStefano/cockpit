@@ -21,16 +21,16 @@ export function MascotPicker({ shape, color, onShape, onColor }: MascotPickerPro
         {SHAPES.map((s) => (
           <button key={s.id} type="button" role="radio" aria-checked={shape === s.id} aria-label={s.label} title={s.label}
             onClick={() => onShape(s.id)}
-            className={`rounded-xl p-1.5 transition ${shape === s.id ? `bg-neutral-800 ${tokens.insetRing.accent}` : 'hover:bg-neutral-900'} ${tokens.focusRing}`}>
+            className={`rounded-xl p-1.5 pointer-coarse:p-2.5 transition ${shape === s.id ? `bg-neutral-800 ${tokens.insetRing.accent}` : 'hover:bg-neutral-900'} ${tokens.focusRing}`}>
             <Mascot mascot={{ shape: s.id, color }} size={36} />
           </button>
         ))}
       </div>
-      <div role="radiogroup" aria-label="Cor do mascote" className="flex flex-wrap gap-1.5">
+      <div role="radiogroup" aria-label="Cor do mascote" className="flex flex-wrap gap-1.5 pointer-coarse:gap-3">
         {MASCOT_COLORS.map((c) => (
           <button key={c} type="button" role="radio" aria-checked={color === c} aria-label={`cor ${c}`}
             onClick={() => onColor(c)} style={{ background: c }}
-            className={`h-6 w-6 rounded-full transition ${color === c ? 'ring-2 ring-neutral-100 ring-offset-2 ring-offset-neutral-950' : ''} ${tokens.focusRing}`} />
+            className={`h-6 w-6 pointer-coarse:size-9 rounded-full transition ${color === c ? 'ring-2 ring-neutral-100 ring-offset-2 ring-offset-neutral-950' : ''} ${tokens.focusRing}`} />
         ))}
       </div>
     </div>
