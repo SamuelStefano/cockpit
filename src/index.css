@@ -121,7 +121,12 @@ h1, h2 { font-family: var(--font-display); font-weight: 700; letter-spacing: 0; 
 .sheet-scrim { animation: sheet-fade 120ms ease-out; }
 @media (prefers-reduced-motion: reduce) { .sheet-panel, .sheet-scrim { animation: none; } }
 
-.scroll-thin { scrollbar-width: thin; scrollbar-color: #27272c transparent; }
+/* Chrome 121+ drops the ::-webkit-scrollbar styling whenever scrollbar-color is set and
+   paints the native bar with arrow buttons; only Firefox gets the standard props. */
+@supports not selector(::-webkit-scrollbar) {
+  .scroll-thin { scrollbar-width: thin; scrollbar-color: #27272c transparent; }
+}
+.scroll-thin::-webkit-scrollbar-button { display: none; }
 .scroll-thin::-webkit-scrollbar { width: 8px; height: 8px; }
 .scroll-thin::-webkit-scrollbar-thumb { background: #27272c; border-radius: 8px; }
 .scroll-thin::-webkit-scrollbar-thumb:hover { background: #3d3d44; }
