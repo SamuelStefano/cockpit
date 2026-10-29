@@ -1,5 +1,5 @@
 import { BrandMark, Button, Input } from '../primitives';
-import { isTouchMobile } from '../chat/touch';
+import { isVirtualKeyboardOnly } from '../chat/touch';
 import { AuthIntro } from './AuthIntro';
 import { AuthFeedback } from './AuthFeedback';
 import { AuthModeTabs } from './AuthModeTabs';
@@ -38,7 +38,7 @@ export function SupabaseAuthGate({ auth }: { auth: AuthGateActions }) {
         <Input
           id="auth-email"
           type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-          autoComplete="email" inputMode="email" autoFocus={!isTouchMobile()} placeholder="voce@exemplo.com"
+          autoComplete="email" inputMode="email" autoFocus={!isVirtualKeyboardOnly()} placeholder="voce@exemplo.com"
           className="mb-3"
         />
         {mode !== 'forgot' && (
