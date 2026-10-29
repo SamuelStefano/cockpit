@@ -15,13 +15,13 @@ const row = (props: Partial<Parameters<typeof SessionRow>[0]> = {}) =>
   render(<SessionRow s={s} active={false} onSelect={() => {}} onRename={() => {}} onClose={() => {}} {...props} />).container;
 
 describe('SessionRow', () => {
-  it('shows the title on one line, no time and no snippet', () => {
+  it('shows the title on one line with the relative time on the right, no snippet', () => {
     const c = row();
     const title = screen.getByText('Nova sessão');
     expect(title.className).toContain('whitespace-nowrap');
     expect(title.className).not.toContain('line-clamp');
     expect(c.querySelector('[data-row-meta]')).toBeNull();
-    expect(screen.queryByText('há 3m')).toBeNull();
+    expect(screen.getByText('há 3m').className).toContain('tabular-nums');
     expect(title.parentElement?.className).toContain('text-[14px]');
     expect(screen.queryByText('Pegue o contexto')).toBeNull();
   });
