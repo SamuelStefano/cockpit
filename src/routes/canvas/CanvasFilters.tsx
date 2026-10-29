@@ -8,6 +8,8 @@ import type { CanvasMode } from './useCanvasRoute';
 
 interface Props {
   mode: CanvasMode;
+  // Touch: the pan/zoom canvas view is unavailable, so its tab is dropped.
+  coarse?: boolean;
   onMode: (m: CanvasMode) => void;
   scope: CanvasScope;
   onScope: (s: CanvasScope) => void;
@@ -92,7 +94,7 @@ export function CanvasFilters(p: Props) {
           <Icon name="layers" size={14} className="text-orange-400" />
           <span className="font-mono text-[14px] font-semibold lowercase tracking-tight text-neutral-100">canvas</span>
         </span>
-        <Tabs items={MODES} active={p.mode} onChange={p.onMode} className="border-b-0" />
+        <Tabs items={p.coarse ? MODES.filter((m) => m.id !== 'canvas') : MODES} active={p.mode} onChange={p.onMode} className="border-b-0" />
         <span className="flex-1" />
         <div className="flex items-center gap-1 sm:hidden">
           <Button variant="ghost" size="sm" icon="sliders" onClick={() => setFiltersOpen(true)}>filtros</Button>

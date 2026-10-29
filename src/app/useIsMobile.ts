@@ -4,8 +4,16 @@ import { useState, useEffect } from 'react';
 // terminal do not fit a tablet held in hands. `?ui=mobile|desktop` forces either (e2e).
 const QUERY = '(max-width: 1023px), (pointer: coarse) and (max-width: 1366px)';
 
+const UI_KEY = 'deck.ui';
+
+// The URL wins and is remembered (a first navigation drops the query); `?ui=auto` clears it.
 const forced = (): boolean | null => {
-  const v = new URLSearchParams(window.location.search).get('ui');
+  let v = new URLSearchParams(window.location.search).get('ui');
+  try {
+    if (v === 'auto') localStorage.removeItem(UI_KEY);
+    else if (v === 'mobile' || v === 'desktop') localStorage.setItem(UI_KEY, v);
+    else v = localStorage.getItem(UI_KEY);
+  } catch { /* storage blocked: URL only */ }
   return v === 'mobile' ? true : v === 'desktop' ? false : null;
 };
 

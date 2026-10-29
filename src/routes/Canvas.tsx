@@ -124,7 +124,7 @@ export function Canvas(p: CanvasRouteProps) {
           off-screen. */}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <CanvasFilters
-          mode={view} onMode={r.setMode} scope={r.scope} onScope={r.setScope} archived={r.archived} onArchived={r.setArchived}
+          coarse={coarse} mode={view} onMode={r.setMode} scope={r.scope} onScope={r.setScope} archived={r.archived} onArchived={r.setArchived}
           showAutomation={r.showAutomation} onShowAutomation={r.setShowAutomation}
           showContexts={r.showContexts} onShowContexts={r.setShowContexts}
           query={r.query} onQuery={r.setQuery} loading={p.loading} onRefresh={p.onCanvasGet}

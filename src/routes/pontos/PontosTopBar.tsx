@@ -18,7 +18,7 @@ export function PontosTopBar({ month, state, syncLabel, stale, syncing, onSync, 
     <>
     {/* Phone: the app top bar already names the route, so only the sync action survives there. */}
     <TopBarAction>
-      <IconButton icon="rotate" label="Sincronizar com o DFL" side="bottom" onClick={onSync} className={`pointer-coarse:h-11 pointer-coarse:w-11 ${stale ? 'text-yellow-300' : ''}`} />
+      <IconButton icon="rotate" label="Sincronizar com o DFL" side="bottom" loading={syncing} onClick={onSync} className={`pointer-coarse:h-11 pointer-coarse:w-11 ${stale ? 'text-yellow-300' : ''}`} />
     </TopBarAction>
     <div className="flex h-11 shrink-0 items-center gap-2 border-b border-neutral-800/80 px-4 max-lg:hidden">
       <Icon name="star" size={15} className="shrink-0 text-orange-400" />
