@@ -57,14 +57,14 @@ function Row({ item, current, fav, showProvider, onPick, onFav }: {
           {item.short}
           {sub && <small className="ml-1.5 text-[12px] text-neutral-500">{sub}</small>}
         </span>
-        {!item.expired && <Caps item={item} />}
+        {!item.expired && <span className="pointer-coarse:hidden"><Caps item={item} /></span>}
         {item.expired && <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] text-amber-300">expirou</span>}
         {item.sameQuota && <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] text-amber-300">mesma cota</span>}
         {item.free && <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] text-emerald-300">grátis</span>}
       </button>
       {!item.expired && !item.ghost && (
         <button type="button" onClick={onFav} aria-label={fav ? `Tirar ${item.short} dos favoritos` : `Favoritar ${item.short}`} aria-pressed={fav}
-          className={`inline-flex size-6 shrink-0 items-center justify-center rounded-md ${fav ? 'text-orange-400' : 'text-neutral-600 hover:text-neutral-300'} ${tokens.focusRing}`}>
+          className={`inline-flex size-6 pointer-coarse:size-10 shrink-0 items-center justify-center rounded-md ${fav ? 'text-orange-400' : 'text-neutral-600 hover:text-neutral-300'} ${tokens.focusRing}`}>
           <Icon name="star" size={13} className={fav ? 'fill-current' : ''} />
         </button>
       )}
@@ -101,7 +101,7 @@ export function ModelPanel(p: ModelPanelProps) {
           ref={searchRef}
           autoFocus
           aria-label="Buscar modelo"
-          placeholder="Buscar modelo… (ex.: rápido, local, visão)"
+          placeholder="Buscar modelo"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => {

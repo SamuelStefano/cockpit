@@ -51,6 +51,7 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
   // No banner mostramos só o corpo limpo + a contagem de anexos como badge.
   const queuedParsed = useMemo(() => parked.map((p) => parseAttachments(p.text)), [parked]);
   const queued = useMemo(() => queuedParsed.map((q) => q.body), [queuedParsed]);
+  const queuedIds = useMemo(() => parked.map((p) => p.id), [parked]);
   const queuedAtts = useMemo(() => queuedParsed.map((q) => q.attachments.length), [queuedParsed]);
   // Modelo com que cada item foi enfileirado: é daí que o seletor do disparo em
   // background parte, pra não sugerir um modelo diferente do que o item já tinha.
@@ -251,7 +252,7 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
 
   return {
     scrollRef, atBottom, promptAbove, onScroll, scrollToBottom, scrollToLastPrompt, captureAnchor,
-    queued, queuedAtts, queuedModels, enqueue, clearQueue, cancelQueueAt, editQueuedAt, moveQueuedItem, queueHeld, resumeQueue, runQueuedInBgAt, runQueuedNowAt, fullLoaded, setFullLoaded,
+    queued, queuedIds, queuedAtts, queuedModels, enqueue, clearQueue, cancelQueueAt, editQueuedAt, moveQueuedItem, queueHeld, resumeQueue, runQueuedInBgAt, runQueuedNowAt, fullLoaded, setFullLoaded,
     streaming, disabled, isEmpty,
     sentHistory, modelLabel, labelFor,
     planPending, pendingQuestion, failed, retryLast, retryText, bannerConfirm,

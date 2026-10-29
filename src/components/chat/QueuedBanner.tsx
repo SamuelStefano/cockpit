@@ -1,5 +1,5 @@
 import type { ModelInfo } from '../../../shared/protocol';
-import { Icon, tokens } from '../primitives';
+import { Button, Icon } from '../primitives';
 import { QueuedItem } from './QueuedItem';
 import { useQueuedBanner } from './useQueuedBanner';
 import { useNowTick } from './useNowTick';
@@ -8,8 +8,10 @@ import { queueStatus, queueStatusIcon, queueStatusLabel } from './queue-status';
 // Fila do cliente: mensagens digitadas durante um turno, disparadas em ordem
 // quando a sessão libera. Cada item: ver completo, editar, reordenar (drena sempre
 // do topo) e cancelar só ele. A fila vive no servidor (parked.json).
-export function QueuedBanner({ queued, queuedAtts, queuedModels, models, onRunBg, onRunNow, onCancelQueueAt, onEdit, onMove, held = false, onResume, paused = false, onTogglePause, quotaHeld = false, resetLabel, releaseAt = 0 }: {
+export function QueuedBanner({ queued, queuedIds, queuedAtts, queuedModels, models, onRunBg, onRunNow, onCancelQueueAt, onEdit, onMove, held = false, onResume, paused = false, onTogglePause, quotaHeld = false, resetLabel, releaseAt = 0 }: {
   queued: string[];
+  // Stable wire id of each item, parallel to `queued`.
+  queuedIds: string[];
   queuedAtts?: number[];
   // Disparo em background: modelo com que cada item foi enfileirado + catálogo.
   // Paralelo a `queued` (mesma origem, mesmo tamanho).
@@ -32,7 +34,7 @@ export function QueuedBanner({ queued, queuedAtts, queuedModels, models, onRunBg
   // Epoch ms em que o cooldown pós-reset acaba e a fila começa a soltar.
   releaseAt?: number;
 }) {
-  const q = useQueuedBanner(queued, onMove, onEdit);
+  const q = useQueuedBanner(queued, queuedIds, onMove, onEdit);
   const now = useNowTick(releaseAt > Date.now());
   const status = queueStatus({ held, paused, quotaHeld, releaseAt, now });
   return (
@@ -42,24 +44,16 @@ export function QueuedBanner({ queued, queuedAtts, queuedModels, models, onRunBg
         {queueStatusLabel(status, queued.length, resetLabel, releaseAt, now)}
         <div className="ml-auto flex items-center gap-1">
           {held && onResume && (
-            <button
-              type="button"
-              onClick={onResume}
-              title="Retomar a fila agora"
-              className={`flex h-5 items-center gap-1 whitespace-nowrap rounded-sm border border-orange-500/40 px-1.5 text-[12px] text-orange-300 transition hover:bg-orange-500/15 ${tokens.focusRing} ${tokens.touchTarget}`}
-            >
-              <Icon name="play" size={9} /> retomar
-            </button>
+            <Button size="xs" variant="outline" icon="play" onClick={onResume} title="Retomar a fila agora">retomar</Button>
           )}
           {onTogglePause && (
-            <button
-              type="button"
-              onClick={onTogglePause}
+            <Button
+              size="xs" variant="outline" icon={paused ? 'play' : 'pause'} onClick={onTogglePause}
               title={paused ? 'Retomar o envio automático da fila' : 'Pausar a fila (nada é enviado até retomar)'}
-              className={`flex h-5 items-center gap-1 whitespace-nowrap rounded-sm border px-1.5 text-[12px] transition ${tokens.focusRing} ${tokens.touchTarget} ${paused ? 'border-orange-500/60 bg-orange-500/15 text-orange-200 hover:bg-orange-500/25' : 'border-orange-500/40 text-orange-300 hover:bg-orange-500/15'}`}
+              className={paused ? 'border-orange-500/60 bg-orange-500/15 text-orange-200' : ''}
             >
-              <Icon name={paused ? 'play' : 'pause'} size={9} /> {paused ? 'retomar' : 'pausar'}
-            </button>
+              {paused ? 'retomar' : 'pausar'}
+            </Button>
           )}
         </div>
       </div>
@@ -69,27 +63,27 @@ export function QueuedBanner({ queued, queuedAtts, queuedModels, models, onRunBg
       <ul className="scroll-thin flex max-h-48 flex-col gap-1 overflow-y-auto overscroll-contain pointer-coarse:max-h-[22dvh]">
         {queued.map((text, i) => (
           <QueuedItem
-            key={i}
+            key={queuedIds[i]}
             index={i}
             text={text}
             atts={queuedAtts?.[i] ?? 0}
-            expanded={!!q.open[i]}
-            flash={q.flash === i}
+            expanded={!!q.open[queuedIds[i]]}
+            flash={q.flash === queuedIds[i]}
             first={i === 0}
             last={i === queued.length - 1}
-            editing={q.editing === i}
+            editing={q.editing === queuedIds[i]}
             draft={q.draft}
             setDraft={q.setDraft}
-            onToggle={() => q.toggle(i)}
-            onStartEdit={() => q.startEdit(i)}
+            onToggle={() => q.toggle(queuedIds[i])}
+            onStartEdit={() => q.startEdit(queuedIds[i])}
             onCommit={q.commitEdit}
             onCancelEdit={q.cancelEdit}
-            onMove={(dir) => q.move(i, dir)}
+            onMove={(dir) => q.move(queuedIds[i], dir)}
             onRemove={() => onCancelQueueAt(i)}
             bgModel={queuedModels[i]}
             models={models}
-            bgOpen={q.bgOpen === i}
-            onToggleBg={() => q.toggleBg(i)}
+            bgOpen={q.bgOpen === queuedIds[i]}
+            onToggleBg={() => q.toggleBg(queuedIds[i])}
             onRunBg={(m) => onRunBg(i, m)}
             onRunNow={() => onRunNow(i)}
             nowBlocked={paused || quotaHeld || held}
