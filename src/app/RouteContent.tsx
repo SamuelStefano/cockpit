@@ -65,15 +65,15 @@ interface RouteContentProps {
 export function RouteContent({ route, agentRoute, skillRoute, isMobile, isAdmin, isRoot, connected, cockpit, chatProps, termProps, onOpenSession, agent, onOpenAgentChat, layout, mobile, role, team, nav, account, usageDock }: RouteContentProps) {
   const c = cockpit;
   const view = (() => {
-    if (route === '/equipe' || route === '/equipe/rotinas' || route === '/equipe/memoria') {
+    if (route === '/equipe/rotinas' || route === '/equipe/memoria') {
       return (
         <EquipePage
-          tab={route === '/equipe/memoria' ? 'memoria' : route === '/equipe/rotinas' ? 'rotinas' : 'agentes'}
+          tab={route === '/equipe/memoria' ? 'memoria' : 'rotinas'}
           memory={{ memories: c.memories, loaded: c.memoriesLoaded, onList: c.onMemList, onSave: c.onMemSave, onDelete: c.onMemDelete }}
-          views={agent.views} connected={connected} isAdmin={isAdmin} usageStats={c.usageStats} paused={c.teamPaused}
+          views={agent.views} connected={connected} isAdmin={isAdmin}
           bots={c.bots} onOpenChat={agent.open}
           cron={{ crons: c.crons, loaded: c.cronsLoaded, onCronsGet: c.onCronsGet, onCronSave: c.onCronSave, onCronDelete: c.onCronDelete, onCronRun: c.onCronRun }}
-          onOpenAgent={(id) => agentRoute?.open(id)} onNew={agent.openNew} onPauseSet={c.onTeamPauseSet} onUsageList={c.onUsageList} onGo={navigateTo} />
+          onGo={navigateTo} />
       );
     }
     if (route === '/skills') {
@@ -156,7 +156,7 @@ export function RouteContent({ route, agentRoute, skillRoute, isMobile, isAdmin,
           onDone={() => navigateTo('/')} connected={connected} />
       );
     }
-    // '/' and '/equipe' (a deep link that lands on the primary agent) share one surface.
+    // '/' is the default agent's chat; the header picker switches agents.
     const center = agent.active
       ? <AgentCenter view={agent.active} agent={agent} cockpit={c} chatProps={chatProps} connected={connected} isMobile={isMobile} isAdmin={isAdmin} />
       : undefined;

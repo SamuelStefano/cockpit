@@ -2,12 +2,12 @@ import { useState, useEffect, useCallback } from 'react';
 
 // Router minúsculo (sem dep): só troca a VIEW principal. useCockpit fica ACIMA
 // deste switch no App, então o WebSocket/terminais nunca desmontam ao navegar.
-export type Route = '/' | '/equipe/memoria' | '/skills' | '/pontos' | '/equipe' | '/equipe/rotinas' | '/configuracoes' | '/configuracoes/uso' | '/configuracoes/pessoas' | '/configuracoes/maquina' | '/configuracoes/avancado' | '/graph' | '/canvas' | '/conexoes' | '/docs' | '/ds' | '/onboarding' | '/agentes';
+export type Route = '/' | '/equipe/memoria' | '/skills' | '/pontos' | '/equipe/rotinas' | '/configuracoes' | '/configuracoes/uso' | '/configuracoes/pessoas' | '/configuracoes/maquina' | '/configuracoes/avancado' | '/graph' | '/canvas' | '/conexoes' | '/docs' | '/ds' | '/onboarding' | '/agentes';
 
-const ROUTES: Route[] = ['/', '/equipe/memoria', '/skills', '/pontos', '/equipe', '/equipe/rotinas', '/configuracoes', '/configuracoes/uso', '/configuracoes/pessoas', '/configuracoes/maquina', '/configuracoes/avancado', '/graph', '/canvas', '/conexoes', '/docs', '/ds', '/onboarding', '/agentes'];
+const ROUTES: Route[] = ['/', '/equipe/memoria', '/skills', '/pontos', '/equipe/rotinas', '/configuracoes', '/configuracoes/uso', '/configuracoes/pessoas', '/configuracoes/maquina', '/configuracoes/avancado', '/graph', '/canvas', '/conexoes', '/docs', '/ds', '/onboarding', '/agentes'];
 
 // Old URLs (bookmarks, deep links) keep working; the retired screens fall back to chat.
-const LEGACY: Record<string, string> = { '/notas': '/', '/play': '/', '/harness': '/', '/contextos': '/equipe/memoria', '/crons': '/equipe/rotinas', '/uso': '/configuracoes/uso' };
+const LEGACY: Record<string, string> = { '/notas': '/', '/play': '/', '/harness': '/', '/equipe': '/', '/contextos': '/equipe/memoria', '/crons': '/equipe/rotinas', '/uso': '/configuracoes/uso' };
 
 // /painel is gone: its tabs moved to Configurações (Máquina, Pessoas) and Conexões.
 const PAINEL_TO: Record<string, string> = { overview: '/configuracoes/maquina', host: '/configuracoes/maquina', accounts: '/configuracoes/pessoas', mcps: '/conexoes#ferramentas', agents: '/conexoes#provedores', models: '/conexoes#provedores' };
@@ -40,7 +40,7 @@ export const chatPath = (id: string) => CHAT + encodeURIComponent(id);
 export const skillPath = (id: string) => (id ? SKILLS + encodeURIComponent(id) : '/skills');
 
 export function agentPath(id: string, tab: AgentTab = 'perfil'): string {
-  if (!id) return '/equipe';
+  if (!id) return '/';
   return AGENTS + encodeURIComponent(id) + (tab === 'perfil' ? '' : `?aba=${tab}`);
 }
 
@@ -56,8 +56,8 @@ function current(): RouteState {
   }
   if (p.startsWith(SKILLS)) return plain('/skills', '', decodeURIComponent(p.slice(SKILLS.length).split('/')[0]));
   if (p === '/agentes') {
-    history.replaceState(null, '', '/equipe');
-    return plain('/equipe');
+    history.replaceState(null, '', '/');
+    return plain('/');
   }
   if (p.startsWith(AGENTS)) {
     const id = decodeURIComponent(p.slice(AGENTS.length).split('/')[0]);
@@ -96,7 +96,7 @@ export function useRoute() {
       if (replace) history.replaceState(null, '', path);
       else history.pushState(null, '', path);
     }
-    if (!id) { setState(plain('/equipe')); return; }
+    if (!id) { setState(plain('/')); return; }
     setState({ ...plain('/agentes'), agentId: id, agentTab: tab });
   }, []);
   const navSkill = useCallback((id: string) => {

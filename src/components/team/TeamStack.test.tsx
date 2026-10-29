@@ -14,14 +14,14 @@ const view = (id: string, over: Partial<BotView> = {}): BotView => ({
 });
 
 function setup(views: BotView[], canManage = true) {
-  const props = { views, activeId: null, onOpen: vi.fn(), onNew: vi.fn(), onAll: vi.fn(), canManage };
+  const props = { views, activeId: null, onOpen: vi.fn(), onNew: vi.fn(), onGo: vi.fn(), canManage };
   render(<TeamStack {...props} />);
   return props;
 }
 
 describe('TeamStack', () => {
   it('renders nothing with no agents', () => {
-    const { container } = render(<TeamStack views={[]} activeId={null} onOpen={vi.fn()} onNew={vi.fn()} onAll={vi.fn()} canManage />);
+    const { container } = render(<TeamStack views={[]} activeId={null} onOpen={vi.fn()} onNew={vi.fn()} onGo={vi.fn()} canManage />);
     expect(container.textContent).toBe('');
   });
 
@@ -44,13 +44,18 @@ describe('TeamStack', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Novo agente' }));
     expect(p.onNew).toHaveBeenCalledOnce();
     fireEvent.click(screen.getByRole('button', { name: /^Equipe/ }));
-    fireEvent.click(screen.getByRole('button', { name: 'Ver equipe inteira' }));
-    expect(p.onAll).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole('button', { name: 'Rotinas' }));
+    expect(p.onGo).toHaveBeenCalledWith('/equipe/rotinas');
+    fireEvent.click(screen.getByRole('button', { name: /^Equipe/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Memória' }));
+    expect(p.onGo).toHaveBeenCalledWith('/equipe/memoria');
   });
 
   it('hides Novo agente from students', () => {
     setup([view('a')], false);
     fireEvent.click(screen.getByRole('button', { name: /^Equipe/ }));
     expect(screen.queryByRole('button', { name: 'Novo agente' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Rotinas' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Memória' })).toBeNull();
   });
 });

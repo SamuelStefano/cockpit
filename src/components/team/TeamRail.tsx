@@ -15,7 +15,6 @@ export interface TeamRailProps {
   activeId: string | null;
   onOpen: (id: string) => void;
   onNew: () => void;
-  onAll: () => void;
   canManage: boolean;
   paused?: boolean;
   onPauseSet?: (paused: boolean) => void;
@@ -23,7 +22,7 @@ export interface TeamRailProps {
 
 // A 56 px column at the chat's right edge: live mascots, hover opens a 240 px overlay,
 // the pin keeps it open in the flow. Students get it read-only.
-export function TeamRail({ views, activeId, onOpen, onNew, onAll, canManage, paused = false, onPauseSet }: TeamRailProps) {
+export function TeamRail({ views, activeId, onOpen, onNew, canManage, paused = false, onPauseSet }: TeamRailProps) {
   const [pinned, setPinned] = usePersisted<boolean>(TEAM_RAIL_PINNED_KEY, false);
   const [hover, setHover] = useState(false);
   // After unpinning, the pointer is still over the rail: hover must stay off until it leaves,
@@ -94,17 +93,12 @@ export function TeamRail({ views, activeId, onOpen, onNew, onAll, canManage, pau
             <RailAction open={open} icon="plus" label="Novo agente" onClick={onNew} />
           </div>
         )}
-        {!canManage && open && (
-          <div className="shrink-0 border-t border-neutral-800/80 p-1.5">
-            <RailAction open icon="users" label="Ver equipe inteira" onClick={onAll} />
-          </div>
-        )}
       </div>
     </aside>
   );
 }
 
-function RailAction({ open, icon, label, onClick }: { open: boolean; icon: 'plus' | 'pause' | 'play' | 'users'; label: string; onClick: () => void }) {
+function RailAction({ open, icon, label, onClick }: { open: boolean; icon: 'plus' | 'pause' | 'play'; label: string; onClick: () => void }) {
   const btn = (
     <button type="button" onClick={onClick} aria-label={label} className={`flex h-9 items-center gap-2.5 rounded-lg text-[13px] text-neutral-400 hover:bg-neutral-800/50 hover:text-neutral-100 ${tokens.focusRing} ${open ? 'w-full px-2.5' : 'w-11 justify-center'}`}>
       <Icon name={icon} size={16} />

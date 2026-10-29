@@ -2,7 +2,7 @@ import { useTurnHaptics } from './app/useTurnHaptics';
 import { useEdgeSwipeOpen } from './components/useEdgeSwipeOpen';
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { memorizePrompt } from './components/chat/memorize';
-import { TeamStack } from './components/team/TeamStack';
+import { TeamStack, type TeamStackProps } from './components/team/TeamStack';
 import type { TeamRailProps } from './components/team/TeamRail';
 import { Sidebar } from './components/chrome/sidebar/Sidebar';
 import { MobileTopBar } from './components/chrome/sidebar/MobileTopBar';
@@ -164,7 +164,7 @@ function CockpitBody() {
     setActiveSessionId(pick);
   }, [activeSessionId, sessions, archived, chatId, setActiveSessionId]);
 
-  useRoleLanding({ route, chatId, capsKnown: !!caps, role, nav });
+  useRoleLanding({ route, capsKnown: !!caps, role, nav });
 
   // Between a reload and the first session list there is no active session yet: without
   // this the chat flashed the empty "new chat" screen before jumping back to the open one.
@@ -193,8 +193,8 @@ function CockpitBody() {
     bots: cockpit.bots, teamLoaded: cockpit.teamLoaded, sessions, running, activeId: activeSessionId, phase, interrupted: cockpit.interrupted, runStart,
     pendingQuestions: cockpit.pendingQuestions, teamMessages: cockpit.teamMessages, connected: conn.ws === 'connected', onTeamGet: cockpit.onTeamGet, onOpenBot: cockpit.onOpenBot,
   }, route, nav, navAgent);
-  const teamProps: TeamRailProps = {
-    views: agent.views, activeId: agent.active?.bot.id ?? null, onNew: agent.openNew, onAll: () => nav('/equipe'),
+  const teamProps: TeamRailProps & Pick<TeamStackProps, 'onGo'> = {
+    views: agent.views, activeId: agent.active?.bot.id ?? null, onNew: agent.openNew, onGo: nav,
     onOpen: agent.open, canManage: isAdmin, paused: cockpit.teamPaused, onPauseSet: cockpit.onTeamPauseSet,
   };
   const quotaNotice = quotaGate.warn && !quotaClosed && rate ? <QuotaBanner reset={relReset(rate.resetsAt)} onClose={() => setQuotaClosed(true)} /> : null;

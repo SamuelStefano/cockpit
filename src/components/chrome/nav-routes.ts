@@ -11,7 +11,7 @@ export function navRole(role: Caps['role'] | undefined): NavRole {
   return 'student';
 }
 
-// `student`: what a non-admin is shown. The Equipe is their home (fatia E); the rest
+// `student`: what a non-admin is shown. The chat (with the default agent) is their home; the rest
 // is either refused by the server (STUDENT_ALLOWED) or useless without a terminal.
 // `root`: the owner only — the server refuses its frames to anyone else
 // (shared/root-frames.ts).
@@ -30,14 +30,13 @@ export const NAV: NavItem[] = [
   { to: '/', label: 'Chat', icon: 'message', student: true },
   { to: '/canvas', label: 'Canvas', icon: 'grip', side: true, tile: 'bg-amber-500/20 text-amber-300' },
   { to: '/pontos', label: 'Pontos', icon: 'star', root: true },
-  { to: '/equipe', label: 'Equipe', icon: 'users', student: true, side: true, tile: 'bg-sky-500/20 text-sky-300' },
   { to: '/skills', label: 'Skills', icon: 'sparkles', side: true, tile: 'bg-violet-500/20 text-violet-300' },
   { to: '/conexoes', label: 'Conexões', icon: 'link', side: true, tile: 'bg-emerald-500/20 text-emerald-300' },
   { to: '/graph', label: 'Graph', icon: 'globe' },
   { to: '/docs', label: 'Docs', icon: 'book', side: true, tile: 'bg-neutral-500/20 text-neutral-300' },
   { to: '/agentes', label: 'Agente', icon: 'users', student: true },
-  { to: '/equipe/rotinas', label: 'Rotinas', icon: 'clock' },
-  { to: '/equipe/memoria', label: 'Memória', icon: 'brain' },
+  { to: '/equipe/rotinas', label: 'Rotinas', icon: 'clock', side: true, tile: 'bg-sky-500/20 text-sky-300' },
+  { to: '/equipe/memoria', label: 'Memória', icon: 'brain', side: true, tile: 'bg-pink-500/20 text-pink-300' },
   { to: '/configuracoes', label: 'Configurações', icon: 'sliders', student: true },
 ];
 
@@ -54,20 +53,17 @@ export function navFor(role: NavRole) {
   return NAV.filter((n) => n.student);
 }
 
-export const STUDENT_HOME: Route = '/equipe';
+export const STUDENT_HOME: Route = '/';
 
-// Where a non-admin lands: the bare root goes to the Equipe once (a chat URL stays
-// put), and a route outside their menu always does. null = stay.
-export function studentRedirect(route: Route, chatId: string, firstLanding: boolean): Route | null {
-  if (!NAV.some((n) => n.to === route && n.student)) return STUDENT_HOME;
-  if (route === '/' && !chatId && firstLanding) return STUDENT_HOME;
-  return null;
+// Where a non-admin lands: the home chat. A route outside their menu always goes there. null = stay.
+export function studentRedirect(route: Route): Route | null {
+  return NAV.some((n) => n.to === route && n.student) ? null : STUDENT_HOME;
 }
 
 // Where a role that opened a URL outside its menu goes. Root is never moved; /ds
 // (the design-system gallery) stays reachable by URL for admins.
-export function roleRedirect(role: NavRole, route: Route, chatId: string, firstLanding: boolean): Route | null {
-  if (role === 'student') return studentRedirect(route, chatId, firstLanding);
+export function roleRedirect(role: NavRole, route: Route): Route | null {
+  if (role === 'student') return studentRedirect(route);
   if (role === 'admin' && NAV.some((n) => n.to === route && n.root)) return '/';
   return null;
 }
