@@ -79,13 +79,13 @@ export function Docs() {
       <div ref={scrollRef} className="scroll-thin flex-1 overflow-y-auto scroll-smooth">
         {/* Chips de navegação — só mobile */}
         <div className="sticky top-0 z-10 border-b border-neutral-800/80 bg-neutral-950/90 px-4 py-2.5 backdrop-blur-sm lg:hidden">
-          <div ref={chipsRef} className="scroll-thin flex gap-1.5 overflow-x-auto">
+          <div ref={chipsRef} className="scroll-thin flex gap-1.5 overflow-x-auto [mask-image:linear-gradient(to_right,black_88%,transparent)]">
             {SECTIONS.map((s) => (
               <button
                 key={s.id}
                 data-sec={s.id}
                 onClick={() => jump(s.id)}
-                className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-[12px] transition
+                className={`flex shrink-0 h-9 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-[12px] transition
                   ${active === s.id ? 'border-orange-500/40 bg-orange-500/15 text-orange-300' : 'border-neutral-800 text-neutral-500'}`}
               >
                 <Icon name={s.icon} size={12} /> {s.label}

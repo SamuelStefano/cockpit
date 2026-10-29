@@ -54,7 +54,7 @@ export function UsagePanel({ rows, reset = '', warn = false, blockedUntil = null
     <div
       role={inline ? 'group' : 'dialog'}
       aria-label={title === 'Uso do plano' ? 'Detalhe do uso do plano' : `Detalhe — ${title}`}
-      className={`${inline ? 'w-72 max-w-full p-3.5' : `fixed inset-x-3 top-[calc(3rem+env(safe-area-inset-top)+0.5rem)] z-50 sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-64 ${tokens.radius.lg} ${tokens.surface.raised} p-3.5`}`}
+      className={`${inline ? 'w-72 max-w-full p-3.5' : `fixed inset-x-3 top-14 z-50 sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-64 ${tokens.radius.lg} ${tokens.surface.raised} p-3.5`}`}
     >
       <p className="mb-3 text-[12px] font-semibold uppercase tracking-wide text-neutral-500">{title}</p>
       {rows.length === 0 ? (

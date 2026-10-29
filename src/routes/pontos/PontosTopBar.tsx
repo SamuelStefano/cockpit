@@ -1,4 +1,5 @@
-import { Badge, Button, Icon } from '../../components/primitives';
+import { Badge, Button, Icon, IconButton } from '../../components/primitives';
+import { TopBarAction } from '../../components/chrome/sidebar/TopBarSlot';
 
 interface Props {
   month?: string;
@@ -14,7 +15,12 @@ interface Props {
 // and the one top-level action.
 export function PontosTopBar({ month, state, syncLabel, stale, syncing, onSync, onNewEpic }: Props) {
   return (
-    <div className="flex h-11 shrink-0 items-center gap-2 border-b border-neutral-800/80 px-4">
+    <>
+    {/* Phone: the app top bar already names the route, so only the sync action survives there. */}
+    <TopBarAction>
+      <IconButton icon="rotate" label="Sincronizar com o DFL" side="bottom" onClick={onSync} className={`pointer-coarse:h-11 pointer-coarse:w-11 ${stale ? 'text-yellow-300' : ''}`} />
+    </TopBarAction>
+    <div className="flex h-11 shrink-0 items-center gap-2 border-b border-neutral-800/80 px-4 max-lg:hidden">
       <Icon name="star" size={15} className="shrink-0 text-orange-400" />
       <h1 className="text-[15px] font-semibold tracking-tight text-neutral-50">Pontos</h1>
       {/* On a phone the month yields its room to the cap state: squeezed, "teto
@@ -31,5 +37,6 @@ export function PontosTopBar({ month, state, syncLabel, stale, syncing, onSync, 
         </Button>
       </span>
     </div>
+    </>
   );
 }

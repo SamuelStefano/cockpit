@@ -1,5 +1,6 @@
 import type { DflTotals } from '../../../shared/protocol';
-import { InlineEdit, ProgressBar, Stat } from '../../components/primitives';
+import { useState } from 'react';
+import { Button, EmptyState, Icon, InlineEdit, ProgressBar, Stat } from '../../components/primitives';
 import { capDetail } from './month-cap';
 import type { useMonthSummary } from './useMonthSummary';
 import { brl, brlShort, fmtPts, validBrl } from './money';
@@ -11,6 +12,7 @@ interface Props {
   offPoints: number;
   offAmountCents: number;
   drafts: DraftTotals;
+  onSync?: () => void;
 }
 
 const reais = (cents: number): string => String(Math.round(cents) / 100).replace('.', ',');
@@ -19,10 +21,16 @@ const CELL = 'lg:flex-1 lg:px-4 lg:first:pl-0';
 // The month in one row: what was invoiced, what fits now, what waits, what is
 // still to do or staged, and the two knobs (R$/pt, month cap) editable in place.
 // The month bar sits under the cap it measures; the full sentence is its tooltip.
-export function KpiStrip({ m, totals, offPoints, offAmountCents, drafts }: Props) {
+export function KpiStrip({ m, totals, offPoints, offAmountCents, drafts, onSync }: Props) {
   const { cap } = m;
+  const [open, setOpen] = useState(false);
   if (!cap || !totals) {
-    return <p className="border-b border-neutral-800/80 px-4 py-2.5 text-[13px] text-neutral-500">Sem dados do DFL ainda. Sincronize (⟳ no topo) pra ver faturado, em aberto e o teto do mês.</p>;
+    return (
+      <EmptyState size="sm" icon="rotate" title="Sem dados do DFL ainda" description="Sincronize pra ver faturado, em aberto e o teto do mês."
+        className="border-b border-neutral-800/80">
+        {onSync && <Button size="sm" variant="outline" icon="rotate" onClick={onSync}>Sincronizar</Button>}
+      </EmptyState>
+    );
   }
   const free = Math.max(0, cap.headroomCents - cap.invoiceableCents);
   const bar = (
@@ -34,8 +42,18 @@ export function KpiStrip({ m, totals, offPoints, offAmountCents, drafts }: Props
       ]} />
     </span>
   );
+  const pct = cap.capCents > 0 ? Math.round((cap.billedCents / cap.capCents) * 100) : 0;
   return (
-    <div className="grid grid-cols-3 gap-x-3 sm:grid-cols-4 gap-y-2.5 border-b border-neutral-800/80 px-4 py-2.5 lg:flex lg:divide-x lg:divide-neutral-800/70">
+    <>
+    {/* Phone: one line (billed / cap) that expands to the full strip on tap. */}
+    <button
+      type="button" aria-expanded={open} onClick={() => setOpen((o) => !o)}
+      className="flex h-11 w-full items-center gap-2 border-b border-neutral-800/80 px-4 text-left text-[13px] text-neutral-300 lg:hidden"
+    >
+      <span className="tabular-nums">{brlShort(cap.billedCents)} / {brlShort(cap.capCents)} · {pct}%</span>
+      <Icon name={open ? 'chevronUp' : 'chevronDown'} size={14} className="ml-auto text-neutral-500" />
+    </button>
+    <div className={`${open ? 'grid' : 'hidden'} lg:flex grid-cols-3 gap-x-3 sm:grid-cols-4 gap-y-2.5 border-b border-neutral-800/80 px-4 py-2.5 lg:flex lg:divide-x lg:divide-neutral-800/70">
       <Stat compact className={CELL} label="faturado" tone="green" value={brlShort(cap.billedCents)} />
       <Stat compact className={CELL} label="cabe agora" tone="orange" value={brlShort(cap.invoiceableCents)} />
       <Stat compact className={CELL} label="em espera" tone={cap.waitingCents > 0 ? 'yellow' : 'neutral'} value={brlShort(cap.waitingCents)} />
@@ -52,5 +70,6 @@ export function KpiStrip({ m, totals, offPoints, offAmountCents, drafts }: Props
         <Stat compact className={CELL} label="fora do recebível" value={<span className="text-neutral-400" title={brl(offAmountCents)}>{fmtPts(offPoints)} pt</span>} />
       )}
     </div>
+    </>
   );
 }

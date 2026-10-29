@@ -99,7 +99,7 @@ export function TerminalsPanel({ terminals, activeId, onSelect, onAdd, onClose, 
           )}
         </div>
         {onCloseMobile && (
-          <button onClick={onCloseMobile} title="Fechar terminais" aria-label="Fechar terminais" className="mb-1.5 ml-1 rounded-md p-1.5 text-neutral-500 hover:bg-neutral-800 hover:text-neutral-200">
+          <button onClick={onCloseMobile} title="Fechar terminais" aria-label="Fechar terminais" className="mb-1.5 ml-1 rounded-md p-1.5 text-neutral-500 hover:bg-neutral-800 hover:text-neutral-200 pointer-coarse:flex pointer-coarse:h-10 pointer-coarse:w-10 pointer-coarse:items-center pointer-coarse:justify-center">
             <Icon name="chevronDown" size={16} />
           </button>
         )}

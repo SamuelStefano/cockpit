@@ -20,7 +20,7 @@ interface Props {
 // Monta um xterm.js real e liga no PTY/tmux do backend via WS.
 // Anexa no mount (com replay de scrollback), desanexa no unmount (sessão tmux
 // segue viva). Trocar de aba remonta → reattach + redraw do tmux.
-export function XtermView({ id, term, watch, botId, autoFocus = true, focusKey, fontSize = 12.5, clipboardRef, onOutput }: Props) {
+export function XtermView({ id, term, watch, botId, autoFocus = true, focusKey, fontSize = typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches ? 14 : 12.5, clipboardRef, onOutput }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const xtRef = useRef<XTerm | null>(null);
   const clipboard = useTerminalClipboard();
