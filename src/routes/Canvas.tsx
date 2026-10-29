@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { EmptyState } from '../components/primitives';
+import { useCoarse } from '../components/primitives/useCoarse';
 import { usePersisted } from '../lib/persist';
 import { countHotContext, summarizeStatus } from './canvas/canvas-alerts';
 import { useCanvasLookups } from './canvas/useCanvasLookups';
@@ -32,6 +33,9 @@ export function Canvas(p: CanvasRouteProps) {
   const cvLive = useMemo(() => new Set(p.cvLiveSessionIds), [p.cvLiveSessionIds]);
   // DFL snapshot for CardEditor's link picker (server push keeps it fresh).
   useDflPontos({ connected: p.connected, onDflGet: p.onDflGet });
+  // The pan/zoom canvas needs a mouse: on touch the board is the kanban list.
+  const coarse = useCoarse();
+  const view = coarse && r.mode === 'canvas' ? 'kanban' : r.mode;
   const [center, setCenter] = useState<{ id: string; n: number } | null>(null);
   const [dockOpen, setDockOpen] = usePersisted('canvas.kanbanOpen', false);
   // Destructured: `r` is a fresh object every render, r.select is stable.
@@ -96,14 +100,14 @@ export function Canvas(p: CanvasRouteProps) {
     () => r.sessionItems.filter((i) => !r.hiddenSessionIdSet.has(i.sessionId)),
     [r.sessionItems, r.hiddenSessionIdSet],
   );
-  useKanbanCtxPoll(ctxPollItems, r.mode === 'kanban' || dockOpen, p.onCanvasCtxStats);
+  useKanbanCtxPoll(ctxPollItems, view === 'kanban' || dockOpen, p.onCanvasCtxStats);
 
   const kanban = (
     <Kanban
       cards={p.board.cards} sessionItems={r.sessionItems} termStats={p.termStats}
       selected={r.selected} running={p.running} sessionsOf={r.cardSessions} nodeOf={sessionNodeOf}
-      onSelect={(id) => (r.mode === 'canvas' && p.graph ? focusNode(`k:${id}`) : r.editCard(id))}
-      onSelectSession={(nodeId) => (r.mode === 'canvas' && p.graph ? focusNode(nodeId) : r.select(nodeId, false))}
+      onSelect={(id) => (view === 'canvas' && p.graph ? focusNode(`k:${id}`) : r.editCard(id))}
+      onSelectSession={(nodeId) => (view === 'canvas' && p.graph ? focusNode(nodeId) : r.select(nodeId, false))}
       onMove={r.setStatus} onRun={r.runCard} onEdit={r.editCard} onOpenSession={p.onOpenSession}
       onOpenTerm={openTerm} onSessionStatus={r.onSessionStatus} onSessionStatusBulk={r.onSessionStatusBulk}
       hiddenSessionIds={r.hiddenSessionIdSet} onHideSession={r.hideSession} onUnhideAll={r.unhideAllSessions}
@@ -120,7 +124,7 @@ export function Canvas(p: CanvasRouteProps) {
           off-screen. */}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <CanvasFilters
-          mode={r.mode} onMode={r.setMode} scope={r.scope} onScope={r.setScope} archived={r.archived} onArchived={r.setArchived}
+          coarse={coarse} mode={view} onMode={r.setMode} scope={r.scope} onScope={r.setScope} archived={r.archived} onArchived={r.setArchived}
           showAutomation={r.showAutomation} onShowAutomation={r.setShowAutomation}
           showContexts={r.showContexts} onShowContexts={r.setShowContexts}
           query={r.query} onQuery={r.setQuery} loading={p.loading} onRefresh={p.onCanvasGet}
@@ -134,7 +138,7 @@ export function Canvas(p: CanvasRouteProps) {
         />
         {!p.connected ? (
           <EmptyState icon="circle" title="Desconectado" description="Reconecte pra montar o canvas." />
-        ) : r.mode === 'kanban' ? (
+        ) : view === 'kanban' ? (
           <div className="flex min-h-0 flex-1 flex-col">
             {/* Same gate the map/chain views already have (review item 12c) —
                 without it, kanban rendered with an empty graph for the whole

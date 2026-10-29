@@ -9,9 +9,10 @@ import { useEscapeLayer } from './primitives/useEscapeLayer';
 interface TerminalSheetProps {
   termProps: TerminalsPanelProps;
   onClose: () => void;
+  keyboardOpen?: boolean;
 }
 
-function TerminalSheet({ termProps, onClose }: TerminalSheetProps) {
+function TerminalSheet({ termProps, onClose, keyboardOpen = false }: TerminalSheetProps) {
   const [dragY, setDragY] = useState(0);
   const startY = useRef<number | null>(null);
 
@@ -33,7 +34,7 @@ function TerminalSheet({ termProps, onClose }: TerminalSheetProps) {
       <div
         className="absolute inset-x-0 bottom-0 flex flex-col overflow-hidden rounded-t-2xl border-t border-neutral-700 shadow-2xl"
         style={{
-          height: '72%',
+          height: keyboardOpen ? '100%' : '72%',
           background: 'var(--term-bg)',
           transform: `translateY(${dragY}px)`,
           animation: dragY === 0 ? 'sheetUp 0.3s cubic-bezier(0.22,1,0.36,1)' : 'none',
@@ -86,7 +87,7 @@ export function MobileLayout({ chatProps, termProps, drawer, setDrawer, termShee
         </MobileDrawer>
       )}
 
-      {termSheet && <TerminalSheet termProps={termProps} onClose={() => setTermSheet(false)} />}
+      {termSheet && <TerminalSheet keyboardOpen={chatProps.keyboardOpen} termProps={termProps} onClose={() => setTermSheet(false)} />}
     </div>
   );
 }
