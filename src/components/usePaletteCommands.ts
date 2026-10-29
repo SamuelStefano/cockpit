@@ -3,6 +3,8 @@ import type { Cmd, IconName } from './command-palette-types';
 import type { Route } from '../useRoute';
 import type { PermMode } from '../../shared/protocol';
 import type { Session } from '../data/types';
+import { buildPromptLink } from '../cockpit/prompt-link';
+import { toast } from './primitives/toast-bus';
 import { navFor, type NavRole } from './chrome/nav-routes';
 
 const MODE_LABEL: Record<PermMode, string> = { plan: 'Planejar', auto: 'Auto', acceptEdits: 'Executar' };
@@ -19,11 +21,12 @@ interface PaletteCommandsArgs {
   onStop: (key?: string) => void;
   onFocusComposer: () => void;
   onShowHelp: () => void;
+  draft?: string;
   role?: NavRole;
 }
 
 export function usePaletteCommands(args: PaletteCommandsArgs): Cmd[] {
-  const { onClose, nav, onNew, mode, setMode, sessions, onSelectSession, running, onStop, onFocusComposer, onShowHelp, role = 'student' } = args;
+  const { onClose, nav, onNew, mode, setMode, sessions, onSelectSession, running, onStop, onFocusComposer, onShowHelp, draft = '', role = 'student' } = args;
   return useMemo<Cmd[]>(() => {
     const go = (to: Route) => () => { nav(to); onClose(); };
     const setM = (m: PermMode) => () => { setMode(m); onClose(); };
@@ -41,6 +44,16 @@ export function usePaletteCommands(args: PaletteCommandsArgs): Cmd[] {
       { id: 'focus', label: 'Focar campo de mensagem', hint: '↵', icon: 'pencil', group: 'Ações', run: () => { nav('/'); onFocusComposer(); onClose(); } },
       { id: 'help', label: 'Mostrar atalhos de teclado', hint: '?', icon: 'command', group: 'Ações', run: () => { onClose(); onShowHelp(); } },
     ];
+    if (draft.trim()) {
+      actions.push({
+        id: 'copy-prompt-link', label: 'Copiar link de prompt', icon: 'copy', group: 'Ações',
+        run: () => {
+          navigator.clipboard.writeText(buildPromptLink(location.origin, draft))
+            .then(() => toast('Link copiado'), () => toast('Não foi possível copiar o link.', { tone: 'error' }));
+          onClose();
+        },
+      });
+    }
     if (running.size) {
       // Com 1 só rodando, mira nela explicitamente — senão onStop() cairia no
       // activeRef (a sessão que você está vendo, que pode estar ociosa).
@@ -84,5 +97,5 @@ export function usePaletteCommands(args: PaletteCommandsArgs): Cmd[] {
     }));
     // Empty-palette order: what is running, recent sessions, actions, then routes.
     return [...runningCmds, ...sess, ...actions, ...nav_, ...modes];
-  }, [role, nav, onClose, onNew, mode, setMode, sessions, onSelectSession, running, onStop, onFocusComposer, onShowHelp]);
+  }, [role, nav, onClose, onNew, mode, setMode, sessions, onSelectSession, running, onStop, onFocusComposer, onShowHelp, draft]);
 }

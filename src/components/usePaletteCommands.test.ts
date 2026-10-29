@@ -35,3 +35,12 @@ describe('usePaletteCommands navigation', () => {
     }
   });
 });
+
+describe('usePaletteCommands prompt link', () => {
+  const ids = (draft?: string) => renderHook(() => usePaletteCommands({ ...base, draft })).result.current.map((c) => c.id);
+  it('offers the copy command only with a non-empty draft', () => {
+    expect(ids('')).not.toContain('copy-prompt-link');
+    expect(ids('   ')).not.toContain('copy-prompt-link');
+    expect(ids('olá')).toContain('copy-prompt-link');
+  });
+});

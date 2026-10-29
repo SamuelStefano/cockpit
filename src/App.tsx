@@ -27,6 +27,8 @@ import { useAgentNav } from './app/useAgentNav';
 import { useCockpit } from './useCockpit';
 import { useBoxes } from './cockpit/useBoxes';
 import { boxStore } from './cockpit/boxes-store';
+import { takePendingPrompt, PROMPT_LINK_MAX } from './cockpit/prompt-link';
+import { toast } from './components/primitives/toast-bus';
 import { takeNewIntent } from './cockpit/box-intent';
 import { useRoute } from './useRoute';
 import { loadPref } from './lib/persist';
@@ -65,7 +67,7 @@ function CockpitBody() {
     archived, onUnhide: handleUnhide, contextTokens, contextModel, sendCost, liveTurnTokens, turnStartedAt, bgAgents, usage, truncated, lastTurn, lastEnd, searchResults, onSearch,
     skills,
     attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb,
-    onSend: handleSend, onApproveWorkflow, onEditUser: editUser, onStop: handleStop, onNew: cockpitNew, marathon, onToggleMarathon, onRename: handleRename, onDescribe: handleDescribe, onClose: handleCloseSession, onDelete: handleDeleteSession,
+    onSend: handleSend, onApproveWorkflow, onEditUser: editUser, onStop: handleStop, onNew: cockpitNew, onNewWithDraft, marathon, onToggleMarathon, onRename: handleRename, onDescribe: handleDescribe, onClose: handleCloseSession, onDelete: handleDeleteSession,
     onOpenFull, onLoadOlder, onOpenSummary, onHandoff, handoffBusy,
     queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueReleaseAt, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce, resumeOffer, resumeRun,
     drops, dropsLoaded, lastDrop, onDropList, onDropPut, onDropRm,
@@ -218,6 +220,22 @@ function CockpitBody() {
 
   const connectionsCtx = useMemo(() => ({ connections: cockpit.connections, loaded: cockpit.connectionsLoaded, refresh: cockpit.onConnectionsGet }), [cockpit.connections, cockpit.connectionsLoaded, cockpit.onConnectionsGet]);
   const gate = resolveAuthGate({ sbAuth, seal, ejectPairing, authRequired, submitToken });
+
+  // Only past the auth/pairing gate, with the socket up and sessions loaded: the
+  // stored prompt is consumed exactly once and never sent, only drafted.
+  const promptReady = !gate && conn.ws === 'connected' && !loading;
+  useEffect(() => {
+    if (!promptReady) return;
+    const link = takePendingPrompt();
+    if (!link) return;
+    onNewWithDraft(link.prompt);
+    setDrawer(false);
+    nav('/');
+    setFocusSignal((n) => n + 1);
+    if (link.hadInvisible) toast('O link tinha caracteres invisíveis — foram removidos. Confira o texto antes de enviar.', { tone: 'error', durationMs: 10000 });
+    if (link.truncated) toast(`O prompt do link passou de ${PROMPT_LINK_MAX} caracteres e foi cortado.`);
+  }, [promptReady, onNewWithDraft, setDrawer, nav]);
+
   if (gate) return gate;
 
   return (
@@ -241,6 +259,7 @@ function CockpitBody() {
         sessions={sessions} onSelectSession={selectSession}
         running={running} onStop={handleStop} onFocusComposer={() => setFocusSignal((n) => n + 1)}
         onShowHelp={() => setHelp(true)}
+        draft={palette ? draft : ''}
         role={role}
       />
       <ShortcutsHelp open={help} onClose={() => setHelp(false)} />
