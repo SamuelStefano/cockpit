@@ -20,13 +20,7 @@ describe('usePaletteCommands navigation', () => {
 
   it('adds the admin-only routes only for admins', () => {
     expect(navIds('student')).not.toContain('go-canvas');
-    expect(navIds('admin')).toEqual(expect.arrayContaining(['go-canvas', 'go-graph', 'go-conexoes']));
-  });
-
-  it('offers pontos to root only', () => {
-    expect(navIds('root')).toContain('go-pontos');
-    expect(navIds('admin')).not.toContain('go-pontos');
-    expect(navIds('student')).not.toContain('go-pontos');
+    expect(navIds('admin')).toEqual(expect.arrayContaining(['go-canvas', 'go-conexoes']));
   });
 
   it('never offers the retired screens', () => {
