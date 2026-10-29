@@ -101,7 +101,7 @@ describe('Sidebar', () => {
     const onClose = vi.fn();
     setup({ drawer: { onClose } });
     expect(screen.getByRole('complementary').className).toContain('w-full');
-    expect(screen.queryByRole('button', { name: 'Nova conversa' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Nova conversa' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Recolher barra lateral' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Fechar menu' }));
     expect(onClose).toHaveBeenCalledOnce();
