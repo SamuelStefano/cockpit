@@ -8,7 +8,6 @@ import type { Route } from '../../../useRoute';
 import type { NavRole } from '../nav-routes';
 import { SidebarFooter, type AccountProps } from './SidebarFooter';
 import { canOpenSettings, sidebarNav } from './sidebar-nav';
-import { openAparelhos } from '../../../lib/conexoes-nav';
 import { useSidebarCollapsed } from './useSidebarCollapsed';
 
 export interface SidebarProps {
@@ -71,7 +70,7 @@ export function Sidebar({ route, nav, role, navCounts, onNew, onPalette, bitStat
         {list ? <div className="-mx-2 min-h-0 flex-1">{sessions}</div> : <div className="flex-1" />}
       </div>}
 
-      <SidebarFooter routes={sidebarNav(role)} route={route} nav={nav} counts={navCounts} expanded={expanded} onSettings={canOpenSettings(role) ? () => nav('/configuracoes') : undefined} onDevices={() => { drawer?.onClose(); openAparelhos(); }} account={account} conn={conn} role={role} />
+      <SidebarFooter routes={sidebarNav(role)} route={route} nav={nav} counts={navCounts} expanded={expanded} onSettings={canOpenSettings(role) ? () => nav('/configuracoes') : undefined} account={account} conn={conn} role={role} />
       </div>
     </aside>
   );
