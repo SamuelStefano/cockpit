@@ -21,6 +21,7 @@ import type { NavRole } from '../components/chrome/nav-routes';
 import type { UsageDockProps } from '../components/chrome/sidebar/UsageDock';
 import { TeamRail, type TeamRailProps } from '../components/team/TeamRail';
 import type { AccountProps } from '../routes/configuracoes/Conta';
+import { VaultPanel } from '../components/vault/VaultPanel';
 
 // The DFL snapshot is root-only on the server: the Canvas of a plain admin skips it.
 const noop = () => {};
@@ -137,7 +138,7 @@ export function RouteContent({ route, agentRoute, skillRoute, isMobile, isAdmin,
         <Conexoes connected={connected} items={c.connections} loaded={c.connectionsLoaded} bots={c.bots}
           mcpsState={c.mcps} mcpsBusy={c.mcpsBusy} onGet={c.onConnectionsGet} onGo={navigateTo}
           probe={{ probeResult: c.probeResult, probeBusy: c.probeBusy, onProviderProbe: c.onProviderProbe, onProviderProbeReset: c.onProviderProbeReset }}
-          manage={{ provedores: <ManageProviders {...manage} />, ferramentas: <ManageTools {...manage} /> }} />
+          manage={{ provedores: <ManageProviders {...manage} />, ferramentas: <ManageTools {...manage} />, chaves: isRoot ? <VaultPanel api={c} /> : undefined }} />
       );
     }
     if (route === '/agentes' && agentRoute) {

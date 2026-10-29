@@ -230,7 +230,7 @@ function connect(relayUrl: string, id: Identity, onOpen: () => void, onClose: (c
         const sealed = new SealedHub({
           keys,
           link: ws,
-          serve: (peer) => serveConnection(peer as unknown as WebSocket, { role: AGENT_ROLE, root: AGENT_ROOT }),
+          serve: (peer) => serveConnection(peer as unknown as WebSocket, { role: AGENT_ROLE, root: AGENT_ROOT, transport: 'sealed' }),
           intercept: deviceFrameHandler(keys.pub, () => hub, id.agentId),
           onPeersChanged: () => {},
           boxId: id.agentId,

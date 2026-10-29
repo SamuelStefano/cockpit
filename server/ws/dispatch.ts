@@ -8,6 +8,7 @@ import { handoffSession } from '../handoff';
 import { funnelSessions } from '../funnel';
 import { getNotes, saveNotes } from '../notes';
 import { putDrop, listDrops, openDrop, removeDrop } from '../drop';
+import { putSecret, listSecrets, removeSecret } from '../vault';
 import { readPoints, createEntry, correctPoints, noteEntry, deleteEntry } from '../points';
 import { readDflSnapshot } from '../dfl-points';
 import { readDrafts, mutateDrafts } from '../dfl-drafts';
@@ -687,6 +688,24 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       const r = await removeDrop(msg.slug);
       if ('error' in r) { send(ws, { t: 'error', message: r.error }); return; }
       send(ws, { t: 'drops', items: await listDrops() });
+      return;
+    }
+    // Box vault (root-only). Unicast, metadata only: the value of vault-put never
+    // comes back. Refused upstream (serve-connection) off the sealed/local channel.
+    case 'vault-put': {
+      const r = await putSecret(msg.name, msg.value, msg.agents);
+      if ('error' in r) { send(ws, { t: 'error', message: r.error }); return; }
+      send(ws, { t: 'vault', items: listSecrets() });
+      return;
+    }
+    case 'vault-list': {
+      send(ws, { t: 'vault', items: listSecrets() });
+      return;
+    }
+    case 'vault-rm': {
+      const r = await removeSecret(msg.name);
+      if ('error' in r) { send(ws, { t: 'error', message: r.error }); return; }
+      send(ws, { t: 'vault', items: listSecrets() });
       return;
     }
     case 'points-get': {

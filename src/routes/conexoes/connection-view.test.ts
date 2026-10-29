@@ -9,6 +9,7 @@ describe('connection-view', () => {
   it('hides Chaves while there are no key items', () => {
     expect(visibleTabs([c({})])).toEqual(['provedores', 'ferramentas', 'maquinas', 'aparelhos']);
     expect(visibleTabs([c({ kind: 'key' })])).toContain('chaves');
+    expect(visibleTabs([c({})], true)).toContain('chaves');
   });
 
   it('words the state per kind', () => {

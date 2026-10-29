@@ -9,6 +9,7 @@ import type { ClaudeEvent } from './events';
 import { cliPath, managedPrefix } from './cli-path';
 import { CONFIG } from '../config';
 import { managedEnvSync, mcpServerDefsSync } from '../admin-ops';
+import { makeRedactor, vaultEnvSync } from '../vault';
 import type { Role } from '../auth';
 import { isLongContextModel } from '../../shared/long-context';
 import { ALL_MCPS } from '../../shared/mcp';
@@ -307,6 +308,8 @@ export function run(opts: RunOpts): RunHandle {
     return { kill: () => {}, send: () => false };
   }
 
+  const vaultEnv = role === 'admin' && !restricted ? vaultEnvSync('claude') : {};
+  const redact = makeRedactor(vaultEnv);
   let child: ChildProcess;
   // A synchronous spawn failure (EAGAIN on fork) is caught by the caller, so the
   // close handler below never runs: drop the config here or it sits in /tmp, with
@@ -314,7 +317,7 @@ export function run(opts: RunOpts): RunHandle {
   try {
     child = spawn('claude', built.args, {
       cwd: restricted?.cwd ?? opts.cwd ?? CONFIG.workdir,
-      env: { ...minimalEnv(), ...restricted?.env },
+      env: { ...vaultEnv, ...minimalEnv(), ...restricted?.env },
       shell: false,
       detached: true,
       // stdin agora é um PIPE aberto, não 'ignore': o prompt vai por stdin (uma
@@ -353,7 +356,7 @@ export function run(opts: RunOpts): RunHandle {
   rl.on('error', () => {});
   child.stdout!.on('error', () => {});
   rl.on('line', (line) => {
-    const s = line.trim();
+    const s = redact(line.trim());
     if (!s) return;
     try {
       const ev = JSON.parse(s) as ClaudeEvent;
@@ -400,7 +403,7 @@ export function run(opts: RunOpts): RunHandle {
   child.on('error', (err) => { onError(sanitize(err.message)); finish(); });
   child.on('close', (code, signal) => {
     if (shouldReportExit(killed, code, sawResult)) {
-      const tail = stderr.trim().slice(-300);
+      const tail = redact(stderr.trim()).slice(-300);
       const hint = explainExit(code, tail);
       onError(sanitize(hint ? `claude saiu (${code}): ${hint}` : tail ? `claude saiu (${code}): ${tail}` : `claude saiu (${code})`), { code, signal });
     }

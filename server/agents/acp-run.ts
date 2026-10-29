@@ -13,6 +13,7 @@ import { closeDangling, mapUpdate, retryNotice, permissionOutcome, resultSubtype
 import { findAgent, saveSessionLink, sessionLinkSync } from './store';
 import { TranscriptWriter } from './transcript';
 import { noteGrokUsage } from '../ws/usage-grok';
+import { makeRedactor, vaultEnvSync } from '../vault';
 
 // Every agent failure is already told to the user through onError in plain
 // words; this end reason lets the client skip its generic "Turno encerrado".
@@ -25,10 +26,11 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 // Least privilege: a third-party agent gets none of the admin-managed tokens the
 // claude engine receives (minimalEnv) — only what it needs to find its binary
 // and its own login under HOME.
-export function agentEnv(): NodeJS.ProcessEnv {
+// Vault secrets are the one exception: only those whose allowlist names this agent.
+export function agentEnv(vault: Record<string, string> = {}): NodeJS.ProcessEnv {
   const base = minimalEnv();
   const extra = [join(homedir(), '.grok', 'bin'), join(homedir(), '.local', 'bin')];
-  return { LANG: base.LANG, TERM: base.TERM, HOME: base.HOME, PATH: [...extra, base.PATH ?? ''].filter(Boolean).join(':'), ...COMPAT_OFF };
+  return { ...vault, LANG: base.LANG, TERM: base.TERM, HOME: base.HOME, PATH: [...extra, base.PATH ?? ''].filter(Boolean).join(':'), ...COMPAT_OFF };
 }
 
 // Grok (and agents built the same way) import the MCP servers and hooks of the
@@ -81,13 +83,20 @@ export function runAgent(opts: RunOpts): RunHandle {
   let replaying = false;
   let cancelled = false;
   let ended = false;
-  const emit = (ev: ClaudeEvent) => { transcript?.observe(ev); onEvent(ev); };
+  const vaultEnv = agentId ? vaultEnvSync(agentId) : {};
+  const redact = makeRedactor(vaultEnv);
+  const redacting = Object.keys(vaultEnv).length > 0;
+  const emit = (ev: ClaudeEvent) => {
+    const safe = redacting ? JSON.parse(redact(JSON.stringify(ev))) as ClaudeEvent : ev;
+    transcript?.observe(safe);
+    onEvent(safe);
+  };
 
   const acp = startAcp({
     command: agent.command,
     args: agent.args,
     cwd: CONFIG.workdir,
-    env: agentEnv(),
+    env: agentEnv(vaultEnv),
     onNotification: (method, params) => {
       if (replaying) return;
       if (acpSessionId && params?.sessionId && params.sessionId !== acpSessionId) return;
@@ -106,7 +115,7 @@ export function runAgent(opts: RunOpts): RunHandle {
         for (const ev of closeDangling(ctx, true)) emit(ev);
         transcript?.flush();
         const why = stderrTail.trim().split('\n').slice(-3).join(' ').slice(0, 400);
-        onError(`${agent.name} saiu antes de responder (${signal ?? code})${why ? `: ${why}` : ''}`, { code, signal });
+        onError(`${agent.name} saiu antes de responder (${signal ?? code})${why ? `: ${redact(why)}` : ''}`, { code, signal });
         finish(ERROR_SHOWN, true);
       }
       close();

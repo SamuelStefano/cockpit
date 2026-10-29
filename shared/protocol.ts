@@ -280,6 +280,15 @@ export interface DropRef {
   expiresAt?: number;
 }
 
+// Metadata of a box-vault secret (server/vault.ts). Never carries the value.
+export interface VaultItem {
+  name: string;
+  bytes: number;
+  agents: string[];
+  createdAt: number;
+  updatedAt: number;
+}
+
 // Uso/tokens por sessão (time-series agregada do SQLite) — observatório.
 export interface SessionUsage {
   sessionId: string;
@@ -756,6 +765,10 @@ export type ClientMsg =
   | { t: 'drop-list' }
   | { t: 'drop-open'; slug: string }
   | { t: 'drop-rm'; slug: string }
+  // Box vault (root-only): write-only values, list returns names + metadata.
+  | { t: 'vault-put'; name: string; value: string; agents?: string[] }
+  | { t: 'vault-list' }
+  | { t: 'vault-rm'; name: string }
   | { t: 'points-get' }
   | { t: 'points-add'; title: string; points: number; description?: string }
   | { t: 'points-correct'; entryId: string; points: number }
@@ -994,6 +1007,7 @@ export type ServerMsg =
   // sozinha (caminho/bytes/sha256) — o segredo não volta pro cliente.
   | { t: 'drop'; ref: DropRef; content?: string }
   | { t: 'drops'; items: DropRef[] }
+  | { t: 'vault'; items: VaultItem[] }
   | { t: 'points'; entries: PointsEntry[]; total: number }
   // snapshot = null quando o sync ainda não rodou (nada em ~/.cockpit/dfl-points.json).
   | { t: 'points-dfl'; snapshot: DflPointsSnapshot | null }
