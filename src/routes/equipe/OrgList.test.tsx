@@ -23,3 +23,15 @@ describe('OrgList', () => {
     expect(onOpen).toHaveBeenCalledWith('b');
   });
 });
+
+describe('OrgList paused', () => {
+  it('rests every mascot and says so when the team is paused', () => {
+    render(<OrgList views={[view('a', undefined, { state: 'working' })]} onOpen={() => {}} paused />);
+    expect(screen.getByText('Em pausa')).toBeTruthy();
+  });
+
+  it('highlights a bot waiting on you', () => {
+    render(<OrgList views={[view('a', undefined, { pending: true })]} onOpen={() => {}} />);
+    expect(screen.getByText('Esperando você').className).toContain('text-orange-300');
+  });
+});

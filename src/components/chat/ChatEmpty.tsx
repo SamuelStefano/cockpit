@@ -3,6 +3,7 @@ import { Icon, type IconName } from '../primitives';
 import { Bit } from '../bit/Bit';
 import { isVirtualKeyboardOnly } from './touch';
 import { navigateTo } from '../../lib/route-nav';
+import { FirstRunChecklist } from './FirstRunChecklist';
 import { DECK_GUIDE_PROMPT } from '../../lib/deck-guide-prompt';
 
 interface ChatEmptyProps {
@@ -56,6 +57,7 @@ export function ChatEmpty({ onPrompt, onSeed, suggestions = FALLBACK_SUGGESTIONS
           </button>
         ))}
       </div>
+      <FirstRunChecklist providerConnected={!needsProvider} />
       {onSeed && (
         <button
           type="button"

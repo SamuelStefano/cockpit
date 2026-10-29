@@ -2,6 +2,7 @@ import type { Message } from '../../data/types';
 import type { TurnStats } from '../../../shared/protocol';
 import { ExportMenu } from './ExportMenu';
 import { HistoryControls } from './HistoryControls';
+import { countPrs, prCountLabel } from './pr-count';
 import { prettyModel, turnStatParts } from './toolbar-format';
 import { Icon, Menu, MenuItem, MenuSeparator } from '../primitives';
 
@@ -37,6 +38,7 @@ interface ChatHeaderMenuProps {
 export function ChatHeaderMenu({ title, messages, lastTurn, ranOn, selectedModel, history, canExport, profile, pause, contextPct = null, onRename, onDelete, onDone, phone }: ChatHeaderMenuProps) {
   const turn = turnStatParts(lastTurn);
   const turns = lastTurn?.numTurns ? ` · ${lastTurn.numTurns} turno${lastTurn.numTurns === 1 ? '' : 's'}` : '';
+  const prs = countPrs(messages);
   const hasActions = !!onRename || canExport || !!history;
   return (
     <Menu label="Mais ações da conversa" className="w-72" >
@@ -52,6 +54,12 @@ export function ChatHeaderMenu({ title, messages, lastTurn, ranOn, selectedModel
             </div>
             <MenuSeparator />
           </>
+        )}
+        {prs > 0 && (
+          <p className="flex items-center gap-2.5 px-2.5 py-2 text-[13px] text-green-300">
+            <Icon name="check" size={14} />
+            <span>{prCountLabel(prs)}</span>
+          </p>
         )}
         {phone?.usage && (
           <p className={`flex items-center gap-2.5 px-2.5 py-2 text-[13px] ${phone.usage.hot ? 'text-amber-300' : 'text-neutral-300'}`}>

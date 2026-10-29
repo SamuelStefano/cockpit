@@ -1,9 +1,10 @@
 import type { DflTotals } from '../../../shared/protocol';
-import { InlineEdit, ProgressBar, Stat } from '../../components/primitives';
+import { Icon, InlineEdit, ProgressBar, Stat } from '../../components/primitives';
 import { capDetail } from './month-cap';
 import type { useMonthSummary } from './useMonthSummary';
 import { brl, brlShort, fmtPts, validBrl } from './money';
 import type { DraftTotals } from './draft-cap';
+import { useCapCelebration } from '../../lib/gamify/cap-celebration';
 
 interface Props {
   m: ReturnType<typeof useMonthSummary>;
@@ -21,17 +22,19 @@ const CELL = 'lg:flex-1 lg:px-4 lg:first:pl-0';
 // The month bar sits under the cap it measures; the full sentence is its tooltip.
 export function KpiStrip({ m, totals, offPoints, offAmountCents, drafts }: Props) {
   const { cap } = m;
+  useCapCelebration(cap);
   if (!cap || !totals) {
     return <p className="border-b border-neutral-800/80 px-4 py-2.5 text-[13px] text-neutral-500">Sem dados do DFL ainda. Sincronize (⟳ no topo) pra ver faturado, em aberto e o teto do mês.</p>;
   }
   const free = Math.max(0, cap.headroomCents - cap.invoiceableCents);
   const bar = (
-    <span className="mt-1 block w-full max-w-28" title={capDetail(cap, brl)}>
+    <span className="mt-1 flex w-full max-w-28 items-center gap-1" title={capDetail(cap, brl)}>
       <ProgressBar size="xs" segments={[
         { value: cap.billedCents, tone: 'green', label: `faturado no mês: ${brl(cap.billedCents)}` },
         { value: cap.invoiceableCents, tone: 'orange', label: `cabe faturar agora: ${brl(cap.invoiceableCents)}` },
         { value: free, tone: 'track', label: `teto livre: ${brl(free)}` },
       ]} />
+      {cap.state === 'full' && <Icon name="check" size={12} className="shrink-0 text-green-400" />}
     </span>
   );
   return (

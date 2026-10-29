@@ -86,7 +86,7 @@ export function EquipePage(p: EquipePageProps) {
             {phone ? (
               <>
                 <p aria-label="Resumo da equipe" className="mb-2 text-[13px] text-neutral-400">{counts.working} trabalhando · {counts.waiting} esperando você</p>
-                <OrgList views={views} onOpen={p.onOpenAgent} />
+                <OrgList views={views} onOpen={p.onOpenAgent} paused={p.paused} />
               </>
             ) : (
               <>
