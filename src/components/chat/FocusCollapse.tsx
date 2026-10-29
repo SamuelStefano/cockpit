@@ -9,7 +9,7 @@ export function FocusCollapse({ hidden, children }: { hidden: boolean; children:
       inert={hidden || undefined}
       className={`grid shrink-0 transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none ${hidden ? 'grid-rows-[0fr] opacity-0' : 'grid-rows-[1fr] opacity-100'}`}
     >
-      <div className={`min-h-0 ${hidden ? 'overflow-hidden' : ''}`}>{children}</div>
+      <div className={`min-h-0 min-w-0 ${hidden ? 'overflow-hidden' : ''}`}>{children}</div>
     </div>
   );
 }

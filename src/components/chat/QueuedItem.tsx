@@ -80,7 +80,7 @@ export function QueuedItem({ index, text, atts, expanded, flash, first, last, ed
             onClick={() => { if (!press.consumeTap()) onToggle(); }}
             {...(touch ? press.handlers : {})}
             title={expanded ? 'Recolher' : 'Ver completo'}
-            className={`flex-1 rounded-sm text-left text-[12px] leading-snug ${tokens.focusRing} ${text ? 'text-neutral-300' : 'italic text-neutral-500'} ${expanded ? 'whitespace-pre-wrap wrap-break-word' : 'truncate'}`}
+            className={`min-w-0 flex-1 rounded-sm text-left text-[12px] leading-snug ${tokens.focusRing} ${text ? 'text-neutral-300' : 'italic text-neutral-500'} ${expanded ? 'whitespace-pre-wrap wrap-break-word' : 'truncate'}`}
           >
             {text || (atts > 0 ? 'anexo sem texto' : '')}
           </button>
