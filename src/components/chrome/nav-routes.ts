@@ -29,11 +29,11 @@ export interface NavItem {
 export const NAV: NavItem[] = [
   { to: '/', label: 'Chat', icon: 'message', student: true },
   { to: '/canvas', label: 'Canvas', icon: 'grip', side: true, tile: 'bg-amber-500/20 text-amber-300' },
-  { to: '/pontos', label: 'Pontos', icon: 'star', root: true, side: true, tile: 'bg-green-500/20 text-green-300' },
+  { to: '/pontos', label: 'Pontos', icon: 'star', root: true },
   { to: '/equipe', label: 'Equipe', icon: 'users', student: true, side: true, tile: 'bg-sky-500/20 text-sky-300' },
   { to: '/skills', label: 'Skills', icon: 'sparkles', side: true, tile: 'bg-violet-500/20 text-violet-300' },
   { to: '/conexoes', label: 'Conexões', icon: 'link', side: true, tile: 'bg-emerald-500/20 text-emerald-300' },
-  { to: '/graph', label: 'Graph', icon: 'globe', side: true, tile: 'bg-rose-500/20 text-rose-300' },
+  { to: '/graph', label: 'Graph', icon: 'globe' },
   { to: '/docs', label: 'Docs', icon: 'book', side: true, tile: 'bg-neutral-500/20 text-neutral-300' },
   { to: '/agentes', label: 'Agente', icon: 'users', student: true },
   { to: '/equipe/rotinas', label: 'Rotinas', icon: 'clock' },
