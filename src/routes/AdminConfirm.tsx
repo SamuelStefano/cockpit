@@ -39,8 +39,8 @@ export function AdminConfirm({
   const glyph = tone === 'danger' ? 'bg-red-500/15 text-red-400' : 'bg-orange-500/15 text-orange-400';
 
   return (
-    <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs" onClick={onCancel}>
-      <div ref={dialog} tabIndex={-1} role="dialog" aria-modal="true" aria-label={heading} className="w-full max-w-sm rounded-2xl border border-neutral-700 bg-neutral-900 p-4 shadow-2xl shadow-black/50" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-60 flex items-end justify-center bg-black/60 p-4 backdrop-blur-xs max-sm:p-0 sm:items-center" onClick={onCancel}>
+      <div ref={dialog} tabIndex={-1} role="dialog" aria-modal="true" aria-label={heading} className="w-full max-w-sm rounded-2xl border border-neutral-700 bg-neutral-900 p-4 shadow-2xl max-sm:max-w-none max-sm:rounded-b-none max-sm:pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-black/50" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start gap-3">
           <span className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${glyph}`}>
             <Icon name={icon} size={16} />
@@ -50,7 +50,7 @@ export function AdminConfirm({
             <p className="mt-1 text-[13px] leading-snug text-neutral-400">{body}</p>
           </div>
         </div>
-        <div className="mt-4 flex items-center justify-end gap-2">
+        <div className="mt-4 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end sm:gap-2 max-sm:[&>button]:min-h-11 max-sm:[&>button]:w-full">
           {/* Focus starts on the SAFE choice: Enter on a destructive admin action
               must never be one keystroke away from opening the dialog. */}
           <Button variant="outline" onClick={onCancel} data-autofocus>Cancelar</Button>

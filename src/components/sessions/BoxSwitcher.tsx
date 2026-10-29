@@ -63,10 +63,10 @@ export function BoxSwitcher({ userId, variant = 'block' }: { userId?: string; va
                     <HealthBadge level={s.levelOf(b.id)} />
                     {b.id === s.active && <Icon name="check" size={13} className="shrink-0 text-orange-400" />}
                   </button>
-                  <button type="button" onClick={() => s.startEdit(b)} title="Renomear" aria-label={`Renomear ${boxLabel(b)}`} className="rounded-md p-1 text-neutral-500 hover:text-neutral-200">
+                  <button type="button" onClick={() => s.startEdit(b)} title="Renomear" aria-label={`Renomear ${boxLabel(b)}`} className="rounded-md p-1 text-neutral-500 hover:text-neutral-200 pointer-coarse:p-3">
                     <Icon name="pencil" size={13} />
                   </button>
-                  <button type="button" onClick={() => s.askRevoke(b.id)} title="Remover" aria-label={`Remover ${boxLabel(b)}`} className="rounded-md p-1 text-neutral-500 hover:text-red-400">
+                  <button type="button" onClick={() => s.askRevoke(b.id)} title="Remover" aria-label={`Remover ${boxLabel(b)}`} className="rounded-md p-1 text-neutral-500 hover:text-red-400 pointer-coarse:p-3">
                     <Icon name="trash" size={13} />
                   </button>
                 </div>
