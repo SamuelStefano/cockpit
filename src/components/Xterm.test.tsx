@@ -11,6 +11,7 @@ vi.mock('@xterm/xterm', () => ({
     open(el: HTMLElement) { opened.push(el); }
     onData() { return { dispose() {} }; }
     attachCustomKeyEventHandler() {}
+    parser = { registerOscHandler() { return { dispose() {} }; } };
     hasSelection() { return false; }
     focus() {}
     write() {}

@@ -36,6 +36,20 @@ export function clipboardKeyAction(e: KeyLike, hasSelection: boolean): Clipboard
 
 const NOTE_MS = 1800;
 
+// OSC 52 payload is "<selection>;<base64>". "?" is a read request, never honored.
+export function decodeOsc52(data: string): string | null {
+  const sep = data.indexOf(';');
+  if (sep < 0) return null;
+  const b64 = data.slice(sep + 1);
+  if (!b64 || b64 === '?') return null;
+  try {
+    const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+    return new TextDecoder().decode(bytes);
+  } catch {
+    return null;
+  }
+}
+
 export function useTerminalClipboard() {
   const xtRef = useRef<XTerm | null>(null);
 
@@ -81,7 +95,23 @@ export function useTerminalClipboard() {
       if (xt.hasSelection()) void copy(); else void paste();
     };
     el.addEventListener('contextmenu', onContextMenu);
+    // Apps copy through tmux (Claude Code's login URL); tmux forwards it as OSC 52.
+    // Without a user gesture the browser may refuse, so the next click retries.
+    let pending: string | null = null;
+    const writeClipboard = (text: string) =>
+      navigator.clipboard.writeText(text).then(() => { pending = null; toast('Copiado', { durationMs: NOTE_MS }); });
+    const osc = xt.parser.registerOscHandler(52, (data) => {
+      const text = decodeOsc52(data);
+      if (!text || !navigator.clipboard?.writeText) return true;
+      pending = text;
+      writeClipboard(text).catch(() => toast('Clique no terminal para copiar', { durationMs: NOTE_MS }));
+      return true;
+    });
+    const onPointerUp = () => { if (pending) void writeClipboard(pending).catch(() => {}); };
+    el.addEventListener('pointerup', onPointerUp);
     return () => {
+      osc.dispose();
+      el.removeEventListener('pointerup', onPointerUp);
       el.removeEventListener('contextmenu', onContextMenu);
       if (xtRef.current === xt) xtRef.current = null;
     };
