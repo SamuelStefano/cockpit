@@ -57,10 +57,10 @@ describe('ChatHeader', () => {
     expect(screen.getAllByLabelText('Abrir terminais')).toHaveLength(1);
   });
 
-  it('always renders the context ring, and the clean-context action only near the limit', () => {
+  it('hides the context ring for an empty chat, and the clean-context action only near the limit', () => {
     setup({ contextTokens: 0 });
     expect(screen.queryByRole('button', { name: 'Recomeçar com contexto limpo' })).toBeNull();
-    expect(screen.getByLabelText(/^Contexto da conversa: 0%/)).toBeTruthy();
+    expect(screen.queryByLabelText(/^Contexto da conversa/)).toBeNull();
   });
 
   it('shows the plan usage ring in the header', () => {
