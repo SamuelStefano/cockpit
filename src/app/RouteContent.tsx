@@ -6,8 +6,8 @@ import type { AgentNav } from './useAgentNav';
 import { RouteFallback } from './RouteFallback';
 import { ChunkErrorBoundary } from './ChunkErrorBoundary';
 import {
-  Skills, Pontos,
-  Graph, Canvas, Conexoes, Configuracoes, Docs, DesignSystem, Onboarding, EquipePage, Agente,
+  Skills,
+  Canvas, Conexoes, Configuracoes, Docs, DesignSystem, Onboarding, EquipePage, Agente,
 } from './lazyRoutes';
 import type { ChatPanelProps } from '../components/chat/chat-panel-props';
 import type { TerminalsPanelProps } from '../components/Terminals';
@@ -85,29 +85,11 @@ export function RouteContent({ route, agentRoute, skillRoute, isMobile, isAdmin,
           onRegistryGet={c.onRegistryGet} onRegistryInstall={c.onRegistryInstall} versions={c.versions} canRestoreVersions={isRoot} />
       );
     }
-    if (route === '/pontos' && isRoot) {
-      return (
-        <Pontos connected={connected} points={c.points} total={c.pointsTotal} loaded={c.pointsLoaded}
-          onPointsGet={c.onPointsGet} onPointsAdd={c.onPointsAdd} onPointsCorrect={c.onPointsCorrect}
-          onPointsNote={c.onPointsNote} onPointsDelete={c.onPointsDelete}
-          dflSnapshot={c.dflSnapshot} dflLoaded={c.dflLoaded} dflSyncing={c.dflSyncing}
-          onDflGet={c.onDflGet} onDflSync={c.onDflSync} onDflChange={c.onDflChange} onDflInvoice={c.onDflInvoice}
-          onPontosAgent={c.onPontosAgent}
-          drafts={c.drafts} draftsLoaded={c.draftsLoaded} onDraftsGet={c.onDraftsGet} onDraftOp={c.onDraftOp} />
-      );
-    }
     if (route === '/configuracoes' || route.startsWith('/configuracoes/')) {
       return (
         <Configuracoes
           route={route} role={role} nav={nav} isMobile={isMobile} connected={connected} cockpit={c} account={account} usageDock={usageDock}
           onOpenSession={onOpenSession} onOpenTerminal={() => { requestTerminal(); navigateTo('/'); }} />
-      );
-    }
-    if (route === '/graph' && isAdmin) {
-      return (
-        <Graph connected={connected} graphs={c.graphs} loaded={c.graphsLoaded} openId={c.graphOpenId} opening={c.graphOpening} graph={c.graphData}
-          building={c.graphBuilding} buildLog={c.graphBuildLog} buildError={c.graphBuildError} querying={c.graphQuerying} queryResult={c.graphQueryResult} queryHistory={c.graphQueryHistory}
-          onGraphList={c.onGraphList} onGraphOpen={c.onGraphOpen} onGraphBuild={c.onGraphBuild} onClearBuildError={c.onClearBuildError} onGraphDelete={c.onGraphDelete} onGraphQuery={c.onGraphQuery} onGraphNodeOp={c.onGraphNodeOp} />
       );
     }
     if (route === '/canvas' && isAdmin) {

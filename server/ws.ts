@@ -19,9 +19,7 @@ import { startModelsLoop } from './ws/models';
 import { probeSlashCommands } from './ws/slash-probe';
 import { serveConnection } from './ws/serve-connection';
 import { startSessionsWatch } from './sessions/watch';
-import { startPointsWatch } from './points-watch';
 import { startDflPointsWatch } from './dfl-points-watch';
-import { startDflDraftsWatch } from './dfl-drafts-watch';
 import { sandboxUpstream, proxySandboxUpgrade, sandboxOriginAllowed } from './sandbox-proxy';
 
 export { runStats, killAllRuns } from './ws/threads';
@@ -106,9 +104,7 @@ export function attachWs(server: Server) {
   startGrokUsageLoop(hasClients, () => threads.size > 0);
   startModelsLoop(hasClients);
   startSessionsWatch(hasClients);
-  startPointsWatch(hasClients);
   startDflPointsWatch();
-  startDflDraftsWatch();
   probeSlashCommands();
   startCronLoop(fireCron); // agendador: dispara prompts agendados (turnos autônomos)
   startTeamMessaging();

@@ -2,7 +2,7 @@ import { mkdirSync, openSync, closeSync, statSync, fstatSync, rmSync } from 'nod
 import { dirname } from 'node:path';
 
 // Cross-process lock on `<target>.lock` (O_EXCL create). Lives in shared/ so the
-// standalone CLIs (scripts/deck-drafts, run with Node's native type stripping,
+// standalone CLIs (run with Node's native type stripping,
 // which only follows explicit `.ts` imports) take the SAME lock as the server.
 // Only node builtins here for that reason. The server wraps it to log timeouts
 // as incidents (server/ws/file-lock.ts).

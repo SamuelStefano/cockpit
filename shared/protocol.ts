@@ -4,7 +4,6 @@
 
 import type { AreaBudget, AreaId, CanvasBoard, CanvasCard, CanvasFlow, CanvasFlowRun, CanvasGraph, CanvasPos, CardStatus, OrchestratorActivity, OrchestratorInfo, SessionPeek, TermStats } from './canvas';
 import type { AreaUsage } from './canvas-budget';
-import type { DflDraft, DraftOp } from './dfl-drafts';
 import type { McpsState } from './mcps';
 import type { Connection } from './connections';
 import type { ProbeResult } from './provider-probe';
@@ -561,67 +560,6 @@ export interface AdminHealth {
 // is_admin é flag de banco (setada só por root); root vem do ENV, não aparece aqui.
 export interface AccountSummary { id: string; email: string; isAdmin: boolean; agentOnline: boolean }
 
-// Feature "graph" (rota /graph): knowledge graph de um repo via graphify (AST
-// tree-sitter, local). GraphMeta = card na lista; GraphData = payload projetado
-// pro renderizador canvas (só o que a viz usa, já com teto de nós/arestas).
-export interface GraphMeta { id: string; label: string; nodes: number; edges: number; mtime: number; ratio?: number }
-export interface GraphNode {
-  id: string;
-  label: string;
-  community: number;
-  communityName?: string;
-  file?: string;
-  loc?: string;
-  fileType?: string;
-  repo?: string; // presente só no grafo global (merge de apps) — de qual app é o nó
-  deg: number; // grau (nº de arestas) — dimensiona o raio e prioriza no corte
-}
-export interface GraphEdge { source: string; target: string; relation: string; confidence: 'EXTRACTED' | 'INFERRED' }
-export interface GraphData {
-  directed: boolean;
-  nodes: GraphNode[];
-  edges: GraphEdge[];
-  communities: { id: number; name: string }[];
-  truncated: boolean;   // true = a viz mostra um subconjunto (grafo maior que o teto)
-  totalNodes: number;
-  totalEdges: number;
-}
-
-// Pontos: ledger vivo de pontuação (story points). A IA registra ao terminar uma
-// task (evento create); o usuário corrige (correct) sem sobrescrever — o histórico
-// prevalece (append-only). PointsEvent = uma linha do ledger; PointsEntry = a
-// projeção dobrada (valor atual + trilha de procedência).
-export interface PointsEvent {
-  id: string;
-  entryId: string;
-  kind: 'create' | 'correct' | 'note' | 'delete';
-  title?: string;
-  points?: number;
-  description?: string;
-  by: 'agent' | 'user';
-  at: number;
-}
-export interface PointsHistoryItem {
-  kind: 'create' | 'correct' | 'note' | 'delete';
-  points?: number;
-  description?: string;
-  by: 'agent' | 'user';
-  at: number;
-}
-export interface PointsEntry {
-  entryId: string;
-  title: string;
-  points: number;          // valor ATUAL (último create/correct)
-  originalPoints: number;  // o do create
-  description?: string;
-  createdAt: number;
-  updatedAt: number;
-  by: 'agent' | 'user';    // quem CRIOU a entry
-  corrected: boolean;      // points !== originalPoints
-  history: PointsHistoryItem[];
-  deleted: boolean;        // sempre false no payload visível (deletadas somem do fold)
-}
-
 // Snapshot financeiro do DFL (schemas work + payments), derivado FORA do request
 // path por um sync que roda dfl-auth+PostgREST e escreve ~/.cockpit/dfl-points.json
 // já filtrado só pro Samuel. O Deck só LÊ o arquivo — nenhum segredo cruza pro
@@ -771,11 +709,6 @@ export type ClientMsg =
   | { t: 'vault-put'; name: string; value: string; agents?: string[] }
   | { t: 'vault-list' }
   | { t: 'vault-rm'; name: string }
-  | { t: 'points-get' }
-  | { t: 'points-add'; title: string; points: number; description?: string }
-  | { t: 'points-correct'; entryId: string; points: number }
-  | { t: 'points-note'; entryId: string; description: string }
-  | { t: 'points-delete'; entryId: string }
   // Snapshot financeiro DFL: owner-only por construção. NÃO entra no STUDENT_ALLOWED
   // (authz default-deny) e a resposta é UNICAST send(ws), nunca broadcast global —
   // dado financeiro não pode fazer fan-out cego. sync = pede refresh ao vivo agora.
@@ -784,8 +717,6 @@ export type ClientMsg =
   // Escritas no DFL prod: só chegam aqui via authorize (admin) E o handler exige
   // localOnly (box do dono). Vão pelo caminho sancionado do DFL num processo filho —
   // o token nunca cruza pro WS/cliente. reqId ecoa na resposta pra a UI casar.
-  | { t: 'points-dfl-change'; reqId: string; taskId: string; taskName: string; currentPoints: number; newPoints: number; reason?: string }
-  | { t: 'points-dfl-invoice'; reqId: string; deliveryId: string; deliveryName: string; projectId?: string | null; projectName?: string | null; referenceMonth: string; pricePerPoint: number; tasks: { id: string; title: string; points: number; deliveryId?: string; deliveryName?: string }[] }
   // Kanban<->DFL card link (opt-in, DFL-area cards only — server re-derives
   // the card's area itself from EVERY linked context/session, unanimously,
   // never trusts the client; see server/canvas/dfl-link.ts's
@@ -806,16 +737,6 @@ export type ClientMsg =
   // billing surface, so an automatic card move/agent auto-move never writes
   // on its own; this is the only path that does for those two statuses.
   | { t: 'dfl-task-confirm-sync'; reqId: string; cardId: string }
-  // Botão "criar tasks com agente": dispara um turno autônomo que registra o
-  // trabalho no DFL. Não escreve nada sozinho aqui — quem escreve é o agente,
-  // pelas tools dele. Os tetos viajam junto pra o prompt citar o valor vigente.
-  // target 'drafts' = the agent stages the structure in the Deck (deck-drafts) instead.
-  | { t: 'pontos-agent-tasks'; reqId: string; note: string; epicCapCents: number; monthCapCents: number; pointValue: number; target?: 'dfl' | 'drafts' }
-  // Staged DFL epics (~/.cockpit/dfl-drafts.json). Same class as the finance
-  // snapshot: outside STUDENT_ALLOWED and pushed only to finance sockets. Nothing
-  // here touches DFL — only the dispatched agent writes there.
-  | { t: 'drafts-get' }
-  | { t: 'drafts-op'; op: DraftOp }
   | { t: 'ctx-install'; slug: string; title: string; body: string }
   | { t: 'session-handoff'; sessionId: string }
   // Afunilamento em lote: destila as sessões paradas num contexto só e arquiva.
@@ -894,12 +815,6 @@ export type ClientMsg =
   | { t: 'term-close'; termId: string }
   | { t: 'term-list' }
   | { t: 'term-resume'; termId: string; watch: string } // ctrl-c the follower, then `claude --resume <watch>`
-  | { t: 'graph-list' }
-  | { t: 'graph-build'; repo: string }
-  | { t: 'graph-open'; id: string }
-  | { t: 'graph-query'; id: string; question: string; budget?: number }
-  | { t: 'graph-node-op'; id: string; op: 'explain' | 'affected' | 'path'; a: string; b?: string }
-  | { t: 'graph-delete'; id: string }
   | { t: 'canvas-get' }
   // Cheap identity-only read (readOrchestrator: a small local file, no
   // transcript rescan) — so the normal chat view's "this is the
@@ -1016,14 +931,9 @@ export type ServerMsg =
   | { t: 'drop'; ref: DropRef; content?: string }
   | { t: 'drops'; items: DropRef[] }
   | { t: 'vault'; items: VaultItem[] }
-  | { t: 'points'; entries: PointsEntry[]; total: number }
   // snapshot = null quando o sync ainda não rodou (nada em ~/.cockpit/dfl-points.json).
   | { t: 'points-dfl'; snapshot: DflPointsSnapshot | null }
   | { t: 'points-dfl-syncing' }
-  | { t: 'drafts'; items: DflDraft[] }
-  // Resultado de uma escrita DFL (change/invoice). reqId casa com o pedido; a UI
-  // mostra sucesso/erro e um resync empurra o snapshot novo pelo watcher.
-  | { t: 'points-dfl-write'; reqId: string; kind: 'change' | 'invoice' | 'agent'; ok: boolean; message?: string }
   // Resultado de dfl-task-link/dfl-task-create-link. reqId casa com o pedido;
   // sucesso já vem acompanhado de um canvas-board com o card.dfl atualizado.
   | { t: 'dfl-task-write'; reqId: string; ok: boolean; message?: string; taskId?: string }
@@ -1129,7 +1039,6 @@ export type ServerMsg =
   | { t: 'claude-import'; scan: ClaudeImportScan; hint?: string; result?: ClaudeImportResult }
   | { t: 'accounts'; accounts: AccountSummary[] }
   | { t: 'stats'; stats: SysStats }
-  | { t: 'graphs'; items: GraphMeta[] }
   | { t: 'canvas-graph'; graph: CanvasGraph }
   | { t: 'orchestrator-info'; info?: OrchestratorInfo }
   | { t: 'orchestrator-activity'; activity: OrchestratorActivity }
@@ -1196,10 +1105,6 @@ export type ServerMsg =
   // persistent "sync pendente" badge; this is only the one-shot toast.
   | { t: 'canvas-dfl-sync-error'; cardId: string; message: string }
   | { t: 'canvas-area-usage'; usage: Partial<Record<AreaId, AreaUsage>> }
-  | { t: 'graph-data'; id: string; graph: GraphData }
-  | { t: 'graph-query-result'; id: string; question: string; answer: string; tokens: number; miss: boolean }
-  | { t: 'graph-build-progress'; line: string }
-  | { t: 'graph-build-done'; ok: boolean; id?: string; error?: string }
   | { t: 'bench-bundle'; buildId: string; js: string; css: string; ms: number }
   | { t: 'bench-error'; buildId: string; error: string }
   | { t: 'term-data'; termId: string; data: string }

@@ -391,7 +391,7 @@ scripts/doctor.sh    watchdog do host (cron)
 
 O modelo multi-conta **já é o T3**: cada pessoa cria conta (signup aberto no SPA), pareia um agente
 na própria box e roda o `claude` logado na própria conta Anthropic. Não existe "ligar o login" no
-modo listen — o listen é o dono da box, sempre `admin` no engine e `root` no caps (pontos e host-ops exigem root: `shared/root-frames.ts`, barrados também no relay pra conta não-root).
+modo listen — o listen é o dono da box, sempre `admin` no engine e `root` no caps (o financeiro DFL e host-ops exigem root: `shared/root-frames.ts`, barrados também no relay pra conta não-root).
 
 **Público interno (fellows DFL, box própria)** — falta:
 1. `scripts/agent-setup.sh` endurecido (recusar root, watchdog e hooks de auto-redeploy opt-in,

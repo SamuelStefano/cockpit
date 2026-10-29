@@ -13,7 +13,7 @@ const RETRY_MS = 30_000;
 // registrados (emitFinance) — nunca broadcast global. Singleton (ws.ts + agent.ts).
 // Também é o gatilho DFL->Deck do vínculo Kanban<->DFL (applyDflSyncToBoard):
 // roda incondicionalmente (não só com finance clients — o Kanban precisa do
-// status atualizado mesmo com /pontos fechado), best-effort.
+// status atualizado mesmo sem nenhum socket financeiro), best-effort.
 let started = false;
 export function startDflPointsWatch(): void {
   if (started) return;

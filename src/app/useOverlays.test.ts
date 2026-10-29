@@ -47,7 +47,7 @@ describe('useOverlays', () => {
       result.current.setTermSheet(true);
     });
     expect(result.current.drawer).toBe(true);
-    rerender({ route: '/graph' });
+    rerender({ route: '/canvas' });
     expect(result.current).toMatchObject({ drawer: false, termSheet: false, routeMenu: false });
   });
 
@@ -59,7 +59,7 @@ describe('useOverlays', () => {
       result.current.setPalette(true);
       result.current.setHelp(true);
     });
-    rerender({ route: '/graph' });
+    rerender({ route: '/canvas' });
     expect(result.current).toMatchObject({ palette: true, help: true });
   });
 });

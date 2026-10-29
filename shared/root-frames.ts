@@ -9,9 +9,7 @@ import type { ClientMsg } from './protocol';
 // the engine's authorize refuses them on a connection that is not the owner's.
 // Pure, no node:* import: the relay and the server both use it.
 export const ROOT_ONLY: ReadonlySet<ClientMsg['t']> = new Set<ClientMsg['t']>([
-  'points-get', 'points-add', 'points-correct', 'points-note', 'points-delete',
-  'points-dfl-get', 'points-dfl-sync', 'points-dfl-change', 'points-dfl-invoice',
-  'pontos-agent-tasks', 'drafts-get', 'drafts-op',
+  'points-dfl-get', 'points-dfl-sync',
   'admin-env-set', 'admin-env-unset', 'admin-mcp-add', 'admin-mcp-remove',
   'admin-cli-install', 'admin-cli-update', 'admin-deck-restart',
   'agent-add-custom', 'agent-probe-draft', 'provider-probe',
