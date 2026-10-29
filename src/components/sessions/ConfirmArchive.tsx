@@ -42,8 +42,8 @@ export function ConfirmArchive({ title, mode = 'archive', onConfirm, onCancel }:
     return () => window.removeEventListener('keydown', onKey);
   }, [onConfirm, onCancel]);
   return (
-    <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs" onClick={onCancel}>
-      <div role="dialog" aria-modal="true" aria-label={c.heading} className="w-full max-w-sm rounded-2xl border border-neutral-700 bg-neutral-900 p-4 shadow-2xl shadow-black/50" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-60 flex items-end justify-center bg-black/60 p-4 backdrop-blur-xs max-sm:p-0 sm:items-center" onClick={onCancel}>
+      <div role="dialog" aria-modal="true" aria-label={c.heading} className="w-full max-w-sm rounded-2xl border border-neutral-700 bg-neutral-900 p-4 shadow-2xl max-sm:max-w-none max-sm:rounded-b-none max-sm:pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-black/50" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start gap-3">
           <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-500/15 text-red-400">
             <Icon name={c.icon} size={16} />
@@ -53,7 +53,7 @@ export function ConfirmArchive({ title, mode = 'archive', onConfirm, onCancel }:
             <p className="mt-1 text-[13px] leading-snug text-neutral-400">{c.body(title)}</p>
           </div>
         </div>
-        <div className="mt-4 flex items-center justify-end gap-2">
+        <div className="mt-4 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end sm:gap-2 max-sm:[&>button]:min-h-11 max-sm:[&>button]:w-full">
           <Button variant="outline" onClick={onCancel}>Cancelar</Button>
           <Button variant="dangerSolid" onClick={onConfirm}>{c.cta}</Button>
         </div>
