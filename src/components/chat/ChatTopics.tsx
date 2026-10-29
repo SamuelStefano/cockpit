@@ -36,7 +36,7 @@ export function ChatTopics({ topics, activeId, open, setOpen, onJump }: ChatTopi
       // centered on its own height: one mark per prompt, so a long session's rail
       // (80 prompts ≈ 570px) ran over the chat header's buttons and the composer.
       // The wrapper lets clicks through; only the rail and the list take them.
-      className="group/topics pointer-events-none absolute inset-y-2 right-0 z-10 flex items-center print:hidden"
+      className="group/topics pointer-events-none max-lg:hidden absolute inset-y-2 right-0 z-10 flex items-center print:hidden"
       // Hover opens it for a real mouse only. A tap fires emulated mouseenter right
       // before click, so opening on mouseenter made the click toggle it shut again:
       // on a phone the rail never opened.

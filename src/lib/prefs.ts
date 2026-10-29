@@ -37,3 +37,8 @@ export const WAITING_DISMISSED_KEY = 'waitingDismissed';
 // já é sessão que ninguém reabre, e ainda deixa a semana corrente inteira de fora.
 export const FUNNEL_IDLE_KEY = 'sessions.funnelIdleDays';
 export const FUNNEL_IDLE_DEFAULT = 7;
+
+// Vibração curta ao enviar, ao fim do turno e ao segurar uma mensagem. Só ponteiro
+// grosso; iOS Safari não expõe navigator.vibrate, então lá vira no-op.
+export const HAPTICS_KEY = 'ui.haptics';
+export const HAPTICS_DEFAULT = true;

@@ -1,10 +1,12 @@
 import { Button, Icon, tokens } from '../primitives';
 import type { AttachmentPreview } from '../../useCockpit';
 import { attachmentIcon } from '../../lib/attachment-kind';
+import { useCoarse } from '../primitives/useCoarse';
 import { useAttachmentModal } from './useAttachmentModal';
 
 export function AttachmentModal({ att, onClose }: { att: AttachmentPreview; onClose: () => void }) {
   const { kind, url } = useAttachmentModal(att, onClose);
+  const coarse = useCoarse();
 
   const content = (() => {
     if (att.error) {
@@ -35,6 +37,7 @@ export function AttachmentModal({ att, onClose }: { att: AttachmentPreview; onCl
     if (kind === 'image') return <img src={url} alt={att.name} className="max-h-[70dvh] w-auto max-w-full rounded-lg object-contain" />;
     if (kind === 'video') return <video src={url} controls className="max-h-[70dvh] w-auto max-w-full rounded-lg" />;
     if (kind === 'audio') return <audio src={url} controls className="w-full sm:min-w-[280px]" />;
+    if (kind === 'pdf' && coarse) return <a href={url} target="_blank" rel="noreferrer" className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-neutral-700 px-4 text-[14px] text-neutral-100"><Icon name="file" size={16} /> Abrir PDF</a>;
     if (kind === 'pdf') return <iframe src={url} title={att.name} className="h-[70dvh] w-full rounded-lg bg-white" />;
     return (
       <div className="flex flex-col items-center gap-3 py-10 text-neutral-400">

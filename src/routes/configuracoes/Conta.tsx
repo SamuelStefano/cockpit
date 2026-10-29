@@ -6,7 +6,7 @@ import { ChangePasswordForm } from '../../components/profile/ChangePasswordForm'
 import { DropButton } from '../../components/drop/DropButton';
 import type { DropApi } from '../../cockpit/useDrops';
 import { usePersisted } from '../../lib/persist';
-import { SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT, GROUP_NOTES_KEY, GROUP_NOTES_DEFAULT, NOTIFY_SOUND_KEY, NOTIFY_SOUND_DEFAULT } from '../../lib/prefs';
+import { SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT, GROUP_NOTES_KEY, GROUP_NOTES_DEFAULT, NOTIFY_SOUND_KEY, NOTIFY_SOUND_DEFAULT, HAPTICS_KEY, HAPTICS_DEFAULT } from '../../lib/prefs';
 import { isIOS, isStandalone } from '../../lib/platform';
 import { requestNotifyPermission } from '../../lib/notify';
 import { SwitchRow } from './SwitchRow';
@@ -26,6 +26,7 @@ export function Conta({ account, role }: { account: AccountProps; role: NavRole 
   const [showTools, setShowTools] = usePersisted<boolean>(SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT);
   const [groupNotes, setGroupNotes] = usePersisted<boolean>(GROUP_NOTES_KEY, GROUP_NOTES_DEFAULT);
   const [notifySound, setNotifySound] = usePersisted<boolean>(NOTIFY_SOUND_KEY, NOTIFY_SOUND_DEFAULT);
+  const [haptics, setHaptics] = usePersisted<boolean>(HAPTICS_KEY, HAPTICS_DEFAULT);
   const badge = roleBadge(role);
 
   return (
@@ -57,6 +58,7 @@ export function Conta({ account, role }: { account: AccountProps; role: NavRole 
           hint={isIOS() ? (isStandalone() ? 'No iPhone/iPad o app em segundo plano fica pausado: o aviso só sai ao voltar' : 'Avisos no iPhone: instale o Deck na tela inicial (Compartilhar › Adicionar à Tela de Início)') : 'Beep curto, só com a aba fora de foco'}
           checked={notifySound} onChange={() => { if (!notifySound) requestNotifyPermission(); setNotifySound((v) => !v); }}
         />
+        <SwitchRow label="Vibração no toque" hint="Enviar, fim do turno e segurar uma mensagem (Android; o Safari do iPhone não vibra)" checked={haptics} onChange={() => setHaptics((v) => !v)} />
         {account.drops && (
           <ListRow label="Drop privado" hint="Entrega segredo ou script ao agente sem passar pelo chat" trailing={<DropButton api={account.drops} bare />} />
         )}

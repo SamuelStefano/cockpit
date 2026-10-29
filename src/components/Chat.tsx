@@ -106,7 +106,7 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, draf
         ) : (
           // role=log is polite-live: a reader hears new replies. aria-busy holds it
           // while tokens stream, so it reads the finished answer, not every delta.
-          <div role="log" aria-label="Conversa" aria-busy={c.streaming} className={`mx-auto flex w-full min-w-0 max-w-[760px] flex-col gap-6 pb-10 pt-8 ${topics.topics.length > 0 ? 'pr-6' : ''}`}>
+          <div role="log" aria-label="Conversa" aria-busy={c.streaming} className={`mx-auto flex w-full min-w-0 max-w-[760px] flex-col gap-6 pb-10 pt-8 ${topics.topics.length > 0 ? 'lg:pr-6' : ''}`}>
             <BotThreadContext.Provider value={!!botDecor}>
               {rows.map((r) => (r.kind === 'extra' ? <div key={r.key}>{r.node}</div> : renderRow(r.msg, r.index)))}
             </BotThreadContext.Provider>
