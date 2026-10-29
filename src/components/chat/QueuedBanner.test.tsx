@@ -7,6 +7,7 @@ afterEach(cleanup);
 
 const props = (queued: string[]) => ({
   queued,
+  queuedIds: queued.map((_, i) => `id-${i}`),
   queuedModels: queued.map(() => 'claude-sonnet-5'),
   models: [],
   onRunBg: vi.fn(),

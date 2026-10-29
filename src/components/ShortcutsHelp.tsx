@@ -21,6 +21,8 @@ const GROUPS: { title: string; items: { keys: string[]; label: string }[] }[] = 
       { keys: ['⇧', '↵'], label: 'Quebrar linha' },
       { keys: ['↵'], label: 'Confirmar banner (composição vazia)' },
       { keys: ['esc'], label: 'Parar o turno (composição vazia)' },
+      { keys: ['⌘', '.'], label: 'Escolher modelo' },
+      { keys: ['⌘', '⇧', 'A'], label: 'Anexar arquivo' },
     ],
   },
   {

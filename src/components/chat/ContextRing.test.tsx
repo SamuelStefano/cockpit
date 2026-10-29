@@ -6,9 +6,9 @@ import { ContextRing } from './ContextRing';
 afterEach(cleanup);
 
 describe('ContextRing', () => {
-  it('stays rendered and dimmed without context', () => {
+  it('hides the ring (keeping the slot) without context', () => {
     render(<ContextRing tokens={0} onNew={vi.fn()} />);
-    expect(screen.getByLabelText('Contexto da conversa: 0%')).toBeTruthy();
+    expect(screen.queryByLabelText('Contexto da conversa: 0%')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Recomeçar com contexto limpo' })).toBeNull();
   });
 

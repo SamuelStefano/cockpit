@@ -8,6 +8,8 @@ export function ContextRing({ tokens, model, onNew }: { tokens: number; model?: 
   const pct = m?.pct ?? 0;
   const label = m ? `Contexto da conversa: ${m.pct}% · ${m.k}k` : 'Contexto da conversa: 0%';
   const quiet = pct < 70;
+  // Empty chat: keep the slot (nothing shifts) but do not draw a dimmed, disabled-looking ring.
+  if (tokens === 0) return <span aria-hidden className="inline-block size-[18px]" />;
   return (
     <div className="flex items-center gap-2">
       <Tooltip label={label} side="bottom">

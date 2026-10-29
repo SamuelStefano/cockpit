@@ -2,6 +2,7 @@ import { Icon } from '../primitives';
 import { ComposerNotice } from './ComposerNotice';
 import { ComposerActions } from './ComposerActions';
 import { ComposerGhost } from './ComposerGhost';
+import { GhostChip } from './GhostChip';
 import { ComposerPlus } from './ComposerPlus';
 import { ModelPicker } from './ModelPicker';
 import { AttachmentChips } from './AttachmentChips';
@@ -45,6 +46,7 @@ interface ChatInputProps {
   onAttThumb?: (path: string) => void;
   focusSignal: number;
   queued: string[];
+  queuedIds: string[];
   queuedAtts?: number[];
   queuedModels: string[];
   onRunQueuedBg: (i: number, model: string) => void;
@@ -68,11 +70,11 @@ interface ChatInputProps {
 }
 
 export function ChatInput(props: ChatInputProps) {
-  const { disabled, placeholder, onStop, value, setValue, mode, setMode, caps, bypass, setBypass, model, setModel, modelLocked, models, onRefreshModels, effort, setEffort, mcpServers, selectedMcps, setSelectedMcps, attachments, onRemoveAttachment, onOpenAttachment, attThumbs, onAttThumb, queued, queuedAtts, queuedModels, onRunQueuedBg, onRunQueuedNow, onCancelQueueAt, onEditQueuedAt, onMoveQueued, queueHeld = false, onResumeQueue, queuePaused = false, queueReleaseAt = 0, onToggleQueuePause, paused = false, quotaResetsAt, onCall } = props;
+  const { disabled, placeholder, onStop, value, setValue, mode, setMode, caps, bypass, setBypass, model, setModel, modelLocked, models, onRefreshModels, effort, setEffort, mcpServers, selectedMcps, setSelectedMcps, attachments, onRemoveAttachment, onOpenAttachment, attThumbs, onAttThumb, queued, queuedIds, queuedAtts, queuedModels, onRunQueuedBg, onRunQueuedNow, onCancelQueueAt, onEditQueuedAt, onMoveQueued, queueHeld = false, onResumeQueue, queuePaused = false, queueReleaseAt = 0, onToggleQueuePause, paused = false, quotaResetsAt, onCall } = props;
   const hasAtt = attachments.length > 0;
   const attUploading = attachments.some((a) => a.uploading);
   const resetLabel = quotaResetsAt ? new Date(quotaResetsAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : null;
-  const { taRef, fileRef, cameraRef, sel, setSel, showPalette, matches, complete, submit, onKey, onCompositionEnd, grow, pick, dragging, onDragEnter, onDragOver, onDragLeave, onDrop, onPaste, mic, ghost, ghostShown, acceptGhost, touch } = useChatInput({ ...props, hasAtt, attUploading });
+  const { taRef, fileRef, cameraRef, sel, setSel, showPalette, matches, complete, submit, onKey, onCompositionEnd, grow, pick, dragging, onDragEnter, onDragOver, onDragLeave, onDrop, onPaste, mic, ghost, ghostShown, acceptGhost, touch, dismissPalette, hintSeen } = useChatInput({ ...props, hasAtt, attUploading });
   const settings = { mode, setMode, caps, bypass, setBypass, model, effort, setEffort, mcpServers, selectedMcps, setSelectedMcps };
   // `relative z-20` na casca: o header sticky do CodeBlock é z-10 no contexto
   // raiz e pintava POR CIMA dos popovers do composer (MCP/skills), cobrindo
@@ -83,7 +85,7 @@ export function ChatInput(props: ChatInputProps) {
       {hasAtt && <AttachmentChips attachments={attachments} onRemoveAttachment={onRemoveAttachment} onOpen={onOpenAttachment} thumbs={attThumbs} onThumb={onAttThumb} />}
       {mic.error && <ComposerNotice icon="mic" onDismiss={mic.dismissError}>{mic.error}</ComposerNotice>}
       {mic.hint && <ComposerNotice icon="mic" tone="info" onDismiss={mic.dismissHint}>{mic.hint}</ComposerNotice>}
-      {queued.length > 0 && <QueuedBanner queued={queued} queuedAtts={queuedAtts} queuedModels={queuedModels} models={models} onRunBg={onRunQueuedBg} onRunNow={onRunQueuedNow} onCancelQueueAt={onCancelQueueAt} onEdit={onEditQueuedAt} onMove={onMoveQueued} held={queueHeld} onResume={onResumeQueue} paused={queuePaused} releaseAt={queueReleaseAt} onTogglePause={onToggleQueuePause} quotaHeld={paused} resetLabel={resetLabel} />}
+      {queued.length > 0 && <QueuedBanner queued={queued} queuedIds={queuedIds} queuedAtts={queuedAtts} queuedModels={queuedModels} models={models} onRunBg={onRunQueuedBg} onRunNow={onRunQueuedNow} onCancelQueueAt={onCancelQueueAt} onEdit={onEditQueuedAt} onMove={onMoveQueued} held={queueHeld} onResume={onResumeQueue} paused={queuePaused} releaseAt={queueReleaseAt} onTogglePause={onToggleQueuePause} quotaHeld={paused} resetLabel={resetLabel} />}
       {paused && (
         <ComposerNotice icon="clock">
           Tokens do plano esgotados — chat pausado{resetLabel ? ` até ${resetLabel}` : ''}. Nada é perdido: a fila retoma sozinha quando a janela resetar.
@@ -97,7 +99,8 @@ export function ChatInput(props: ChatInputProps) {
           <Icon name="paperclip" size={15} /> Solte os arquivos pra anexar
         </div>
       )}
-      {showPalette && <SlashPalette matches={matches} sel={sel} setSel={setSel} complete={complete} />}
+      {touch && ghost && !showPalette && <GhostChip ghostShown={ghostShown} acceptGhost={acceptGhost} />}
+      {showPalette && <SlashPalette matches={matches} sel={sel} setSel={setSel} complete={complete} onDismiss={touch ? dismissPalette : undefined} />}
       <div className="elev-1 flex flex-wrap items-end gap-1.5 rounded-[26px] pointer-coarse:pt-2.5 border border-neutral-700 bg-neutral-950 py-1.5 pl-1.5 pr-2 transition focus-within:border-[#3a3a42]">
         <ComposerPlus
           touch={touch} mic={mic} onCall={onCall} settings={settings}
@@ -105,7 +108,7 @@ export function ChatInput(props: ChatInputProps) {
           onPhoto={() => cameraRef.current?.click()}
         />
         <div className="relative min-w-0 flex-1 pointer-coarse:order-first pointer-coarse:basis-full pointer-coarse:px-2.5">
-          {ghost && <ComposerGhost value={value} ghostShown={ghostShown} acceptGhost={acceptGhost} />}
+          {ghost && <ComposerGhost value={value} ghostShown={ghostShown} acceptGhost={acceptGhost} chip={!touch} />}
           <textarea
             ref={taRef}
             rows={1}
@@ -120,7 +123,7 @@ export function ChatInput(props: ChatInputProps) {
             onPaste={onPaste}
             readOnly={mic.listening}
             enterKeyHint={touch ? 'enter' : 'send'}
-            placeholder={paused ? 'Enfileirar mensagem…' : mic.listening ? 'Ouvindo…' : placeholder ?? 'Mensagem'}
+            placeholder={paused ? 'Enfileirar mensagem…' : mic.listening ? 'Ouvindo…' : placeholder ?? (touch && !hintSeen ? 'Mensagem · Enter quebra linha' : 'Mensagem')}
             style={{ maxHeight: composerMaxH() }}
             className="scroll-thin relative w-full resize-none bg-transparent py-1 text-[16px] leading-7 text-neutral-100 placeholder-neutral-600 outline-hidden"
           />
@@ -130,7 +133,6 @@ export function ChatInput(props: ChatInputProps) {
         </div>
         <ComposerActions
           mic={mic}
-          onCall={onCall}
           busy={disabled}
           paused={paused}
           hasText={!!value.trim()}

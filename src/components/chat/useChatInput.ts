@@ -12,6 +12,8 @@ import { useSlashPalette } from './useSlashPalette';
 import { useComposerRecall } from './useComposerRecall';
 import { pickFreshUploads } from './dedupe-uploads';
 import { isVirtualKeyboardOnly } from './touch';
+import { OPEN_MODEL_EVENT } from './model-events';
+import { usePersisted } from '../../lib/persist';
 
 interface UseChatInputArgs {
   disabled: boolean;
@@ -61,6 +63,8 @@ export function useChatInput(args: UseChatInputArgs) {
   };
   const dnd = useFileDrop(uploadFiles, true);
   const { sel, setSel, matches, showPalette, setDismissed } = useSlashPalette(disabled, value, slashCommands);
+  const dismissPalette = () => setDismissed(true);
+  const [hintSeen, setHintSeen] = usePersisted<boolean>('composerHintSeen', false);
   const { histIdx, setHistIdx, recall } = useComposerRecall(history, setValue, taRef);
   // Sugestão fantasma (cinza): histórico global persistido + sessão atual (sessão
   // por último = prioridade, a varredura é do fim). Só com a sessão a sugestão
@@ -91,6 +95,16 @@ export function useChatInput(args: UseChatInputArgs) {
     fitHeight(el);
     el.scrollTop = el.scrollHeight;
   }, [value]);
+  // ⌘. opens the model sheet, ⌘⇧A attaches a file (keyboard path to both composer controls).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
+      if (e.key === '.' && !e.shiftKey) { e.preventDefault(); window.dispatchEvent(new Event(OPEN_MODEL_EVENT)); }
+      else if (e.key.toLowerCase() === 'a' && e.shiftKey) { e.preventDefault(); fileRef.current?.click(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
   useEffect(() => {
     if (focusSignal === 0) return;
     const el = taRef.current;
@@ -153,6 +167,7 @@ export function useChatInput(args: UseChatInputArgs) {
       recordPrompt(v);
       mic.reset();
       onSend(v); setValue('');
+      if (touch && !hintSeen) setHintSeen(true);
     }
     if (taRef.current) taRef.current.style.height = 'auto';
   };
@@ -249,5 +264,5 @@ export function useChatInput(args: UseChatInputArgs) {
     if (histIdx !== null) setHistIdx(null); // digitar sai do modo recall
     fitHeight(e.target);
   };
-  return { taRef, fileRef, cameraRef, sel, setSel, showPalette, matches, complete, submit, onKey, onCompositionEnd, grow, pick, ...dnd, mic, ghost, ghostShown, acceptGhost, touch };
+  return { taRef, fileRef, cameraRef, sel, setSel, showPalette, matches, complete, submit, onKey, onCompositionEnd, grow, pick, ...dnd, mic, ghost, ghostShown, acceptGhost, touch, dismissPalette, hintSeen };
 }

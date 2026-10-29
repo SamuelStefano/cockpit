@@ -91,19 +91,14 @@ describe('ComposerActions primary slot', () => {
     expect((screen.getByLabelText('Enviar mensagem') as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it('empty field: the main button starts the voice call', () => {
-    const onCall = vi.fn();
-    setup({ mic: mic(), onCall });
-    expect(screen.queryByLabelText('Enviar mensagem')).toBeNull();
-    fireEvent.click(screen.getByLabelText('Ligar'));
-    expect(onCall).toHaveBeenCalledTimes(1);
-    cleanup();
-    setup({ mic: mic(), onCall, hasText: true });
+  it('empty field: the main button stays a disabled send, never a call', () => {
+    setup({ mic: mic() });
     expect(screen.queryByLabelText('Ligar')).toBeNull();
+    expect((screen.getByLabelText('Enviar mensagem') as HTMLButtonElement).disabled).toBe(true);
   });
 
   it('never offers the call or mic while a turn runs', () => {
-    setup({ busy: true, onCall: vi.fn(), mic: mic() });
+    setup({ busy: true, mic: mic() });
     expect(screen.queryByLabelText('Ligar')).toBeNull();
     expect(screen.queryByLabelText('Ditar por voz')).toBeNull();
   });

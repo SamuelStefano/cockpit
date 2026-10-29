@@ -10,7 +10,6 @@ interface ComposerActionsProps {
   onSubmit: () => void;
   onStop: () => void;
   mic?: Mic;
-  onCall?: () => void;
 }
 
 // 44px on touch: the one primary action must be an easy target.
@@ -60,15 +59,8 @@ function MicButton({ mic }: { mic: Mic }) {
   return <IconButton icon="mic" label="Ditar por voz" tip={mic.error ?? 'Ditar por voz'} onClick={mic.toggle} className="rounded-full" />;
 }
 
-function PrimaryAction({ paused, hasText, hasAtt, attUploading, onSubmit, onCall }: ComposerActionsProps) {
+function PrimaryAction({ paused, hasText, hasAtt, attUploading, onSubmit }: ComposerActionsProps) {
   const canSend = hasText || hasAtt;
-  if (!canSend && !attUploading && onCall) {
-    return (
-      <button type="button" onClick={onCall} aria-label="Ligar" title="Conversar por voz com a sessão, sem as mãos" className={`${btn} ${chunk} focus-visible:ring-orange-500/40`}>
-        <Icon name="audio" size={19} />
-      </button>
-    );
-  }
   return (
     <button
       type="button"
@@ -91,7 +83,7 @@ function PrimaryAction({ paused, hasText, hasAtt, attUploading, onSubmit, onCall
 export function ComposerActions(props: ComposerActionsProps) {
   if (props.busy) return <BusyActions {...props} />;
   return (
-    <div className="flex shrink-0 items-center gap-1">
+    <div className="flex shrink-0 items-center gap-1 pointer-coarse:gap-2">
       {props.mic?.supported && <MicButton mic={props.mic} />}
       <PrimaryAction {...props} />
     </div>
