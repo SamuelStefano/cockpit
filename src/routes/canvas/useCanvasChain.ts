@@ -56,7 +56,7 @@ export function useCanvasChain(nodes: CanvasNode[], flows: CanvasFlow[], running
     });
   }, []);
 
-  const tree = useMemo(() => buildChainTree(nodes, flows, running), [nodes, flows, running];
+  const tree = useMemo(() => buildChainTree(nodes, flows, running), [nodes, flows, running]);
 
   // Point 4's default, applied ONCE: a device that never touched this pref
   // (hasPref false — an empty persisted list is indistinguishable from "user

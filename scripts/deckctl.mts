@@ -323,7 +323,7 @@ async function cmdBoard(json: boolean): Promise<void> {
   const sessionItems = deriveSessionItems({
     nodes: merged.nodes, edges: merged.edges, cards: board.board.cards, showAutomation: false,
     running: busy, overrides: board.board.sessionStatus, turnStartedAt: {},
-    orchestratorSessionId: graph?.graph.orchestrator?.sessionId, cvLive: new Set(cvLive?.sessionIds ?? []),
+    cvLive: new Set(cvLive?.sessionIds ?? []),
   });
 
   const cardsByStatus = new Map<CardStatus, CanvasCard[]>(CARD_STATUSES.map((s) => [s, []]));
@@ -795,7 +795,7 @@ async function cmdStatus(): Promise<void> {
     const sessionItems = deriveSessionItems({
       nodes: merged.nodes, edges: merged.edges, cards: board.board.cards, showAutomation: false,
       running: busyKeys, overrides: board.board.sessionStatus, turnStartedAt: {},
-      orchestratorSessionId: graph?.graph.orchestrator?.sessionId, cvLive: cvLiveIds,
+      cvLive: cvLiveIds,
     });
     const counts = CARD_STATUSES.map((s) => {
       const n = board.board.cards.filter((c) => c.status === s).length + sessionItems.filter((i) => i.status === s).length;
