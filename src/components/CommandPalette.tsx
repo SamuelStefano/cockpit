@@ -25,16 +25,17 @@ interface CommandPaletteProps {
   onStop: (key?: string) => void;
   onFocusComposer: () => void;
   onShowHelp: () => void;
+  draft: string;
   role?: NavRole;
 }
 
-export function CommandPalette({ open, onClose, nav, onNew, mode, setMode, sessions, onSelectSession, running, onStop, onFocusComposer, onShowHelp, role }: CommandPaletteProps) {
+export function CommandPalette({ open, onClose, nav, onNew, mode, setMode, sessions, onSelectSession, running, onStop, onFocusComposer, onShowHelp, draft, role }: CommandPaletteProps) {
   const [q, setQ] = useState('');
   const [sel, setSel] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   useBackClose(open, onClose);
 
-  const commands = usePaletteCommands({ onClose, nav, onNew, mode, setMode, sessions, onSelectSession, running, onStop, onFocusComposer, onShowHelp, role });
+  const commands = usePaletteCommands({ onClose, nav, onNew, mode, setMode, sessions, onSelectSession, running, onStop, onFocusComposer, onShowHelp, draft, role });
   const filtered = useMemo(() => capSessions(filterCommands(commands, q), q), [q, commands]);
 
   useEscapeLayer(open, onClose);

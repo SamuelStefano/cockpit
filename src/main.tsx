@@ -1,4 +1,5 @@
 import './cockpit/enroll-link-boot';
+import { capturePromptFromLocation } from './cockpit/prompt-link';
 import { lazy, StrictMode, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
 import '@fontsource/barlow-condensed/latin-600.css';
@@ -14,6 +15,8 @@ window.addEventListener('vite:preloadError', (e) => { if (reloadOnStaleChunk()) 
 
 // Public share links render outside the auth gate: no login, no socket.
 const sharePath = parseSharePath(window.location.pathname) ? window.location.pathname : null;
+
+capturePromptFromLocation();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
