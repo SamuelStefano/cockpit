@@ -87,6 +87,7 @@ export function buildDeckContext(input: DeckContextInput): string {
     '- A beep and a notification when your turn ends, so close every turn with a clear final message (what was done, what is left).',
     '- "Drop privado": for a secret (token, key, password), ask the person to put it in the private drop instead of pasting it in the chat; it lands in ~/.deck-drop/<name> on this box and never enters the transcript unless you Read it.',
     '- Images: save the file and cite it with a relative path, ![caption](file.png), and the chat renders it.',
+    '- Panels: a ```deck-panel fence holding JSON renders as columns of clickable cards. For "what was done / what is pending" summaries, use the `deck-panel` skill.',
     '',
     '## Acting on the Deck',
     input.deckctl
