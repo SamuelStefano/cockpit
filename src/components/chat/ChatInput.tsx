@@ -98,13 +98,13 @@ export function ChatInput(props: ChatInputProps) {
         </div>
       )}
       {showPalette && <SlashPalette matches={matches} sel={sel} setSel={setSel} complete={complete} />}
-      <div className="elev-1 flex items-end gap-1.5 rounded-[26px] border border-neutral-700 bg-neutral-950 py-1.5 pl-1.5 pr-2 transition focus-within:border-[#3a3a42]">
+      <div className="elev-1 flex flex-wrap items-end gap-1.5 rounded-[26px] pointer-coarse:pt-2.5 border border-neutral-700 bg-neutral-950 py-1.5 pl-1.5 pr-2 transition focus-within:border-[#3a3a42]">
         <ComposerPlus
           touch={touch} mic={mic} onCall={onCall} settings={settings}
           onAttach={() => fileRef.current?.click()}
           onPhoto={() => cameraRef.current?.click()}
         />
-        <div className="relative min-w-0 flex-1">
+        <div className="relative min-w-0 flex-1 pointer-coarse:order-first pointer-coarse:basis-full pointer-coarse:px-2.5">
           {ghost && <ComposerGhost value={value} ghostShown={ghostShown} acceptGhost={acceptGhost} />}
           <textarea
             ref={taRef}
@@ -125,7 +125,7 @@ export function ChatInput(props: ChatInputProps) {
             className="scroll-thin relative w-full resize-none bg-transparent py-1 text-[16px] leading-7 text-neutral-100 placeholder-neutral-600 outline-hidden"
           />
         </div>
-        <div className="flex shrink-0 items-center">
+        <div className="flex shrink-0 items-center pointer-coarse:ml-auto">
           <ModelPicker compact model={model} setModel={setModel} models={models} onRefreshModels={onRefreshModels} canManage={caps?.role === 'admin' || caps?.role === 'root'} locked={modelLocked} />
         </div>
         <ComposerActions

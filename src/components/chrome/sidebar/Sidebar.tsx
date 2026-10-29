@@ -61,7 +61,7 @@ export function Sidebar({ route, nav, role, navCounts, onNew, onPalette, bitStat
         {(expanded || drawer) && <IconButton icon="panelLeft" label={toggleLabel} side="bottom" aria-expanded={expanded} onClick={drawer ? drawer.onClose : toggle} />}
       </div>
 
-      {!drawer && expanded && (
+      {(drawer || expanded) && (
         <div className="shrink-0 px-2 pb-2">
           <Button icon="plus" onClick={onNew} className="w-full">Nova conversa</Button>
         </div>
