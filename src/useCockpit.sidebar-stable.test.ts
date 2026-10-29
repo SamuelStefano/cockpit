@@ -26,8 +26,8 @@ afterEach(() => { vi.unstubAllGlobals(); });
 
 // Everything App hands to the sessions sidebar. A streamed delta must not give any
 // of them a new identity, or memo(SessionsPanel) re-renders the whole list anyway.
-const SIDEBAR = ['sessions', 'archived', 'running', 'stalled', 'updated', 'runStart', 'usage', 'usageModel', 'searchResults', 'marathon', 'funnelBusy',
-  'onToggleMarathon', 'onRename', 'onDescribe', 'onClose', 'onDelete', 'onStop', 'onUnhide', 'onSearch', 'onFunnel', 'setActiveId', 'onNew'] as const;
+const SIDEBAR = ['sessions', 'archived', 'running', 'stalled', 'updated', 'runStart', 'searchResults', 'marathon',
+  'onToggleMarathon', 'onRename', 'onDescribe', 'onClose', 'onDelete', 'onStop', 'onUnhide', 'onSearch', 'setActiveId', 'onNew'] as const;
 
 describe('sidebar inputs across a streamed delta', () => {
   it('keep their identity', () => {

@@ -7,7 +7,7 @@ vi.mock('./supabase', () => ({
   supabase: { from: () => ({ update: (row: unknown) => { update(row); return { eq }; } }) },
 }));
 
-import { resolvePref, syncEnabled, pushPinsRemote, pushTagsRemote } from './session-prefs';
+import { resolvePref, syncEnabled, pushPinsRemote } from './session-prefs';
 
 describe('remote push', () => {
   beforeEach(() => { vi.useFakeTimers(); update.mockClear(); eq.mockReset(); eq.mockResolvedValue({ error: null }); });
@@ -18,12 +18,6 @@ describe('remote push', () => {
     vi.advanceTimersByTime(500);
     expect(update).toHaveBeenCalledWith({ pinned_sessions: [] });
     expect(eq).toHaveBeenCalledWith('id', 'u1');
-  });
-
-  it('writes {} (not null) when the last tag is removed', () => {
-    pushTagsRemote('u1', {});
-    vi.advanceTimersByTime(500);
-    expect(update).toHaveBeenCalledWith({ session_tags: {} });
   });
 
   it('debounces to the latest pins', () => {

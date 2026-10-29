@@ -50,7 +50,7 @@ export function Docs() {
   return (
     <div className="flex min-h-0 flex-1 bg-neutral-950">
       {/* Nav lateral (scrollspy) — só desktop */}
-      {/* Scrolls on its own: with 20+ sections the list ran past the status bar and
+      {/* Scrolls on its own: with 20+ sections the list ran past the viewport and
           the last entries could not be reached. */}
       <aside ref={navRef} className="scroll-thin hidden w-60 shrink-0 overflow-y-auto border-r border-neutral-800/80 lg:block">
         <div className="p-4">

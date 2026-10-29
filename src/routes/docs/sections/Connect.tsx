@@ -54,7 +54,7 @@ export function Connect() {
       </div>
       <Callout icon="shield" tone="amber">
         <span className="font-medium">Capacidade do agente ·</span> por padrão o agente sobe em modo <span className="font-medium">least-capability</span> (chat, sessões e contextos — sem terminais nem admin).
-        Pra ter controle total da própria box (terminais reais + painel admin), o dono sobe o agente com <Pill>DECK_AGENT_ROLE=admin</Pill>.
+        Pra ter controle total da própria box (terminais reais + Configurações de administração), o dono sobe o agente com <Pill>DECK_AGENT_ROLE=admin</Pill>.
       </Callout>
       <Callout icon="circle" tone="sky">
         <span className="font-medium">Beta · relay confiável.</span> Hoje o relay é operado pela DevFellowship: ele encaminha sua sessão pra sua VPS,

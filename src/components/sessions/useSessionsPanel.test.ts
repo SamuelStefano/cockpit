@@ -21,23 +21,6 @@ describe('useSessionsPanel', () => {
     expect(result.current.pinned.has('a')).toBe(false);
   });
 
-  it('addTag não duplica e removeTag limpa a entrada quando esvazia', () => {
-    const { result } = renderHook(() => useSessionsPanel(base));
-    act(() => result.current.addTag('s1', 'urgente'));
-    act(() => result.current.addTag('s1', 'urgente')); // dup ignorada
-    expect(result.current.tagMap.s1).toEqual(['urgente']);
-    act(() => result.current.removeTag('s1', 'urgente'));
-    expect(result.current.tagMap.s1).toBeUndefined();
-  });
-
-  it('allTags é a união ordenada de todas as tags', () => {
-    const { result } = renderHook(() => useSessionsPanel(base));
-    act(() => result.current.addTag('s1', 'zeta'));
-    act(() => result.current.addTag('s2', 'alfa'));
-    act(() => result.current.addTag('s2', 'zeta')); // união sem repetir
-    expect(result.current.allTags).toEqual(['alfa', 'zeta']);
-  });
-
   it('fecha o confirm de arquivar se a sessão sumir (deletada/arquivada remotamente)', () => {
     const { result, rerender } = renderHook(
       ({ sessions }) => useSessionsPanel({ ...base, sessions }),

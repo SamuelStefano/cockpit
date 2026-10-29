@@ -6,7 +6,7 @@ import {
   subscribeAccountPrefs, type AccountPrefs,
 } from './account-prefs';
 
-// Favoritos (pinned), etiquetas (tags) e as prefs de UI da conta
+// Favoritos (pinned) e as prefs de UI da conta
 // ([[account-prefs.ts]]). Antes só no localStorage, então não acompanhavam a conta
 // em outro device. Agora a fonte da verdade é a row
 // `account` no Supabase (escrita client-side sob RLS = auth.uid()); o localStorage
@@ -14,14 +14,12 @@ import {
 // estes helpers ficam inertes.
 //
 // Modelo: a cada mutação o cliente empurra o ESTADO COMPLETO (debounced). Na
-// hidratação o remoto, quando presente, substitui o local — assim desfavoritar/
-// remover tag num device propaga (LWW), diferente de uma união que ressuscitaria
+// hidratação o remoto, quando presente, substitui o local — assim desfavoritar
+// num device propaga (LWW), diferente de uma união que ressuscitaria
 // o que foi removido. Conta antiga (coluna nula) sobe o que houver no local.
 
 export const PINS_KEY = 'pinned';
-export const TAGS_KEY = 'tags';
 
-type TagMap = Record<string, string[]>;
 
 const pushTimers = new Map<string, ReturnType<typeof setTimeout>>();
 function debouncePush(col: string, fn: () => void): void {
@@ -44,7 +42,7 @@ export function resolvePref<T>(remote: T | null, local: T, hasLocal: boolean): {
 
 // Empty state is written as [] / {}, never null: null means "this account never
 // synced", and hydration would re-seed the remote from another device's stale cache,
-// resurrecting the favorites/tags just removed.
+// resurrecting the favorites just removed.
 function warnOnFailure(col: string, res: PromiseLike<{ error: { message: string } | null }> | undefined): void {
   void res?.then(({ error }) => { if (error) console.warn(`[session-prefs] ${col} push failed:`, error.message); });
 }
@@ -52,12 +50,6 @@ function warnOnFailure(col: string, res: PromiseLike<{ error: { message: string 
 export function pushPinsRemote(userId: string, pins: string[]): void {
   debouncePush('pinned_sessions', () => {
     warnOnFailure('pinned_sessions', supabase?.from('account').update({ pinned_sessions: pins }).eq('id', userId));
-  });
-}
-
-export function pushTagsRemote(userId: string, tags: TagMap): void {
-  debouncePush('session_tags', () => {
-    warnOnFailure('session_tags', supabase?.from('account').update({ session_tags: tags }).eq('id', userId));
   });
 }
 
@@ -71,17 +63,17 @@ export function pushAccountPrefsRemote(userId: string, prefs: AccountPrefs): voi
 type AccountRow = Record<string, unknown>;
 
 // `prefs` é da migration 0004: enquanto ela não roda no Supabase, pedir a coluna
-// derruba o SELECT inteiro e levaria pins/tags junto. Degrada pro schema antigo em
+// derruba o SELECT inteiro e levaria pins junto. Degrada pro schema antigo em
 // vez de deixar o deploy do SPA depender de ter aplicado o SQL antes.
 async function readAccountRow(uid: string): Promise<{ data: AccountRow | null; hasPrefsColumn: boolean }> {
-  const full = await supabase!.from('account').select('pinned_sessions, session_tags, prefs').eq('id', uid).maybeSingle();
+  const full = await supabase!.from('account').select('pinned_sessions, prefs').eq('id', uid).maybeSingle();
   if (!full.error) return { data: full.data, hasPrefsColumn: true };
-  const legacy = await supabase!.from('account').select('pinned_sessions, session_tags').eq('id', uid).maybeSingle();
+  const legacy = await supabase!.from('account').select('pinned_sessions').eq('id', uid).maybeSingle();
   return { data: legacy.error ? null : legacy.data, hasPrefsColumn: false };
 }
 
-// Hidratação na conexão/login de TUDO que segue a conta e não é perfil: pins,
-// tags e as prefs de UI ([[account-prefs.ts]]) — uma leitura só, o mesmo debounce
+// Hidratação na conexão/login de TUDO que segue a conta e não é perfil: pins
+// e as prefs de UI ([[account-prefs.ts]]) — uma leitura só, o mesmo debounce
 // de push. Mesmo desenho do perfil ([[profile.ts]]): troca de conta REAL (uid
 // concreto → outro uid concreto) limpa o cache antes pra não vazar dado da conta
 // anterior; blip transitório uid→undefined NÃO conta como troca.
@@ -100,7 +92,6 @@ export function useSessionPrefsHydration(userId: string | undefined): void {
     hydrated.current = false;
     if (switched) {
       setPref(PINS_KEY, []);
-      setPref(TAGS_KEY, {});
       clearAccountPrefs();
     }
     if (!uid) return;
@@ -111,14 +102,10 @@ export function useSessionPrefsHydration(userId: string | undefined): void {
       if (cancelled || !row.data) return;
 
       const remotePins = row.data.pinned_sessions as string[] | null;
-      const remoteTags = row.data.session_tags as TagMap | null;
       const localPins = loadPref<string[]>(PINS_KEY, []);
-      const localTags = loadPref<TagMap>(TAGS_KEY, {});
 
       const pins = resolvePref(remotePins, localPins, localPins.length > 0);
-      const tags = resolvePref(remoteTags, localTags, Object.keys(localTags).length > 0);
       setPref(PINS_KEY, pins.value);
-      setPref(TAGS_KEY, tags.value);
 
       const prefs = row.hasPrefsColumn
         ? mergeAccountPrefs(row.data.prefs as AccountPrefs | null, readLocalAccountPrefs())
@@ -132,10 +119,9 @@ export function useSessionPrefsHydration(userId: string | undefined): void {
         hydrated.current = true;
       }
 
-      if (pins.seed || tags.seed || prefs?.seed) {
+      if (pins.seed || prefs?.seed) {
         await supabase!.from('account').update({
           pinned_sessions: pins.value,
-          session_tags: tags.value,
           ...(prefs ? { prefs: Object.keys(prefs.value).length ? prefs.value : null } : {}),
         }).eq('id', uid);
       }

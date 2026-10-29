@@ -7,7 +7,7 @@ import { navFor, type NavRole } from './chrome/nav-routes';
 const noop = () => {};
 const base = {
   onClose: noop, nav: noop, onNew: noop, mode: 'auto' as const, setMode: noop, sessions: [], onSelectSession: noop,
-  running: new Set<string>(), onStop: noop, onFocusComposer: noop, onSeedComposer: noop, onShowHelp: noop,
+  running: new Set<string>(), onStop: noop, onFocusComposer: noop, onShowHelp: noop,
 };
 const navIds = (role: NavRole) => renderHook(() => usePaletteCommands({ ...base, role })).result.current.filter((c) => c.group === 'Navegar').map((c) => c.id);
 

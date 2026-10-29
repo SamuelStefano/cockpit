@@ -32,7 +32,6 @@ import { useProfileHydration } from './lib/profile';
 import { useSessionPrefsHydration } from './lib/session-prefs';
 import { resolveAuthGate, useSealState } from './app/AuthGateView';
 import { relReset } from './lib/time';
-import { usePanelResize } from './app/usePanelResize';
 import { useTerminalTabs } from './app/useTerminalTabs';
 import { useGlobalShortcuts } from './app/useGlobalShortcuts';
 import { navRole, NAV } from './components/chrome/nav-routes';
@@ -60,11 +59,11 @@ function CockpitBody() {
   const {
     sessions, loading, activeId: activeSessionId, setActiveId: setActiveSessionId,
     messages, phase, terminalBusy, sessionTodos, running, runningAnywhere, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, planBlockedUntil, planReadAt, planNextReadAt, stats, mode, setMode, caps, claudeReady, claudeLogin, onClaudeLoginStart, onClaudeLoginCode, onClaudeLoginCancel, bypass, setBypass, model, setModel, models, onRefreshModels, onRefreshPlanUsage, effort, setEffort, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, slashCommands, term, discoveredTerms, listTerms,
-    archived, onUnhide: handleUnhide, contextTokens, contextModel, usageModel, sendCost, liveTurnTokens, turnStartedAt, bgAgents, usage, truncated, lastTurn, lastEnd, searchResults, onSearch,
-    skills, usageStats,
+    archived, onUnhide: handleUnhide, contextTokens, contextModel, sendCost, liveTurnTokens, turnStartedAt, bgAgents, usage, truncated, lastTurn, lastEnd, searchResults, onSearch,
+    skills,
     attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb,
     onSend: handleSend, onApproveWorkflow, onEditUser: editUser, onStop: handleStop, onNew: cockpitNew, marathon, onToggleMarathon, onRename: handleRename, onDescribe: handleDescribe, onClose: handleCloseSession, onDelete: handleDeleteSession,
-    onOpenFull, onLoadOlder, onOpenSummary, onHandoff, handoffBusy, onFunnel, funnelBusy,
+    onOpenFull, onLoadOlder, onOpenSummary, onHandoff, handoffBusy,
     queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueReleaseAt, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce, resumeOffer, resumeRun,
     drops, dropsLoaded, lastDrop, onDropList, onDropPut, onDropRm,
   } = cockpit;
@@ -97,7 +96,7 @@ function CockpitBody() {
   useProfileHydration(sbAuth.session?.user.id);
   useSessionPrefsHydration(sbAuth.session?.user.id);
 
-  const { rowRef } = usePanelResize();
+  const rowRef = useRef<HTMLDivElement>(null);
   const { terminals, activeTermId, setActiveTermId, handleAddTerm, handleCloseTerm, attachable, attachExisting, runningTerm } = useTerminalTabs(term, discoveredTerms, listTerms);
 
   const [quotaClosed, setQuotaClosed] = useState(false);
@@ -150,13 +149,6 @@ function CockpitBody() {
     setFocusSignal((n) => n + 1);
   }, [setDraft]);
 
-  // Custo estimado acumulado por sessão (do observatório) → chip no sidebar.
-  const sessionCost = useMemo(() => {
-    const m: Record<string, number> = {};
-    for (const s of usageStats?.sessions ?? []) m[s.sessionId] = s.costUsd;
-    return m;
-  }, [usageStats]);
-
   // Pós-F5 restaura o chat da URL (/c/<id>), senão a última sessão aberta
   // (persistida); só cai na mais recente se nenhuma existir mais ou no 1º acesso.
   useEffect(() => {
@@ -184,7 +176,7 @@ function CockpitBody() {
   const call = useCall({ messages, phase, onSend: handleSend, sessionKey: activeSessionId, pendingIds: cockpit.pendingSessionIds });
 
   const sidebarSessions = useMemo(() => withoutBotThreads(sessions, cockpit.bots), [sessions, cockpit.bots]);
-  const sessionsProps = { sessions: sidebarSessions, loading, activeId: activeSessionId, onSelect: selectSession, onNew: handleNew, marathon, onToggleMarathon, onRename: handleRename, onDescribe: handleDescribe, onClose: handleCloseSession, onDelete: handleDeleteSession, onStop: handleStop, archived, onUnhide: handleUnhide, usage, usageModel, cost: sessionCost, running: runningAnywhere, stalled, updated, runStart, searchResults, onSearch, userId: sbAuth.session?.user.id, onFunnel, funnelBusy };
+  const sessionsProps = { sessions: sidebarSessions, loading, activeId: activeSessionId, onSelect: selectSession, onNew: handleNew, marathon, onToggleMarathon, onRename: handleRename, onDescribe: handleDescribe, onClose: handleCloseSession, onDelete: handleDeleteSession, onStop: handleStop, archived, onUnhide: handleUnhide, running: runningAnywhere, stalled, updated, runStart, searchResults, onSearch, userId: sbAuth.session?.user.id };
   const usageDock = { usageAgent, planUsage, planBlockedUntil, planReadAt, planNextReadAt, onRefreshPlanUsage, grokUsage: cockpit.grokUsage, onRefreshGrokUsage: cockpit.onRefreshGrokUsage, quotaWarn: quotaGate.warn, quotaPaused: quotaGate.paused, quotaResetsAt: quotaGate.resetsAt, stats };
   const chatProps = { session: activeSession, messages, phase, terminalBusy, sessionTodos, draft, setDraft, onSend: handleSend, onPrompt: handleSend, onApproveWorkflow, onStop: handleStop, mode, setMode, caps, claudeReady, claudeLogin, agents: cockpit.agents, onClaudeLoginStart, onClaudeLoginCode, onClaudeLoginCancel, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, selectedMcps, setSelectedMcps, mcpServers, slashCommands, contextTokens, contextModel, sendCost, liveTurnTokens, turnStartedAt, bgAgents, lastTurn, lastEnd, onNew: handleNew, onHandoff, handoffBusy, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser: editUser, onQuote: quoteMsg, onMemorize: memorizeMsg, onRename: handleRename, onDelete: handleDeleteSession, onOpenFull, onLoadOlder, onOpenSummary, truncated, onShowHelp: () => setHelp(true), focusSignal, isMobile, onMenu: () => setDrawer(!drawer), keyboardOpen, quotaPaused: quotaGate.paused, quotaResetsAt: quotaGate.resetsAt, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueReleaseAt, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce, resumeOffer, resumeRun, conn: link, call, usage: usageDock, restoring };
   const termProps = { terminals, activeId: activeTermId, onSelect: setActiveTermId, onAdd: handleAddTerm, onClose: handleCloseTerm, term, attachable, onAttach: attachExisting };
@@ -242,7 +234,6 @@ function CockpitBody() {
         mode={mode} setMode={setMode}
         sessions={sessions} onSelectSession={selectSession}
         running={running} onStop={handleStop} onFocusComposer={() => setFocusSignal((n) => n + 1)}
-        onSeedComposer={(text) => { setDraft(text); setFocusSignal((n) => n + 1); }}
         onShowHelp={() => setHelp(true)}
         role={role}
       />
