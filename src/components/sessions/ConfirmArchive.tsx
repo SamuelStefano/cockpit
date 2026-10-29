@@ -2,29 +2,16 @@ import { useEffect } from 'react';
 import { Button, Icon } from '../primitives';
 import { useEscapeLayer } from '../primitives/useEscapeLayer';
 
-type Mode = 'archive' | 'delete';
-
-const COPY: Record<Mode, { heading: string; cta: string; icon: 'x' | 'trash'; body: (title: string) => React.ReactNode }> = {
-  archive: {
-    heading: 'Arquivar sessão?',
-    cta: 'Arquivar',
-    icon: 'x',
-    body: (title) => (
-      <><span className="text-neutral-200">{title}</span> some do sidebar. O histórico no disco não é apagado — dá pra restaurar em "Arquivadas".</>
-    ),
-  },
-  delete: {
-    heading: 'Excluir sessão?',
-    cta: 'Excluir',
-    icon: 'trash',
-    body: (title) => (
-      <><span className="text-neutral-200">{title}</span> some do Deck por completo (nem em "Arquivadas"). O arquivo de histórico no disco não é apagado.</>
-    ),
-  },
+const COPY = {
+  heading: 'Excluir sessão?',
+  cta: 'Excluir',
+  body: (title: string) => (
+    <><span className="text-neutral-200">{title}</span> some do Deck por completo (nem em "Arquivadas"). O arquivo de histórico no disco não é apagado.</>
+  ),
 };
 
-export function ConfirmArchive({ title, mode = 'archive', onConfirm, onCancel }: { title: string; mode?: Mode; onConfirm: () => void; onCancel: () => void }) {
-  const c = COPY[mode];
+export function ConfirmArchive({ title, onConfirm, onCancel }: { title: string; onConfirm: () => void; onCancel: () => void }) {
+  const c = COPY;
   // In the shared Escape stack (useEscapeLayer): opened on top of a Modal, this
   // overlay closes first instead of the Modal underneath.
   useEscapeLayer(true, onCancel);
@@ -46,7 +33,7 @@ export function ConfirmArchive({ title, mode = 'archive', onConfirm, onCancel }:
       <div role="dialog" aria-modal="true" aria-label={c.heading} className="w-full max-w-sm rounded-2xl border border-neutral-700 bg-neutral-900 p-4 shadow-2xl max-sm:max-w-none max-sm:rounded-b-none max-sm:pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-black/50" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start gap-3">
           <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-500/15 text-red-400">
-            <Icon name={c.icon} size={16} />
+            <Icon name="trash" size={16} />
           </span>
           <div className="min-w-0">
             <p className="text-[14px] font-semibold text-neutral-100">{c.heading}</p>

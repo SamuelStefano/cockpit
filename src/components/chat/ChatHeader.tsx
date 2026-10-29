@@ -106,7 +106,7 @@ export function ChatHeader({ session, messages, isEmpty, contextTokens, contextM
   );
   const confirm = confirmDelete && session && onDelete && (
     <ConfirmArchive
-      mode="delete" title={session.title || 'esta sessão'}
+      title={session.title || 'esta sessão'}
       onConfirm={() => { onDelete(session.id); setConfirmDelete(false); }}
       onCancel={() => setConfirmDelete(false)}
     />
