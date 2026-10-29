@@ -54,15 +54,15 @@ describe('Sidebar', () => {
     expect(screen.getByRole('complementary').className).toContain('w-14');
   });
 
-  it('shows the footer nav in the fixed order and navigates', () => {
+  it('lists the routes in the account menu in the fixed order and navigates', () => {
     const p = setup({ role: 'root' });
-    const names = () => within(screen.getByRole('navigation', { name: 'Rotas' })).getAllByRole('button').map((b) => b.getAttribute('aria-label'));
-    expect(names()).toEqual(['Canvas', 'Pontos', 'Equipe', 'Ver mais (4)']);
-    fireEvent.click(screen.getByRole('button', { name: 'Ver mais (4)' }));
-    expect(names()).toEqual(['Canvas', 'Pontos', 'Equipe', 'Skills', 'Conexões', 'Graph', 'Docs', 'Ver menos']);
-    expect(screen.queryByRole('button', { name: 'Mais' })).toBeNull();
+    expect(screen.queryByRole('navigation', { name: 'Rotas' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Perfil' }));
+    const names = within(screen.getByRole('navigation', { name: 'Rotas' })).getAllByRole('button').map((b) => b.getAttribute('aria-label'));
+    expect(names).toEqual(['Canvas', 'Equipe', 'Skills', 'Conexões', 'Docs']);
     fireEvent.click(screen.getByRole('button', { name: 'Skills' }));
     expect(p.nav).toHaveBeenCalledWith('/skills');
+    expect(screen.queryByRole('navigation', { name: 'Rotas' })).toBeNull();
   });
 
   it('puts the settings gear in the footer, next to the account', () => {
@@ -74,21 +74,23 @@ describe('Sidebar', () => {
 
   it('keeps a student on Equipe and Configurações only', () => {
     setup({ role: 'student' });
+    fireEvent.click(screen.getByRole('button', { name: 'Perfil' }));
     expect(screen.getByRole('button', { name: 'Equipe' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Skills' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Conexões' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Configurações' })).toBeTruthy();
   });
 
-  it('keeps the footer entries as icons in the rail', () => {
+  it('keeps the routes reachable from the account menu in the rail', () => {
     setup();
     fireEvent.click(screen.getByRole('button', { name: 'Recolher barra lateral' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Perfil' }));
     expect(screen.getByRole('button', { name: 'Conexões' })).toBeTruthy();
-    expect(screen.queryByText('Conexões')).toBeNull();
   });
 
   it('marks the current route', () => {
     setup({ route: '/skills' });
+    fireEvent.click(screen.getByRole('button', { name: 'Perfil' }));
     expect(screen.getByRole('button', { name: 'Skills' }).getAttribute('aria-current')).toBe('page');
   });
 

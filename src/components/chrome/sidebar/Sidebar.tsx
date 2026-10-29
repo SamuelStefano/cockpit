@@ -6,9 +6,8 @@ import { BIT_STATE_LABEL, type BitState } from '../../bit/bit-state';
 import { comboLabel } from '../../../lib/platform';
 import type { Route } from '../../../useRoute';
 import type { NavRole } from '../nav-routes';
-import { SidebarNav } from './SidebarNav';
 import { SidebarFooter, type AccountProps } from './SidebarFooter';
-import { canOpenSettings } from './sidebar-nav';
+import { canOpenSettings, sidebarNav } from './sidebar-nav';
 import { openAparelhos } from '../../../lib/conexoes-nav';
 import { useSidebarCollapsed } from './useSidebarCollapsed';
 
@@ -68,17 +67,11 @@ export function Sidebar({ route, nav, role, navCounts, onNew, onPalette, bitStat
 
       {!expanded && (rail ?? <div className="flex-1" />)}
 
-      {/* Routes sit above the conversations (ChatGPT-style), so the list starts lower and a rule
-          separates the two instead of the list running from the top to the account. */}
-      <div className="mx-2 shrink-0 pb-2">
-        <SidebarNav route={route} nav={nav} role={role} counts={navCounts} expanded={expanded} hideSingle={!!drawer} />
-      </div>
-
       {expanded && <div className={`flex min-h-0 flex-1 flex-col ${list ? 'mx-2 border-t border-neutral-800/80' : ''}`}>
         {list ? <div className="-mx-2 min-h-0 flex-1">{sessions}</div> : <div className="flex-1" />}
       </div>}
 
-      <SidebarFooter expanded={expanded} onSettings={canOpenSettings(role) ? () => nav('/configuracoes') : undefined} onDevices={() => { drawer?.onClose(); openAparelhos(); }} account={account} conn={conn} role={role} />
+      <SidebarFooter routes={sidebarNav(role)} route={route} nav={nav} counts={navCounts} expanded={expanded} onSettings={canOpenSettings(role) ? () => nav('/configuracoes') : undefined} onDevices={() => { drawer?.onClose(); openAparelhos(); }} account={account} conn={conn} role={role} />
       </div>
     </aside>
   );
