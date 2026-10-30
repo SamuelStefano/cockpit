@@ -20,6 +20,12 @@ export function billsClaudePlan(model: string | undefined | null): boolean {
   return !isAgentModel(model);
 }
 
+// The composer notice and send-to-queue lock. Uses the model on screen
+// (Equipe overlays the bot's), not the Claude session the App still holds.
+export function composerLocked(paused: boolean, model: string | undefined | null): boolean {
+  return paused && billsClaudePlan(model);
+}
+
 export function agentIdOf(model: string): string | null {
   if (!isAgentModel(model)) return null;
   const id = model.slice(AGENT_MODEL_PREFIX.length);

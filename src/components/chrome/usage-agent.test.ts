@@ -18,6 +18,7 @@ describe('usageAgentOf', () => {
     expect(usageAgentOf('claude-opus-5-5', { activeId: 's-1', bots })).toBe('grok');
     expect(usageAgentOf('agent:grok', { activeId: 's-1', bots: [{ ...bots[0], model: 'claude-x' }] })).toBe('claude');
     expect(usageAgentOf('claude-opus-5-5', { activeId: 's-2', bots })).toBe('claude');
+    expect(usageAgentOf('sonnet', { activeId: 'new-bot-grk01', bots })).toBe('grok');
   });
 });
 
@@ -35,6 +36,11 @@ describe('claudeQuotaApplies', () => {
     expect(claudeQuotaApplies('claude-opus-5-5', { activeId: 's-1', bots })).toBe(false);
     const claudeBot = [{ id: 'c1', model: 'claude-sonnet-5', sessionId: 's-2' }] as TeamBot[];
     expect(claudeQuotaApplies('agent:grok', { activeId: 's-2', bots: claudeBot })).toBe(true);
+  });
+
+  it('solta o Grok no draft key e no bot-<id> mesmo com sessionId já gravado', () => {
+    expect(claudeQuotaApplies('sonnet', { activeId: 'new-bot-grk01', bots })).toBe(false);
+    expect(claudeQuotaApplies('sonnet', { activeId: 'bot-grk01', bots })).toBe(false);
   });
 });
 
