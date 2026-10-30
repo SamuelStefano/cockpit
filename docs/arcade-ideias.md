@@ -1,6 +1,6 @@
 # Deck Arcade — backlog de ideias
 
-O que já existe na primeira versão: nível e título, XP, sequência diária, 3 missões por dia, 26 conquistas (várias secretas), Bit Runner, 8 segredos, HUD na sidebar, tudo em `localStorage` por aparelho. Este arquivo lista o que ficou de fora.
+O que já existe na primeira versão: nível e título, XP, sequência diária, 3 missões por dia, 29 conquistas (várias secretas), Bit Runner, 8 segredos, tudo num ícone de 16px no rodapé da sidebar que abre um popover, pesca do Bit durante o turno, sons suaves ligados por padrão, tudo em `localStorage` por aparelho. Este arquivo lista o que ficou de fora.
 
 Esforço: **P** = até 1 dia · **M** = 2 a 4 dias · **G** = mais de 1 semana ou toca servidor.
 
@@ -21,8 +21,7 @@ Esforço: **P** = até 1 dia · **M** = 2 a 4 dias · **G** = mais de 1 semana o
 - "Dia de descanso" que protege a sequência uma vez por semana (P)
 - Curva de nível ajustável por feature flag, para recalibrar sem perder progresso (P)
 - Retrospectiva mensal: card com turnos, horas, sessões e conquistas, no estilo Wrapped (M)
-- Barra de XP animada na sidebar que "enche" ao terminar um turno, respeitando reduced-motion (P)
-- Histórico dos últimos 30 dias de XP em um gráfico pequeno na página do Arcade (M)
+- Histórico dos últimos 30 dias de XP em um gráfico pequeno dentro do popover do Arcade (M)
 
 ## Desafios semanais
 
@@ -50,7 +49,6 @@ Esforço: **P** = até 1 dia · **M** = 2 a 4 dias · **G** = mais de 1 semana o
 - Tela do Bit em tema alternativo: CRT âmbar, Game Boy, terminal verde (P)
 - Estados novos do Bit: `proud` ao fechar a missão diária, `sweating` quando 3+ agentes rodam (P)
 - Animação do Bit pulando junto com o cursor no Bit Runner (P)
-- Bit pet na barra de status que anda de um lado para o outro quando o agente trabalha (M)
 - Customização da antena (cor do LED muda com o nível de uso do plano) (P)
 - Acessórios sazonais além de abóbora e gorro: fogos no Ano Novo, bolo no aniversário do Deck (P)
 
@@ -112,7 +110,7 @@ Esforço: **P** = até 1 dia · **M** = 2 a 4 dias · **G** = mais de 1 semana o
 - "Digite o prompt": teste de velocidade de digitação com prompts reais da sua história (M)
 - "Quem é o agente?": adivinhar qual modelo escreveu um trecho, com respostas do histórico (M)
 - Snake do terminal com o Bit como cabeça e tokens como comida (P)
-- Ranking local de recordes de todos os mini-jogos na página do Arcade (P)
+- Ranking local de recordes de todos os mini-jogos no popover do Arcade (P)
 
 ## Easter eggs
 
