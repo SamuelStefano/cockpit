@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react';
-import { isAgentModel } from '../../shared/agents';
+import { composerLocked, isAgentModel } from '../../shared/agents';
 import { Icon } from './primitives';
 import { subscribeRefine } from './primitives/livepreview/refine-bus';
 import { MessageRow } from './chat/MessageView';
@@ -36,11 +36,15 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, draf
   // Stats AO VIVO do turno (estilo terminal): tokens gastos + tempo decorrido,
   // enquanto o turno roda. Some no `done` (phase volta a idle).
   const running = phase === 'thinking' || phase === 'streaming';
+  // Equipe overlays the bot model (Grok) on a ChatPanel that still receives the
+  // Claude window's quotaPaused. Lock follows the model the picker shows.
+  const locked = composerLocked(quotaPaused, model);
+  const resetAt = locked ? quotaResetsAt : null;
   // Compactação não emite frame nenhum (o CLI só avisa depois): o silêncio longo
   // com o contexto cheio é o que denuncia, e vira indicador ao vivo no lugar do
   // "Pensando…" — antes o chat parecia travado por minutos.
-  const compactingSince = useCompacting(messages, running, contextTokens, quotaPaused, contextModel);
-  const turnBit = useTurnBit({ conn, phase, messages, waiting: c.pendingQuestion || c.planPending, failed: c.failed, quotaPaused });
+  const compactingSince = useCompacting(messages, running, contextTokens, locked, contextModel);
+  const turnBit = useTurnBit({ conn, phase, messages, waiting: c.pendingQuestion || c.planPending, failed: c.failed, quotaPaused: locked });
   const live = running ? { tokens: liveTurnTokens ?? 0, startedAt: turnStartedAt, compactingSince: compactingSince ?? undefined } : undefined;
   // Drop em qualquer lugar do chat (não só no composer); o teto de tamanho é
   // checado no onUpload, que avisa em vez de descartar calado. O composer tem seu
@@ -67,7 +71,7 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, draf
       queued={c.queued} queuedIds={c.queuedIds} queuedAtts={c.queuedAtts} queuedModels={c.queuedModels} onRunQueuedBg={c.runQueuedInBgAt} onRunQueuedNow={c.runQueuedNowAt} onQueue={c.enqueue} onCancelQueueAt={c.cancelQueueAt} onEditQueuedAt={c.editQueuedAt} onMoveQueued={c.moveQueuedItem} history={c.sentHistory} pendingConfirm={c.bannerConfirm} onNew={onNew} onShowHelp={onShowHelp}
       queuePaused={queuePaused} queueReleaseAt={queueReleaseAt} onToggleQueuePause={() => queueSetPaused(!queuePaused)}
       queueHeld={c.queueHeld} onResumeQueue={c.resumeQueue}
-      paused={quotaPaused} quotaResetsAt={quotaResetsAt} focusMode={focus} onCall={call.supported ? call.dial : undefined} />
+      paused={locked} quotaResetsAt={resetAt} focusMode={focus} onCall={call.supported ? call.dial : undefined} />
   );
   const hero = c.isEmpty && phase === 'idle' && !botDecor && !restoring;
 
