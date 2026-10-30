@@ -63,7 +63,7 @@ export function Conta({ account, role }: { account: AccountProps; role: NavRole 
         />
         <SwitchRow label="Vibração no toque" hint="Enviar, fim do turno e segurar uma mensagem (Android; o Safari do iPhone não vibra)" checked={haptics} onChange={() => setHaptics((v) => !v)} />
         <SwitchRow label="Arcade" hint="Nível, missões, conquistas e segredos. Desligado, some tudo e nada é registrado" checked={gameOn} onChange={() => setGameOn((v) => !v)} />
-        {gameOn && <SwitchRow label="Sons do Arcade" hint="Efeitos de 8 bits em conquistas, level up e no Bit Runner" checked={gameSound} onChange={() => setGameSound((v) => !v)} />}
+        {gameOn && <SwitchRow label="Sons do Arcade" hint="Efeitos de 8 bits em conquistas, e level up" checked={gameSound} onChange={() => setGameSound((v) => !v)} />}
         <SwitchRow label="Bit brincalhão" hint="O mascote apronta no chat parado e brinca na conversa nova" checked={bitPlayful} onChange={() => setBitPlayful((v) => !v)} />
         {account.drops && (
           <ListRow label="Drop privado" hint="Entrega segredo ou script ao agente sem passar pelo chat" trailing={<DropButton api={account.drops} bare />} />

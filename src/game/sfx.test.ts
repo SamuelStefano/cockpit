@@ -66,7 +66,7 @@ describe('sfx', () => {
     sfx.splash();
     expect(instances[0].createOscillator).toHaveBeenCalledTimes(3);
     sfx.coin(); sfx.coin();
-    expect(instances[0].createOscillator).toHaveBeenCalledTimes(5);
+    expect(instances[0].createOscillator).toHaveBeenCalledTimes(7);
   });
 
   it('drops sounds while the context is suspended instead of queueing them', () => {
