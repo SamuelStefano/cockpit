@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { relayHttpBase } from '../../cockpit/session';
 import { issueDeviceCode } from '../../cockpit/device-code';
-import { diagnose, isExpired, remainingMs, fmtCountdown, setupCommand, type InstallMode, type RelayProbe, type PairDiagnosis } from './pairing';
+import { diagnose, isExpired, remainingMs, fmtCountdown, setupCommand, windowsSetupCommand, type InstallMode, type RelayProbe, type PairDiagnosis } from './pairing';
 
 // Erros com mensagem própria pro usuário; o resto (TypeError de rede, SyntaxError
 // de JSON) vira uma mensagem genérica em vez de vazar "Unexpected token" cru.
@@ -10,6 +10,7 @@ class PairError extends Error {}
 export interface Pairing {
   code: string;
   cmd: string;
+  windowsCmd: string;
   err: string;
   busy: boolean;
   expired: boolean;
@@ -23,6 +24,7 @@ export interface Pairing {
 }
 
 const SETUP_URL = 'https://raw.githubusercontent.com/SamuelStefano/cockpit/main/scripts/agent-setup.sh';
+const WINDOWS_SETUP_URL = 'https://raw.githubusercontent.com/SamuelStefano/cockpit/main/scripts/agent-setup.ps1';
 
 // passkeyVersion: bump it when this browser adopts a passkey, so the shown
 // command gains its DECK_DEVICE_CODE.
@@ -124,6 +126,7 @@ export function usePairing(token: string, agentOnline = false, admin = false, la
   return {
     code,
     cmd: code ? setupCommand(SETUP_URL, code, admin, mode, label, deviceCode) : '',
+    windowsCmd: code ? windowsSetupCommand(WINDOWS_SETUP_URL, code, admin, label, deviceCode) : '',
     err,
     busy,
     expired,

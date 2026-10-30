@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { parseMcpList, type McpsState } from '../shared/mcps';
-import { cliPath } from './engine/cli-path';
+import { claudeBin, cliPath } from './engine/cli-path';
 
 const run = promisify(execFile);
 
@@ -10,7 +10,7 @@ const LIST_TIMEOUT_MS = 60_000;
 type Runner = (args: string[], timeoutMs: number) => Promise<string>;
 
 const claude: Runner = async (args, timeout) => {
-  const { stdout } = await run('claude', args, { timeout, env: { ...process.env, PATH: cliPath(), TERM: 'dumb' }, maxBuffer: 1024 * 1024 });
+  const { stdout } = await run(claudeBin(), args, { timeout, env: { ...process.env, PATH: cliPath(), TERM: 'dumb' }, maxBuffer: 1024 * 1024 });
   return stdout;
 };
 

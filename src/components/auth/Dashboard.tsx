@@ -34,7 +34,7 @@ export function Dashboard({ token, userId, onSignOut }: { token: string; userId?
             <InstallModePicker mode={p.mode} onChange={p.setMode} />
           </PairStep>
           <PairStep n={2} title="Cole na sua VPS">
-            <PairCommand code={p.code} cmd={p.cmd} busy={p.busy} expired={p.expired} countdown={p.countdown} mode={p.mode} onCopy={() => startSetupWatch()} />
+            <PairCommand code={p.code} cmd={p.cmd} windowsCmd={p.windowsCmd} busy={p.busy} expired={p.expired} countdown={p.countdown} mode={p.mode} onCopy={() => startSetupWatch()} />
             {/* Um só lugar pro erro: com o código já na tela, a falha de "gerar novo código" não aparecia. */}
             <InstallExplainer mode={p.mode} />
             {p.err && <p className="mt-3 text-[12px] text-red-300">{p.err}</p>}

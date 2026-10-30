@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { delimiter, join } from 'node:path';
+import { IS_WINDOWS } from '../platform';
 
 // The one npm prefix the Deck installs and updates the CLI in. `claude update` and
 // the CLI's own auto-updater install into npm's default prefix (next to node), so
@@ -21,14 +22,32 @@ export function setPreferredCliDir(dir: string | null): void { preferred = dir; 
 export function cliPath(): string {
   const base = process.env.PATH ?? '';
   const home = homedir();
-  const dirs = [preferred, join(managedPrefix(home), 'bin'), join(home, '.local', 'bin'), join(home, '.claude', 'local')];
-  const front = [...new Set(dirs.filter((d): d is string => !!d && existsSync(join(d, 'claude'))))];
-  return front.length ? `${front.join(':')}:${base}` : base;
+  // npm puts global bins in the prefix root on Windows, in prefix/bin elsewhere.
+  const dirs = [preferred, join(managedPrefix(home), IS_WINDOWS ? '' : 'bin'), join(home, '.local', 'bin'), join(home, '.claude', 'local')];
+  const front = [...new Set(dirs.filter((d): d is string => !!d && !!cliInDir(d)))];
+  return front.length ? [...front, base].join(delimiter) : base;
 }
 
-export function resolveCli(path = cliPath(), exists: (p: string) => boolean = existsSync): string {
-  for (const dir of path.split(':')) {
-    if (dir && exists(join(dir, 'claude'))) return join(dir, 'claude');
+// The runnable CLI inside a dir. On Windows an npm install leaves a claude.cmd shim
+// that Node cannot run without a shell, so it resolves to the claude.exe behind it.
+export function cliInDir(dir: string, exists: (p: string) => boolean = existsSync, windows = IS_WINDOWS): string {
+  if (!windows) return exists(join(dir, 'claude')) ? join(dir, 'claude') : '';
+  const exe = join(dir, 'claude.exe');
+  if (exists(exe)) return exe;
+  const shimmed = join(dir, 'node_modules', '@anthropic-ai', 'claude-code', 'bin', 'claude.exe');
+  return exists(join(dir, 'claude.cmd')) && exists(shimmed) ? shimmed : '';
+}
+
+export function resolveCli(path = cliPath(), exists: (p: string) => boolean = existsSync, windows = IS_WINDOWS): string {
+  for (const dir of path.split(windows ? ';' : ':')) {
+    const found = dir ? cliInDir(dir, exists, windows) : '';
+    if (found) return found;
   }
   return '';
+}
+
+// What to spawn. POSIX keeps the bare name, resolved through the PATH the child gets.
+// Windows needs the real .exe: CreateProcess does not look at that PATH.
+export function claudeBin(): string {
+  return IS_WINDOWS ? resolveCli() || 'claude' : 'claude';
 }

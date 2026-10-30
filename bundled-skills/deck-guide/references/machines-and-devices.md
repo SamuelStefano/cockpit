@@ -2,7 +2,7 @@
 
 ## Add a machine
 
-A "machine" (box) is any Linux server/VPS/WSL where the agent runs. One account can pair
+A "machine" (box) is any Linux server/VPS or Windows PC where the agent runs. One account can pair
 up to 10 (`DECK_MAX_BOXES_PER_ACCOUNT`).
 
 1. In the Deck, open the sessions panel and choose **Adicionar máquina**. It shows a pairing
@@ -24,7 +24,10 @@ is restricted), `DECK_DRY_RUN=1` (print the plan, install nothing), `DECK_SELF_U
 Optional and off by default: `DECK_VPS_GUARD=1` (watchdog that kills runaway processes),
 `DECK_AUTO_REDEPLOY=1`, `DECK_EXTRAS=1`.
 
-On Windows, the agent runs inside WSL; the Deck shows a WSL guide when adding a machine.
+On a Windows browser, the Deck offers a native install: one line for cmd or PowerShell,
+running `scripts/agent-setup.ps1`. No WSL, Docker or admin rights. It uses a scheduled task
+at logon (`deck-agent`), so the agent runs while the user is logged in, and logs to
+`~\.deck-agent\agent.log`. Terminals are plain PowerShell and close when the agent restarts.
 
 ## Several machines
 

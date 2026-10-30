@@ -22,7 +22,7 @@ export function BoxPairing({ userId }: { userId?: string }) {
       </p>
       <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Nome da máquina (opcional)" aria-label="Nome da máquina" maxLength={64} />
       <InstallModePicker mode={p.mode} onChange={p.setMode} />
-      <PairCommand code={p.code} cmd={p.cmd} busy={p.busy} expired={p.expired} countdown={p.countdown} mode={p.mode} onCopy={() => startSetupWatch(label)} />
+      <PairCommand code={p.code} cmd={p.cmd} windowsCmd={p.windowsCmd} busy={p.busy} expired={p.expired} countdown={p.countdown} mode={p.mode} onCopy={() => startSetupWatch(label)} />
       {setup.checklist && <SetupChecklistView c={setup.checklist} onSwitch={setup.switchTo} onDismiss={setup.dismiss} />}
       {sshOnboardingEnabled() && !p.expired && <SshInstallHint code={p.code} />}
       {p.err && <p role="alert" className="text-[11.5px] text-red-300">{p.err}</p>}

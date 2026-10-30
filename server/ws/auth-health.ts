@@ -3,7 +3,7 @@ import { readFileSync, statSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { minimalEnv } from '../engine/claude';
-import { cliPath } from '../engine/cli-path';
+import { claudeBin, cliPath } from '../engine/cli-path';
 import { leanOneShotArgs } from '../engine/lean-args';
 import { recordIncident } from './incidents';
 
@@ -79,7 +79,7 @@ function keepAliveTick(): void {
   let out = '';
   let child;
   try {
-    child = spawn('claude', args, { cwd: tmpdir(), env: { ...minimalEnv(), PATH: cliPath() }, shell: false, stdio: ['ignore', 'pipe', 'pipe'] });
+    child = spawn(claudeBin(), args, { windowsHide: true, cwd: tmpdir(), env: { ...minimalEnv(), PATH: cliPath() }, shell: false, stdio: ['ignore', 'pipe', 'pipe'] });
   } catch { inflight = false; return; }
   const collect = (d: Buffer) => { out = (out + String(d)).slice(-4096); };
   child.stdout?.on('data', collect);

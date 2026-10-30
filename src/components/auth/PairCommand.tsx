@@ -1,12 +1,13 @@
 import { Badge, Button } from '../primitives';
 import { useCopied } from '../../lib/useCopied';
 import type { InstallMode } from './pairing';
-import { WslSteps } from './WslSteps';
-import { useWslGuide } from './useWslGuide';
+import { InstallTargetPicker } from './InstallTargetPicker';
+import { useInstallTarget } from './useInstallTarget';
 
 interface PairCommandProps {
   code: string;
   cmd: string;
+  windowsCmd: string;
   busy: boolean;
   expired: boolean;
   countdown: string | null;
@@ -16,12 +17,13 @@ interface PairCommandProps {
 
 const mono = 'font-mono text-neutral-400';
 
-export function PairCommand({ code, cmd, busy, expired, countdown, mode, onCopy }: PairCommandProps) {
+export function PairCommand({ code, cmd: remoteCmd, windowsCmd, busy, expired, countdown, mode, onCopy }: PairCommandProps) {
   const [copied, copy, copyFailed] = useCopied();
-  const wsl = useWslGuide();
+  const target = useInstallTarget();
+  const cmd = target.native ? windowsCmd : remoteCmd;
   return (
     <div>
-      {wsl.isWindows && <WslSteps target={wsl.target} onTarget={wsl.setTarget} showSteps={wsl.showSteps} />}
+      {target.isWindows && <InstallTargetPicker target={target.target} onTarget={target.setTarget} />}
       <div className={`rounded-xl border bg-neutral-950 p-3.5 ${expired ? 'border-yellow-500/40' : 'border-neutral-800'}`}>
         {code ? (
           <code className={`block break-all font-mono text-[13px] leading-relaxed ${expired ? 'text-neutral-600 line-through' : 'text-orange-200'}`}>{cmd}</code>
@@ -40,7 +42,7 @@ export function PairCommand({ code, cmd, busy, expired, countdown, mode, onCopy 
           {copied ? 'copiado ✓' : copyFailed ? 'falhou — copie à mão' : 'copiar'}
         </Button>
       </div>
-      {mode === 'dedicated' && (
+      {mode === 'dedicated' && !target.native && (
         <p className="mt-3 text-[12px] leading-relaxed text-neutral-500">
           Pra controle total (terminais e admin), use <span className={mono}>DECK_AGENT_ROLE=admin</span>.
         </p>

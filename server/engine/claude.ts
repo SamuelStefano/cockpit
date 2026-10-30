@@ -1,3 +1,4 @@
+import { detachedGroup, killGroup, platformEnv } from '../platform';
 import { spawn, execFileSync, type ChildProcess } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { writeFileSync, unlinkSync, readdirSync, statSync } from 'node:fs';
@@ -6,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { ClaudeEvent } from './events';
-import { cliPath, managedPrefix } from './cli-path';
+import { claudeBin, cliPath, managedPrefix } from './cli-path';
 import { CONFIG } from '../config';
 import { managedEnvSync, mcpServerDefsSync } from '../admin-ops';
 import { makeRedactor, vaultEnvSync } from '../vault';
@@ -315,11 +316,12 @@ export function run(opts: RunOpts): RunHandle {
   // close handler below never runs: drop the config here or it sits in /tmp, with
   // tokens in it, until the next sweep.
   try {
-    child = spawn('claude', built.args, {
+    child = spawn(claudeBin(), built.args, {
       cwd: restricted?.cwd ?? opts.cwd ?? CONFIG.workdir,
       env: { ...vaultEnv, ...minimalEnv(), ...restricted?.env },
       shell: false,
-      detached: true,
+      detached: detachedGroup,
+      windowsHide: true,
       // stdin agora é um PIPE aberto, não 'ignore': o prompt vai por stdin (uma
       // linha NDJSON, ver encodeUserLine) e o pipe FICA aberto depois do `result`
       // pra o processo poder continuar sozinho quando um background task
@@ -425,8 +427,7 @@ export function run(opts: RunOpts): RunHandle {
       killed = true;
       stdinOpen = false;
       const signal = (sig: NodeJS.Signals) => {
-        try { if (child.pid) process.kill(-child.pid, sig); }
-        catch { try { child.kill(sig); } catch { /* já morto */ } }
+        killGroup(child, sig);
       };
       // Varre a ÁRVORE de descendentes AGORA, antes do SIGTERM — não só na escalada.
       // Um tool que chamou setsid (Bash longo, subagente claude -p, MCP stdio) está
@@ -507,6 +508,7 @@ export function withWorkflowGrant(r: { permissionMode: string; allow: string[] }
 // qual binário `claude` roda.
 export function minimalEnv(): NodeJS.ProcessEnv {
   return withGithubCredentialHelper({
+    ...platformEnv(),
     LANG: process.env.LANG ?? 'en_US.UTF-8',
     TERM: 'dumb',
     ...managedEnvSync(),

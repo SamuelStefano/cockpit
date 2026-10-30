@@ -4,7 +4,7 @@ import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
-import { cliPath } from './engine/cli-path';
+import { claudeBin, cliPath } from './engine/cli-path';
 import { cliUpdater, compareVersions, parseCliVersion } from './engine/cli-update';
 import type { ClaudeCliInfo, DeckInfo } from '../shared/protocol';
 
@@ -24,7 +24,7 @@ export { parseCliVersion };
 export async function claudeCliInfo(): Promise<ClaudeCliInfo> {
   const env = { ...process.env, PATH: cliPath() };
   const [version, path] = await Promise.all([
-    run('claude', ['--version'], { env, timeout: 15_000 }).then((r) => parseCliVersion(r.stdout)).catch(() => ''),
+    run(claudeBin(), ['--version'], { env, timeout: 15_000 }).then((r) => parseCliVersion(r.stdout)).catch(() => ''),
     run('which', ['claude'], { env, timeout: 5_000 }).then((r) => r.stdout.trim()).catch(() => ''),
   ]);
   return { version, path: path.replace(homedir(), '~') };

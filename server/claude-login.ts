@@ -1,8 +1,9 @@
+import { platformEnv } from './platform';
 import { spawn as ptySpawn } from 'node-pty';
 import { homedir } from 'node:os';
 import type { ClaudeLoginState, ServerMsg } from '../shared/protocol';
 import { claudeReady } from './admin-ops';
-import { cliPath } from './engine/cli-path';
+import { claudeBin, cliPath } from './engine/cli-path';
 import { broadcast } from './ws/broadcast';
 import { readClaudeAccount } from './claude-account';
 
@@ -172,12 +173,12 @@ export function passthroughEnv(source: NodeJS.ProcessEnv = process.env): Record<
 
 function defaultSpawn(): LoginPty {
   const home = process.env.HOME ?? homedir();
-  return ptySpawn('claude', ['auth', 'login'], {
+  return ptySpawn(claudeBin(), ['auth', 'login'], {
     name: 'xterm-256color',
     cols: 2000,
     rows: 24,
     cwd: home,
-    env: { ...passthroughEnv(), PATH: cliPath(), HOME: home, LANG: process.env.LANG ?? 'en_US.UTF-8', TERM: 'xterm-256color', BROWSER: '/bin/false' },
+    env: { ...platformEnv(), ...passthroughEnv(), PATH: cliPath(), HOME: home, LANG: process.env.LANG ?? 'en_US.UTF-8', TERM: 'xterm-256color', BROWSER: '/bin/false' },
   });
 }
 
