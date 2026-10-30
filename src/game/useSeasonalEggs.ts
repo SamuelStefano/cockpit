@@ -10,7 +10,10 @@ const CHECK_MS = 10 * 60 * 1000;
 
 export function checkSeasonal(now: Date): void {
   const year = String(now.getFullYear());
-  if (isHalloween(now) && claimGameOnce('halloween', year)) foundEgg('halloween', '🎃 Doce ou travessura! O Bit vestiu a abóbora.');
+  if (isHalloween(now) && claimGameOnce('halloween', year)) {
+    toast('🎃 Doce ou travessura! O Bit vestiu a abóbora.', { durationMs: 5000 });
+    foundEgg('halloween');
+  }
   if (isNewYear(now) && claimGameOnce('newyear', year)) {
     fireConfetti({ count: 120 });
     toast('Feliz ano novo! 🎆', { durationMs: 4000 });
@@ -18,7 +21,10 @@ export function checkSeasonal(now: Date): void {
   if (isProgrammersDay(now) && claimGameOnce('programmers-toast', year)) {
     toast('Dia do Programador (256º dia do ano): o primeiro turno de hoje vale +100 XP.', { durationMs: 6000 });
   }
-  if (isFridayAfternoon(now) && claimGameOnce('friday', dayKey(now))) foundEgg('friday', 'Sexta depois das 16h. Deploy? Coragem.');
+  if (isFridayAfternoon(now) && claimGameOnce('friday', dayKey(now))) {
+    toast('Sexta depois das 16h. Deploy? Coragem.', { durationMs: 5000 });
+    foundEgg('friday');
+  }
 }
 
 // Re-checked on an interval so a tab left open since Friday 15:50 still catches 16:00.

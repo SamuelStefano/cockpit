@@ -52,7 +52,7 @@ describe('stepRun', () => {
     expect(stepRun(s, 1 / 60).over).toBe(true);
   });
   it('lets a jump clear an obstacle', () => {
-    const s: RunState = { ...jump(initRun()), obstacles: [{ x: 200, w: 30, h: 30, kind: 'bug' }], nextSpawn: 9999 };
+    const s: RunState = { ...jump(initRun()), obstacles: [{ x: 150, w: 30, h: 30, kind: 'bug' }], nextSpawn: 9999 };
     let cur = s;
     let clear = true;
     for (let i = 0; i < 90; i++) { cur = stepRun(cur, 1 / 60); if (cur.over) clear = false; }
