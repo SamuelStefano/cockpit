@@ -94,6 +94,12 @@ if (Test-Path (Join-Path $SrcDir '.git')) {
   if ($LASTEXITCODE -ne 0) { Fail 'git clone falhou.' }
 }
 
+# From an elevated terminal the clone is owned by Administrators, and the task runs
+# without elevation: git would refuse the repo, and self-update with it.
+$SafeDir = $SrcDir -replace '\\', '/'
+$known = @(& git config --global --get-all safe.directory 2>$null)
+if ($known -notcontains $SafeDir) { & git config --global --add safe.directory $SafeDir }
+
 Stop-Agent
 Set-Location $SrcDir
 Say 'instalando dependencias (npm ci)...'
