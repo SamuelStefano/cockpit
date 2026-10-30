@@ -19,6 +19,7 @@ const VENDOR: Record<string, string> = {
   '@xterm/': 'xterm',
   sucrase: 'sucrase',
   '@supabase/': 'supabase',
+  three: 'three',
 };
 
 // O pacote é o que vem depois do ÚLTIMO `node_modules/`: dependência aninhada mora

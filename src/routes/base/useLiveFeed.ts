@@ -66,11 +66,18 @@ export function useLiveFeed(s: LiveSource): { live: LiveFloor; actions: LiveActi
 
   const shownKey = live.shown.join(','), missingKey = live.missingThreads.join(',');
   const { connected, onCtxStats, onPeek, onLoadThread, onCanvasGet, onCronsGet } = s;
+  const peeked = useRef(new Set<string>());
+  const runningRef = useRef(s.running);
+  runningRef.current = s.running;
 
   useEffect(() => {
     if (!connected || !shownKey) return;
     const ids = shownKey.split(',');
-    const poll = () => { onCtxStats(ids); for (const id of ids) onPeek(id); };
+    // Only a running session's tail moves: idle ones are read once, not every round.
+    const poll = () => {
+      onCtxStats(ids);
+      for (const id of ids) if (runningRef.current.has(id) || !peeked.current.has(id)) { peeked.current.add(id); onPeek(id); }
+    };
     poll();
     const t = window.setInterval(poll, POLL_MS);
     return () => window.clearInterval(t);

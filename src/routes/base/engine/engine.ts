@@ -19,7 +19,7 @@ import { Rig } from './rig';
 import { lightingAt } from './lighting';
 import { World } from './world';
 
-const KEY = { rules: 'deck-base-rules', xp: 'deck-base-xp', sound: 'deck-base-sound', mode: 'deck-base-mode' };
+const KEY = { rules: 'deck-base-rules', xp: 'deck-base-xp', sound: 'deck-base-sound' };
 const readJson = <T,>(k: string, d: T): T => { try { const v = localStorage.getItem(k); return v ? (JSON.parse(v) as T) : d; } catch { return d; } };
 const write = (k: string, v: unknown) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* private mode */ } };
 
