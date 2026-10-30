@@ -12,6 +12,7 @@ import { boxStore, rosterMsg } from './cockpit/boxes-store';
 import { onAuthClose, tokenUnchangedAndLive, RELAY_AUTH_RETRY_MS, shouldRefreshSession, dialOnTokenChange } from './cockpit/ws-auth';
 import { TOKEN_EXPIRED_CLOSE, TOKEN_EXPIRED_EVENT } from './lib/auth-events';
 import { requestNotifyPermission, notifyTurnDone, notifyTurnError } from './lib/notify';
+import { recordGameEvent } from './game/game-bus';
 import { wsBase, withBox, wsUrlWithToken, newId, metaToSession, mergeServerSessions, adoptClaimedRow, dedupById, mergeSeen, isCronPing } from './cockpit/session';
 import { setTtsSender, handleTtsMsg } from './cockpit/tts-bus';
 import { computeStalled, computeUpdated } from './cockpit/signals';
@@ -722,6 +723,7 @@ export function useCockpit(): Cockpit {
     setSessions((prev) => [s, ...prev.map((x) => ({ ...x, active: false }))]);
     setThreads((prev) => ({ ...prev, [id]: [] }));
     focusSession(id);
+    recordGameEvent({ type: 'session_new' });
     return id;
   }, [focusSession]);
 
@@ -1321,6 +1323,9 @@ export function useCockpit(): Cockpit {
         // `done` duplicado após a migração chega keyed pelo `new-xxx` antigo;
         // redireciona p/ o id real já migrado pra não tocar uma key órfã.
         const key = resolveKey(migratedTo.current, msg.sessionKey);
+        // A `done` replayed after a reconnect finds no live turn here, so it never counts twice.
+        const liveTurn = inFlight.current.has(key) || !!runMsg.current[key];
+        const concurrent = inFlight.current.size;
         inFlight.current.delete(key);
         stopping.current.delete(key);
         reconcileTools(key);
@@ -1375,6 +1380,7 @@ export function useCockpit(): Cockpit {
         // Stop do usuário também fecha o turno via 'done' (limpa o phase), mas é
         // interrupção deliberada — não notificar "turno concluído".
         if (msg.stopped) return;
+        if (liveTurn) recordGameEvent({ type: 'turn_done', concurrent, key: `${key}:${msg.durationMs ?? ''}:${msg.turnTokens ?? ''}` });
         const id = msg.sessionId ?? key;
         notifyTurnDone(
           sessionsRef.current.find((s) => s.id === id || s.id === key)?.title ?? '',
@@ -1395,6 +1401,7 @@ export function useCockpit(): Cockpit {
         // resposta"). Keyless → só notifica, sem mexer no estado de nenhum run.
         const key = (msg.sessionKey && migratedTo.current[msg.sessionKey]) || msg.sessionKey;
         if (key) {
+          if (inFlight.current.has(key) || runMsg.current[key]) recordGameEvent({ type: 'turn_error', key: `${key}:${msg.message}` });
           inFlight.current.delete(key);
           stopping.current.delete(key);
           reconcileTools(key);
@@ -1756,6 +1763,7 @@ export function useCockpit(): Cockpit {
     // Turno em voo: NÃO bloqueia mais. O servidor tria o prompt (esperar/responder/
     // prioridade/juntar) — ver routeSend. A bolha do usuário entra otimista e o
     // 'started' do próximo turno (ou da prioridade) cria o bubble do assistente.
+    if (!auto) recordGameEvent({ type: 'message_sent' });
     const busy = inFlight.current.has(key);
     if (!busy) inFlight.current.add(key);
     stopping.current.delete(key); // novo prompt nesta sessão cancela o latch de stop

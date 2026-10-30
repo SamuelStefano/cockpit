@@ -39,3 +39,9 @@ export const isFridayAfternoon = (d: Date): boolean => d.getDay() === 5 && d.get
 
 export const EGG_IDS = ['konami', 'iddqd', 'matrix', 'poke', 'dizzy', 'sudo', 'halloween', 'friday'] as const;
 export type EggId = (typeof EGG_IDS)[number];
+
+export function ornamentFor(d: Date): string | null {
+  if (isHalloween(d)) return '🎃';
+  if (isChristmas(d)) return '🎅';
+  return null;
+}

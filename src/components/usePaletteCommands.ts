@@ -6,6 +6,11 @@ import type { Session } from '../data/types';
 import { buildPromptLink } from '../cockpit/prompt-link';
 import { toast } from './primitives/toast-bus';
 import { navFor, type NavRole } from './chrome/nav-routes';
+import { gameEnabled } from '../game/game-bus';
+import { foundEgg } from '../game/found-egg';
+import { requestRunner } from '../game/runner-intent';
+
+const SUDO_QUERY = 'sudo make me a sandwich';
 
 const MODE_LABEL: Record<PermMode, string> = { plan: 'Planejar', auto: 'Auto', acceptEdits: 'Executar' };
 
@@ -23,16 +28,19 @@ interface PaletteCommandsArgs {
   onShowHelp: () => void;
   draft?: string;
   role?: NavRole;
+  query?: string;
 }
 
 export function usePaletteCommands(args: PaletteCommandsArgs): Cmd[] {
-  const { onClose, nav, onNew, mode, setMode, sessions, onSelectSession, running, onStop, onFocusComposer, onShowHelp, draft = '', role = 'student' } = args;
+  const { onClose, nav, onNew, mode, setMode, sessions, onSelectSession, running, onStop, onFocusComposer, onShowHelp, draft = '', role = 'student', query = '' } = args;
+  const arcade = gameEnabled();
+  const sudo = arcade && query.trim().toLowerCase() === SUDO_QUERY;
   return useMemo<Cmd[]>(() => {
     const go = (to: Route) => () => { nav(to); onClose(); };
     const setM = (m: PermMode) => () => { setMode(m); onClose(); };
     // Every route the header offers, from the same list (navFor): the palette used
     // to reach only 5 of them, so ⌘K could not open pontos, crons, canvas…
-    const nav_: Cmd[] = navFor(role).map((n) => ({
+    const nav_: Cmd[] = navFor(role).filter((n) => !(arcade && n.to === '/arcade')).map((n) => ({
       id: `go-${n.to === '/' ? 'chat' : n.to.slice(1)}`,
       label: `Ir para ${n.label}`,
       icon: n.icon,
@@ -44,6 +52,16 @@ export function usePaletteCommands(args: PaletteCommandsArgs): Cmd[] {
       { id: 'focus', label: 'Focar campo de mensagem', hint: '↵', icon: 'pencil', group: 'Ações', run: () => { nav('/'); onFocusComposer(); onClose(); } },
       { id: 'help', label: 'Mostrar atalhos de teclado', hint: '?', icon: 'command', group: 'Ações', run: () => { onClose(); onShowHelp(); } },
     ];
+    if (arcade) {
+      actions.push(
+        { id: 'arcade', label: 'Abrir Arcade', icon: 'zap', group: 'Ações', run: go('/arcade') },
+        { id: 'arcade-runner', label: 'Jogar Bit Runner', icon: 'play', group: 'Ações', run: () => { requestRunner(); nav('/arcade'); onClose(); } },
+      );
+    }
+    // Shown only on the exact phrase (the filter would otherwise list it for "sudo").
+    if (sudo) {
+      actions.push({ id: 'sudo-sandwich', label: SUDO_QUERY, icon: 'terminal', group: 'Ações', run: () => { foundEgg('sudo', 'Segredo encontrado: permissão concedida.'); toast('Feito. 🥪 Você não é root, mas o Bit abriu uma exceção.'); onClose(); } });
+    }
     if (draft.trim()) {
       actions.push({
         id: 'copy-prompt-link', label: 'Copiar link de prompt', icon: 'copy', group: 'Ações',
@@ -97,5 +115,5 @@ export function usePaletteCommands(args: PaletteCommandsArgs): Cmd[] {
     }));
     // Empty-palette order: what is running, recent sessions, actions, then routes.
     return [...runningCmds, ...sess, ...actions, ...nav_, ...modes];
-  }, [role, nav, onClose, onNew, mode, setMode, sessions, onSelectSession, running, onStop, onFocusComposer, onShowHelp, draft]);
+  }, [role, arcade, sudo, nav, onClose, onNew, mode, setMode, sessions, onSelectSession, running, onStop, onFocusComposer, onShowHelp, draft]);
 }

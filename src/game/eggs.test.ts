@@ -66,3 +66,12 @@ describe('isTypingTarget', () => {
     expect(isTypingTarget({ tagName: 'DIV' } as unknown as EventTarget)).toBe(false);
   });
 });
+
+describe('ornamentFor', () => {
+  it('picks the seasonal ornament', async () => {
+    const { ornamentFor } = await import('./eggs');
+    expect(ornamentFor(new Date(2026, 9, 31))).toBe('🎃');
+    expect(ornamentFor(new Date(2026, 11, 25))).toBe('🎅');
+    expect(ornamentFor(new Date(2026, 9, 30))).toBeNull();
+  });
+});

@@ -35,7 +35,7 @@ export function CommandPalette({ open, onClose, nav, onNew, mode, setMode, sessi
   const inputRef = useRef<HTMLInputElement>(null);
   useBackClose(open, onClose);
 
-  const commands = usePaletteCommands({ onClose, nav, onNew, mode, setMode, sessions, onSelectSession, running, onStop, onFocusComposer, onShowHelp, draft, role });
+  const commands = usePaletteCommands({ onClose, nav, onNew, mode, setMode, sessions, onSelectSession, running, onStop, onFocusComposer, onShowHelp, draft, role, query: q });
   const filtered = useMemo(() => capSessions(filterCommands(commands, q), q), [q, commands]);
 
   useEscapeLayer(open, onClose);

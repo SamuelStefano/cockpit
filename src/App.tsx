@@ -17,6 +17,9 @@ import { UpdateNotice } from './components/chrome/UpdateNotice';
 import { CommandPalette } from './components/CommandPalette';
 import { ShortcutsHelp } from './components/ShortcutsHelp';
 import { Toaster, ConfettiHost } from './components/primitives';
+import { RewardHost } from './components/game/RewardHost';
+import { EggsHost } from './components/game/EggsHost';
+import { useGameSignals } from './game/useGameSignals';
 import { BoxHealthHost } from './components/health/BoxHealthHost';
 import { bitStateFor } from './components/bit/bit-state';
 import { RailChats } from './components/chrome/sidebar/RailChats';
@@ -134,6 +137,7 @@ function CockpitBody() {
 
   const { drawer, setDrawer, termSheet, setTermSheet, palette, setPalette, help, setHelp } = useOverlays(route);
   useEdgeSwipeOpen(isMobile && !drawer, () => setDrawer(true));
+  useGameSignals(route, palette);
   const [focusSignal, setFocusSignal] = useState(0);
 
   // Citar uma mensagem: vira blockquote no topo do rascunho atual (trunca longos).
@@ -303,6 +307,8 @@ function CockpitBody() {
       <BoxHealthHost />
       <Toaster phoneTop={isMobile && chatSurface} />
       <ConfettiHost />
+      <RewardHost />
+      <EggsHost />
     </div>
     </TopBarSlotContext.Provider>
     </ConnectionsContext.Provider>

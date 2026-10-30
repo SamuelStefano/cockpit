@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
+import { savePref } from '../lib/persist';
+import { GAME_ENABLED_KEY } from '../lib/prefs';
 import { renderHook } from '@testing-library/react';
 import { usePaletteCommands } from './usePaletteCommands';
 import { navFor, type NavRole } from './chrome/nav-routes';
@@ -13,7 +15,8 @@ const navIds = (role: NavRole) => renderHook(() => usePaletteCommands({ ...base,
 
 describe('usePaletteCommands navigation', () => {
   it('offers every route the header offers', () => {
-    expect(navIds('student')).toHaveLength(navFor('student').length);
+    // /arcade is reached by its own "Abrir Arcade" command instead of a nav entry.
+    expect(navIds('student')).toHaveLength(navFor('student').filter((n) => n.to !== '/arcade').length);
     expect(navIds('student')).toEqual(['go-chat', 'go-agentes', 'go-configuracoes']);
     expect(navIds('root')).toEqual(expect.arrayContaining(['go-chat', 'go-pontos', 'go-equipe/rotinas', 'go-equipe/memoria']));
   });
@@ -42,5 +45,24 @@ describe('usePaletteCommands prompt link', () => {
     expect(ids('')).not.toContain('copy-prompt-link');
     expect(ids('   ')).not.toContain('copy-prompt-link');
     expect(ids('olá')).toContain('copy-prompt-link');
+  });
+});
+
+describe('usePaletteCommands arcade', () => {
+  const cmds = (query?: string) => renderHook(() => usePaletteCommands({ ...base, query })).result.current.map((c) => c.id);
+  beforeEach(() => localStorage.clear());
+  it('offers the arcade commands to every role', () => {
+    expect(cmds()).toEqual(expect.arrayContaining(['arcade', 'arcade-runner']));
+  });
+  it('shows the sandwich command only on the exact phrase', () => {
+    expect(cmds()).not.toContain('sudo-sandwich');
+    expect(cmds('sudo')).not.toContain('sudo-sandwich');
+    expect(cmds('Sudo make me a sandwich ')).toContain('sudo-sandwich');
+  });
+  it('hides all of it when the game is off', () => {
+    savePref(GAME_ENABLED_KEY, false);
+    expect(cmds('sudo make me a sandwich')).not.toContain('sudo-sandwich');
+    expect(cmds()).not.toContain('arcade');
+    expect(navIds('student')).toContain('go-arcade');
   });
 });
