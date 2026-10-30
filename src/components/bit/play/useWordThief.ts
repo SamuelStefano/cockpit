@@ -14,8 +14,8 @@ interface Args {
   stageBusy: () => boolean;
 }
 
-// The mouse sat still for 25 s: Bit runs in and steals a word, holds it until the
-// pointer moves again, then drops it (it bounces back into place) and scurries off.
+// The mouse sat still for 25 s: Bit runs in, steals a word and flees off screen. When
+// the pointer moves again the word comes flying back and bounces into place.
 // Returns the callback the stage must call when any skit leaves it.
 export function useWordThief({ stage, allowed, running, messageCount, stageBusy }: Args): () => void {
   const api = useRef(stage);

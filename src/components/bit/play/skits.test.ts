@@ -18,11 +18,12 @@ describe('skits', () => {
     expect(SKIT_IDS).toContain('wordthief');
   });
 
-  it('the word thief holds the word until released, then returns it and leaves', () => {
+  it('the word thief runs off screen with the word, then returns it and leaves', () => {
     const s = buildSkit('wordthief', stage);
     expect(s.duration).toBeGreaterThan(WORD_HOLD_MS);
-    const holding = s.letter!.sample(8000);
-    expect(Math.hypot(holding.x - 300, holding.y - 200)).toBeGreaterThan(30);
+    const away = s.actor.sample(8000);
+    expect(away.x <= -stage.size / 2 || away.x >= stage.w + stage.size / 2).toBe(true);
+    expect(s.letter!.sample(8000).x).toBe(away.x);
     expect(s.letter!.sample(s.duration)).toMatchObject({ x: 300, y: 200, rot: 0, s: 1 });
     const end = s.actor.sample(s.duration);
     expect(end.x <= -stage.size / 2 || end.x >= stage.w + stage.size / 2).toBe(true);

@@ -32,7 +32,7 @@ describe('sfx', () => {
     const { Ctx, created } = fakeCtx();
     install(Ctx);
     expect(soundOn()).toBe(true);
-    sfx.coin(); sfx.levelUp(); sfx.achievement(); sfx.error(); sfx.jump(); sfx.gameOver();
+    sfx.coin(); sfx.levelUp(); sfx.achievement(); sfx.error();
     expect(created).toHaveBeenCalledTimes(1);
   });
 
@@ -65,7 +65,7 @@ describe('sfx', () => {
     vi.setSystemTime(10_000 + AMBIENT_GAP_MS + 1);
     sfx.splash();
     expect(instances[0].createOscillator).toHaveBeenCalledTimes(3);
-    sfx.jump(); sfx.jump();
+    sfx.coin(); sfx.coin();
     expect(instances[0].createOscillator).toHaveBeenCalledTimes(5);
   });
 

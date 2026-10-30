@@ -3,7 +3,7 @@ import { ACHIEVEMENTS } from './achievements';
 import { questsForDay, QUEST_BONUS_XP } from './quests';
 import { isProgrammersDay } from './eggs';
 
-export const XP = { turnDone: 25, turnError: 2, message: 3, session: 5, route: 3, fish: 2, rareFish: 20, egg: 40, achievement: 25, programmersDay: 100, scoreCap: 30 } as const;
+export const XP = { turnDone: 25, turnError: 2, message: 3, session: 5, route: 3, fish: 2, rareFish: 20, egg: 40, achievement: 25, programmersDay: 100 } as const;
 export const LIGHT_XP_DAILY_CAP = 20;
 
 const TITLES: { from: number; title: string }[] = [
@@ -46,7 +46,7 @@ export function emptyState(): GameState {
   return {
     v: 1, xp: 0, totals: {}, streak: { current: 0, best: 0, lastDay: '' }, unlocked: {},
     daily: { day: '', progress: {}, done: [], bonus: false, msgXp: 0 },
-    highScore: 0, eggs: [], routes: [], lastError: false, once: {},
+    eggs: [], routes: [], lastError: false, once: {},
   };
 }
 
@@ -78,7 +78,6 @@ export function loadState(raw: unknown): GameState {
     streak: { current: num(streak.current), best: num(streak.best), lastDay: str(streak.lastDay) },
     unlocked: strMap(r.unlocked),
     daily: { day: str(daily.day), progress: numMap(daily.progress), done: strs(daily.done), bonus: daily.bonus === true, msgXp: num(daily.msgXp) },
-    highScore: num(r.highScore),
     eggs: strs(r.eggs),
     routes: strs(r.routes),
     lastError: r.lastError === true,
@@ -167,12 +166,6 @@ export function applyEvent(prev: GameState, event: GameEvent, now: Date): { stat
     case 'route_visit': {
       const r = normalizeRoute(event.route ?? '/');
       if (!s.routes.includes(r)) { s.routes.push(r); gain(XP.route); }
-      break;
-    }
-    case 'game_score': {
-      const score = num(event.score);
-      s.highScore = Math.max(s.highScore, score);
-      gain(Math.min(XP.scoreCap, Math.floor(score / 40)));
       break;
     }
     case 'fish_caught':

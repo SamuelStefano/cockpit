@@ -77,8 +77,8 @@ function thief(s: Stage): Skit {
 // How long Bit keeps the word if the mouse never moves; it always gives it back.
 export const WORD_HOLD_MS = 20_000;
 
-// Steals a whole word and waits, holding it, until the mouse moves (the stage then
-// swaps this for buildExit); if nobody comes back it returns the word by itself.
+// Steals a whole word and runs off screen with it. The mouse moving swaps this for
+// buildExit, which throws the word back; if nobody comes back Bit returns it himself.
 function wordthief(s: Stage): Skit {
   const l = s.letter!;
   const { x: standX, y: floor, side } = thiefFeet(s);
@@ -89,9 +89,9 @@ function wordthief(s: Stage): Skit {
     .cue({ face: 'sneaky', pose: 'bit-reach' }).tween({ sx: 1.1, sy: 0.88 }, 160, easeOut).tween({ sx: 0.96, sy: 1.06 }, 140, backOut);
   const grab = a.duration;
   a.cue({ pose: 'bit-carry', gaze: [0, 0] }).tween({ sx: 1, sy: 1 }, 260).hop(14, 420)
-    .cue({ face: 'happy', pose: 'bit-carry' }).hold(500)
-    .cue({ face: 'sneaky', pose: 'bit-juggle' }).hold(WORD_HOLD_MS)
-    .cue({ face: 'idle', pose: 'bit-carry' }).hold(300)
+    .cue({ face: 'happy', pose: 'bit-running bit-carry' }).move(enterX, RUN)
+    .cue({ face: 'sneaky', pose: 'bit-carry' }).hold(WORD_HOLD_MS)
+    .cue({ face: 'idle', pose: 'bit-walking bit-carry' }).move(standX, WALK * 1.3).face(side)
     .cue({ face: 'happy', pose: 'bit-reach' }).tween({ sx: 1.08, sy: 0.9 }, 140, easeOut).tween({ sx: 1, sy: 1 }, 200, backOut);
   const put = a.duration - 340;
   a.hold(260).cue({ face: 'wave', pose: '' }).hold(700)

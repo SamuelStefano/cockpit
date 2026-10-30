@@ -61,12 +61,6 @@ describe('applyEvent basics', () => {
     s = run(s, { type: 'message_sent' }, at(2026, 10, 31)).state;
     expect(s.daily.msgXp).toBe(3);
   });
-  it('tracks high score and awards capped xp', () => {
-    const r = run(emptyState(), { type: 'game_score', score: 5000 }, at(2026, 10, 30));
-    expect(r.state.highScore).toBe(5000);
-    expect(r.rewards).toContainEqual({ kind: 'xp', amount: 30, source: 'game_score' });
-    expect(run(r.state, { type: 'game_score', score: 10 }, at(2026, 10, 30)).state.highScore).toBe(5000);
-  });
   it('records a route once', () => {
     let r = run(emptyState(), { type: 'route_visit', route: '/configuracoes/uso' }, at(2026, 10, 30));
     expect(r.state.routes).toEqual(['/configuracoes']);
@@ -141,7 +135,7 @@ describe('time-based achievements', () => {
 describe('daily quests', () => {
   it('resets progress on a new day and gives the bonus when all 3 are done', () => {
     let s = emptyState();
-    const events: GameEvent[] = [done, { type: 'message_sent' }, { type: 'session_new' }, { type: 'route_visit', route: '/x' }, { type: 'palette_open' }, { type: 'fish_caught' }, { type: 'game_score', score: 200, concurrent: 2 }];
+    const events: GameEvent[] = [done, { type: 'message_sent' }, { type: 'session_new' }, { type: 'route_visit', route: '/x' }, { type: 'palette_open' }, { type: 'fish_caught' }];
     let bonus = false;
     for (let round = 0; round < 10; round++) {
       for (const ev of events) {
@@ -168,8 +162,8 @@ describe('loadState', () => {
     }
   });
   it('keeps valid fields and drops negatives', () => {
-    const s = loadState({ xp: 120, highScore: -4, eggs: ['konami', 4], streak: { current: 2, best: 5, lastDay: '2026-10-30' } });
-    expect(s).toMatchObject({ xp: 120, highScore: 0, eggs: ['konami'], streak: { current: 2, best: 5, lastDay: '2026-10-30' } });
+    const s = loadState({ xp: 120, eggs: ['konami', 4], streak: { current: 2, best: 5, lastDay: '2026-10-30' } });
+    expect(s).toMatchObject({ xp: 120, eggs: ['konami'], streak: { current: 2, best: 5, lastDay: '2026-10-30' } });
   });
   it('round-trips an applied state', () => {
     const r = run(emptyState(), done, at(2026, 10, 30));

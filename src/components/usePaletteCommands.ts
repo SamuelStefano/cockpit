@@ -58,7 +58,6 @@ export function usePaletteCommands(args: PaletteCommandsArgs): Cmd[] {
     if (arcade) {
       actions.push(
         { id: 'arcade', label: 'Abrir Arcade', icon: 'zap', group: 'Ações', run: go('/arcade') },
-        { id: 'arcade-runner', label: 'Jogar Bit Runner', icon: 'play', group: 'Ações', run: go('/arcade') },
       );
     }
     // Shown only on the exact phrase (the filter would otherwise list it for "sudo").

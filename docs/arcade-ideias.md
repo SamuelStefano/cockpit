@@ -1,6 +1,6 @@
 # Deck Arcade — backlog de ideias
 
-O que já existe na primeira versão: nível e título, XP, sequência diária, 3 missões por dia, 29 conquistas (várias secretas), Bit Runner, 8 segredos, tudo num ícone de 16px no rodapé da sidebar que abre a tela do Arcade, pesca do Bit durante o turno, sons suaves ligados por padrão, tudo em `localStorage` por aparelho. Este arquivo lista o que ficou de fora.
+O que já existe na primeira versão: nível e título, XP, sequência diária, 3 missões por dia, 26 conquistas (várias secretas), 8 segredos, tudo num ícone de 16px no rodapé da sidebar que abre a tela do Arcade, pesca do Bit durante o turno, sons suaves ligados por padrão, tudo em `localStorage` por aparelho. Este arquivo lista o que ficou de fora.
 
 Esforço: **P** = até 1 dia · **M** = 2 a 4 dias · **G** = mais de 1 semana ou toca servidor.
 
@@ -36,7 +36,6 @@ Esforço: **P** = até 1 dia · **M** = 2 a 4 dias · **G** = mais de 1 semana o
 ## Boss fight de bug e CI
 
 - Boss "CI Vermelho": check falhou, aparece um chefe com vida proporcional ao número de testes quebrados; cada commit verde tira vida (G)
-- Boss "Merge Conflict" no Bit Runner, com um obstáculo grande que exige pulo duplo (P)
 - Boss "Flaky Test": reaparece sempre que o mesmo teste falha duas vezes em runs diferentes (G)
 - Barra de vida do boss no card da sessão do Canvas enquanto o agente corrige o bug (M)
 - Derrota do boss dá loot garantido (ver "Loot de fim de PR") (P)
@@ -48,7 +47,6 @@ Esforço: **P** = até 1 dia · **M** = 2 a 4 dias · **G** = mais de 1 semana o
 - Skins de cor do corpo do Bit além do laranja (azul "modo Ocean", verde "modo Matrix") (P)
 - Tela do Bit em tema alternativo: CRT âmbar, Game Boy, terminal verde (P)
 - Estados novos do Bit: `proud` ao fechar a missão diária, `sweating` quando 3+ agentes rodam (P)
-- Animação do Bit pulando junto com o cursor no Bit Runner (P)
 - Customização da antena (cor do LED muda com o nível de uso do plano) (P)
 - Acessórios sazonais além de abóbora e gorro: fogos no Ano Novo, bolo no aniversário do Deck (P)
 
@@ -64,9 +62,6 @@ Esforço: **P** = até 1 dia · **M** = 2 a 4 dias · **G** = mais de 1 semana o
 ## Ranking com a Equipe e bots
 
 - Placar semanal entre pessoas da Equipe, opt-in, só com XP e nível (G)
-- Bots da Equipe jogando o Bit Runner com score simulado, como adversários fantasma (M)
-- "Fantasma" da sua melhor corrida no Runner, desenhado em transparência (P)
-- Duelo de Runner por link: mesma semente de obstáculos, quem fizer mais pontos vence (M)
 - Mural de conquistas raras da Equipe com percentual de quem desbloqueou (G)
 - Bots de agentes ganham XP próprio pelos turnos que concluem, aparecem no placar com ícone de robô (M)
 - Troféu rotativo "Faxineiro da semana" para quem mais fechou sessões (P)
@@ -87,7 +82,6 @@ Esforço: **P** = até 1 dia · **M** = 2 a 4 dias · **G** = mais de 1 semana o
 
 - Pacote de sons alternativo (Game Boy, arcade de fliperama, 16 bits) trocável em Configurações (M)
 - Volume próprio do Arcade, separado do beep de fim de turno (P)
-- Trilha de fundo chiptune opcional só dentro do Bit Runner (M)
 - Som de "level up" diferente para cada faixa de título (P)
 - Tema de cor sazonal na sidebar durante datas especiais (P)
 - Modo CRT ajustável: intensidade das scanlines e curvatura (P)
@@ -104,7 +98,6 @@ Esforço: **P** = até 1 dia · **M** = 2 a 4 dias · **G** = mais de 1 semana o
 
 ## Mini-jogos
 
-- Bit Runner com tema de dia e noite que muda com o horário local (P)
 - "Caça-bug": campo minado onde as minas são `TODO` e `FIXME` (M)
 - "Tetris de commits": peças são diffs, linhas completas viram merge (G)
 - "Digite o prompt": teste de velocidade de digitação com prompts reais da sua história (M)
@@ -133,4 +126,3 @@ Esforço: **P** = até 1 dia · **M** = 2 a 4 dias · **G** = mais de 1 semana o
 - Telemetria local anônima de eventos do jogo só para calibrar o XP, nunca enviada (P)
 - Evento `game_event` no relay para o servidor ser fonte da verdade dos contadores de turno (G)
 - Detecção de farm: marcar e ignorar eventos em rajada vindos de scripts (P)
-- Teste E2E de Playwright que joga o Bit Runner e confere o recorde persistido (M)

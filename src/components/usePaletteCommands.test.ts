@@ -51,7 +51,7 @@ describe('usePaletteCommands arcade', () => {
   const cmds = (query?: string) => renderHook(() => usePaletteCommands({ ...base, query })).result.current.map((c) => c.id);
   beforeEach(() => localStorage.clear());
   it('offers the arcade commands to every role', () => {
-    expect(cmds()).toEqual(expect.arrayContaining(['arcade', 'arcade-runner']));
+    expect(cmds()).toEqual(expect.arrayContaining(['arcade']));
   });
   it('shows the sandwich command only on the exact phrase', () => {
     expect(cmds()).not.toContain('sudo-sandwich');

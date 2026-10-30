@@ -21,8 +21,6 @@ export const QUESTS: QuestDef[] = [
   { id: 'visit-4', title: 'Passe por 4 telas', goal: 4, xp: 20, step: on('route_visit') },
   { id: 'palette-1', title: 'Abra a paleta de comandos', goal: 1, xp: 15, step: on('palette_open') },
   { id: 'palette-3', title: 'Use a paleta 3 vezes', goal: 3, xp: 25, step: on('palette_open') },
-  { id: 'run-1', title: 'Jogue uma partida de Bit Runner', goal: 1, xp: 20, step: on('game_score') },
-  { id: 'run-100', title: 'Faça 100 pontos no Bit Runner', goal: 1, xp: 35, step: ({ event }) => (event.type === 'game_score' && (event.score ?? 0) >= 100 ? 1 : 0) },
   { id: 'fish-3', title: 'Pesque 3 coisas com o Bit', goal: 3, xp: 25, step: on('fish_caught') },
   { id: 'early-10', title: 'Termine um turno antes das 10h', goal: 1, xp: 30, step: turnWhen(({ now }) => now.getHours() < 10) },
   { id: 'late-18', title: 'Termine um turno depois das 18h', goal: 1, xp: 30, step: turnWhen(({ now }) => now.getHours() >= 18) },

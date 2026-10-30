@@ -4,7 +4,7 @@ import { GAME_ENABLED_KEY, GAME_ENABLED_DEFAULT, GAME_SOUND_KEY, GAME_SOUND_DEFA
 type Wave = OscillatorType;
 interface Note { f: number; at: number; dur: number; type?: Wave; vol?: number; slideTo?: number }
 
-// game: runner and rewards, played while the tab is visible.
+// game: rewards, played while the tab is visible.
 // ambient: little UI flourishes, at most one per AMBIENT_GAP_MS.
 // turn: end-of-turn cues, the only ones allowed while the tab is hidden.
 type Kind = 'game' | 'ambient' | 'turn';
@@ -27,7 +27,7 @@ function getCtx(): AudioContext | null {
     : (window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext);
   if (!Ctor) return null;
   try {
-    // One shared context: browsers cap live contexts, and the runner plays dozens of blips.
+    // One shared context: browsers cap live contexts, and sounds fire often.
     ctx = new Ctor();
   } catch {
     return null;
@@ -100,8 +100,6 @@ export const sfx = {
   levelUp: () => game(arp([523, 659, 784, 1047, 1319], 0.09, 0.14)),
   achievement: () => game([...arp([784, 988, 1175], 0.1, 0.12), { f: 1568, at: 0.32, dur: 0.4, type: 'triangle', vol: 0.07 }]),
   error: () => game([{ f: 140, at: 0, dur: 0.18, type: 'sawtooth', slideTo: 90 }, { f: 110, at: 0.12, dur: 0.2, type: 'sawtooth', slideTo: 70 }]),
-  jump: () => game([{ f: 320, at: 0, dur: 0.14, slideTo: 760, vol: 0.04 }]),
-  gameOver: () => game(arp([392, 330, 262, 196], 0.14, 0.2, 'triangle')),
   send: () => play([{ f: 520, at: 0, dur: 0.07, type: 'sine', slideTo: 720, vol: 0.05 }]),
   turnDone: () => play([{ f: 523, at: 0, dur: 0.16, type: 'sine', vol: 0.06 }, { f: 784, at: 0.12, dur: 0.28, type: 'sine', vol: 0.06 }], 'turn'),
   turnError: () => play([{ f: 130, at: 0, dur: 0.22, type: 'sine', slideTo: 70, vol: 0.09 }], 'turn'),
