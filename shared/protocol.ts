@@ -956,6 +956,7 @@ export type ClientMsg =
   | { t: 'queue-clear'; sessionKey: string }
   | { t: 'queue-set-paused'; paused: boolean }
   | { t: 'queue-retry'; sessionKey: string; id: string }
+  | { t: 'queue-retarget'; sessionKey: string; model: string }
   // Descarta a pergunta pendente que está segurando a fila desta sessão e drena na
   // hora. É o "mesmo assim" do usuário: sem isto, só a resposta dele destrava.
   | { t: 'queue-force'; sessionKey: string }

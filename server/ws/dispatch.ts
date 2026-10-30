@@ -58,9 +58,9 @@ import { detach } from './detach';
 import { startRun, routeSend, drainParked, runParkedInBackground, runParkedNow, acceptResumeOffer, refreshBusyElsewhere, orchestratorPaneTarget, type BgRunReject, type NowRunReject } from './runs';
 import { threads, stopSession, resolveThreadKey, runningSessionIds } from './threads';
 import { clearAwaiting } from './awaiting';
-import { addParked, removeParked, editParked, moveParked, clearParked, retryParked, parkedView, isQueuePaused, setQueuePaused, REJECT_MESSAGE } from './parked';
+import { addParked, removeParked, editParked, moveParked, clearParked, retryParked, retargetParked, parkedView, isQueuePaused, setQueuePaused, REJECT_MESSAGE } from './parked';
 import { refreshModels, withAgents, getLastModels } from './models';
-import { AGENT_PRESETS } from '../../shared/agents';
+import { AGENT_PRESETS, agentIdOf } from '../../shared/agents';
 import { connectPreset, findAgent, removeAgent } from '../agents/store';
 import { customAgentDenial, probeDraft, saveCustomAgent } from '../agents/custom-agent';
 import { agentViews, probeAgent } from '../agents/probe';
@@ -1409,6 +1409,15 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       return;
     }
     // Destrava o item que bateu o teto de tentativas e tenta de novo na hora.
+    case 'queue-retarget': {
+      // An agent runs only for admin (runAgent refuses the rest), so retargeting
+      // anyone else's items would just trade a wait for a failed turn.
+      if (role !== 'admin' || !agentIdOf(msg.model) || !findAgent(agentIdOf(msg.model)!)) return;
+      retargetParked(msg.sessionKey, msg.model);
+      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused(), releaseAt: queueReleaseAt() });
+      drainParked();
+      return;
+    }
     case 'queue-retry': {
       retryParked(msg.sessionKey, msg.id);
       broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused(), releaseAt: queueReleaseAt() });

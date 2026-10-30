@@ -19,6 +19,32 @@ export function lastUuidOf(path: string): string | null {
   return null;
 }
 
+const PRIOR_MAX_CHARS = 12_000;
+
+function recordText(r: any): string {
+  const c = r?.message?.content;
+  if (typeof c === 'string') return c;
+  if (!Array.isArray(c)) return '';
+  return c.filter((b: any) => b?.type === 'text' && typeof b.text === 'string').map((b: any) => b.text).join('\n');
+}
+
+// The agent has no memory of turns another model ran in this chat (a Claude chat
+// switched to Grok when the plan ran out). Its only way to continue the work is
+// to read them, newest kept when the chat is long.
+export function priorConversation(path: string, max = PRIOR_MAX_CHARS): string {
+  if (!existsSync(path)) return '';
+  const turns: string[] = [];
+  for (const line of readFileSync(path, 'utf8').split('\n')) {
+    if (!line.trim()) continue;
+    let r: any;
+    try { r = JSON.parse(line); } catch { continue; }
+    if (r?.isSidechain || (r?.type !== 'user' && r?.type !== 'assistant')) continue;
+    const text = recordText(r).trim();
+    if (text) turns.push(`${r.type === 'user' ? 'Person' : 'Assistant'}: ${text}`);
+  }
+  return turns.join('\n\n').slice(-max);
+}
+
 export class TranscriptWriter {
   private parent: string | null;
   private text = '';

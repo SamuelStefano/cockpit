@@ -28,8 +28,8 @@ import { BotThreadContext, BOT_ANSWER_PLACEHOLDER } from './chat/bot-thread-cont
 
 export type { Phase };
 
-export function ChatPanel({ session, messages, phase, terminalBusy = false, draft, setDraft, onSend, onPrompt, onApproveWorkflow, onStop, mode, setMode, caps, claudeReady = true, bypass, setBypass, model, setModel, modelLocked, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, slashCommands, contextTokens, contextModel = null, sendCost, liveTurnTokens, turnStartedAt, bgAgents, lastTurn, lastEnd, onNew, onHandoff, handoffBusy = false, attachments, onUpload, onRemoveAttachment, attPreview = null, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser, onQuote, onMemorize, onRename, onDelete, onOpenFull, onLoadOlder, onOpenSummary, truncated, onShowHelp, focusSignal = 0, onTerminal, terminalRunning, terminalOpen, usage, isMobile = false, onMenu, keyboardOpen = false, quotaPaused = false, quotaResetsAt = null, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueReleaseAt = 0, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce, resumeOffer = null, resumeRun, turnStatus, teamSlot, footer, restoring = false, botDecor, conn, call, hideQueue = false, onMesa }: ChatPanelProps) {
-  const c = useChatPanel({ session, messages, phase, models, model, lastEnd, onSend, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queueRetry, queueRunBg, queueRunNow });
+export function ChatPanel({ session, messages, phase, terminalBusy = false, draft, setDraft, onSend, onPrompt, onApproveWorkflow, onStop, mode, setMode, caps, claudeReady = true, bypass, setBypass, model, setModel, modelLocked, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, slashCommands, contextTokens, contextModel = null, sendCost, liveTurnTokens, turnStartedAt, bgAgents, lastTurn, lastEnd, onNew, onHandoff, handoffBusy = false, attachments, onUpload, onRemoveAttachment, attPreview = null, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser, onQuote, onMemorize, onRename, onDelete, onOpenFull, onLoadOlder, onOpenSummary, truncated, onShowHelp, focusSignal = 0, onTerminal, terminalRunning, terminalOpen, usage, isMobile = false, onMenu, keyboardOpen = false, quotaPaused = false, quotaResetsAt = null, queue, queueAdd, queueRetarget, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueReleaseAt = 0, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce, resumeOffer = null, resumeRun, turnStatus, teamSlot, footer, restoring = false, botDecor, conn, call, hideQueue = false, onMesa }: ChatPanelProps) {
+  const c = useChatPanel({ session, messages, phase, models, model, lastEnd, onSend, queue, queueAdd, queueRetarget, queueRemove, queueEdit, queueMove, queueClear, queueRetry, queueRunBg, queueRunNow });
   // Modo iterativo: um refino pedido de dentro de um live preview vira o próximo
   // prompt (o card não tem acesso ao compositor — publica no [[refine-bus]]).
   useEffect(() => subscribeRefine((text) => onPrompt(`Refina a última tela/preview: ${text}`)), [onPrompt]);
@@ -40,6 +40,9 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, draf
   // Claude window's quotaPaused. Lock follows the model the picker shows.
   const locked = composerLocked(quotaPaused, model);
   const resetAt = locked ? quotaResetsAt : null;
+  // The way out of the lock: this chat and what it already queued move to the agent.
+  const agentOut = locked && !modelLocked ? models.find((m) => isAgentModel(m.id)) : undefined;
+  const useAgent = agentOut ? () => { setModel(agentOut.id); c.retargetQueue(agentOut.id); } : undefined;
   // Compactação não emite frame nenhum (o CLI só avisa depois): o silêncio longo
   // com o contexto cheio é o que denuncia, e vira indicador ao vivo no lugar do
   // "Pensando…" — antes o chat parecia travado por minutos.
@@ -71,7 +74,7 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, draf
       queued={c.queued} queuedIds={c.queuedIds} queuedAtts={c.queuedAtts} queuedModels={c.queuedModels} onRunQueuedBg={c.runQueuedInBgAt} onRunQueuedNow={c.runQueuedNowAt} onQueue={c.enqueue} onCancelQueueAt={c.cancelQueueAt} onEditQueuedAt={c.editQueuedAt} onMoveQueued={c.moveQueuedItem} history={c.sentHistory} pendingConfirm={c.bannerConfirm} onNew={onNew} onShowHelp={onShowHelp}
       queuePaused={queuePaused} queueReleaseAt={queueReleaseAt} onToggleQueuePause={() => queueSetPaused(!queuePaused)}
       queueHeld={c.queueHeld} onResumeQueue={c.resumeQueue}
-      paused={locked} quotaResetsAt={resetAt} focusMode={focus} hideQueue={hideQueue} onCall={call.supported ? call.dial : undefined} />
+      paused={locked} quotaResetsAt={resetAt} agentOut={agentOut && useAgent ? { name: agentOut.displayName, use: useAgent } : undefined} focusMode={focus} hideQueue={hideQueue} onCall={call.supported ? call.dial : undefined} />
   );
   const hero = c.isEmpty && phase === 'idle' && !botDecor && !restoring;
 
