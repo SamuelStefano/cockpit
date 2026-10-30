@@ -13,6 +13,7 @@ export const Pontos = lazy(() => import('../routes/Pontos').then((m) => ({ defau
 export const Equipe = lazy(() => import('../routes/Equipe').then((m) => ({ default: m.Equipe })));
 export const EquipePage = lazy(() => import('../routes/EquipePage').then((m) => ({ default: m.EquipePage })));
 export const Canvas = lazy(() => import('../routes/Canvas').then((m) => ({ default: m.Canvas })));
+export const Sala = lazy(() => import('../routes/Sala').then((m) => ({ default: m.Sala })));
 export const Graph = lazy(() => import('../routes/Graph').then((m) => ({ default: m.Graph })));
 export const Docs = lazy(() => import('../routes/Docs').then((m) => ({ default: m.Docs })));
 export const DesignSystem = lazy(() => import('../routes/DesignSystem').then((m) => ({ default: m.DesignSystem })));

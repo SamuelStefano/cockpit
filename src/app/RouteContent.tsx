@@ -7,7 +7,7 @@ import { RouteFallback } from './RouteFallback';
 import { ChunkErrorBoundary } from './ChunkErrorBoundary';
 import {
   Skills, Pontos,
-  Graph, Canvas, Conexoes, Configuracoes, Docs, DesignSystem, Onboarding, EquipePage, Agente,
+  Graph, Canvas, Sala, Conexoes, Configuracoes, Docs, DesignSystem, Onboarding, EquipePage, Agente,
 } from './lazyRoutes';
 import type { ChatPanelProps } from '../components/chat/chat-panel-props';
 import type { TerminalsPanelProps } from '../components/Terminals';
@@ -108,6 +108,14 @@ export function RouteContent({ route, agentRoute, skillRoute, isMobile, isAdmin,
         <Graph connected={connected} graphs={c.graphs} loaded={c.graphsLoaded} openId={c.graphOpenId} opening={c.graphOpening} graph={c.graphData}
           building={c.graphBuilding} buildLog={c.graphBuildLog} buildError={c.graphBuildError} querying={c.graphQuerying} queryResult={c.graphQueryResult} queryHistory={c.graphQueryHistory}
           onGraphList={c.onGraphList} onGraphOpen={c.onGraphOpen} onGraphBuild={c.onGraphBuild} onClearBuildError={c.onClearBuildError} onGraphDelete={c.onGraphDelete} onGraphQuery={c.onGraphQuery} onGraphNodeOp={c.onGraphNodeOp} />
+      );
+    }
+    if (route === '/sala' && isAdmin) {
+      return (
+        <Sala
+          connected={connected} bots={c.bots} sessions={c.sessions} running={c.running} stats={c.stats}
+          computers={c.botComputers} peeks={c.sessionPeeks} onComputer={c.onBotComputerGet} onPeek={c.onSessionPeek}
+          onOpenSession={onOpenSession} />
       );
     }
     if (route === '/canvas' && isAdmin) {
