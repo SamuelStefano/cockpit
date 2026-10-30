@@ -164,17 +164,20 @@ function scanFile(path: string, id: string, now: number): BgAgent | null {
 // The description given to the Task tool ("Arcade v2") reads better than the first
 // line of its prompt, and the CLI keeps it beside the transcript. Absent or unreadable
 // on older CLIs: the prompt-derived label stays.
-const descriptions = new Map<string, string>();
-export function agentDescription(sessionId: string, agentId: string, root = join(homedir(), '.claude', 'projects', projectSlug(homedir()))): string | undefined {
+const descriptions = new Map<string, { text?: string; at: number }>();
+const DESCRIPTION_RETRY_MS = 60_000;
+export function agentDescription(sessionId: string, agentId: string, root = join(homedir(), '.claude', 'projects', projectSlug(homedir())), now = Date.now()): string | undefined {
   const path = join(root, sessionId, 'subagents', `agent-${agentId}.meta.json`);
   const known = descriptions.get(path);
-  if (known) return known;
+  // This runs every 2 s per agent: a miss must not hit the disk on every scan.
+  if (known && (known.text || now - known.at < DESCRIPTION_RETRY_MS)) return known.text;
+  let text: string | undefined;
   try {
     const d = JSON.parse(readFileSync(path, 'utf8')).description;
-    if (typeof d !== 'string' || !d.trim()) return undefined;
-    descriptions.set(path, d.trim());
-    return d.trim();
-  } catch { return undefined; }
+    if (typeof d === 'string' && d.trim()) text = d.trim();
+  } catch { /* falls back to the prompt label */ }
+  descriptions.set(path, { text, at: now });
+  return text;
 }
 
 // Exported for the Orchestrator's "Em andamento" panel (canvas/orchestrator-
