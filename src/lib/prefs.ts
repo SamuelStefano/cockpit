@@ -42,3 +42,13 @@ export const FUNNEL_IDLE_DEFAULT = 7;
 // grosso; iOS Safari não expõe navigator.vibrate, então lá vira no-op.
 export const HAPTICS_KEY = 'ui.haptics';
 export const HAPTICS_DEFAULT = true;
+
+// Deck Arcade: master switch for the whole gamification layer (HUD, toasts, effects,
+// easter eggs, event recording). Sound is separate and default OFF for the same
+// reason as NOTIFY_SOUND_KEY.
+export const GAME_ENABLED_KEY = 'game.enabled';
+export const GAME_ENABLED_DEFAULT = true;
+export const GAME_SOUND_KEY = 'game.sound';
+export const GAME_SOUND_DEFAULT = false;
+export const GAME_STATE_KEY = 'game.state';
+export const GAME_CRT_KEY = 'game.crt';
