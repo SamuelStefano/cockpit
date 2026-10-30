@@ -1,6 +1,6 @@
 import { Badge, Button } from '../primitives';
 import { useCopied } from '../../lib/useCopied';
-import type { InstallMode } from './pairing';
+import { windowsSetupFile, type InstallMode } from './pairing';
 import { InstallTargetPicker } from './InstallTargetPicker';
 import type { useInstallTarget } from './useInstallTarget';
 
@@ -18,12 +18,20 @@ interface PairCommandProps {
 
 const mono = 'font-mono text-neutral-400';
 
+function downloadInstaller(command: string) {
+  const url = URL.createObjectURL(new Blob([windowsSetupFile(command)], { type: 'application/octet-stream' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'Instalar Deck.cmd';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export function PairCommand({ code, cmd: remoteCmd, windowsCmd, busy, expired, countdown, mode, onCopy, target }: PairCommandProps) {
   const [copied, copy, copyFailed] = useCopied();
   const cmd = target.native ? windowsCmd : remoteCmd;
-  return (
-    <div>
-      {target.isWindows && <InstallTargetPicker target={target.target} onTarget={target.setTarget} />}
+  const box = (
+    <>
       <div className={`rounded-xl border bg-neutral-950 p-3.5 ${expired ? 'border-yellow-500/40' : 'border-neutral-800'}`}>
         {code ? (
           <code className={`block break-all font-mono text-[13px] leading-relaxed ${expired ? 'text-neutral-600 line-through' : 'text-orange-200'}`}>{cmd}</code>
@@ -47,6 +55,28 @@ export function PairCommand({ code, cmd: remoteCmd, windowsCmd, busy, expired, c
           Pra controle total (terminais e admin), use <span className={mono}>DECK_AGENT_ROLE=admin</span>.
         </p>
       )}
+    </>
+  );
+  return (
+    <div>
+      {target.isWindows && <InstallTargetPicker target={target.target} onTarget={target.setTarget} />}
+      {target.native ? (
+        <>
+          <Button size="md" icon="download" disabled={expired || !code} onClick={() => { downloadInstaller(cmd); onCopy?.(); }}>
+            {expired ? 'código expirado' : 'Baixar instalador'}
+          </Button>
+          <ol className="mt-3 list-decimal space-y-1 pl-5 text-[12.5px] leading-relaxed text-neutral-400">
+            <li>Abra o arquivo baixado.</li>
+            <li>Se o Windows avisar, clique em <b>Mais informações</b> e <b>Executar assim mesmo</b>.</li>
+            <li>Espere. Esta tela troca sozinha quando conectar.</li>
+          </ol>
+          {countdown !== null && !expired && <p className="mt-2 text-[12px] text-neutral-500">Vale por {countdown}.</p>}
+          <details className="mt-3 text-[12px] text-neutral-500">
+            <summary className="cursor-pointer">Prefiro colar um comando</summary>
+            <div className="mt-2">{box}</div>
+          </details>
+        </>
+      ) : box}
     </div>
   );
 }

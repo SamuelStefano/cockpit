@@ -20,11 +20,19 @@ $NpmDir = Join-Path $HOME '.deck-npm'
 $TaskName = 'deck-agent'
 $Supervisor = Join-Path $AgentDir 'supervisor.ps1'
 $MinNode = 22
+$InstallLog = Join-Path $env:TEMP 'deck-install.log'
 # USERDOMAIN can say WORKGROUP, which the task scheduler cannot map to an account.
 $Me = [Security.Principal.WindowsIdentity]::GetCurrent().Name
 
 function Say($m) { Write-Host "[deck] $m" }
-function Fail($m) { Write-Host "[deck] ERRO: $m" -ForegroundColor Red; exit 1 }
+function Fail($m) {
+  Write-Host ""
+  Write-Host "Nao deu certo: $m" -ForegroundColor Red
+  Write-Host "Detalhes em $InstallLog"
+  exit 1
+}
+# Tool chatter goes to a file: a beginner should see steps, not npm warnings.
+function Quiet { param([Parameter(ValueFromRemainingArguments)] $Cmd) $ErrorActionPreference = 'Continue'; $exe, $rest = $Cmd; & $exe @rest *>> $InstallLog; return ($LASTEXITCODE -eq 0) }
 function Refresh-Path {
   $env:Path = "$NpmDir;" + [Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [Environment]::GetEnvironmentVariable('Path', 'User')
 }
@@ -37,8 +45,7 @@ function Node-Major {
 function Winget-Install($id, $label) {
   if (-not (Has 'winget')) { Fail "falta $label e o winget nao esta disponivel. Instale $label e rode de novo." }
   Say "instalando $label com winget..."
-  & winget install --id $id --exact --silent --accept-source-agreements --accept-package-agreements --scope user
-  if ($LASTEXITCODE -ne 0) { & winget install --id $id --exact --silent --accept-source-agreements --accept-package-agreements }
+  if (-not (Quiet winget install --id $id --exact --silent --accept-source-agreements --accept-package-agreements --scope user)) { [void](Quiet winget install --id $id --exact --silent --accept-source-agreements --accept-package-agreements) }
   Refresh-Path
 }
 
@@ -52,6 +59,7 @@ function Stop-Agent {
 }
 
 # Stdin first: anything below may run a child that would inherit and drain it.
+[Console]::InputEncoding = [Text.Encoding]::UTF8
 $Line = if ([Console]::IsInputRedirected) { ([Console]::In.ReadLine() + '').Trim(' ', '"') } else { '' }
 $Parts = $Line -split '\s+', 4
 $Code = $Parts[0]
@@ -75,9 +83,8 @@ if (-not (Has 'git')) { Winget-Install 'Git.Git' 'Git' }
 if (-not (Has 'git')) { Fail 'Git nao encontrado. Feche e abra o terminal e rode de novo.' }
 
 if (-not (Has 'claude')) {
-  Say "instalando o Claude Code em $NpmDir..."
-  & npm install -g --prefix $NpmDir --no-audit --no-fund '@anthropic-ai/claude-code@latest'
-  if ($LASTEXITCODE -ne 0) { Fail 'nao consegui instalar o Claude Code com npm.' }
+  Say 'instalando o Claude Code...'
+  if (-not (Quiet npm.cmd install -g --prefix $NpmDir --no-audit --no-fund '@anthropic-ai/claude-code@latest')) { Fail 'nao consegui instalar o Claude Code com npm.' }
 }
 
 New-Item -ItemType Directory -Force -Path $AgentDir | Out-Null
@@ -86,12 +93,10 @@ New-Item -ItemType Directory -Force -Path $AgentDir | Out-Null
 
 if (Test-Path (Join-Path $SrcDir '.git')) {
   Say 'atualizando o codigo...'
-  & git -C $SrcDir pull --ff-only
-  if ($LASTEXITCODE -ne 0) { Say 'aviso: git pull falhou; seguindo com o codigo atual.' }
+  [void](Quiet git -C $SrcDir pull --ff-only)
 } else {
-  Say "clonando em $SrcDir..."
-  & git clone --depth 1 $Repo $SrcDir
-  if ($LASTEXITCODE -ne 0) { Fail 'git clone falhou.' }
+  Say 'baixando o Deck...'
+  if (-not (Quiet git clone --depth 1 $Repo $SrcDir)) { Fail 'git clone falhou.' }
 }
 
 # From an elevated terminal the clone is owned by Administrators, and the task runs
@@ -102,9 +107,8 @@ if ($known -notcontains $SafeDir) { & git config --global --add safe.directory $
 
 Stop-Agent
 Set-Location $SrcDir
-Say 'instalando dependencias (npm ci)...'
-& npm ci --no-audit --no-fund
-if ($LASTEXITCODE -ne 0) { Fail 'npm ci falhou (veja o erro acima).' }
+Say 'instalando (pode levar alguns minutos)...'
+if (-not (Quiet npm.cmd ci --no-audit --no-fund)) { Fail 'a instalacao das dependencias falhou.' }
 
 $env:DECK_RELAY_URL = $Relay
 $env:DECK_AGENT_DIR = $AgentDir
@@ -114,11 +118,10 @@ if ($Code) {
   $env:DECK_PAIR_CODE = $Code
   if ($Device) { $env:DECK_DEVICE_CODE = $Device }
   if ($Label) { $env:DECK_BOX_LABEL = $Label }
-  & npx tsx server/agent.ts --pair
-  $rc = $LASTEXITCODE
+  $paired = Quiet npx.cmd tsx server/agent.ts --pair
   Remove-Item Env:DECK_PAIR_CODE
   Remove-Item Env:DECK_DEVICE_CODE -ErrorAction SilentlyContinue
-  if ($rc -ne 0) { Fail 'pareamento falhou: o codigo vale 10 minutos e um uso. Gere outro no Deck.' }
+  if (-not $paired) { Fail 'o codigo expirou ou ja foi usado. Baixe o instalador de novo no Deck.' }
 } elseif (-not (Test-Path (Join-Path $AgentDir 'identity.json'))) {
   Fail 'sem codigo de pareamento. Copie o comando de novo no Deck.'
 }
@@ -169,9 +172,12 @@ Start-ScheduledTask -TaskName $TaskName
 Start-Sleep -Seconds 3
 if ((Get-ScheduledTask -TaskName $TaskName).State -ne 'Running') { Fail "a tarefa $TaskName nao subiu. Veja $AgentDir\agent.log" }
 
-Say 'pronto: o agente esta rodando e volta sozinho a cada logon.'
-Say "log: $AgentDir\agent.log"
+Say 'pronto! Pode voltar para o Deck. O agente liga sozinho quando voce entrar no Windows.'
 $ErrorActionPreference = 'Continue'
 & claude auth status *> $null
-if ($LASTEXITCODE -ne 0) { Say 'falta logar no Claude: rode  claude  uma vez neste terminal.' }
+if ($LASTEXITCODE -ne 0) {
+  Say 'falta entrar na sua conta Claude: vai abrir o navegador.'
+  # Own window: this script's stdin is the pipe the pairing data came through.
+  Start-Process -FilePath (Get-Command claude).Source -ArgumentList 'auth', 'login' -Wait
+}
 exit 0
