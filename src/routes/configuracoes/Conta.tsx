@@ -6,7 +6,7 @@ import { ChangePasswordForm } from '../../components/profile/ChangePasswordForm'
 import { DropButton } from '../../components/drop/DropButton';
 import type { DropApi } from '../../cockpit/useDrops';
 import { usePersisted } from '../../lib/persist';
-import { SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT, GROUP_NOTES_KEY, GROUP_NOTES_DEFAULT, NOTIFY_SOUND_KEY, NOTIFY_SOUND_DEFAULT, HAPTICS_KEY, HAPTICS_DEFAULT, GAME_ENABLED_KEY, GAME_ENABLED_DEFAULT, GAME_SOUND_KEY, GAME_SOUND_DEFAULT } from '../../lib/prefs';
+import { SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT, GROUP_NOTES_KEY, GROUP_NOTES_DEFAULT, NOTIFY_SOUND_KEY, NOTIFY_SOUND_DEFAULT, BIT_PLAYFUL_KEY, BIT_PLAYFUL_DEFAULT, HAPTICS_KEY, HAPTICS_DEFAULT, GAME_ENABLED_KEY, GAME_ENABLED_DEFAULT, GAME_SOUND_KEY, GAME_SOUND_DEFAULT } from '../../lib/prefs';
 import { isIOS, isStandalone } from '../../lib/platform';
 import { requestNotifyPermission } from '../../lib/notify';
 import { SwitchRow } from './SwitchRow';
@@ -29,6 +29,7 @@ export function Conta({ account, role }: { account: AccountProps; role: NavRole 
   const [haptics, setHaptics] = usePersisted<boolean>(HAPTICS_KEY, HAPTICS_DEFAULT);
   const [gameOn, setGameOn] = usePersisted<boolean>(GAME_ENABLED_KEY, GAME_ENABLED_DEFAULT);
   const [gameSound, setGameSound] = usePersisted<boolean>(GAME_SOUND_KEY, GAME_SOUND_DEFAULT);
+  const [bitPlayful, setBitPlayful] = usePersisted<boolean>(BIT_PLAYFUL_KEY, BIT_PLAYFUL_DEFAULT);
   const badge = roleBadge(role);
 
   return (
@@ -63,6 +64,7 @@ export function Conta({ account, role }: { account: AccountProps; role: NavRole 
         <SwitchRow label="Vibração no toque" hint="Enviar, fim do turno e segurar uma mensagem (Android; o Safari do iPhone não vibra)" checked={haptics} onChange={() => setHaptics((v) => !v)} />
         <SwitchRow label="Arcade" hint="Nível, missões, conquistas e segredos. Desligado, some tudo e nada é registrado" checked={gameOn} onChange={() => setGameOn((v) => !v)} />
         {gameOn && <SwitchRow label="Sons do Arcade" hint="Efeitos de 8 bits em conquistas, level up e no Bit Runner" checked={gameSound} onChange={() => setGameSound((v) => !v)} />}
+        <SwitchRow label="Bit brincalhão" hint="O mascote apronta no chat parado e brinca na conversa nova" checked={bitPlayful} onChange={() => setBitPlayful((v) => !v)} />
         {account.drops && (
           <ListRow label="Drop privado" hint="Entrega segredo ou script ao agente sem passar pelo chat" trailing={<DropButton api={account.drops} bare />} />
         )}

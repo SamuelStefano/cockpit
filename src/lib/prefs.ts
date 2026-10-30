@@ -53,3 +53,8 @@ export const GAME_SOUND_DEFAULT = false;
 export const GAME_STATE_KEY = 'game.state';
 export const GAME_RECENT_KEY = 'game.recentEvents';
 export const GAME_CRT_KEY = 'game.crt';
+
+// "Bit brincalhão": o mascote apronta no chat parado e brinca na tela de conversa
+// nova. Ligado por padrão; prefers-reduced-motion desliga de qualquer jeito.
+export const BIT_PLAYFUL_KEY = 'bit.playful';
+export const BIT_PLAYFUL_DEFAULT = true;

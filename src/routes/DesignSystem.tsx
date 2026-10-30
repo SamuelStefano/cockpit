@@ -7,6 +7,7 @@ import { StudioGallery } from './ds/StudioGallery';
 import { DenseGallery } from './ds/DenseGallery';
 import { MascotGallery } from './ds/MascotGallery';
 import { BitGallery } from './ds/BitGallery';
+import { BitPlayGallery } from './ds/BitPlayGallery';
 
 export function DesignSystem() {
   return (
@@ -24,6 +25,7 @@ export function DesignSystem() {
         <PrimitivesGallery />
         <CompositesGallery />
         <BitGallery />
+        <BitPlayGallery />
         <MascotGallery />
         <DenseGallery />
         <StudioGallery />

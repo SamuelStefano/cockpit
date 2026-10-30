@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Icon, type IconName } from '../primitives';
-import { Bit } from '../bit/Bit';
+import { BitPlayground } from '../bit/play/BitPlayground';
 import { isVirtualKeyboardOnly } from './touch';
 import { navigateTo } from '../../lib/route-nav';
 import { DECK_GUIDE_PROMPT } from '../../lib/deck-guide-prompt';
@@ -32,7 +32,7 @@ export function ChatEmpty({ onPrompt, onSeed, suggestions = FALLBACK_SUGGESTIONS
   return (
     <div className="flex min-h-0 flex-1 flex-col items-center overflow-y-auto px-3 pb-10">
       <div className="min-h-6 flex-[6]" />
-      <div className="bit-pop bit-greet mb-3"><Bit state="wave" size={96} title="Bora?" /></div>
+      <BitPlayground />
       <h2 className="fade-up mb-7 px-3 text-center font-display text-[41px] font-bold leading-none tracking-normal text-neutral-50 pointer-coarse:text-[26px]">O que vamos trabalhar hoje?</h2>
       {needsProvider && (
         <p className="fade-up -mt-3 mb-5 text-center text-[13px] text-neutral-400">
