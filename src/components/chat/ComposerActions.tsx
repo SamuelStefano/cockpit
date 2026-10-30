@@ -68,7 +68,7 @@ function PrimaryAction({ paused, hasText, hasAtt, attUploading, onSubmit }: Comp
       disabled={attUploading || !canSend}
       aria-label={paused ? 'Enfileirar mensagem' : 'Enviar mensagem'}
       title={attUploading ? 'Aguarde o anexo terminar de subir' : paused ? 'Enfileirar — envia sozinho quando os tokens resetarem' : undefined}
-      className={`${btn} focus-visible:ring-orange-500/40
+      className={`${btn} press-spring focus-visible:ring-orange-500/40
         ${attUploading
           ? idle
           : paused

@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { useWidthTransition } from './useWidthTransition';
 import { Button, IconButton, Tooltip, type ConnState } from '../../primitives';
 import { Bit } from '../../bit/Bit';
+import { useLogoBit } from '../../bit/useLogoBit';
 import { BIT_STATE_LABEL, type BitState } from '../../bit/bit-state';
 import { comboLabel } from '../../../lib/platform';
 import type { Route } from '../../../useRoute';
@@ -35,10 +36,16 @@ export function Sidebar({ route, nav, role, navCounts, onNew, onPalette, bitStat
   const k = comboLabel(['⌘', 'K']);
   const toggleLabel = drawer ? 'Fechar menu' : expanded ? 'Recolher barra lateral' : 'Expandir barra lateral';
   const list = expanded && sessions;
+  const logo = useLogoBit(bitState);
   const bitButton = (
     <Tooltip label={`Ir pro chat · ${BIT_STATE_LABEL[bitState]}`} side="right" disabled={!!drawer}>
-      <button type="button" onClick={() => nav('/')} aria-label="Ir pro chat" className="bit-greet flex h-11 items-center gap-2 rounded-xl px-1 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-orange-500/40">
-        <Bit state={bitState} size={expanded ? 36 : 30} />
+      <button type="button" onClick={() => { logo.pet(); nav('/'); }} aria-label="Ir pro chat" className="bit-greet flex h-11 items-center gap-2 rounded-xl px-1 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-orange-500/40">
+        <span className={`relative inline-flex ${logo.startle ? 'bit-startle' : ''}`}>
+          <Bit state={logo.state} size={expanded ? 36 : 30} />
+          {logo.hearts > 0 && [0, 1, 2].map((i) => (
+            <span key={`${logo.hearts}-${i}`} aria-hidden className="bit-heart" style={{ '--hx': `${(i - 1) * 9}px`, animationDelay: `${i * 0.18}s` } as React.CSSProperties}>❤️</span>
+          ))}
+        </span>
         {expanded && <span className="font-display text-[28px] font-bold lowercase leading-none tracking-wide text-neutral-50">deck</span>}
       </button>
     </Tooltip>
@@ -60,7 +67,7 @@ export function Sidebar({ route, nav, role, navCounts, onNew, onPalette, bitStat
 
       {(drawer || expanded) && (
         <div className="shrink-0 px-2 pb-2">
-          <Button icon="plus" onClick={onNew} className="w-full">Nova conversa</Button>
+          <Button icon="plus" onClick={onNew} className="press-spring w-full">Nova conversa</Button>
         </div>
       )}
 

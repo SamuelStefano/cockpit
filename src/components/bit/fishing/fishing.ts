@@ -15,7 +15,7 @@ export const BITE_MAX_MS = 25_000;
 export const CLICK_COOLDOWN_MS = 5_000;
 export const BITE_DELAY_DIP_MS = 800;
 // Room Bit needs on one side of the message column: itself, the line and the bucket.
-export const MIN_MARGIN_PX = 132;
+export const MIN_MARGIN_PX = 164;
 export const COLUMN_MAX_PX = 760;
 export const THREAD_PADDING_PX = 12;
 

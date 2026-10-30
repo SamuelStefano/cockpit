@@ -4,6 +4,7 @@ import { pickSkit, RANDOM_SKIT_IDS, type SkitId } from './skits';
 import { useSkitStage } from './useSkitStage';
 import { usePlayAllowed } from './usePlayAllowed';
 import { useWordThief } from './useWordThief';
+import { useLongPromptPeek } from './useLongPromptPeek';
 
 interface Args {
   // Where the thief looks for a letter (the message log).
@@ -48,6 +49,8 @@ export function useBitMischief({ textRootRef, thinking, messageCount, timing = M
     sched.current = s;
     return () => { s.dispose(); sched.current = null; };
   }, [timing]);
+
+  useLongPromptPeek({ play: (id) => api.current.play(id), allowed, stageBusy: () => !!sched.current?.isPlaying || api.current.playing });
 
   useEffect(() => { sched.current?.setEnabled(allowed); }, [allowed]);
   useEffect(() => { sched.current?.setThinking(thinking); }, [thinking]);

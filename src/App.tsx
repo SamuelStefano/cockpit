@@ -1,3 +1,4 @@
+import './components/delight.css';
 import { useTurnHaptics } from './app/useTurnHaptics';
 import { useEdgeSwipeOpen } from './components/useEdgeSwipeOpen';
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';

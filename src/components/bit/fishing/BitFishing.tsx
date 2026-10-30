@@ -29,14 +29,16 @@ export function BitFishing({ running, forceRoom = false }: { running: boolean; f
       {on && (
         <div className={`fish-scene ${f.phase === 'enter' ? 'fish-scene-in' : f.phase === 'leave' ? 'fish-scene-out' : ''}`}>
           <svg className="fish-svg" viewBox="0 0 116 116" width={116} height={116}>
-            <defs><clipPath id="fish-water"><rect x={0} y={93} width={64} height={14} /></clipPath></defs>
+            <defs><clipPath id="fish-water"><rect x={0} y={93} width={68} height={14} /></clipPath></defs>
             <g clipPath="url(#fish-water)">
               <path className="fish-wave-b" d={WAVE} transform="translate(0 3)" stroke="#0ea5e9" strokeOpacity={0.3} strokeWidth={1.2} fill="none" />
               <path className="fish-wave-a" d={WAVE} stroke="#38bdf8" strokeOpacity={0.65} strokeWidth={1.4} fill="none" />
             </g>
-            <path d="M60 86h56" stroke="#a16207" strokeWidth={4} strokeLinecap="round" />
-            <path d="M66 88v22M110 88v22" stroke="#78350f" strokeWidth={2.4} strokeLinecap="round" />
-            <path d="M64 96h50" stroke="#78350f" strokeOpacity={0.5} strokeWidth={1.2} />
+            <path d="M58 87h58" stroke="#92400e" strokeWidth={6} strokeLinecap="round" />
+            <path d="M58 85.5h58" stroke="#d97706" strokeWidth={2} strokeLinecap="round" />
+            <path d="M72 84.5v5M88 84.5v5M104 84.5v5" stroke="#78350f" strokeWidth={0.8} />
+            <path d="M66 90v21M110 90v21" stroke="#78350f" strokeWidth={2.4} strokeLinecap="round" />
+            <path d="M66 100h44" stroke="#78350f" strokeOpacity={0.45} strokeWidth={1} />
             <g className={`fish-rod ${f.dip ? 'fish-dip' : ''}`}>
               <path d="M82 62Q50 30 26 28" stroke="#b45309" strokeWidth={1.8} strokeLinecap="round" fill="none" />
             </g>
