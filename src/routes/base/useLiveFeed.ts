@@ -39,7 +39,7 @@ function lastText(thread: Message[] | undefined): string | null {
   for (let i = thread.length - 1; i >= 0; i--) {
     const m = thread[i];
     if (m.role !== 'assistant') continue;
-    for (let k = m.blocks.length - 1; k >= 0; k--) { const b = m.blocks[k]; if (b.type === 'text' && b.text.trim()) return b.text.slice(-600); }
+    for (let k = m.blocks.length - 1; k >= 0; k--) { const b = m.blocks[k]; if (b.type === 'text' && b.md.trim()) return b.md.slice(-600); }
   }
   return null;
 }
