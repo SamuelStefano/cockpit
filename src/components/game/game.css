@@ -22,5 +22,5 @@
 
 @media (prefers-reduced-motion: reduce) {
   .arcade-slide-up, .arcade-banner, .arcade-float, .arcade-god, .arcade-shake { animation: none; }
-  .arcade-slide-up { transform: translateX(-50%); }
+  .arcade-slide-up { transform: translate(var(--arcade-x), 0); }
 }
