@@ -1,6 +1,7 @@
 import { loadPref, savePref } from '../lib/persist';
 import { GAME_ENABLED_KEY, GAME_ENABLED_DEFAULT, GAME_STATE_KEY, GAME_RECENT_KEY } from '../lib/prefs';
 import { applyEvent, loadState, claimOnce } from './engine';
+import { sfx } from './sfx';
 import type { GameEvent, GameState, Reward } from './types';
 
 type StateListener = (state: GameState) => void;
@@ -31,6 +32,12 @@ function duplicate(key: string | undefined, now: number): boolean {
   return hit;
 }
 
+function eventSound(type: GameEvent['type']): void {
+  if (type === 'message_sent') sfx.send();
+  else if (type === 'turn_done') sfx.turnDone();
+  else if (type === 'turn_error') sfx.turnError();
+}
+
 // Never throws: the game is decoration and must not break a useCockpit code path.
 export function recordGameEvent(event: GameEvent, now: Date = new Date()): void {
   try {
@@ -38,6 +45,7 @@ export function recordGameEvent(event: GameEvent, now: Date = new Date()): void 
     if (duplicate(event.key && `${event.type}:${event.key}`, now.getTime())) return;
     const { state, rewards } = applyEvent(getGameState(), event, now);
     save(state);
+    eventSound(event.type);
     if (rewards.length) for (const l of rewardListeners) l(rewards, state);
   } catch {
     /* best-effort */

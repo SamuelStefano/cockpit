@@ -12,7 +12,7 @@ export interface Achievement {
 
 // Routes every role can reach are not enough to finish this: pontos is root-only
 // and left out on purpose, so an admin can still complete it.
-export const TRACKED_ROUTES = ['/', '/canvas', '/skills', '/conexoes', '/docs', '/equipe/rotinas', '/equipe/memoria', '/configuracoes', '/arcade'];
+export const TRACKED_ROUTES = ['/', '/canvas', '/skills', '/conexoes', '/docs', '/equipe/rotinas', '/equipe/memoria', '/configuracoes'];
 
 const total = (s: GameState, k: string) => s.totals[k] ?? 0;
 const turnHour = (c: EventCtx) => (c.event.type === 'turn_done' ? c.now.getHours() : -1);

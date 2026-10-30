@@ -15,8 +15,7 @@ const navIds = (role: NavRole) => renderHook(() => usePaletteCommands({ ...base,
 
 describe('usePaletteCommands navigation', () => {
   it('offers every route the header offers', () => {
-    // /arcade is reached by its own "Abrir Arcade" command instead of a nav entry.
-    expect(navIds('student')).toHaveLength(navFor('student').filter((n) => n.to !== '/arcade').length);
+    expect(navIds('student')).toHaveLength(navFor('student').length);
     expect(navIds('student')).toEqual(['go-chat', 'go-agentes', 'go-configuracoes']);
     expect(navIds('root')).toEqual(expect.arrayContaining(['go-chat', 'go-pontos', 'go-equipe/rotinas', 'go-equipe/memoria']));
   });
@@ -59,10 +58,17 @@ describe('usePaletteCommands arcade', () => {
     expect(cmds('sudo')).not.toContain('sudo-sandwich');
     expect(cmds('Sudo make me a sandwich ')).toContain('sudo-sandwich');
   });
+  it('lists the hidden codes only on the exact word', () => {
+    for (const e of ['iddqd', 'matrix', 'konami']) {
+      expect(cmds()).not.toContain(`egg-${e}`);
+      expect(cmds(e.slice(0, 3))).not.toContain(`egg-${e}`);
+      expect(cmds(` ${e.toUpperCase()} `)).toContain(`egg-${e}`);
+    }
+  });
   it('hides all of it when the game is off', () => {
     savePref(GAME_ENABLED_KEY, false);
     expect(cmds('sudo make me a sandwich')).not.toContain('sudo-sandwich');
     expect(cmds()).not.toContain('arcade');
-    expect(navIds('student')).toContain('go-arcade');
+    expect(cmds('matrix')).not.toContain('egg-matrix');
   });
 });

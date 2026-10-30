@@ -1,12 +1,12 @@
-import { forwardRef, useRef } from 'react';
-import { Button, SectionHeader } from '../../components/primitives';
+import { useRef } from 'react';
+import { Button, SectionHeader } from '../primitives';
 import { useBitRunner } from '../../game/useBitRunner';
 
-export const BitRunner = forwardRef<HTMLElement, { best: number }>(function BitRunner({ best }, ref) {
+export function BitRunner({ best }: { best: number }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const { phase, score, press } = useBitRunner(canvas, best);
   return (
-    <section ref={ref} className="scroll-mt-4">
+    <section>
       <SectionHeader
         title="Bit Runner" icon="play"
         description="Pule os bugs e conflitos de merge, pegue os ⚡. Espaço, seta para cima ou toque."
@@ -21,4 +21,4 @@ export const BitRunner = forwardRef<HTMLElement, { best: number }>(function BitR
       />
     </section>
   );
-});
+}

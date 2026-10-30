@@ -1,55 +1,57 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { subscribeRewards } from './game-bus';
-import { rewardViews, turnXp, type RewardView } from './reward-view';
+import { subscribePills, type PillInput } from './pill-bus';
+import { rewardViews } from './reward-view';
 import { sfx } from './sfx';
 import { fireConfetti } from '../components/primitives/confetti-bus';
 
-const SHOW_MS: Record<RewardView['kind'], number> = { achievement: 4800, level: 5200, quest: 3200, streak: 3000 };
-const MAX_QUEUE = 6;
-const FLOAT_MS = 1500;
+export const PILL_MS = 3000;
+export const LEVEL_CONFETTI = 24;
+const MAX_QUEUE = 4;
 
-export interface XpFloatItem { id: number; amount: number }
+export interface PillView extends PillInput { id: number; sound?: 'level' | 'achievement' | 'coin' }
 
-// One card or banner at a time: bursts (a turn that unlocks a quest, an achievement
-// and a level) wait in line instead of stacking on screen.
+// One pill at a time; bursts wait in line. Each pill leaves by itself after 3 s.
 export function useRewardQueue() {
-  const [current, setCurrent] = useState<RewardView | null>(null);
-  const [floats, setFloats] = useState<XpFloatItem[]>([]);
-  const queue = useRef<RewardView[]>([]);
+  const [current, setCurrent] = useState<PillView | null>(null);
+  const queue = useRef<PillView[]>([]);
   const showing = useRef(false);
   const timer = useRef(0);
-  const floatSeq = useRef(0);
+  const seq = useRef(0);
 
   const next = useCallback(() => {
     const item = queue.current.shift();
     if (!item) { showing.current = false; setCurrent(null); return; }
     showing.current = true;
     setCurrent(item);
-    if (item.kind === 'level') { sfx.levelUp(); fireConfetti({ count: 70 }); }
-    else if (item.kind === 'achievement') sfx.achievement();
+    if (item.sound === 'level') sfx.levelUp();
+    else if (item.sound === 'achievement') sfx.achievement();
     else sfx.coin();
-    timer.current = window.setTimeout(next, SHOW_MS[item.kind]);
+    if (item.confetti) fireConfetti({ count: item.confetti });
+    timer.current = window.setTimeout(next, PILL_MS);
   }, []);
+
+  const push = useCallback((views: PillView[]) => {
+    if (!views.length) return;
+    queue.current = [...queue.current, ...views].slice(-MAX_QUEUE);
+    if (!showing.current) next();
+  }, [next]);
 
   const dismiss = useCallback(() => { window.clearTimeout(timer.current); next(); }, [next]);
 
   useEffect(() => {
-    const floatTimers = new Set<number>();
-    const off = subscribeRewards((rewards) => {
-      const xp = turnXp(rewards);
-      if (xp > 0) {
-        const id = ++floatSeq.current;
-        setFloats((f) => [...f, { id, amount: xp }].slice(-3));
-        const t = window.setTimeout(() => { floatTimers.delete(t); setFloats((f) => f.filter((x) => x.id !== id)); }, FLOAT_MS);
-        floatTimers.add(t);
-      }
-      const views = rewardViews(rewards);
-      if (!views.length) return;
-      queue.current = [...queue.current, ...views].slice(-MAX_QUEUE);
-      if (!showing.current) next();
+    const offRewards = subscribeRewards((rewards) => {
+      push(rewardViews(rewards).map((v) => ({
+        id: v.id,
+        icon: v.icon,
+        title: v.kind === 'level' ? `Nível ${v.level}` : v.title,
+        confetti: v.kind === 'level' ? LEVEL_CONFETTI : undefined,
+        sound: v.kind === 'level' ? 'level' : v.kind === 'achievement' ? 'achievement' : 'coin',
+      })));
     });
-    return () => { off(); window.clearTimeout(timer.current); for (const t of floatTimers) clearTimeout(t); };
-  }, [next]);
+    const offPills = subscribePills((p) => push([{ ...p, id: -(++seq.current), sound: 'coin' }]));
+    return () => { offRewards(); offPills(); window.clearTimeout(timer.current); };
+  }, [push]);
 
-  return { current, floats, dismiss };
+  return { current, dismiss };
 }

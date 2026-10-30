@@ -23,14 +23,14 @@ export function useBitPoke() {
     count.current = now - last.current > RESET_MS ? 1 : count.current + 1;
     last.current = now;
     if (count.current === 7) {
-      foundEgg('poke', 'Segredo encontrado: o Bit sentiu a cutucada.');
+      foundEgg('poke');
       setQuip(QUIPS[Math.floor(Math.random() * QUIPS.length)]);
       setShake(true);
       later(() => setShake(false), 600);
       later(() => setQuip(''), 3500);
     } else if (count.current === 20) {
       count.current = 0;
-      foundEgg('dizzy', 'Segredo encontrado: Bit tonto.');
+      foundEgg('dizzy');
       setQuip('Tô tonto... 😵');
       setState('error');
       later(() => { setState(null); setQuip(''); }, 2800);

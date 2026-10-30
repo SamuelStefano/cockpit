@@ -1,19 +1,10 @@
 import { useGameEnabled } from '../../game/useGameState';
 import { useRewardQueue } from '../../game/useRewardQueue';
-import { RewardCard } from './RewardCard';
-import { LevelBanner } from './LevelBanner';
-import { XpFloat } from './XpFloat';
+import { RewardPill } from './RewardPill';
 
 function Layer() {
-  const { current, floats, dismiss } = useRewardQueue();
-  return (
-    <>
-      <XpFloat items={floats} />
-      {current && (current.kind === 'level'
-        ? <LevelBanner key={current.id} item={current} onDismiss={dismiss} />
-        : <RewardCard key={current.id} item={current} onDismiss={dismiss} />)}
-    </>
-  );
+  const { current, dismiss } = useRewardQueue();
+  return current ? <RewardPill key={current.id} item={current} onDismiss={dismiss} /> : null;
 }
 
 export function RewardHost() {

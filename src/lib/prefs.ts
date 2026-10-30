@@ -44,12 +44,12 @@ export const HAPTICS_KEY = 'ui.haptics';
 export const HAPTICS_DEFAULT = true;
 
 // Deck Arcade: master switch for the whole gamification layer (HUD, toasts, effects,
-// easter eggs, event recording). Sound is separate and default OFF for the same
-// reason as NOTIFY_SOUND_KEY.
+// easter eggs, event recording). Sound is separate and default ON: it is soft, rate
+// limited, silent in hidden tabs and held back until the first user gesture.
 export const GAME_ENABLED_KEY = 'game.enabled';
 export const GAME_ENABLED_DEFAULT = true;
 export const GAME_SOUND_KEY = 'game.sound';
-export const GAME_SOUND_DEFAULT = false;
+export const GAME_SOUND_DEFAULT = true;
 export const GAME_STATE_KEY = 'game.state';
 export const GAME_RECENT_KEY = 'game.recentEvents';
 export const GAME_CRT_KEY = 'game.crt';

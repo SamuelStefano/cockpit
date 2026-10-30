@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { usePersisted } from '../../lib/persist';
 import { GAME_CRT_KEY } from '../../lib/prefs';
-import { toast } from '../primitives/toast-bus';
+import { showPill } from '../../game/pill-bus';
+import { subscribeEggTrigger, type EggTrigger } from '../../game/egg-bus';
 import { useGameEnabled } from '../../game/useGameState';
 import { useEggKeys } from '../../game/useEggKeys';
 import { useSeasonalEggs } from '../../game/useSeasonalEggs';
@@ -23,23 +24,26 @@ function Layer() {
     return () => window.clearTimeout(t);
   }, [god]);
 
-  useEggKeys({
-    onKonami: () => {
-      foundEgg('konami', 'Segredo encontrado: o código clássico.');
-      toast(crt ? 'Modo CRT desligado.' : 'Modo CRT ligado. Digite o código de novo para desligar.', { durationMs: 3500 });
+  const fire = useCallback((id: EggTrigger) => {
+    if (id === 'konami') {
+      foundEgg('konami');
+      showPill({ icon: '📺', title: crt ? 'Modo CRT desligado' : 'Modo CRT ligado (digite o código de novo para desligar)' });
       setCrt(!crt);
-    },
-    onGod: () => {
+    } else if (id === 'iddqd') {
       foundEgg('iddqd');
-      toast('Modo deus: agentes não erram (mentira)', { durationMs: 4500 });
+      showPill({ icon: '😇', title: 'Modo deus: agentes não erram (mentira)' });
       setGod(false);
       window.setTimeout(() => setGod(true), 0);
-    },
-    onMatrix: () => {
-      foundEgg('matrix', 'Segredo encontrado: siga o coelho branco.');
+    } else {
+      foundEgg('matrix');
       setMatrix(true);
-    },
-  });
+    }
+  }, [crt, setCrt]);
+
+  // Typed codes only count outside text fields (useEggKeys drops keys from inputs);
+  // the palette reaches the same effects through the egg bus.
+  useEggKeys({ onKonami: () => fire('konami'), onGod: () => fire('iddqd'), onMatrix: () => fire('matrix') });
+  useEffect(() => subscribeEggTrigger(fire), [fire]);
   useSeasonalEggs();
   const stopMatrix = useCallback(() => setMatrix(false), []);
 
