@@ -10,6 +10,12 @@ describe('questsForDay', () => {
     expect(ids).toHaveLength(DAILY_QUEST_COUNT);
     expect(new Set(ids).size).toBe(DAILY_QUEST_COUNT);
   });
+  it('never repeats a quest family on the same day', () => {
+    for (let d = 1; d <= 28; d++) {
+      const fams = questsForDay(`2026-03-${String(d).padStart(2, '0')}`).map((q) => q.id.split('-')[0]);
+      expect(new Set(fams).size).toBe(fams.length);
+    }
+  });
   it('varies across days', () => {
     const sets = new Set<string>();
     for (let d = 1; d <= 28; d++) sets.add(questsForDay(`2026-02-${String(d).padStart(2, '0')}`).map((q) => q.id).join());

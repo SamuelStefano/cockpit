@@ -53,11 +53,17 @@ function mulberry32(seed: number): () => number {
   };
 }
 
+// "turns-5" and "turns-8" on the same day would be one quest paid twice.
+const family = (q: QuestDef): string => q.id.split('-')[0];
+
 // Seeded by the local day string so every call (and every tab) agrees on the same 3.
 export function questsForDay(day: string): QuestDef[] {
   const rnd = mulberry32(hashSeed(`deck-arcade:${day}`));
   const pool = [...QUESTS];
   const out: QuestDef[] = [];
-  while (out.length < DAILY_QUEST_COUNT && pool.length) out.push(pool.splice(Math.floor(rnd() * pool.length), 1)[0]);
+  while (out.length < DAILY_QUEST_COUNT && pool.length) {
+    const pick = pool.splice(Math.floor(rnd() * pool.length), 1)[0];
+    if (!out.some((q) => family(q) === family(pick))) out.push(pick);
+  }
   return out;
 }

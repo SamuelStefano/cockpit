@@ -29,8 +29,8 @@ export function Arcade() {
   const day = dayKey(new Date());
   return (
     <div className="scroll-thin min-h-0 flex-1 overflow-y-auto">
-      <RouteHeader title="Arcade" subtitle="Seu progresso no Deck, neste aparelho." variant="page" hideOnPhone />
       <div className="mx-auto flex w-full max-w-[980px] flex-col gap-8 px-4 py-5 md:px-8 md:py-7">
+        <RouteHeader title="Arcade" subtitle="Seu progresso no Deck, neste aparelho." variant="page" hideOnPhone />
         <ProfileCard state={state} info={level(state.xp)} total={ACHIEVEMENTS.length} />
         <QuestList state={state} day={day} />
         <BitRunner ref={runner} best={state.highScore} />

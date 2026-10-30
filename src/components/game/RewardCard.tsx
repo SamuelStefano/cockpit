@@ -1,13 +1,13 @@
 import './game.css';
 import type { RewardView } from '../../game/reward-view';
 
-// Xbox-style achievement slide-in: pixel-ish monospace, bottom-center, never steals focus.
+// Xbox-style achievement slide-in: pixel-ish monospace, bottom-right clear of the toasts, never steals focus.
 export function RewardCard({ item, onDismiss }: { item: RewardView; onDismiss: () => void }) {
   return (
     <div
       role="status"
       aria-live="polite"
-      className="arcade-slide-up arcade-pixel pointer-events-none fixed left-1/2 z-65 w-[min(92vw,360px)] -translate-x-1/2"
+      className="arcade-slide-up arcade-pixel pointer-events-none fixed left-1/2 z-65 w-[min(92vw,360px)] [--arcade-x:-50%] md:left-auto md:right-6 md:[--arcade-x:0%]"
       style={{ bottom: 'calc(env(safe-area-inset-bottom) + 16px)' }}
     >
       <button
