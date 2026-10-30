@@ -1,3 +1,5 @@
+import { join } from 'node:path';
+import { IS_WINDOWS } from './platform';
 import { execFile } from 'node:child_process';
 import { addBad, agentDir, markerFile, npmBesideNode, readBad, realFs, writeMarker } from './self-update-boot';
 
@@ -9,6 +11,7 @@ export interface ExecResult { ok: boolean; stdout: string; stderr: string }
 export type Exec = (cmd: string, args: string[], timeoutMs: number) => Promise<ExecResult>;
 
 export interface SelfUpdateDeps {
+  deferInstall?: () => void;
   exec: Exec;
   now: () => number;
   busy: () => boolean;
@@ -102,7 +105,9 @@ export function createSelfUpdater(deps: SelfUpdateDeps, o: SelfUpdateOptions = {
       return 'merge-failed';
     }
     if (!changed.ok || changed.stdout.trim()) {
-      const install = await deps.exec(npm, ['ci', '--no-audit', '--no-fund'], NPM_MS);
+      // Windows cannot replace the .node files this process has loaded: the supervisor
+      // installs after the restart, before anything loads them.
+      const install = deps.deferInstall ? (deps.deferInstall(), { ok: true, stderr: '' }) : await deps.exec(npm, ['ci', '--no-audit', '--no-fund'], NPM_MS);
       if (!install.ok) {
         deps.log(`[agent] self-update: npm ci failed for ${short(target)}; rolling back to ${short(head)}: ${install.stderr.trim().slice(-400)}`);
         await git(['reset', '-q', '--hard', head]);
@@ -167,6 +172,7 @@ export function startSelfUpdate(p: { cwd: string; busy: () => boolean; restart: 
     markBad: (sha) => addBad(realFs, dir, sha),
     markPending: (from, to) => writeMarker(realFs, dir, { from, to, boots: 0 }),
     unconfirmed: () => realFs.read(markerFile(dir)) !== null,
+    deferInstall: IS_WINDOWS ? () => realFs.write(join(dir, 'deps-stale'), '') : undefined,
   }, { npmBin: npmBesideNode() });
   const schedule = (ms: number) => setTimeout(run, ms).unref();
   const run = async () => {

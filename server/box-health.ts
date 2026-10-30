@@ -8,7 +8,7 @@ import {
 } from '../shared/box-health';
 import { claudeReady } from './admin-ops';
 import { claudeCliInfo, deckInfo, REPO_ROOT } from './deck-ops';
-import { cliPath } from './engine/cli-path';
+import { claudeBin, cliPath } from './engine/cli-path';
 import { authHold } from './ws/auth-health';
 import { hasDevices, listDevices } from './e2e/devices';
 import { selfUpdateStatus } from './self-update';
@@ -90,7 +90,7 @@ const realProbes: HealthProbes = {
     return { head: info.headCommit, boot: info.bootCommit, behind: Number.isFinite(n) ? n : null };
   },
   cli: async () => {
-    const [info, help] = await Promise.all([claudeCliInfo(), exec('claude', ['--help'], 10_000)]);
+    const [info, help] = await Promise.all([claudeCliInfo(), exec(claudeBin(), ['--help'], 10_000)]);
     return { path: info.path, version: info.version, help };
   },
   auth: () => ({ ready: claudeReady(), held: authHold() }),

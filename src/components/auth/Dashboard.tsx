@@ -4,6 +4,7 @@ import { useAccountAdmin } from './useAccountAdmin';
 import { PairingStatus } from './PairingStatus';
 import { InstallModePicker } from './InstallModePicker';
 import { PairCommand } from './PairCommand';
+import { useInstallTarget } from './useInstallTarget';
 import { PairStep } from './PairStep';
 import { InstallExplainer } from './InstallExplainer';
 import { RelayVisibility } from './RelayVisibility';
@@ -20,6 +21,7 @@ export function Dashboard({ token, userId, onSignOut }: { token: string; userId?
   const pk = usePasskeySetup();
   const p = usePairing(token, false, admin, '', pk.version);
   const setup = useSetupChecklist(true);
+  const target = useInstallTarget();
 
   return (
     <div className="flex h-full flex-1 justify-center overflow-y-auto bg-neutral-950 px-4 py-6">
@@ -31,10 +33,10 @@ export function Dashboard({ token, userId, onSignOut }: { token: string; userId?
 
         <div className="space-y-6">
           <PairStep n={1} title="Como instalar">
-            <InstallModePicker mode={p.mode} onChange={p.setMode} />
+            {target.native ? <p className="text-[12px] text-neutral-400">Direto no Windows, sem WSL nem Docker.</p> : <InstallModePicker mode={p.mode} onChange={p.setMode} />}
           </PairStep>
-          <PairStep n={2} title="Cole na sua VPS">
-            <PairCommand code={p.code} cmd={p.cmd} busy={p.busy} expired={p.expired} countdown={p.countdown} mode={p.mode} onCopy={() => startSetupWatch()} />
+          <PairStep n={2} title={target.native ? 'Cole no terminal' : 'Cole na sua VPS'}>
+            <PairCommand code={p.code} cmd={p.cmd} windowsCmd={p.windowsCmd} busy={p.busy} expired={p.expired} countdown={p.countdown} mode={p.mode} target={target} onCopy={() => startSetupWatch()} />
             {/* Um só lugar pro erro: com o código já na tela, a falha de "gerar novo código" não aparecia. */}
             <InstallExplainer mode={p.mode} />
             {p.err && <p className="mt-3 text-[12px] text-red-300">{p.err}</p>}

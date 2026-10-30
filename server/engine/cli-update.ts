@@ -1,8 +1,9 @@
+import { IS_WINDOWS, npmInvocation } from '../platform';
 import { execFile } from 'node:child_process';
 import { existsSync, realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { dirname, join } from 'node:path';
-import { cliPath, managedPrefix, resolveCli, setPreferredCliDir } from './cli-path';
+import { delimiter, dirname, join } from 'node:path';
+import { cliInDir, cliPath, managedPrefix, resolveCli, setPreferredCliDir } from './cli-path';
 
 // Keeps the one CLI the Deck spawns at npm's latest, in the managed prefix. Running
 // turns keep the binary they started with; every new spawn resolves the new one.
@@ -183,7 +184,8 @@ export type CliUpdater = ReturnType<typeof createCliUpdater>;
 
 export function execCli(env: () => NodeJS.ProcessEnv): CliExec {
   return (cmd, args, timeoutMs) => new Promise((resolve) => {
-    execFile(cmd, args, { timeout: timeoutMs, maxBuffer: 4 * 1024 * 1024, env: env() },
+    const [bin, argv] = npmInvocation(cmd, args);
+    execFile(bin, argv, { timeout: timeoutMs, maxBuffer: 4 * 1024 * 1024, env: env() },
       (err, stdout, stderr) => resolve({ ok: !err, stdout: String(stdout), stderr: String(stderr) }));
   });
 }
@@ -202,10 +204,10 @@ function npmBin(): string {
 function candidateBins(): string[] {
   const home = homedir();
   const dirs = [
-    join(managedPrefix(home), 'bin'), join(home, '.local', 'bin'), join(home, '.claude', 'local'),
-    dirname(process.execPath), ...(process.env.PATH ?? '').split(':'),
+    join(managedPrefix(home), IS_WINDOWS ? '' : 'bin'), join(home, '.local', 'bin'), join(home, '.claude', 'local'),
+    dirname(process.execPath), ...(process.env.PATH ?? '').split(delimiter),
   ];
-  return [...new Set(dirs.filter(Boolean).map((d) => join(d, 'claude')))].filter((p) => existsSync(p));
+  return [...new Set(dirs.filter(Boolean).map((d) => cliInDir(d)).filter(Boolean))];
 }
 
 let busyFn: () => boolean = () => false;
