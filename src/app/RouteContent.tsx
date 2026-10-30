@@ -119,9 +119,12 @@ export function RouteContent({ route, agentRoute, skillRoute, isMobile, isAdmin,
       );
     }
     if (route === '/mesa' && isAdmin) {
+      const lead = c.bots.find((b) => b.primary) ?? c.bots[0];
       return (
         <Mesa
-          chat={chatProps} sessions={c.sessions} running={c.running} queue={c.queue} onOpen={c.setActiveId} />
+          chat={chatProps} sessions={c.sessions} running={c.running} queue={c.queue} onOpen={c.setActiveId}
+          leadId={lead?.id ?? ''} leadName={lead?.name ?? ''}
+          onTalk={() => { if (lead) c.onOpenBot(lead.id, lead.sessionId, lead.name); }} />
       );
     }
     if (route === '/canvas' && isAdmin) {

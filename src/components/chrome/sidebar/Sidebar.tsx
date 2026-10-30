@@ -54,13 +54,15 @@ export function Sidebar({ route, nav, role, navCounts, onNew, onPalette, bitStat
         {!drawer && !expanded && <IconButton icon="panelLeft" label={toggleLabel} side="right" aria-expanded={expanded} onClick={toggle} />}
         {expanded && <span className="flex-1" />}
         {!drawer && !expanded && <IconButton icon="squarePen" label="Nova conversa" side="right" onClick={onNew} />}
+        {!drawer && !expanded && role !== 'student' && <IconButton icon="layers" label="Mesa" side="right" onClick={() => nav('/mesa')} />}
         <IconButton icon="search" label={`Comandos (${k})`} tip={`Buscar · ${k}`} side={expanded ? 'bottom' : 'right'} onClick={onPalette} />
         {(expanded || drawer) && <IconButton icon={drawer ? 'x' : 'panelLeft'} label={drawer ? 'Fechar menu' : toggleLabel} side="bottom" aria-expanded={expanded} onClick={drawer ? drawer.onClose : toggle} />}
       </div>
 
       {(drawer || expanded) && (
-        <div className="shrink-0 px-2 pb-2">
+        <div className="flex shrink-0 flex-col gap-1.5 px-2 pb-2">
           <Button icon="plus" onClick={onNew} className="w-full">Nova conversa</Button>
+          {role !== 'student' && <Button icon="layers" variant="secondary" onClick={() => nav('/mesa')} className="w-full">Mesa</Button>}
         </div>
       )}
 

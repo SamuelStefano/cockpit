@@ -25,6 +25,8 @@ describe('Sidebar', () => {
     expect(p.onPalette).toHaveBeenCalledOnce();
     fireEvent.click(screen.getByRole('button', { name: 'Nova conversa' }));
     expect(p.onNew).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole('button', { name: 'Mesa' }));
+    expect(p.nav).toHaveBeenCalledWith('/mesa');
   });
 
   it('collapses to the rail, hides the text and persists the choice', () => {
@@ -81,6 +83,7 @@ describe('Sidebar', () => {
     expect(screen.queryByRole('button', { name: 'Skills' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Conexões' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Configurações' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Mesa' })).toBeNull();
   });
 
   it('keeps the routes reachable from the account menu in the rail', () => {
