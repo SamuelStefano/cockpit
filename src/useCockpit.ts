@@ -242,6 +242,7 @@ export interface Cockpit extends LeafApis {
   queuePaused: boolean;
   queueReleaseAt: number;
   queueSetPaused: (v: boolean) => void;
+  queueRetarget: (sessionKey: string, model: string) => void;
   queueRetry: (sessionKey: string, id: string) => void;
   queueRunBg: (sessionKey: string, id: string, model?: string) => void;
   queueRunNow: (sessionKey: string, id: string) => void;
