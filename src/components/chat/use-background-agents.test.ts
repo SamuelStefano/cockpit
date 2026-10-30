@@ -69,4 +69,10 @@ describe('useBackgroundAgents', () => {
     const { result } = renderHook(() => useBackgroundAgents(undefined));
     expect(result.current).toHaveLength(0);
   });
+
+  it('does not replay an agent that finished long ago', () => {
+    const old: BgAgent = { ...running('a', T0 - 3_600_000), status: 'done', durationMs: 60_000 };
+    const { result } = renderHook(() => useBackgroundAgents([old]));
+    expect(result.current).toHaveLength(0);
+  });
 });
