@@ -2,7 +2,7 @@ import { Badge, Button } from '../primitives';
 import { useCopied } from '../../lib/useCopied';
 import type { InstallMode } from './pairing';
 import { InstallTargetPicker } from './InstallTargetPicker';
-import { useInstallTarget } from './useInstallTarget';
+import type { useInstallTarget } from './useInstallTarget';
 
 interface PairCommandProps {
   code: string;
@@ -13,13 +13,13 @@ interface PairCommandProps {
   countdown: string | null;
   mode: InstallMode;
   onCopy?: () => void;
+  target: ReturnType<typeof useInstallTarget>;
 }
 
 const mono = 'font-mono text-neutral-400';
 
-export function PairCommand({ code, cmd: remoteCmd, windowsCmd, busy, expired, countdown, mode, onCopy }: PairCommandProps) {
+export function PairCommand({ code, cmd: remoteCmd, windowsCmd, busy, expired, countdown, mode, onCopy, target }: PairCommandProps) {
   const [copied, copy, copyFailed] = useCopied();
-  const target = useInstallTarget();
   const cmd = target.native ? windowsCmd : remoteCmd;
   return (
     <div>

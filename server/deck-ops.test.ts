@@ -7,7 +7,7 @@ const cp = vi.hoisted(() => ({
 vi.mock('node:child_process', () => cp);
 vi.mock('node:fs', async (orig) => ({ ...(await orig<typeof import('node:fs')>()), mkdirSync: vi.fn(), openSync: vi.fn(() => 9), closeSync: vi.fn() }));
 const fsMock = await import('node:fs');
-vi.mock('./engine/cli-path', () => ({ cliPath: () => '/home/x/.local/bin:/usr/bin' }));
+vi.mock('./engine/cli-path', () => ({ cliPath: () => '/home/x/.local/bin:/usr/bin', claudeBin: () => 'claude', resolveCli: () => '' }));
 
 import { parseCliVersion, restartDeck, claudeCliInfo, REPO_ROOT } from './deck-ops';
 

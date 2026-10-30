@@ -3,7 +3,8 @@
 #   echo "CODE DEVICE ROLE LABEL"| powershell -NoProfile -ExecutionPolicy Bypass -Command "& ([scriptblock]::Create((irm https://raw.githubusercontent.com/SamuelStefano/cockpit/main/scripts/agent-setup.ps1)))"
 #
 # The same line works in cmd and in PowerShell. The pairing code comes through stdin,
-# so it never shows up in the process list. DEVICE is `-` when there is none.
+# never on the node or powershell command line. DEVICE is `-` when there is none.
+# Like a code pasted in bash, it does land in the shell history; it is single-use.
 #
 # Optional variables: DECK_RELAY_URL, DECK_DRY_RUN=1 (prints the plan, installs nothing).
 # Uninstall: Unregister-ScheduledTask deck-agent; delete ~\.deck-src and ~\.deck-agent
@@ -39,6 +40,15 @@ function Winget-Install($id, $label) {
   & winget install --id $id --exact --silent --accept-source-agreements --accept-package-agreements --scope user
   if ($LASTEXITCODE -ne 0) { & winget install --id $id --exact --silent --accept-source-agreements --accept-package-agreements }
   Refresh-Path
+}
+
+# A live agent holds .node files open, and npm ci cannot replace them.
+function Stop-Agent {
+  Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+  Get-CimInstance Win32_Process | Where-Object {
+    $_.CommandLine -and ($_.CommandLine -like "*$Supervisor*" -or ($_.Name -eq 'node.exe' -and $_.CommandLine -like "*$SrcDir*"))
+  } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+  Start-Sleep -Seconds 1
 }
 
 # Stdin first: anything below may run a child that would inherit and drain it.
@@ -84,6 +94,7 @@ if (Test-Path (Join-Path $SrcDir '.git')) {
   if ($LASTEXITCODE -ne 0) { Fail 'git clone falhou.' }
 }
 
+Stop-Agent
 Set-Location $SrcDir
 Say 'instalando dependencias (npm ci)...'
 & npm ci --no-audit --no-fund
@@ -118,8 +129,23 @@ if (-not `$mutex.WaitOne(0)) { exit 0 }
 `$env:DECK_SUPERVISED = '1'
 `$env:NPM_CONFIG_PREFIX = '$QNpm'
 Set-Location '$QSrc'
+`$log = '$QAgent\agent.log'; `$stale = '$QAgent\deps-stale'; `$marker = '$QAgent\self-update.json'; `$bad = '$QAgent\self-update-bad.json'
 while (`$true) {
   `$env:Path = '$QNpm;' + [Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [Environment]::GetEnvironmentVariable('Path', 'User')
+  # A self-update changed the dependencies. tsx lives in node_modules, so a failed
+  # install would stop the agent from booting at all: roll back here, not in it.
+  if (Test-Path `$stale) {
+    & npm.cmd ci --no-audit --no-fund *>> `$log
+    if (`$LASTEXITCODE -ne 0) {
+      `$m = Get-Content `$marker -Raw | ConvertFrom-Json
+      `$list = @(); if (Test-Path `$bad) { `$list = @(Get-Content `$bad -Raw | ConvertFrom-Json) }
+      ConvertTo-Json -Compress -InputObject @(`$list + `$m.to) | Set-Content `$bad -Encoding Ascii
+      & git reset -q --hard `$m.from *>> `$log
+      & npm.cmd ci --no-audit --no-fund *>> `$log
+      Remove-Item `$marker -ErrorAction SilentlyContinue
+    }
+    Remove-Item `$stale
+  }
   & npx.cmd tsx server/agent.ts *>> '$QAgent\agent.log'
   Start-Sleep -Seconds 3
 }
@@ -132,7 +158,6 @@ $action = New-ScheduledTaskAction -Execute 'conhost.exe' -Argument $psArgs
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User $Me
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -MultipleInstances IgnoreNew
 $principal = New-ScheduledTaskPrincipal -UserId $Me -LogonType Interactive -RunLevel Limited
-Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
 Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Settings $settings -Principal $principal -Force | Out-Null
 Start-ScheduledTask -TaskName $TaskName
 Start-Sleep -Seconds 3
@@ -140,5 +165,7 @@ if ((Get-ScheduledTask -TaskName $TaskName).State -ne 'Running') { Fail "a taref
 
 Say 'pronto: o agente esta rodando e volta sozinho a cada logon.'
 Say "log: $AgentDir\agent.log"
+$ErrorActionPreference = 'Continue'
 & claude auth status *> $null
 if ($LASTEXITCODE -ne 0) { Say 'falta logar no Claude: rode  claude  uma vez neste terminal.' }
+exit 0
