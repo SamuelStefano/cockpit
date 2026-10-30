@@ -144,6 +144,8 @@ export interface ChatPanelProps {
   queueRunBg: (sessionKey: string, id: string, model?: string) => void;
   queueRunNow: (sessionKey: string, id: string) => void;
   queueForce: (sessionKey: string) => void;
+  // Mesa draws the parked prompts in its own column.
+  hideQueue?: boolean;
   resumeOffer?: ResumeOfferView | null;
   resumeRun?: (sessionKey: string) => void;
 }
