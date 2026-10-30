@@ -12,6 +12,8 @@ const cockpit = {
   usageStats: null, onUsageList: noop, sessions: [], rate: null, accounts: [], accountsLoaded: true, onAccountsList: noop, onSetAdmin: noop,
   stats: null, health: null, onHealthList: noop, adminOp: null, onEnvSet: () => true, onEnvUnset: noop, onMcpAdd: noop, onMcpRemove: noop,
   onCliInstall: noop, onCliUpdate: noop, onDeckRestart: noop, caps: { role: 'admin', canBypass: true }, bypass: false, setBypass: noop,
+  claudeAccount: null, claudeLogin: { state: 'idle' }, onClaudeAccountGet: noop, onClaudeLogout: noop,
+  onClaudeLoginStart: noop, onClaudeLoginCode: noop, onClaudeLoginCancel: noop,
 } as never;
 const dock = { planUsage: null, stats: null } as never;
 
@@ -36,6 +38,14 @@ describe('Configuracoes', () => {
     }
     render(<Configuracoes route="/configuracoes/maquina" role="student" nav={noop} isMobile={false} connected cockpit={withHealth} account={{}} usageDock={dock} onOpenSession={noop} onOpenTerminal={noop} />);
     expect(screen.queryByRole('button', { name: 'Inventário' })).toBeNull();
+  });
+
+  it('root Máquina shows the Claude account card; admin does not', () => {
+    render(<Configuracoes route="/configuracoes/maquina" role="root" nav={noop} isMobile={false} connected cockpit={withHealth} account={{}} usageDock={dock} onOpenSession={noop} onOpenTerminal={noop} />);
+    expect(screen.getByText('Conta do Claude')).toBeTruthy();
+    cleanup();
+    render(<Configuracoes route="/configuracoes/maquina" role="admin" nav={noop} isMobile={false} connected cockpit={withHealth} account={{}} usageDock={dock} onOpenSession={noop} onOpenTerminal={noop} />);
+    expect(screen.queryByText('Conta do Claude')).toBeNull();
   });
 
   it('student: Conta only, no subnav', () => {

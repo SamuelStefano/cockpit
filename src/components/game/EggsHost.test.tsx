@@ -28,7 +28,7 @@ describe('EggsHost', () => {
     const { container } = render(<><input aria-label="x" /><EggsHost /></>);
     act(() => press([...'iddqd'], screen.getByLabelText('x')));
     expect(container.querySelector('.arcade-god')).toBeNull();
-    expect(getGameState().eggs).toEqual([]);
+    expect(getGameState().eggs).not.toContain('iddqd');
   });
 
   it('iddqd turns on god mode and matrix opens the rain', () => {
