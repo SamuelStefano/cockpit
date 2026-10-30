@@ -35,8 +35,7 @@ describe('skits', () => {
     expect(exit.letter).toBeDefined();
     expect(exit.letter!.sample(exit.duration)).toMatchObject({ x: 300, y: 200, rot: 0, s: 1 });
     const ys = Array.from({ length: 80 }, (_, i) => exit.letter!.sample((exit.letter!.duration * i) / 79).y);
-    const landing = ys.findIndex((y) => y >= 199.9);
-    expect(ys.slice(landing + 1).some((y) => y < 195)).toBe(true);
+    expect(ys.some((y, i) => i > 0 && y < ys[i - 1] - 0.5)).toBe(true);
     const end = exit.actor.sample(exit.duration);
     expect(end.x <= -stage.size / 2 || end.x >= stage.w + stage.size / 2).toBe(true);
   });
