@@ -23,6 +23,7 @@ export const QUESTS: QuestDef[] = [
   { id: 'palette-3', title: 'Use a paleta 3 vezes', goal: 3, xp: 25, step: on('palette_open') },
   { id: 'run-1', title: 'Jogue uma partida de Bit Runner', goal: 1, xp: 20, step: on('game_score') },
   { id: 'run-100', title: 'Faça 100 pontos no Bit Runner', goal: 1, xp: 35, step: ({ event }) => (event.type === 'game_score' && (event.score ?? 0) >= 100 ? 1 : 0) },
+  { id: 'fish-3', title: 'Pesque 3 coisas com o Bit', goal: 3, xp: 25, step: on('fish_caught') },
   { id: 'early-10', title: 'Termine um turno antes das 10h', goal: 1, xp: 30, step: turnWhen(({ now }) => now.getHours() < 10) },
   { id: 'late-18', title: 'Termine um turno depois das 18h', goal: 1, xp: 30, step: turnWhen(({ now }) => now.getHours() >= 18) },
   { id: 'parallel-2', title: 'Deixe 2 turnos rodando juntos', goal: 1, xp: 35, step: turnWhen(({ event }) => (event.concurrent ?? 0) >= 2) },
@@ -42,7 +43,7 @@ function hashSeed(s: string): number {
   return h >>> 0;
 }
 
-function mulberry32(seed: number): () => number {
+export function mulberry32(seed: number): () => number {
   let a = seed;
   return () => {
     a = (a + 0x6d2b79f5) >>> 0;

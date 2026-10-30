@@ -12,6 +12,7 @@ export interface LetterPick {
 
 const SKIP = 'pre, code, button, a, input, textarea, select, [contenteditable], svg, [aria-hidden="true"], .bit-stage';
 const WORD = /[A-Za-zÀ-ÖØ-öø-ÿ]{4,}/g;
+const WORD_MAX = 10;
 
 // A glyph is usable when Bit fits beside and below it, and there is headroom for
 // the letter to ride over its head, all inside the visible stage.
@@ -73,4 +74,44 @@ export function hideGlyph(range: Range): () => void {
   if (!reg || !H) return () => {};
   reg.set(HIGHLIGHT, new H(range));
   return () => { reg.delete(HIGHLIGHT); };
+}
+
+// A whole word from the assistant's text, on one line, as a range: the DOM stays
+// intact (the word is only hidden with the Highlight API while Bit carries it).
+export function findWord(root: HTMLElement, layer: HTMLElement, size: number, rnd = Math.random): LetterPick | null {
+  const L = layer.getBoundingClientRect();
+  const scope = root.querySelectorAll<HTMLElement>('[data-role="assistant"]');
+  const roots = scope.length ? Array.from(scope) : [root];
+  const found: { node: Text; start: number; end: number; box: Box }[] = [];
+  for (const r of roots) {
+    const walker = document.createTreeWalker(r, NodeFilter.SHOW_TEXT);
+    for (let n = walker.nextNode() as Text | null; n && found.length < 80; n = walker.nextNode() as Text | null) {
+      const parent = n.parentElement;
+      if (!parent || parent.closest(SKIP)) continue;
+      for (const m of n.data.matchAll(WORD)) {
+        if (m[0].length > WORD_MAX) continue;
+        const start = m.index ?? 0;
+        const rg = document.createRange();
+        rg.setStart(n, start);
+        rg.setEnd(n, start + m[0].length);
+        const rects = rg.getClientRects();
+        if (rects.length !== 1) continue;
+        const b = rects[0];
+        const box = { left: b.left - L.left, top: b.top - L.top, width: b.width, height: b.height };
+        if (fitsStage(box, L.width, L.height, size)) found.push({ node: n, start, end: start + m[0].length, box });
+      }
+    }
+  }
+  if (found.length === 0) return null;
+  const pick = found[Math.floor(rnd() * found.length) % found.length];
+  const range = document.createRange();
+  range.setStart(pick.node, pick.start);
+  range.setEnd(pick.node, pick.end);
+  const cs = getComputedStyle(pick.node.parentElement!);
+  return {
+    range,
+    char: pick.node.data.slice(pick.start, pick.end),
+    box: pick.box,
+    font: { family: cs.fontFamily, size: cs.fontSize, weight: cs.fontWeight, color: cs.color, style: cs.fontStyle },
+  };
 }

@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import type { BitState } from '../bit-state';
 import { buildExit, buildSkit, type Skit, type SkitId, type Stage } from './skits';
-import { findLetter, hideGlyph, type LetterPick } from './find-letter';
+import { findLetter, findWord, hideGlyph, type LetterPick } from './find-letter';
 import type { ActorFrame, PropFrame } from './track';
+import { sfx } from '../../../game/sfx';
 
 export const STAGE_BIT_SIZE = 84;
 
@@ -30,7 +31,7 @@ export function useSkitStage(layerRef: RefObject<HTMLElement | null>, textRootRe
   const [look, setLook] = useState<StageLook | null>(null);
   const actorRef = useRef<HTMLDivElement | null>(null);
   const letterRef = useRef<HTMLSpanElement | null>(null);
-  const run = useRef<{ skit: Skit; stage: Stage; t0: number; cue: number; raf: number; pick: LetterPick | null; unhide: (() => void) | null; leaving: boolean } | null>(null);
+  const run = useRef<{ skit: Skit; stage: Stage; t0: number; cue: number; sfxAt: number; raf: number; pick: LetterPick | null; unhide: (() => void) | null; leaving: boolean } | null>(null);
   const endRef = useRef(onEnd);
   endRef.current = onEnd;
 
@@ -59,6 +60,8 @@ export function useSkitStage(layerRef: RefObject<HTMLElement | null>, textRootRe
       if (c.gaze) next.gaze = c.gaze;
       changed = next;
     }
+    const cuesSfx = skit.sfx;
+    if (cuesSfx) while (r.sfxAt < cuesSfx.length && cuesSfx[r.sfxAt].at <= t) { sfx[cuesSfx[r.sfxAt].name](); r.sfxAt++; }
     if (changed) { const ch = changed; setLook((l) => (l ? { ...l, ...ch } : l)); }
     const a = actorRef.current;
     if (a) a.style.transform = actorTransform(skit.actor.sample(t), stage.size);
@@ -78,7 +81,7 @@ export function useSkitStage(layerRef: RefObject<HTMLElement | null>, textRootRe
     const prev = run.current;
     if (prev) cancelAnimationFrame(prev.raf);
     if (!skit.letter) prev?.unhide?.();
-    run.current = { skit, stage, t0: performance.now(), cue: 0, raf: 0, pick, unhide: skit.letter ? prev?.unhide ?? null : null, leaving };
+    run.current = { skit, stage, t0: performance.now(), cue: 0, sfxAt: 0, raf: 0, pick, unhide: skit.letter ? prev?.unhide ?? null : null, leaving };
     setLook((l) => ({
       ...(l ?? OFF),
       prop: skit.prop,
@@ -97,8 +100,11 @@ export function useSkitStage(layerRef: RefObject<HTMLElement | null>, textRootRe
     if (id === 'thief') {
       pick = textRootRef?.current ? findLetter(textRootRef.current, layer, size) : null;
       if (!pick) id = 'peek';
+    } else if (id === 'wordthief') {
+      pick = textRootRef?.current ? findWord(textRootRef.current, layer, size) : null;
+      if (!pick) return false;
     }
-    const stage: Stage = { w, h, size, letter: pick ? { x: pick.box.left + pick.box.width / 2, y: pick.box.top + pick.box.height / 2, h: pick.box.height } : undefined };
+    const stage: Stage = { w, h, size, letter: pick ? { x: pick.box.left + pick.box.width / 2, y: pick.box.top + pick.box.height / 2, h: pick.box.height, w: pick.box.width } : undefined };
     begin(buildSkit(id, stage), stage, pick, false);
     return true;
   }, [begin, layerRef, textRootRef]);
@@ -108,7 +114,7 @@ export function useSkitStage(layerRef: RefObject<HTMLElement | null>, textRootRe
     const r = run.current;
     if (!r || r.leaving) return;
     const t = performance.now() - r.t0;
-    const exit = buildExit(r.skit.id, r.stage, r.skit.actor.sample(t));
+    const exit = buildExit(r.skit.id, r.stage, r.skit.actor.sample(t), r.skit.letter?.sample(t));
     begin(exit, r.stage, r.pick, true);
   }, [begin]);
 

@@ -1,12 +1,14 @@
 export type GameEventType =
   | 'turn_done' | 'turn_error' | 'message_sent' | 'session_new'
-  | 'route_visit' | 'palette_open' | 'game_score' | 'egg_found';
+  | 'route_visit' | 'palette_open' | 'game_score' | 'egg_found' | 'fish_caught';
 
 export interface GameEvent {
   type: GameEventType;
   route?: string;
   score?: number;
   egg?: string;
+  // A fish_caught that was the rare star.
+  rare?: boolean;
   // Turns running at the same time when this one finished (multitasker).
   concurrent?: number;
   // Same key within a few seconds counts once (replayed `done` after a reconnect).

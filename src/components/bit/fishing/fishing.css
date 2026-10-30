@@ -1,0 +1,48 @@
+/* Bit fishing beside the message column: only transform and opacity animate. */
+.fish-scene { position: absolute; bottom: 6px; right: 8px; width: 116px; height: 116px; }
+.fish-scene .fish-svg { position: absolute; inset: 0; overflow: visible; }
+.fish-scene-in { animation: fishFadeIn 0.5s ease-out both; }
+.fish-scene-out { animation: fishFadeOut 0.6s ease-in 0.9s both; }
+.fish-bit { position: absolute; left: 60px; top: 44px; width: 42px; height: 42px; transform-origin: 50% 100%; }
+.fish-bit-flip { transform: scaleX(-1); }
+.fish-bit-walk-in { animation: fishWalkIn 1.1s linear both; }
+.fish-bit-walk-out { animation: fishWalkOut 1.5s linear both; }
+.fish-bit-hop { animation: fishHop 0.8s ease-out both; }
+.fish-hit { position: absolute; left: 66px; top: 50px; width: 30px; height: 36px; background: none; border: 0; padding: 0; cursor: pointer; pointer-events: auto; border-radius: 10px; }
+
+.fish-wave-a { animation: fishWave 3.2s linear infinite; }
+.fish-wave-b { animation: fishWave 4.6s linear infinite reverse; }
+.fish-bobber { animation: fishBob 2.4s ease-in-out infinite; transform-box: fill-box; }
+.fish-bobber.fish-dip { animation: fishDip 0.8s ease-in-out both; }
+.fish-bobber.fish-reeling { animation: fishReel 0.7s ease-in both; }
+.fish-line { transition: opacity 0.3s; }
+.fish-line.fish-reeling { opacity: 0; }
+.fish-rod { transform-origin: 82px 62px; transform-box: view-box; }
+.fish-rod.fish-dip { animation: fishRodTug 0.8s ease-in-out both; }
+.fish-ripple { transform-box: fill-box; transform-origin: center; opacity: 0; }
+.fish-dip + .fish-ripple { animation: fishRipple 0.8s ease-out both; }
+.fish-bucket-pop { transform-box: fill-box; transform-origin: 50% 100%; animation: fishBucket 0.35s ease-out; }
+.fish-drop { position: absolute; font-size: 15px; line-height: 1; animation: fishArc 1.2s cubic-bezier(0.3, 0.6, 0.4, 1) both; }
+
+@keyframes fishFadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fishFadeOut { from { opacity: 1; } to { opacity: 0; } }
+@keyframes fishWalkIn { from { transform: translateX(90px) scaleX(-1); } to { transform: translateX(0) scaleX(-1); } }
+@keyframes fishWalkOut { from { transform: translateX(0) scaleX(1); opacity: 1; } 80% { opacity: 1; } to { transform: translateX(100px) scaleX(1); opacity: 0; } }
+@keyframes fishHop { 0%, 100% { transform: translateY(0) scaleX(-1); } 25% { transform: translateY(0) scale(-1.1, 0.88); } 50% { transform: translateY(-9px) scaleX(-1); } 80% { transform: translateY(0) scale(-1.08, 0.9); } }
+@keyframes fishWave { from { transform: translateX(0); } to { transform: translateX(-24px); } }
+@keyframes fishBob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(1.6px); } }
+@keyframes fishDip { 0% { transform: translateY(0); } 25% { transform: translateY(7px); } 45% { transform: translateY(1px); } 65% { transform: translateY(8px); } 100% { transform: translateY(0); } }
+@keyframes fishReel { to { transform: translate(6px, -68px); opacity: 0; } }
+@keyframes fishRodTug { 0%, 100% { transform: rotate(0); } 30% { transform: rotate(5deg); } 60% { transform: rotate(-2deg); } 80% { transform: rotate(4deg); } }
+@keyframes fishRipple { 0% { opacity: 0.8; transform: scale(0.4); } 100% { opacity: 0; transform: scale(2.4); } }
+@keyframes fishBucket { 0% { transform: scale(1, 1); } 40% { transform: scale(1.15, 0.85); } 100% { transform: scale(1, 1); } }
+@keyframes fishArc {
+  0% { opacity: 0; transform: translate(0, 0) scale(0.5); }
+  15% { opacity: 1; }
+  45% { transform: translate(calc(var(--fx) * 0.35), -34px) scale(1.2) rotate(120deg); }
+  100% { opacity: 0; transform: translate(var(--fx), var(--fy)) scale(0.55) rotate(300deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fish-scene { display: none; }
+}

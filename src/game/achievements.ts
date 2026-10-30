@@ -44,6 +44,9 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: 'runner-100', title: 'Primeiros passos', desc: 'Faça 100 pontos no Bit Runner', icon: '👟', test: (s) => s.highScore >= 100 },
   { id: 'runner-500', title: 'Em velocidade', desc: 'Faça 500 pontos no Bit Runner', icon: '⚡', test: (s) => s.highScore >= 500 },
   { id: 'runner-1000', title: 'Lenda do Runner', desc: 'Faça 1000 pontos no Bit Runner', icon: '👑', test: (s) => s.highScore >= 1000 },
+  { id: 'fish-1', title: 'Primeira fisgada', desc: 'Deixe o Bit pescar algo enquanto o agente trabalha', icon: '🎣', test: (s) => total(s, 'fish_caught') >= 1 },
+  { id: 'fish-25', title: 'Pescador de domingo', desc: 'Pesque 25 coisas com o Bit', icon: '🪣', test: (s) => total(s, 'fish_caught') >= 25 },
+  { id: 'fish-star', title: 'Estrela cadente', desc: 'Pesque uma estrela', icon: '🌟', hidden: true, test: (s) => total(s, 'fish_rare') >= 1 },
   { id: 'explorer', title: 'Explorador', desc: 'Visite todas as telas do menu', icon: '🧭', test: (s) => TRACKED_ROUTES.every((r) => s.routes.includes(r)) },
 ];
 

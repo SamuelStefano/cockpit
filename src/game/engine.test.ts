@@ -193,3 +193,25 @@ describe('helpers', () => {
     expect(normalizeRoute('/conexoes#ferramentas')).toBe('/conexoes');
   });
 });
+
+describe('fish_caught', () => {
+  const now = at(2026, 10, 30);
+  it('pays a little xp, counts the catch and unlocks the first-catch achievement', () => {
+    const { state, rewards } = run(emptyState(), { type: 'fish_caught' }, now);
+    expect(state.totals.fish_caught).toBe(1);
+    expect(state.xp).toBeGreaterThan(0);
+    expect(rewards.some((r) => r.kind === 'achievement' && r.id === 'fish-1')).toBe(true);
+    expect(state.unlocked['fish-star']).toBeUndefined();
+  });
+  it('the rare star unlocks its achievement and pays extra', () => {
+    const common = run(emptyState(), { type: 'fish_caught' }, now).state.xp;
+    const { state } = run(emptyState(), { type: 'fish_caught', rare: true }, now);
+    expect(state.unlocked['fish-star']).toBeDefined();
+    expect(state.xp).toBeGreaterThan(common);
+  });
+  it('25 catches unlock the bucket achievement', () => {
+    let s = emptyState();
+    for (let i = 0; i < 25; i++) s = run(s, { type: 'fish_caught' }, now).state;
+    expect(s.unlocked['fish-25']).toBeDefined();
+  });
+});

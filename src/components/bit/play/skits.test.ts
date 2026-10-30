@@ -1,16 +1,44 @@
 import { describe, expect, it } from 'vitest';
-import { buildExit, buildSkit, pickSkit, SKIT_IDS, thiefFeet, type Stage } from './skits';
+import { buildExit, buildSkit, pickSkit, SKIT_IDS, RANDOM_SKIT_IDS, WORD_HOLD_MS, thiefFeet, type Stage } from './skits';
 
 const stage: Stage = { w: 760, h: 520, size: 84, letter: { x: 300, y: 200, h: 22 } };
 
 describe('skits', () => {
-  it.each(SKIT_IDS)('%s lasts between 4 and 10 s and ends off stage or hidden', (id) => {
+  it.each(RANDOM_SKIT_IDS)('%s lasts between 4 and 10 s and ends off stage or hidden', (id) => {
     const s = buildSkit(id, stage);
     expect(s.duration).toBeGreaterThanOrEqual(4000);
     expect(s.duration).toBeLessThanOrEqual(10_000);
     const end = s.actor.sample(s.duration);
     const gone = end.x <= -stage.size / 2 || end.x >= stage.w + stage.size / 2 || end.y - stage.size >= stage.h;
     expect(gone).toBe(true);
+  });
+
+  it('keeps the word thief out of the random pool but in the gallery list', () => {
+    expect(RANDOM_SKIT_IDS).not.toContain('wordthief');
+    expect(SKIT_IDS).toContain('wordthief');
+  });
+
+  it('the word thief holds the word until released, then returns it and leaves', () => {
+    const s = buildSkit('wordthief', stage);
+    expect(s.duration).toBeGreaterThan(WORD_HOLD_MS);
+    const holding = s.letter!.sample(4000);
+    expect(Math.hypot(holding.x - 300, holding.y - 200)).toBeGreaterThan(40);
+    expect(s.letter!.sample(s.duration)).toMatchObject({ x: 300, y: 200, rot: 0, s: 1 });
+    const end = s.actor.sample(s.duration);
+    expect(end.x <= -stage.size / 2 || end.x >= stage.w + stage.size / 2).toBe(true);
+  });
+
+  it('a released word thief drops the word home with a bounce while Bit scurries off', () => {
+    const s = buildSkit('wordthief', stage);
+    const t = 5000;
+    const exit = buildExit('wordthief', stage, s.actor.sample(t), s.letter!.sample(t));
+    expect(exit.letter).toBeDefined();
+    expect(exit.letter!.sample(exit.duration)).toMatchObject({ x: 300, y: 200, rot: 0, s: 1 });
+    const ys = Array.from({ length: 80 }, (_, i) => exit.letter!.sample((exit.letter!.duration * i) / 79).y);
+    const landing = ys.findIndex((y) => y >= 199.9);
+    expect(ys.slice(landing + 1).some((y) => y < 195)).toBe(true);
+    const end = exit.actor.sample(exit.duration);
+    expect(end.x <= -stage.size / 2 || end.x >= stage.w + stage.size / 2).toBe(true);
   });
 
   it('the thief puts the letter back exactly where it was', () => {

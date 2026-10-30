@@ -1,8 +1,9 @@
 import { useEffect, useRef, type RefObject } from 'react';
 import { MischiefScheduler, MISCHIEF_TIMING, type MischiefTiming } from './mischief-scheduler';
-import { pickSkit, SKIT_IDS, type SkitId } from './skits';
+import { pickSkit, RANDOM_SKIT_IDS, type SkitId } from './skits';
 import { useSkitStage } from './useSkitStage';
 import { usePlayAllowed } from './usePlayAllowed';
+import { useWordThief } from './useWordThief';
 
 interface Args {
   // Where the thief looks for a letter (the message log).
@@ -13,7 +14,7 @@ interface Args {
   timing?: MischiefTiming;
 }
 
-const CALM_SKITS = SKIT_IDS.filter((id) => id !== 'thief');
+const CALM_SKITS = RANDOM_SKIT_IDS.filter((id) => id !== 'thief');
 
 // Not 'scroll': the thread auto-scrolls itself while streaming. A user scroll
 // always arrives as wheel, touch, a key or a scrollbar press, all caught here.
@@ -28,15 +29,17 @@ export function useBitMischief({ textRootRef, thinking, messageCount, timing = M
   const last = useRef<SkitId | null>(null);
   const busy = useRef(thinking);
   busy.current = thinking;
-  const stage = useSkitStage(layerRef, textRootRef, () => sched.current?.ended());
+  const wordEnded = useRef<() => void>(() => {});
+  const stage = useSkitStage(layerRef, textRootRef, () => { sched.current?.ended(); wordEnded.current(); });
   const api = useRef(stage);
   api.current = stage;
+  wordEnded.current = useWordThief({ stage, allowed, running: thinking, messageCount, stageBusy: () => !!sched.current?.isPlaying || stage.playing });
 
   useEffect(() => {
     const s = new MischiefScheduler({
       // While a turn runs the thread auto-scrolls under any borrowed letter.
       start: () => {
-        const id = pickSkit(busy.current ? CALM_SKITS : SKIT_IDS, last.current);
+        const id = pickSkit(busy.current ? CALM_SKITS : RANDOM_SKIT_IDS, last.current);
         last.current = id;
         if (!api.current.play(id)) s.ended();
       },

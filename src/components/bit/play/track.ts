@@ -121,6 +121,14 @@ export class PropTrack extends Track<PropFrame> {
       return { ...h, y: h.y - height * 4 * u * (1 - u), rot: 360 * spins * u };
     });
   }
+  // Dropped: gravity to home, then two shrinking bounces.
+  fall(home: PropFrame): this {
+    const a = this.current;
+    const ms = 180 + Math.sqrt(Math.max(0, home.y - a.y)) * 24;
+    this.add(ms, (u) => ({ x: lerp(a.x, home.x, easeOut(u)), y: lerp(a.y, home.y, u * u), rot: lerp(a.rot % 360, 0, u), s: lerp(a.s, 1, u), o: 1 }));
+    this.add(170, (u) => ({ ...home, y: home.y - 11 * 4 * u * (1 - u) }));
+    return this.add(110, (u) => ({ ...home, y: home.y - 4 * 4 * u * (1 - u) }));
+  }
   // Back home on an arc, then a tiny settle so the drop reads as "put in place".
   place(home: PropFrame, ms: number, peak = 30): this {
     const a = this.current;

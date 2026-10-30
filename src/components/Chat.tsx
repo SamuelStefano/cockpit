@@ -22,6 +22,7 @@ import { useChatPanel, type Phase } from './chat/useChatPanel';
 import { useFileDrop } from './chat/useFileDrop';
 import { useTurnBit } from './chat/useTurnBit';
 import { BackgroundAgents } from './chat/BackgroundAgents';
+import { BitFishing } from './bit/fishing/BitFishing';
 import { BitMischief } from './bit/play/BitMischief';
 import { AttachmentModal } from './chat/AttachmentModal';
 import type { ChatPanelProps } from './chat/chat-panel-props';
@@ -117,6 +118,8 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, draf
           </div>
         )}
       </div>
+
+      {!c.isEmpty && !botDecor && <BitFishing running={running} />}
 
       {!c.isEmpty && !botDecor && <BitMischief textRootRef={c.scrollRef} thinking={running} messageCount={messages.length} />}
 

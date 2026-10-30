@@ -3,7 +3,7 @@ import { ACHIEVEMENTS } from './achievements';
 import { questsForDay, QUEST_BONUS_XP } from './quests';
 import { isProgrammersDay } from './eggs';
 
-export const XP = { turnDone: 25, turnError: 2, message: 3, session: 5, route: 3, egg: 40, achievement: 25, programmersDay: 100, scoreCap: 30 } as const;
+export const XP = { turnDone: 25, turnError: 2, message: 3, session: 5, route: 3, fish: 2, rareFish: 20, egg: 40, achievement: 25, programmersDay: 100, scoreCap: 30 } as const;
 export const LIGHT_XP_DAILY_CAP = 20;
 
 const TITLES: { from: number; title: string }[] = [
@@ -175,6 +175,11 @@ export function applyEvent(prev: GameState, event: GameEvent, now: Date): { stat
       gain(Math.min(XP.scoreCap, Math.floor(score / 40)));
       break;
     }
+    case 'fish_caught':
+      s.totals.fish_rare = (s.totals.fish_rare ?? 0) + (event.rare ? 1 : 0);
+      light(XP.fish);
+      if (event.rare) gain(XP.rareFish);
+      break;
     case 'egg_found':
       if (event.egg && !s.eggs.includes(event.egg)) { s.eggs.push(event.egg); gain(XP.egg); }
       break;
