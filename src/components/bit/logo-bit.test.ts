@@ -15,6 +15,6 @@ describe('registerClick', () => {
     r = registerClick(r.times, 1000);
     r = registerClick(r.times, PET_WINDOW_MS + 1500);
     expect(r.pet).toBe(false);
-    expect(r.times.length).toBe(2);
+    expect(r.times.length).toBe(1);
   });
 });

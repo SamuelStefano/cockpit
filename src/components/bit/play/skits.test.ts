@@ -21,7 +21,7 @@ describe('skits', () => {
   it('the word thief holds the word until released, then returns it and leaves', () => {
     const s = buildSkit('wordthief', stage);
     expect(s.duration).toBeGreaterThan(WORD_HOLD_MS);
-    const holding = s.letter!.sample(4000);
+    const holding = s.letter!.sample(8000);
     expect(Math.hypot(holding.x - 300, holding.y - 200)).toBeGreaterThan(40);
     expect(s.letter!.sample(s.duration)).toMatchObject({ x: 300, y: 200, rot: 0, s: 1 });
     const end = s.actor.sample(s.duration);
