@@ -20,7 +20,6 @@ import { ShortcutsHelp } from './components/ShortcutsHelp';
 import { Toaster, ConfettiHost } from './components/primitives';
 import { RewardHost } from './components/game/RewardHost';
 import { EggsHost } from './components/game/EggsHost';
-import { RunnerHost } from './components/game/RunnerHost';
 import { useGameSignals } from './game/useGameSignals';
 import { BoxHealthHost } from './components/health/BoxHealthHost';
 import { bitStateFor } from './components/bit/bit-state';
@@ -311,7 +310,6 @@ function CockpitBody() {
       <ConfettiHost />
       <RewardHost />
       <EggsHost />
-      <RunnerHost />
     </div>
     </TopBarSlotContext.Provider>
     </ConnectionsContext.Provider>

@@ -8,7 +8,6 @@ import { toast } from './primitives/toast-bus';
 import { navFor, type NavRole } from './chrome/nav-routes';
 import { gameEnabled } from '../game/game-bus';
 import { foundEgg } from '../game/found-egg';
-import { requestArcade } from '../game/arcade-bus';
 import { triggerEgg, type EggTrigger } from '../game/egg-bus';
 
 const SUDO_QUERY = 'sudo make me a sandwich';
@@ -58,8 +57,8 @@ export function usePaletteCommands(args: PaletteCommandsArgs): Cmd[] {
     ];
     if (arcade) {
       actions.push(
-        { id: 'arcade', label: 'Abrir Arcade', icon: 'zap', group: 'Ações', run: () => { onClose(); requestArcade('popover'); } },
-        { id: 'arcade-runner', label: 'Jogar Bit Runner', icon: 'play', group: 'Ações', run: () => { onClose(); requestArcade('runner'); } },
+        { id: 'arcade', label: 'Abrir Arcade', icon: 'zap', group: 'Ações', run: go('/arcade') },
+        { id: 'arcade-runner', label: 'Jogar Bit Runner', icon: 'play', group: 'Ações', run: go('/arcade') },
       );
     }
     // Shown only on the exact phrase (the filter would otherwise list it for "sudo").

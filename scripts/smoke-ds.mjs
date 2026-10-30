@@ -70,7 +70,7 @@ try {
   else fail('Abrir Arcade não apareceu na paleta');
   await arcadeCmd.click();
   await page.waitForTimeout(250);
-  if (await page.getByRole('dialog', { name: 'Arcade' }).count()) ok('comando abre o Arcade');
+  if (page.url().endsWith('/arcade')) ok('comando abre o Arcade');
   else fail('Arcade não abriu pelo comando da paleta');
 
   if (!errors.length) ok('sem erros de página');
