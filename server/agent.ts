@@ -1,5 +1,6 @@
 import { agentDir, checkBootAfterUpdate, realBootDeps, realFs } from './self-update-boot';
 import { noteBoot } from './agent-diag';
+import { ensureHome } from './platform';
 
 // Entry point of the relay agent (`tsx server/agent.ts`, the path installed units
 // run). Kept free of app imports: ESM links the whole static graph before running
@@ -9,6 +10,7 @@ import { noteBoot } from './agent-diag';
 const LOCAL_ONLY = /^--(pair(=|$)|enroll-device$|devices$|revoke-device=|git-credential$)/;
 
 if (process.argv[1]?.endsWith('agent.ts')) {
+  ensureHome();
   if (!process.argv.slice(2).some((a) => LOCAL_ONLY.test(a))) {
     noteBoot(realFs, agentDir(), checkBootAfterUpdate(realBootDeps(process.cwd()), agentDir()));
   }

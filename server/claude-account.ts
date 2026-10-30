@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { homedir } from 'node:os';
 import type { ClaudeAccount } from '../shared/protocol';
-import { cliPath } from './engine/cli-path';
+import { claudeBin, cliPath } from './engine/cli-path';
 import { passthroughEnv } from './claude-login';
 
 const TIMEOUT_MS = 15_000;
@@ -22,7 +22,7 @@ export function parseAuthStatus(stdout: string): ClaudeAccount | null {
 function run(args: string[]): Promise<string> {
   const home = process.env.HOME ?? homedir();
   return new Promise((resolve) => {
-    execFile('claude', args, {
+    execFile(claudeBin(), args, {
       timeout: TIMEOUT_MS,
       cwd: home,
       env: { ...passthroughEnv(), PATH: cliPath(), HOME: home, LANG: process.env.LANG ?? 'en_US.UTF-8' },

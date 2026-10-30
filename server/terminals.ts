@@ -1,3 +1,4 @@
+import { IS_WINDOWS } from './platform';
 import { spawn as ptySpawn, type IPty } from 'node-pty';
 import { spawn } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
@@ -117,6 +118,7 @@ export function parseTermSessions(stdout: string, prefix = PREFIX): string[] {
 // Sessões tmux persistentes do cockpit (sobrevivem a restart): permite reanexar
 // a qualquer uma de outro device — as "branches" de terminal da VPS.
 export function listTerms(): Promise<string[]> {
+  if (IS_WINDOWS) return Promise.resolve([...terms.keys()]);
   return new Promise((resolve) => {
     const p = spawn('tmux', ['ls', '-F', '#{session_name}'], { stdio: ['ignore', 'pipe', 'ignore'] });
     let out = '';
@@ -180,7 +182,10 @@ export function openTerm(
 ): boolean {
   if (!NAME_RE.test(id)) return false;
   if (cwd !== undefined && !safeTermCwd(cwd)) return false;
-  const args = tmuxArgs(id, watch, cwd);
+  // No tmux on Windows: the terminal is a ConPTY shell that lives as long as the
+  // agent, and the watch pane (bash + python follower) does not exist there.
+  if (IS_WINDOWS && watch !== undefined) return false;
+  const args = IS_WINDOWS ? ['-NoLogo'] : tmuxArgs(id, watch, cwd);
   if (!args) return false;
 
   let t = terms.get(id);
@@ -191,7 +196,7 @@ export function openTerm(
     // bloqueavam abrir qualquer terminal (#16). reattach a um detached não conta aqui.
     const attached = [...terms.values()].filter((x) => x.data.size > 0).length;
     if (attached >= MAX_TERMS) return false; // cliente recebe term-exit
-    const p = ptySpawn('tmux', args, {
+    const p = ptySpawn(IS_WINDOWS ? 'powershell.exe' : 'tmux', args, {
       name: 'xterm-256color',
       cols: clampDim(cols, 80),
       rows: clampDim(rows, 24),
@@ -398,6 +403,10 @@ export const stripControl = (s: string) => s.replace(ESC_SEQ_RE, '').replace(CTR
 // Last lines of a pane, plain text. Empty when the session does not exist.
 export function capturePane(id: string, lines = 12): Promise<{ alive: boolean; lines: string[] }> {
   if (!NAME_RE.test(id)) return Promise.resolve({ alive: false, lines: [] });
+  if (IS_WINDOWS) {
+    const t = terms.get(id);
+    return Promise.resolve({ alive: !!t, lines: t ? stripControl(t.buffer).split(/\r?\n/).map((l) => l.trimEnd()).filter(Boolean).slice(-lines) : [] });
+  }
   return new Promise((resolve) => {
     const p = spawn('tmux', ['capture-pane', '-p', '-J', '-t', exactPane(id), '-S', `-${Math.max(lines * 4, 40)}`], { stdio: ['ignore', 'pipe', 'ignore'] });
     let out = '';
@@ -441,5 +450,6 @@ export function closeTerm(id: string) {
   if (!NAME_RE.test(id)) return;
   const t = terms.get(id);
   if (t) { try { t.pty.kill(); } catch { /* noop */ } terms.delete(id); }
+  if (IS_WINDOWS) return;
   try { spawn('tmux', ['kill-session', '-t', exactSession(id)], { stdio: 'ignore' }); } catch { /* noop */ }
 }

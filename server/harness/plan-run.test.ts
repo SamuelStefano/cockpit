@@ -5,7 +5,7 @@ import { parsePlanEvent, runOnPlan } from './plan-run';
 
 // spawn mockado: o teste checa os ARGUMENTOS do CLI, nunca sobe processo de verdade.
 vi.mock('node:child_process', () => ({ spawn: vi.fn() }));
-vi.mock('../engine/cli-path', () => ({ cliPath: () => '/usr/bin' }));
+vi.mock('../engine/cli-path', () => ({ cliPath: () => '/usr/bin', claudeBin: () => 'claude' }));
 
 let stdinWritten = '';
 function fakeChild() {

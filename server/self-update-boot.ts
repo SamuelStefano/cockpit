@@ -1,3 +1,4 @@
+import { npmInvocation } from './platform';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -115,7 +116,8 @@ export function npmBesideNode(execPath = process.execPath): string {
 export function realBootDeps(cwd: string): BootDeps {
   const env = { ...process.env, GIT_TERMINAL_PROMPT: '0', LC_ALL: 'C' };
   const run = (cmd: string, args: string[], timeout: number): boolean | string => {
-    try { return execFileSync(cmd, args, { cwd, env, timeout, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }); } catch { return false; }
+    const [bin, argv] = npmInvocation(cmd, args);
+    try { return execFileSync(bin, argv, { cwd, env, timeout, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }); } catch { return false; }
   };
   return {
     ...realFs,

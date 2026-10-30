@@ -1,8 +1,9 @@
+import { detachedGroup, killGroup, platformEnv } from '../platform';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { cliPath } from './cli-path';
+import { claudeBin, cliPath } from './cli-path';
 import { leanOneShotArgs } from './lean-args';
 import type { TriageVerdict, TriageAction } from '../../shared/protocol';
 
@@ -35,7 +36,7 @@ function untrack(key: string, c: ChildProcess) {
   const s = sideChildren.get(key); if (s) { s.delete(c); if (!s.size) sideChildren.delete(key); }
 }
 function killSet(s: Set<ChildProcess>) {
-  for (const c of s) { try { if (c.pid) process.kill(-c.pid, 'SIGKILL'); } catch { /* já morto */ } }
+  for (const c of s) { killGroup(c); }
 }
 
 // Mata one-shots em voo no shutdown (não deixa claude órfão como na storm de :7777).
@@ -51,7 +52,7 @@ export function killSideRunsFor(sessionKey: string): void {
 }
 
 function miniEnv(): NodeJS.ProcessEnv {
-  return { PATH: cliPath(), HOME: process.env.HOME, LANG: process.env.LANG ?? 'en_US.UTF-8', TERM: 'dumb' };
+  return { ...platformEnv(), PATH: cliPath(), HOME: process.env.HOME, LANG: process.env.LANG ?? 'en_US.UTF-8', TERM: 'dumb' };
 }
 
 // Executa `claude -p` haiku plan-mode e devolve o campo .result (texto). '' em erro/timeout.
@@ -60,7 +61,7 @@ function oneShot(prompt: string, timeoutMs: number, cap = 65536, key = '_', extr
     const args = ['-p', prompt, '--model', 'haiku', '--effort', 'low', '--permission-mode', 'plan', '--strict-mcp-config', '--output-format', 'json', ...extra];
     let child: ChildProcess;
     try {
-      child = spawn('claude', args, { cwd: ONESHOT_CWD, env: miniEnv(), shell: false, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+      child = spawn(claudeBin(), args, { cwd: ONESHOT_CWD, env: miniEnv(), shell: false, detached: detachedGroup, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
     } catch { resolve(''); return; }
     track(key, child);
     let out = '';
@@ -71,7 +72,7 @@ function oneShot(prompt: string, timeoutMs: number, cap = 65536, key = '_', extr
       done = true;
       clearTimeout(timer);
       untrack(key, child);
-      try { if (child.pid) process.kill(-child.pid, 'SIGKILL'); } catch { /* já morto */ }
+      killGroup(child);
       resolve(v);
     };
     const timer = setTimeout(() => finish(''), timeoutMs);

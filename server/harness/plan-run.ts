@@ -1,9 +1,10 @@
+import { platformEnv } from '../platform';
 import { spawn } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { systemPrompt } from './prompt';
-import { cliPath } from '../engine/cli-path';
+import { claudeBin, cliPath } from '../engine/cli-path';
 import { LEAN_ONESHOT_ARGS } from '../engine/lean-args';
 import { CONFIG } from '../config';
 import type { HarnessContext, HarnessEvent } from '../../shared/protocol';
@@ -71,7 +72,7 @@ export function parsePlanEvent(obj: StreamObj):
 
 function planEnv(): NodeJS.ProcessEnv {
   // SEM ANTHROPIC_API_KEY: força o CLI a usar o OAuth do plano em vez de pay-as-you-go.
-  return { PATH: cliPath(), HOME: process.env.HOME, LANG: process.env.LANG ?? 'en_US.UTF-8', TERM: 'dumb' };
+  return { ...platformEnv(), PATH: cliPath(), HOME: process.env.HOME, LANG: process.env.LANG ?? 'en_US.UTF-8', TERM: 'dumb' };
 }
 
 export function runOnPlan(opts: { model: string; prompt: string; context: HarnessContext; onEvent: (e: HarnessEvent) => void }): Promise<PlanResult> {
@@ -115,7 +116,7 @@ export function runOnPlan(opts: { model: string; prompt: string; context: Harnes
     let settled = false;
     const done = (r: PlanResult) => { if (!settled) { settled = true; clearTimeout(timer); resolve(r); } };
 
-    const child = spawn('claude', args, { cwd: CWD, env: planEnv(), stdio: ['pipe', 'pipe', 'pipe'] });
+    const child = spawn(claudeBin(), args, { cwd: CWD, env: planEnv(), windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
     child.stdin.on('error', () => { /* the child died first; 'close' reports it */ });
     child.stdin.end(prompt);
     const timer = setTimeout(() => { try { child.kill('SIGKILL'); } catch { /* já morreu */ } done({ status: 'error', inputTokens: 0, outputTokens: 0, error: 'timeout no CLI do plano' }); }, TIMEOUT_MS);

@@ -1,3 +1,4 @@
+import { detachedGroup, killGroup } from '../platform';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createInterface } from 'node:readline';
 
@@ -45,7 +46,8 @@ export function startAcp(opts: AcpClientOpts): AcpClient {
     cwd: opts.cwd,
     env: opts.env,
     shell: false,
-    detached: true,
+    detached: detachedGroup,
+    windowsHide: true,
     stdio: ['pipe', 'pipe', 'pipe'],
   });
   let nextId = 1;
@@ -108,7 +110,7 @@ export function startAcp(opts: AcpClientOpts): AcpClient {
     notify: (method, params) => write({ jsonrpc: '2.0', method, params }),
     kill: () => {
       if (closed || child.pid === undefined) return;
-      try { process.kill(-child.pid, 'SIGKILL'); } catch { try { child.kill('SIGKILL'); } catch { /* gone */ } }
+      killGroup(child);
     },
   };
 }

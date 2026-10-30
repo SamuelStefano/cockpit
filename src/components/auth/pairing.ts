@@ -102,6 +102,17 @@ export function shellSafeLabel(raw: string): string {
   return sanitizeBoxLabel(raw).replace(/["'`$\\!;&|<>(){}*?~#]/g, '').trim();
 }
 
+// Same line in cmd and PowerShell: `$env:X` inside the quotes would expand in one and
+// not in the other, and `VAR=x` exists in neither, so the values go through stdin:
+// code, device code, role, label. Only the charset-checked label is free text.
+export function windowsSetupCommand(url: string, code: string, admin: boolean, label = '', deviceCode = ''): string {
+  const device = /^[A-Z2-7]{52}$/.test(deviceCode) ? deviceCode : '-';
+  const safe = shellSafeLabel(label).replace(/[^\p{L}\p{N} _.-]/gu, '');
+  const line = [code, device, admin ? 'admin' : 'student', safe].filter(Boolean).join(' ');
+  // Quoted: PowerShell's echo would put each bare word on its own line.
+  return `echo "${line}"| powershell -NoProfile -ExecutionPolicy Bypass -Command "& ([scriptblock]::Create((irm ${url})))"`;
+}
+
 // agent-setup.sh installs `deck-agent` with the box's own user, dirs and relay
 // baked in, so the command is the same on every box and nothing is interpolated.
 export const ENROLL_COMMAND = 'deck-agent enroll-device';

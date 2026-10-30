@@ -4,7 +4,8 @@ import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
-import { cliPath } from './engine/cli-path';
+import { claudeBin, cliPath, resolveCli } from './engine/cli-path';
+import { IS_WINDOWS } from './platform';
 import { cliUpdater, compareVersions, parseCliVersion } from './engine/cli-update';
 import type { ClaudeCliInfo, DeckInfo } from '../shared/protocol';
 
@@ -24,8 +25,8 @@ export { parseCliVersion };
 export async function claudeCliInfo(): Promise<ClaudeCliInfo> {
   const env = { ...process.env, PATH: cliPath() };
   const [version, path] = await Promise.all([
-    run('claude', ['--version'], { env, timeout: 15_000 }).then((r) => parseCliVersion(r.stdout)).catch(() => ''),
-    run('which', ['claude'], { env, timeout: 5_000 }).then((r) => r.stdout.trim()).catch(() => ''),
+    run(claudeBin(), ['--version'], { env, timeout: 15_000 }).then((r) => parseCliVersion(r.stdout)).catch(() => ''),
+    IS_WINDOWS ? Promise.resolve(resolveCli()) : run('which', ['claude'], { env, timeout: 5_000 }).then((r) => r.stdout.trim()).catch(() => ''),
   ]);
   return { version, path: path.replace(homedir(), '~') };
 }
@@ -71,6 +72,8 @@ export async function restartDeck(mode: 'idle' | 'now'): Promise<{ ok: boolean; 
   if (mode === 'idle' && (await restartArmed())) {
     return { ok: true, message: 'restart já estava agendado; entra quando não houver turno em voo' };
   }
+  // The redeploy scripts are bash, and a bash.exe here would run them inside WSL.
+  if (IS_WINDOWS) return { ok: false, message: 'no Windows, reinicie a tarefa deck-agent no Agendador de Tarefas' };
   const script = join(REPO_ROOT, 'scripts', mode === 'now' ? 'redeploy.sh' : 'deploy-when-idle.sh');
   mkdirSync(dirname(LOG), { recursive: true });
   const out = openSync(LOG, 'a');
