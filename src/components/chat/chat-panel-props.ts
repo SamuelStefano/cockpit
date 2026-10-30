@@ -133,6 +133,7 @@ export interface ChatPanelProps {
   quotaResetsAt?: number | null;
   queue: QueueItem[];
   queueAdd: (text: string) => void;
+  queueRetarget?: (sessionKey: string, model: string) => void;
   queueRemove: (sessionKey: string, id: string) => void;
   queueEdit: (sessionKey: string, id: string, text: string) => void;
   queueMove: (sessionKey: string, id: string, dir: -1 | 1) => void;

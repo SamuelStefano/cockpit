@@ -270,7 +270,6 @@ export function drainParked(): void {
   // Clientes só sabem do cooldown se forem avisados na virada.
   if (noteQuotaTransition(hold)) broadcastQueue();
   if (isQueuePaused()) return; // pausa manual do usuário: segura tudo até retomar
-  if (authHold()) return;      // dead OAuth login: every fired prompt would die until /login
   // Janela recém-virada: em 04/09 uma sessão de 631k subiu 1 MINUTO após o reset e
   // já tinha comido 0,77M do ciclo novo quando o Samuel abriu o Deck. O #519
   // espalha a fila pelo tick de 30s; este cooldown dá ao poll de usage (60s) tempo
@@ -282,7 +281,8 @@ export function drainParked(): void {
     // Reavaliado a cada disparo: o turno que acabou de subir pode ter estourado a
     // janela, e o teto lido só no topo do dreno deixaria o resto da fila subir em
     // cima de uma quota que já acabou. Item de agente externo não gasta essa janela.
-    if (billsClaudePlan(first.model) && (quotaHold() || inResetCooldown())) continue;
+    // Same for a dead OAuth login: every Claude prompt would die until /login, an agent's would not.
+    if (billsClaudePlan(first.model) && (authHold() || quotaHold() || inResetCooldown())) continue;
     if (first.held) continue;                   // bateu o teto de tentativas: espera o usuário mandar retomar
     // Turno parou numa pergunta: o translate mata o run pra o card ficar respondível,
     // então a sessão fica ociosa e o drainer a via como livre. O item subia como se

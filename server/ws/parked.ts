@@ -5,6 +5,7 @@ import type { Role } from '../auth';
 import type { ParkedView, TeamProfile } from '../../shared/protocol';
 import { CONFIG } from '../config';
 import { withFileLock } from './file-lock';
+import { billsClaudePlan, isAgentModel } from '../../shared/agents';
 
 // Fila ESTACIONADA (overnight/quota-out), distinta da fila `pending` do runs.ts
 // (triagem in-turn, drenada no onClose). Aqui ficam os prompts que o usuário
@@ -318,6 +319,19 @@ export function retryParked(sessionKey: string, id: string): boolean {
     delete it.attempts;
     saveParked(map);
     return true;
+  });
+}
+
+// Moves the session's Claude items to an agent the user just switched to. A bot's
+// items keep the bot's model: the bot decides who answers its thread.
+export function retargetParked(sessionKey: string, model: string): number {
+  if (!SESSION_KEY_RE.test(sessionKey) || !isAgentModel(model)) return 0;
+  return withParkedLock(() => {
+    const map = loadParked();
+    const items = (map[sessionKey] ?? []).filter((x) => !x.botId && billsClaudePlan(x.model));
+    for (const it of items) it.model = model;
+    if (items.length) saveParked(map);
+    return items.length;
   });
 }
 

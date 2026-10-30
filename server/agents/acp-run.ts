@@ -11,7 +11,7 @@ import { agentIdOf, agentModelId, presetById } from '../../shared/agents';
 import { ACP_CLIENT_CAPABILITIES, ACP_PROTOCOL_VERSION, AcpError, isAuthError, startAcp } from './acp-client';
 import { closeDangling, mapUpdate, retryNotice, permissionOutcome, resultSubtype, type MapCtx } from './acp-events';
 import { findAgent, saveSessionLink, sessionLinkSync } from './store';
-import { TranscriptWriter } from './transcript';
+import { TranscriptWriter, priorConversation } from './transcript';
 import { noteGrokUsage } from '../ws/usage-grok';
 import { makeRedactor, vaultEnvSync } from '../vault';
 
@@ -150,7 +150,9 @@ export function runAgent(opts: RunOpts): RunHandle {
     let wire = prompt;
     if (!acpSessionId) {
       const system = joinSystemPrompts(deckAgentContext({ bot: !!opts.botId }), appendSystemPrompt);
-      if (system) wire = `${system}\n\n---\n\n${prompt}`;
+      const prior = path ? priorConversation(path) : '';
+      if (prior) wire = `Earlier in this chat, another model answered. Continue the work from here, do not restart it:\n\n${prior}\n\n---\n\n${wire}`;
+      if (system) wire = `${system}\n\n---\n\n${wire}`;
       const r = await acp.call<any>('session/new', { cwd: CONFIG.workdir, mcpServers: [] });
       if (typeof r?.sessionId !== 'string' || !r.sessionId) throw new Error('o agente não devolveu sessionId');
       acpSessionId = r.sessionId;

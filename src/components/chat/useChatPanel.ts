@@ -21,6 +21,7 @@ interface Args {
   // mesmo com o browser fechado — o cliente só espelha e edita, não drena mais.
   queue: QueueItem[];
   queueAdd: (text: string) => void;
+  queueRetarget?: (sessionKey: string, model: string) => void;
   queueRemove: (sessionKey: string, id: string) => void;
   queueEdit: (sessionKey: string, id: string, text: string) => void;
   queueMove: (sessionKey: string, id: string, dir: -1 | 1) => void;
@@ -30,7 +31,7 @@ interface Args {
   queueRunNow: (sessionKey: string, id: string) => void;
 }
 
-export function useChatPanel({ session, messages, phase, models, model, lastEnd, onSend, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queueRetry, queueRunBg, queueRunNow }: Args) {
+export function useChatPanel({ session, messages, phase, models, model, lastEnd, onSend, queue, queueAdd, queueRetarget, queueRemove, queueEdit, queueMove, queueClear, queueRetry, queueRunBg, queueRunNow }: Args) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const pinnedRef = useRef(true);
   const [atBottom, setAtBottom] = useState(true);
@@ -62,6 +63,7 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
   // By the wire key of each item, like the per-item actions: items queued during a
   // chat's first turn stay under `new-…` on the server after the display key
   // migrated, and clearing by the display key left them to drain later.
+  const retargetQueue = (to: string) => { for (const k of new Set(parked.map((p) => p.sessionKey))) queueRetarget?.(k, to); };
   const clearQueue = () => { for (const k of new Set(parked.map((p) => p.sessionKey))) queueClear(k); };
   const cancelQueueAt = (i: number) => { const it = parked[i]; if (it) queueRemove(it.sessionKey, it.id); };
   // Editar reescreve SÓ o corpo do item: os marcadores de anexo do wire original
@@ -253,6 +255,7 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
   return {
     scrollRef, atBottom, promptAbove, onScroll, scrollToBottom, scrollToLastPrompt, captureAnchor,
     queued, queuedIds, queuedAtts, queuedModels, enqueue, clearQueue, cancelQueueAt, editQueuedAt, moveQueuedItem, queueHeld, resumeQueue, runQueuedInBgAt, runQueuedNowAt, fullLoaded, setFullLoaded,
+    retargetQueue,
     streaming, disabled, isEmpty,
     sentHistory, modelLabel, labelFor,
     planPending, pendingQuestion, failed, retryLast, retryText, bannerConfirm,

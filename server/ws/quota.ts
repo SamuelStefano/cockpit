@@ -55,7 +55,7 @@ export function planLimited(now = Date.now()): boolean {
   return quotaHoldUntil(getRateSnapshot(), getLastPlanUsage(), now, getPlanUsageReadAt()) > 0;
 }
 
-const QUOTA_TEXT = /usage limit|limit reached|out of (tokens|credits)|limite de uso|sem tokens|tokens esgotad/i;
+const QUOTA_TEXT = /usage limit|limit reached|hit your [\w-]+ limit|out of (tokens|credits)|limite de uso|sem tokens|tokens esgotad/i;
 // O CLI que bate no teto imprime uma linha e sai. Um turno que EXPLICA limite de uso
 // pro usuário (resposta legítima que por acaso casa o regex) escreve muito mais que
 // isto — o tamanho é o que separa a bailout do assunto.
