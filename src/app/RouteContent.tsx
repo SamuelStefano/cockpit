@@ -7,7 +7,7 @@ import { RouteFallback } from './RouteFallback';
 import { ChunkErrorBoundary } from './ChunkErrorBoundary';
 import {
   Skills, Pontos,
-  Graph, Canvas, Sala, Mesa, Conexoes, Configuracoes, Docs, DesignSystem, Onboarding, EquipePage, Agente,
+  Graph, Canvas, Sala, Conexoes, Configuracoes, Docs, DesignSystem, Onboarding, EquipePage, Agente,
 } from './lazyRoutes';
 import type { ChatPanelProps } from '../components/chat/chat-panel-props';
 import type { TerminalsPanelProps } from '../components/Terminals';
@@ -116,15 +116,6 @@ export function RouteContent({ route, agentRoute, skillRoute, isMobile, isAdmin,
           connected={connected} bots={c.bots} sessions={c.sessions} running={c.running} stats={c.stats}
           computers={c.botComputers} peeks={c.sessionPeeks} onComputer={c.onBotComputerGet} onPeek={c.onSessionPeek}
           onOpenSession={onOpenSession} />
-      );
-    }
-    if (route === '/mesa' && isAdmin) {
-      const lead = c.bots.find((b) => b.primary) ?? c.bots[0];
-      return (
-        <Mesa
-          chat={chatProps} sessions={c.sessions} running={c.running} queue={c.queue} onOpen={c.setActiveId}
-          leadId={lead?.id ?? ''} leadName={lead?.name ?? ''}
-          onTalk={() => { if (lead) c.onOpenBot(lead.id, lead.sessionId, lead.name); }} />
       );
     }
     if (route === '/canvas' && isAdmin) {

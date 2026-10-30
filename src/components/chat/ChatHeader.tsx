@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { Button, IconButton, Popover } from '../primitives';
+import { IconButton, Popover } from '../primitives';
 import { ConfirmDelete } from '../sessions/ConfirmDelete';
 import { ChatHeaderCompact } from './ChatHeaderCompact';
 import { ChatHeaderMenu } from './ChatHeaderMenu';
@@ -45,10 +45,9 @@ interface ChatHeaderProps {
   onMenu?: () => void;
   teamSlot?: ReactNode;
   restoring?: boolean;
-  onMesa?: () => void;
 }
 
-export function ChatHeader({ session, messages, isEmpty, contextTokens, contextModel = null, lastTurn, onNew, fullLoaded, truncated, onOpenFull, onLoadOlder, onOpenSummary, setFullLoaded, beforeGrow, onTerminal, terminalRunning, terminalOpen = false, usage, onRename, onDelete, keyboardOpen = false, selectedModel, agent, onMenu, teamSlot, restoring = false, onMesa }: ChatHeaderProps) {
+export function ChatHeader({ session, messages, isEmpty, contextTokens, contextModel = null, lastTurn, onNew, fullLoaded, truncated, onOpenFull, onLoadOlder, onOpenSummary, setFullLoaded, beforeGrow, onTerminal, terminalRunning, terminalOpen = false, usage, onRename, onDelete, keyboardOpen = false, selectedModel, agent, onMenu, teamSlot, restoring = false }: ChatHeaderProps) {
   const menu = useHeaderMenu();
   const [renameSignal, setRenameSignal] = useState(0);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -130,7 +129,6 @@ export function ChatHeader({ session, messages, isEmpty, contextTokens, contextM
         )}
         {agent?.actions}
         {teamSlot}
-        {onMesa && <IconButton icon="layers" label="Mesa" side="bottom" onClick={onMesa} className="pointer-coarse:h-11 pointer-coarse:w-11" />}
         {!agent && <IconButton icon="plus" label="Nova conversa" side="bottom" onClick={onNew} className="pointer-coarse:h-11 pointer-coarse:w-11" />}
         {!fresh && moreMenu}
         {confirm}
@@ -151,7 +149,6 @@ export function ChatHeader({ session, messages, isEmpty, contextTokens, contextM
       <div className="ml-auto flex shrink-0 items-center gap-2 pointer-coarse:gap-3">
         {agent?.actions}
         {teamSlot}
-        {onMesa && <Button size="sm" variant="secondary" icon="layers" onClick={onMesa}>Mesa</Button>}
         <ContextRing tokens={contextTokens} model={contextModel} onNew={agent ? undefined : onNew} />
         {usage && <UsageDock {...usage} />}
         {terminalButton}
