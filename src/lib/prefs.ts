@@ -51,4 +51,5 @@ export const GAME_ENABLED_DEFAULT = true;
 export const GAME_SOUND_KEY = 'game.sound';
 export const GAME_SOUND_DEFAULT = false;
 export const GAME_STATE_KEY = 'game.state';
+export const GAME_RECENT_KEY = 'game.recentEvents';
 export const GAME_CRT_KEY = 'game.crt';

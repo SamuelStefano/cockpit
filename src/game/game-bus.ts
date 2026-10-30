@@ -1,5 +1,5 @@
 import { loadPref, savePref } from '../lib/persist';
-import { GAME_ENABLED_KEY, GAME_ENABLED_DEFAULT, GAME_STATE_KEY } from '../lib/prefs';
+import { GAME_ENABLED_KEY, GAME_ENABLED_DEFAULT, GAME_STATE_KEY, GAME_RECENT_KEY } from '../lib/prefs';
 import { applyEvent, loadState, claimOnce } from './engine';
 import type { GameEvent, GameState, Reward } from './types';
 
@@ -8,7 +8,6 @@ type RewardListener = (rewards: Reward[], state: GameState) => void;
 
 const stateListeners = new Set<StateListener>();
 const rewardListeners = new Set<RewardListener>();
-const recent = new Map<string, number>();
 const DEDUPE_MS = 5000;
 
 export const gameEnabled = (): boolean => loadPref(GAME_ENABLED_KEY, GAME_ENABLED_DEFAULT);
@@ -21,12 +20,15 @@ function save(state: GameState): void {
   for (const l of stateListeners) l(state);
 }
 
+// Persisted: a second tab receives the same `done` and must not pay the XP again.
 function duplicate(key: string | undefined, now: number): boolean {
   if (!key) return false;
-  for (const [k, t] of recent) if (now - t > DEDUPE_MS) recent.delete(k);
-  if (recent.has(key)) return true;
-  recent.set(key, now);
-  return false;
+  const recent = loadPref<Record<string, number>>(GAME_RECENT_KEY, {});
+  for (const k of Object.keys(recent)) if (now - recent[k] > DEDUPE_MS) delete recent[k];
+  const hit = key in recent;
+  if (!hit) recent[key] = now;
+  savePref(GAME_RECENT_KEY, recent);
+  return hit;
 }
 
 // Never throws: the game is decoration and must not break a useCockpit code path.
