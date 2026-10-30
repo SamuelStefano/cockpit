@@ -1,5 +1,5 @@
-// Smoke das micro-interações + theme playground na galeria /ds e das seeds
-// "Gerar UI" da paleta de comandos. Roda contra `vite preview` (build estático).
+// Smoke das micro-interações + theme playground na galeria /ds e do comando
+// Arcade na paleta. Roda contra `vite preview` (build estático).
 import { chromium } from 'playwright';
 
 const BASE = process.env.SMOKE_BASE ?? 'http://localhost:4173';
@@ -57,23 +57,21 @@ try {
   await page.getByRole('button', { name: 'restaurar padrão' }).click();
   await page.waitForTimeout(120);
 
-  // Paleta: seeds "Gerar UI" aparecem ao buscar.
+  // Paleta: o placeholder real é "Buscar…"; o diálogo da paleta tem nome próprio
+  // (o Sheet do Arcade também é role=dialog).
   await page.goto(`${BASE}/`, { waitUntil: 'networkidle', timeout: 20000 });
   await page.getByRole('button', { name: /^Comandos \((⌘K|Ctrl\+K)\)$/ }).click();
-  await page.waitForSelector('[role=dialog]', { timeout: 5000 });
-  await page.getByPlaceholder(/Buscar comando/).fill('Gerar UI');
+  const palette = page.getByRole('dialog', { name: 'Paleta de comandos' });
+  await palette.waitFor({ timeout: 5000 });
+  await palette.getByRole('combobox', { name: /Buscar comando/ }).fill('Arcade');
   await page.waitForTimeout(200);
-  const seeds = await page.locator('[role=dialog] button').getByText(/Gerar UI:/).count();
-  if (seeds >= 3) ok(`paleta mostra ${seeds} seeds de Gerar UI`);
-  else fail(`seeds de Gerar UI não apareceram (${seeds})`);
-
-  // Selecionar um seed pré-preenche o composer com o prompt ```preview.
-  await page.getByRole('option', { name: /Gerar UI: landing page/ }).click();
+  const arcadeCmd = palette.getByRole('option', { name: /Abrir Arcade/ });
+  if (await arcadeCmd.count()) ok('paleta oferece Abrir Arcade');
+  else fail('Abrir Arcade não apareceu na paleta');
+  await arcadeCmd.click();
   await page.waitForTimeout(250);
-  const values = await page.locator('textarea').evaluateAll((els) => els.map((e) => e.value));
-  const seeded = values.some((v) => v.includes('```preview'));
-  if (seeded) ok('seed pré-preenche o composer com bloco preview');
-  else fail(`composer não recebeu o prompt do seed (${JSON.stringify(values.map((v) => v.slice(0, 30)))})`);
+  if (await page.getByRole('dialog', { name: 'Arcade' }).count()) ok('comando abre o Arcade');
+  else fail('Arcade não abriu pelo comando da paleta');
 
   if (!errors.length) ok('sem erros de página');
   else fail(`erros de página: ${errors.join(' | ')}`);
