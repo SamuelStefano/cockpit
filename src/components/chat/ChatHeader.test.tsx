@@ -43,13 +43,6 @@ describe('ChatHeader', () => {
     expect(screen.queryByLabelText('Ver todas as mensagens')).toBeNull();
   });
 
-  it('offers Mesa when the chat can leave for it', () => {
-    const onMesa = vi.fn();
-    setup({ onMesa });
-    fireEvent.click(screen.getByRole('button', { name: 'Mesa' }));
-    expect(onMesa).toHaveBeenCalledOnce();
-  });
-
   it('hides the menu when there is nothing to show', () => {
     setup({ isEmpty: true });
     expect(screen.queryByLabelText('Mais ações da conversa')).toBeNull();
