@@ -10,6 +10,7 @@ import { recordIncident } from './incidents';
 import { isAwaiting, setAwaiting, clearAllAwaiting } from './awaiting';
 import { broadcast, send } from './broadcast';
 import { run } from '../engine/claude';
+import { runAgent } from '../agents/acp-run';
 import { parkedHeads, shiftParked, unshiftParked, addParked, findParked, takeParked, promoteParked, isQueuePaused, type ParkedItem } from './parked';
 import { resumableId } from './resume';
 import { quotaHold } from './quota';
@@ -28,6 +29,9 @@ vi.mock('../engine/claude', () => ({
   run: vi.fn(() => ({ kill: vi.fn() })),
   // Sem MCP configurado no teste: a expansão do sentinel devolve a seleção como veio.
   resolveMcpSelection: (names?: string[]) => names,
+}));
+vi.mock('../agents/acp-run', () => ({
+  runAgent: vi.fn(() => ({ kill: vi.fn(), send: vi.fn(() => false) })),
 }));
 // Fila estacionada e teto de tokens mockados: o teste não pode ler/escrever o
 // parked.json real do usuário nem depender da quota da conta.
@@ -490,6 +494,21 @@ describe('fila estacionada — teto de tokens', () => {
     expect(run).not.toHaveBeenCalled();
   });
 
+  it('drena o item de agente externo mesmo com a cota do Claude estourada', () => {
+    limited();
+    vi.mocked(runAgent).mockClear();
+    vi.mocked(parkedHeads).mockReturnValue([
+      { sessionKey: 's1', first: item() },
+      { sessionKey: 'g1', first: item({ id: 'pk-g', model: 'agent:grok' }) },
+    ]);
+    vi.mocked(shiftParked).mockImplementation((k: string) => item({ id: `pk-${k}`, model: k === 'g1' ? 'agent:grok' : undefined }));
+    drainParked();
+    expect(run).not.toHaveBeenCalled();
+    expect(shiftParked).toHaveBeenCalledOnce();
+    expect(vi.mocked(shiftParked).mock.calls[0][0]).toBe('g1');
+    expect(runAgent).toHaveBeenCalledOnce();
+  });
+
   it('a disk error while shifting the queue does not escape the timer', () => {
     vi.mocked(parkedHeads).mockReturnValue([{ sessionKey: 's1', first: item() }]);
     vi.mocked(shiftParked).mockImplementationOnce(() => { throw new Error('ENOSPC'); });
@@ -685,6 +704,19 @@ describe('fila estacionada — teto de tokens', () => {
     expect(addParked).toHaveBeenCalledWith('s4', expect.objectContaining({ prompt: 'item enfileirado' }));
     expect(run).toHaveBeenCalledOnce();
   });
+
+  it('turno de Grok drena a fila in-turn mesmo com a cota do Claude estourada', () => {
+    setAwaiting('g1');
+    vi.mocked(runAgent).mockClear();
+    vi.mocked(addParked).mockClear();
+    startRun({ ws, sessionKey: 'g1', prompt: 'item enfileirado', model: 'agent:grok', auto: true });
+    startRun({ ws, sessionKey: 'g1', prompt: 'resposta do usuário', model: 'agent:grok' });
+    limited();
+    vi.mocked(runAgent).mock.calls.at(-1)![0].onClose?.();
+    expect(addParked).not.toHaveBeenCalled();
+    expect(runAgent).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(runAgent).mock.calls.at(-1)![0].prompt).toBe('item enfileirado');
+  });
 });
 
 describe('disparo em background de um item da fila', () => {
@@ -776,6 +808,16 @@ describe('disparo em background de um item da fila', () => {
     expect(run).not.toHaveBeenCalled();
   });
 
+  it('fork de agente externo não recusa pela cota do Claude', () => {
+    vi.mocked(quotaHold).mockReturnValue(Date.now() + 60_000);
+    vi.mocked(findParked).mockReturnValue(item({ model: 'agent:grok' }));
+    vi.mocked(takeParked).mockReturnValue(item({ model: 'agent:grok' }));
+    vi.mocked(runAgent).mockClear();
+    expect(runParkedInBackground('s1', 'pk-9', 'admin')).toHaveProperty('forkId');
+    expect(takeParked).toHaveBeenCalled();
+    expect(runAgent).toHaveBeenCalledOnce();
+  });
+
   // review #597 point 2: um fork de card do canvas passa enforceHardCtxCap=true
   // — ao contrário do clique manual "rodar em paralelo" (intenção explícita
   // do usuário, nunca barrado pelo teto), o alvo de um fork pode ter sido
@@ -821,6 +863,7 @@ describe('disparo imediato de um item da fila (furar a fila)', () => {
     vi.mocked(takeParked).mockReset();
     vi.mocked(parkedHeads).mockReturnValue([]);
     vi.mocked(shiftParked).mockReset();
+    resetCooldownState();
     startParkedDrainer(3_600_000);
   });
 
@@ -881,6 +924,18 @@ describe('disparo imediato de um item da fila (furar a fila)', () => {
       expect(kill).not.toHaveBeenCalled();
       expect(promoteParked).not.toHaveBeenCalled();
     }
+  });
+
+  it('furar a fila de um agente externo ignora a cota do Claude', () => {
+    vi.mocked(quotaHold).mockReturnValue(Date.now() + 60_000);
+    vi.mocked(findParked).mockReturnValue(item({ model: 'agent:grok' }));
+    vi.mocked(takeParked).mockReturnValue(item({ model: 'agent:grok' }));
+    vi.mocked(runAgent).mockClear();
+    startRun({ ws, sessionKey: 'now-g', prompt: 'o que estava rodando' });
+    const kill = lastKill();
+    expect(runParkedNow('now-g', 'pk-9')).toEqual({ ok: true });
+    expect(kill).toHaveBeenCalled();
+    expect(runAgent).toHaveBeenCalledOnce();
   });
 
   // O translate mata o run pra o card de escolha ficar respondível, então a sessão

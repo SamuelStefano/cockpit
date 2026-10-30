@@ -15,6 +15,11 @@ export function isAgentModel(model: string | undefined | null): boolean {
   return typeof model === 'string' && model.startsWith(AGENT_MODEL_PREFIX);
 }
 
+// ACP agents bill their own login. An unset model is a Claude turn.
+export function billsClaudePlan(model: string | undefined | null): boolean {
+  return !isAgentModel(model);
+}
+
 export function agentIdOf(model: string): string | null {
   if (!isAgentModel(model)) return null;
   const id = model.slice(AGENT_MODEL_PREFIX.length);

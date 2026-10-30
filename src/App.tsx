@@ -54,7 +54,7 @@ import { useLiveConnection } from './app/useLiveConnection';
 import { useQuotaGate } from './app/useQuotaGate';
 import { useOverlays } from './app/useOverlays';
 import { useChatUrl } from './app/useChatUrl';
-import { usageAgentOf } from './components/chrome/usage-agent';
+import { claudeQuotaApplies, usageAgentOf } from './components/chrome/usage-agent';
 import { withoutBotThreads } from './components/sessions/bot-threads';
 import { useCall } from './components/chat/call/useCall';
 import { ConnectionsContext } from './cockpit/ConnectionsContext';
@@ -106,7 +106,13 @@ function CockpitBody() {
 
   const [quotaClosed, setQuotaClosed] = useState(false);
   const quotaGate = useQuotaGate(planUsage, rate);
-  const usageAgent = usageAgentOf(model, { activeId: activeSessionId, bots: cockpit.bots });
+  const usageCtx = { activeId: activeSessionId, bots: cockpit.bots };
+  const usageAgent = usageAgentOf(model, usageCtx);
+  // Switching to Grok (or opening an Equipe bot pinned to it) must not keep the
+  // Claude window's lock on the composer.
+  const claudeQuota = claudeQuotaApplies(model, usageCtx);
+  const composerPaused = claudeQuota && quotaGate.paused;
+  const composerResetsAt = claudeQuota ? quotaGate.resetsAt : null;
   // Fechar o aviso vale pra ESTA janela de cota: sem o reset, quem fechou uma vez
   // nunca mais era avisado (nem na janela seguinte) até dar F5.
   const quotaWindow = rate?.resetsAt ?? null;
@@ -186,7 +192,7 @@ function CockpitBody() {
   useGlobalShortcuts({ sessions: sidebarSessions, running: runningAnywhere, activeSessionId, setActiveSessionId: selectSession, updated, nav, onNew: handleNew, setPalette, setHelp });
   const navCounts = useMemo(() => ({ '/canvas': sidebarSessions.filter((s) => s.waiting).length }), [sidebarSessions]);
   const usageDock = { usageAgent, planUsage, planBlockedUntil, planReadAt, planNextReadAt, onRefreshPlanUsage, grokUsage: cockpit.grokUsage, onRefreshGrokUsage: cockpit.onRefreshGrokUsage, quotaWarn: quotaGate.warn, quotaPaused: quotaGate.paused, quotaResetsAt: quotaGate.resetsAt, stats };
-  const chatProps = { session: activeSession, messages, phase, terminalBusy, sessionTodos, draft, setDraft, onSend: handleSend, onPrompt: handleSend, onApproveWorkflow, onStop: handleStop, mode, setMode, caps, claudeReady, claudeLogin, agents: cockpit.agents, onClaudeLoginStart, onClaudeLoginCode, onClaudeLoginCancel, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, selectedMcps, setSelectedMcps, mcpServers, slashCommands, contextTokens, contextModel, sendCost, liveTurnTokens, turnStartedAt, bgAgents, lastTurn, lastEnd, onNew: handleNew, onHandoff, handoffBusy, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser: editUser, onQuote: quoteMsg, onMemorize: memorizeMsg, onRename: handleRename, onDelete: handleDeleteSession, onOpenFull, onLoadOlder, onOpenSummary, truncated, onShowHelp: () => setHelp(true), focusSignal, isMobile, onMenu: () => setDrawer(!drawer), keyboardOpen, quotaPaused: quotaGate.paused, quotaResetsAt: quotaGate.resetsAt, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueReleaseAt, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce, resumeOffer, resumeRun, conn: link, call, usage: usageDock, restoring };
+  const chatProps = { session: activeSession, messages, phase, terminalBusy, sessionTodos, draft, setDraft, onSend: handleSend, onPrompt: handleSend, onApproveWorkflow, onStop: handleStop, mode, setMode, caps, claudeReady, claudeLogin, agents: cockpit.agents, onClaudeLoginStart, onClaudeLoginCode, onClaudeLoginCancel, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, selectedMcps, setSelectedMcps, mcpServers, slashCommands, contextTokens, contextModel, sendCost, liveTurnTokens, turnStartedAt, bgAgents, lastTurn, lastEnd, onNew: handleNew, onHandoff, handoffBusy, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser: editUser, onQuote: quoteMsg, onMemorize: memorizeMsg, onRename: handleRename, onDelete: handleDeleteSession, onOpenFull, onLoadOlder, onOpenSummary, truncated, onShowHelp: () => setHelp(true), focusSignal, isMobile, onMenu: () => setDrawer(!drawer), keyboardOpen, quotaPaused: composerPaused, quotaResetsAt: composerResetsAt, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueReleaseAt, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce, resumeOffer, resumeRun, conn: link, call, usage: usageDock, restoring };
   const termProps = { terminals, activeId: activeTermId, onSelect: setActiveTermId, onAdd: handleAddTerm, onClose: handleCloseTerm, term, attachable, onAttach: attachExisting };
 
   const agent = useAgentNav({
@@ -197,7 +203,7 @@ function CockpitBody() {
     views: agent.views, activeId: agent.active?.bot.id ?? null, onNew: agent.openNew, onGo: nav,
     onOpen: agent.open, canManage: isAdmin, paused: cockpit.teamPaused, onPauseSet: cockpit.onTeamPauseSet,
   };
-  const quotaNotice = quotaGate.warn && !quotaClosed && rate ? <QuotaBanner reset={relReset(rate.resetsAt)} onClose={() => setQuotaClosed(true)} /> : null;
+  const quotaNotice = claudeQuota && quotaGate.warn && !quotaClosed && rate ? <QuotaBanner reset={relReset(rate.resetsAt)} onClose={() => setQuotaClosed(true)} /> : null;
   const bodyFooter = isMobile ? null : <BodyFooter userId={sbAuth.session?.user.id} end={quotaNotice} />;
   const chatWithTeam = { ...chatProps, teamSlot: <TeamStack {...teamProps} />, footer: bodyFooter };
   const openPalette = () => { setDrawer(false); setPalette(true); };

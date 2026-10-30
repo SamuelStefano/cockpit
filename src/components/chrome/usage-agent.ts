@@ -1,6 +1,6 @@
 import type { PlanUsage, TeamBot } from '../../../shared/protocol';
 import { usageRows, type UsageRow } from './usage-rows';
-import { agentIdOf } from '../../../shared/agents';
+import { agentIdOf, billsClaudePlan } from '../../../shared/agents';
 import { botDraftKey } from '../../../shared/team';
 
 export type UsageAgent = 'claude' | 'grok';
@@ -10,17 +10,27 @@ interface UsageAgentCtx {
   bots?: TeamBot[];
 }
 
-// Which account the header chip shows: the one the agent on screen spends. In
-// an agent's thread the bot's own model decides — the composer model there is
-// whatever the last thread pinned, not who answers this thread. Only Grok has its own
-// meter; every other agent (and every Claude model) stays on the Claude plan.
-export function usageAgentOf(model: string | undefined, ctx: UsageAgentCtx = {}): UsageAgent {
-  let m = model;
+// In an agent's thread the bot's own model decides — the composer model there is
+// whatever the last thread pinned, not who answers this thread.
+export function effectiveModel(model: string | undefined, ctx: UsageAgentCtx = {}): string | undefined {
   if (ctx.activeId) {
     const bot = ctx.bots?.find((b) => (b.sessionId ?? botDraftKey(b.id)) === ctx.activeId);
-    if (bot) m = bot.model;
+    if (bot) return bot.model;
   }
+  return model;
+}
+
+// Which account the header chip shows. Only Grok has its own meter; every other
+// agent (and every Claude model) stays on the Claude plan.
+export function usageAgentOf(model: string | undefined, ctx: UsageAgentCtx = {}): UsageAgent {
+  const m = effectiveModel(model, ctx);
   return m && agentIdOf(m) === 'grok' ? 'grok' : 'claude';
+}
+
+// The composer lock is the Claude window. An ACP thread (Grok, and the Equipe
+// bots pinned to it) keeps sending when that window is full.
+export function claudeQuotaApplies(model: string | undefined, ctx: UsageAgentCtx = {}): boolean {
+  return billsClaudePlan(effectiveModel(model, ctx));
 }
 
 export interface UsageReading {
