@@ -11,6 +11,8 @@ describe('/conexoes access', () => {
   it('sends a student who opens the URL back to the home chat', () => {
     expect(roleRedirect('student', '/conexoes')).toBe('/');
     expect(roleRedirect('student', '/sala')).toBe('/');
+    expect(roleRedirect('student', '/mesa')).toBe('/');
+    expect(roleRedirect('admin', '/mesa')).toBeNull();
   });
 });
 
