@@ -58,7 +58,7 @@ try {
   await page.waitForTimeout(120);
 
   // Paleta: o placeholder real é "Buscar…"; o diálogo da paleta tem nome próprio
-  // (o Sheet do Arcade também é role=dialog).
+  //.
   await page.goto(`${BASE}/`, { waitUntil: 'networkidle', timeout: 20000 });
   await page.getByRole('button', { name: /^Comandos \((⌘K|Ctrl\+K)\)$/ }).click();
   const palette = page.getByRole('dialog', { name: 'Paleta de comandos' });

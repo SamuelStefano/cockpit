@@ -1,6 +1,6 @@
 # Deck Arcade — backlog de ideias
 
-O que já existe na primeira versão: nível e título, XP, sequência diária, 3 missões por dia, 29 conquistas (várias secretas), Bit Runner, 8 segredos, tudo num ícone de 16px no rodapé da sidebar que abre um popover, pesca do Bit durante o turno, sons suaves ligados por padrão, tudo em `localStorage` por aparelho. Este arquivo lista o que ficou de fora.
+O que já existe na primeira versão: nível e título, XP, sequência diária, 3 missões por dia, 29 conquistas (várias secretas), Bit Runner, 8 segredos, tudo num ícone de 16px no rodapé da sidebar que abre a tela do Arcade, pesca do Bit durante o turno, sons suaves ligados por padrão, tudo em `localStorage` por aparelho. Este arquivo lista o que ficou de fora.
 
 Esforço: **P** = até 1 dia · **M** = 2 a 4 dias · **G** = mais de 1 semana ou toca servidor.
 
@@ -21,7 +21,7 @@ Esforço: **P** = até 1 dia · **M** = 2 a 4 dias · **G** = mais de 1 semana o
 - "Dia de descanso" que protege a sequência uma vez por semana (P)
 - Curva de nível ajustável por feature flag, para recalibrar sem perder progresso (P)
 - Retrospectiva mensal: card com turnos, horas, sessões e conquistas, no estilo Wrapped (M)
-- Histórico dos últimos 30 dias de XP em um gráfico pequeno dentro do popover do Arcade (M)
+- Histórico dos últimos 30 dias de XP em um gráfico pequeno na tela do Arcade (M)
 
 ## Desafios semanais
 
@@ -110,7 +110,7 @@ Esforço: **P** = até 1 dia · **M** = 2 a 4 dias · **G** = mais de 1 semana o
 - "Digite o prompt": teste de velocidade de digitação com prompts reais da sua história (M)
 - "Quem é o agente?": adivinhar qual modelo escreveu um trecho, com respostas do histórico (M)
 - Snake do terminal com o Bit como cabeça e tokens como comida (P)
-- Ranking local de recordes de todos os mini-jogos no popover do Arcade (P)
+- Ranking local de recordes de todos os mini-jogos na tela do Arcade (P)
 
 ## Easter eggs
 
