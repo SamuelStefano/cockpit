@@ -57,12 +57,12 @@ export interface Floor {
   mountainCount: number;
   mountainLabel: string;
   gateBarsUp: boolean;
-  machineOk: boolean;
+  machineOk: boolean | null;
   machineSpin: boolean;
   machineLabel: string;
   racks: { name: string; disk: number | null; label: string }[];
   clockLabel: string;
-  postBoard: number;
+  postBoard: number | null;
   beltMoving: boolean;
 }
 

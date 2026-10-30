@@ -68,8 +68,12 @@ export class Labels {
       const busy = mine.filter((a) => a.state === 'working' || a.state === 'thinking').length, bad = mine.filter((a) => ALARM.has(a.state)).length;
       l.place(x.cx, 6.2, -14, cam, w, h);
       l.show(!focused);
-      l.fill(`${x.name}|${busy}|${mine.length}|${bad}|${x.hotkey}`, (el) => {
-        add(el, 'b', x.name.slice(0, 22));
+      // A one-desk wing is narrower than its plaque from the fleet shot, so far away it only gets a short name.
+      const compact = !near && x.cols < 3;
+      l.el.classList.toggle('compact', compact);
+      l.fill(`${compact}|${x.name}|${busy}|${mine.length}|${bad}|${x.hotkey}`, (el) => {
+        add(el, 'b', compact ? x.name.slice(0, x.cols * 7) : x.name.slice(0, 22));
+        if (compact) { if (bad) add(el, 'em', ` ${bad}!`); return; }
         if (x.hotkey) { el.appendChild(document.createTextNode(' ')); add(el, 'kbd', x.hotkey); }
         el.appendChild(document.createTextNode(` ${busy}/${mine.length} busy`));
         if (bad) add(el, 'em', ` · ${bad} stuck`);

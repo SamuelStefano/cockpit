@@ -23,7 +23,7 @@ const KEY = { rules: 'deck-base-rules', xp: 'deck-base-xp', sound: 'deck-base-so
 const readJson = <T,>(k: string, d: T): T => { try { const v = localStorage.getItem(k); return v ? (JSON.parse(v) as T) : d; } catch { return d; } };
 const write = (k: string, v: unknown) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* private mode */ } };
 
-const EMPTY_FLOOR: Floor = { agents: [], wings: [], crates: [], packets: [], arcs: [], stations: [], mountainCount: 0, mountainLabel: 'BOARD NOT LOADED', gateBarsUp: false, machineOk: true, machineSpin: false, machineLabel: 'MCP: UNKNOWN', racks: [], clockLabel: 'NEXT RUN UNKNOWN', postBoard: 0xb5bac0, beltMoving: false };
+const EMPTY_FLOOR: Floor = { agents: [], wings: [], crates: [], packets: [], arcs: [], stations: [], mountainCount: 0, mountainLabel: 'BOARD NOT LOADED', gateBarsUp: false, machineOk: null, machineSpin: false, machineLabel: 'MCP: UNKNOWN', racks: [], clockLabel: 'NEXT RUN UNKNOWN', postBoard: null, beltMoving: false };
 
 export interface EngineHandlers { act: (action: LiveAction) => void }
 interface CrateView { g: THREE.Group; band: THREE.Mesh; flag: THREE.Group; star: THREE.Mesh }
@@ -34,6 +34,7 @@ export class BaseEngine {
   live: LiveFloor | null = null;
   floor: Floor = EMPTY_FLOOR;
   selectedId: string | null = null;
+  hoverId: string | null = null;
   viewWingId: string | null = null;
   readonly rig = new Rig();
   readonly renderer: THREE.WebGLRenderer;
@@ -343,6 +344,11 @@ export class BaseEngine {
     };
     for (const c of this.floor.arcs) {
       tube(new THREE.Vector3(c.from.x, 4.4, c.from.z), new THREE.Vector3((c.from.x + c.to.x) / 2, 11, (c.from.z + c.to.z) / 2), new THREE.Vector3(c.to.x, 4.4, c.to.z), Math.sin(T * 6) > 0 ? 0xff5a44 : 0xffb0a2);
+    }
+    const hovered = this.floor.agents.find((a) => a.id === this.hoverId);
+    if (hovered?.monitor.kind === 'practice' && hovered.monitor.hasJob) {
+      // Hover shows declared intent: the route this desk's work will take to the belt.
+      tube(new THREE.Vector3(hovered.x, 0.25, hovered.z + 3), new THREE.Vector3(hovered.x, 0.25, 3), new THREE.Vector3(hovered.x, 0.25, 7.6), 0xffc23d);
     }
     const machine = new THREE.Vector3(53, 3, -10);
     this.cables = this.cables.filter((c) => {

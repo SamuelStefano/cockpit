@@ -40,6 +40,7 @@ export class World {
   private mountainMesh: THREE.InstancedMesh;
   private mountainLabel: THREE.Sprite;
   private postBoard: THREE.Mesh;
+  private postSign: THREE.Sprite;
   private slats: THREE.Mesh[] = [];
   private slatX = 0;
   private gateBars = new THREE.Group();
@@ -103,6 +104,7 @@ export class World {
 
     this.postBoard = box(r, 3, 2.4, 0.2, 0xf2c14e, -65, 2.2, 5);
     this.postBoard.rotation.y = Math.PI / 2;
+    this.postSign = sign(r, 'SCHEDULED POST', -63.5, 4.3, 5, 3.2);
 
     box(r, BELT.x1 - BELT.x0 + 2, 0.7, 2.6, PAL.belt, (BELT.x0 + BELT.x1) / 2, 0.35, BELT.z);
     for (let i = 0; i < 100; i++) this.slats.push(box(r, 0.16, 0.05, 2.3, 0x5e5c62, BELT.x0 + i * 0.95, 0.73, BELT.z));
@@ -167,12 +169,12 @@ export class World {
     });
   }
 
-  update(real: number, T: number, f: { gateBarsUp: boolean; machineOk: boolean; machineSpin: boolean; machineLabel: string; racks: { name: string; disk: number | null }[]; clockLabel: string; mountainCount: number; mountainLabel: string; postBoard: number; beltMoving: boolean }) {
+  update(real: number, T: number, f: { gateBarsUp: boolean; machineOk: boolean | null; machineSpin: boolean; machineLabel: string; racks: { name: string; disk: number | null }[]; clockLabel: string; mountainCount: number; mountainLabel: string; postBoard: number | null; beltMoving: boolean }) {
     (this.portal.material as THREE.MeshStandardMaterial).emissiveIntensity = 0.9 + Math.sin(T * 2) * 0.25;
-    const spin = f.machineSpin && f.machineOk ? 1 : 0;
+    const spin = f.machineSpin && f.machineOk === true ? 1 : 0;
     this.gears[0].rotation.y += real * 2 * spin;
     this.gears[1].rotation.y -= real * 3 * spin;
-    (this.machineScreen.material as THREE.MeshStandardMaterial).emissive.setHex(f.machineOk ? 0x2f7f79 : 0xd2402f);
+    (this.machineScreen.material as THREE.MeshStandardMaterial).emissive.setHex(f.machineOk === null ? 0x3a3a44 : f.machineOk ? 0x2f7f79 : 0xd2402f);
     setSpriteText(this.machineLabel, f.machineLabel, 4);
     setSpriteText(this.clockLabel, f.clockLabel, 4.4);
     const now = new Date();
@@ -191,7 +193,8 @@ export class World {
     }
     this.mountainMesh.count = Math.min(MOUNTAIN_MAX, Math.max(0, f.mountainCount));
     setSpriteText(this.mountainLabel, f.mountainLabel, 7);
-    (this.postBoard.material as THREE.MeshStandardMaterial).color.setHex(f.postBoard);
+    this.postBoard.visible = this.postSign.visible = f.postBoard !== null;
+    if (f.postBoard !== null) (this.postBoard.material as THREE.MeshStandardMaterial).color.setHex(f.postBoard);
   }
 
   dispose() { disposeTree(this.root); }

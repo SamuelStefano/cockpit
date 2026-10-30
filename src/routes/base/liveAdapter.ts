@@ -197,10 +197,10 @@ export function adaptLive(input: LiveInput, prev: Placement): LiveFloor {
     stations: stationsLive.map((st) => ({ ...st, label: input.cards ? `${st.label} ${count(st.id as CardStatus)}` : st.label })),
     mountainCount: review,
     mountainLabel: input.cards ? `${review} CARDS IN REVIEW · ${done} DONE` : 'BOARD NOT LOADED',
-    gateBarsUp: false, machineOk: true, machineSpin: false,
-    machineLabel: input.mcpServers === null ? 'MCP: UNKNOWN' : `MCP: ${input.mcpServers} ENABLED`,
+    gateBarsUp: false, machineOk: null, machineSpin: false,
+    machineLabel: input.mcpServers === null ? 'MCP: UNKNOWN' : `MCP: ${input.mcpServers} SERVERS`,
     racks: [{ name: 'THIS BOX', disk, label: disk === null ? 'THIS BOX · DISK ?' : `THIS BOX · DISK ${Math.round(disk * 100)}%` }],
-    clockLabel: clockLabel(input.crons, input.now), postBoard: 0xb5bac0, beltMoving: false,
+    clockLabel: clockLabel(input.crons, input.now), postBoard: null, beltMoving: false,
   };
   const sectors = sectorRows(agents, { ship: { busy: count('doing'), waiting: count('todo') }, archive: { waiting: review } });
   decisions.sort((a, b) => Number(b.type === 'question') - Number(a.type === 'question') || b.born - a.born);

@@ -21,7 +21,13 @@ export function attachInput(e: BaseEngine): () => void {
   dom.addEventListener('pointerdown', (ev) => { drag = { x: ev.clientX, y: ev.clientY, moved: false }; }, { signal });
   window.addEventListener('pointerup', () => { setTimeout(() => { drag = null; }, 0); }, { signal });
   window.addEventListener('pointermove', (ev) => {
-    if (!drag || !ev.buttons) return;
+    if (!drag || !ev.buttons) {
+      if (ev.target !== dom) { e.hoverId = null; return; }
+      const id = (hits(ev).find((h) => h.object.userData.agentId)?.object.userData.agentId as string | undefined) ?? null;
+      e.hoverId = id;
+      dom.style.cursor = id ? 'pointer' : '';
+      return;
+    }
     const dx = ev.clientX - drag.x, dy = ev.clientY - drag.y;
     if (Math.abs(dx) + Math.abs(dy) <= 4) return;
     drag.moved = true;

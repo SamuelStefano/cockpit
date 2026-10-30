@@ -28,6 +28,7 @@ export function Hud({ store, engine, live }: { store: Store<HudState>; engine: B
       <TopBar hud={hud} engine={engine} />
       <SectorStrip hud={hud} engine={engine} />
       <AlertStack hud={hud} engine={engine} />
+      <div className="base-keys">{practice ? 'I B S O R sectors · Z X C wings · 1–6 agents · Tab next · Q W E decide · Space pause · Wheel zoom · Drag pan · Esc back' : 'I B S O R sectors · Z X C V wings · 1–6 agents · Tab next · Wheel zoom · Drag pan · Esc back'}</div>
       <Minimap engine={engine} />
       <SideButtons hud={hud} engine={engine} />
       <Pins hud={hud} engine={engine} />
