@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { remainingMs, isExpired, fmtCountdown, diagnose, setupCommand, windowsSetupCommand, ENROLL_COMMAND, LEGACY_ENROLL_COMMAND } from './pairing';
+import { remainingMs, isExpired, fmtCountdown, diagnose, setupCommand, windowsSetupCommand, windowsSetupFile, ENROLL_COMMAND, LEGACY_ENROLL_COMMAND } from './pairing';
 
 const NOW = 1_700_000_000_000;
 const inMs = (ms: number) => new Date(NOW + ms).toISOString();
@@ -100,6 +100,16 @@ describe('setupCommand', () => {
   });
   it('drops a device code that is not plain base32', () => {
     expect(setupCommand('https://x/s.sh', 'ABC', false, 'dedicated', '', '$(id)')).toBe('curl -fsSL https://x/s.sh | DECK_PAIR_CODE=ABC bash');
+  });
+});
+
+describe('windowsSetupFile', () => {
+  it('is a CRLF batch that keeps the error on screen and deletes itself on success', () => {
+    const file = windowsSetupFile('echo "X"| powershell');
+    expect(file.split('\r\n')).toContain('echo "X"| powershell');
+    expect(file.replace(/\r\n/g, '')).not.toContain('\n');
+    expect(file).toContain('pause');
+    expect(file).toContain('del "%~f0"');
   });
 });
 

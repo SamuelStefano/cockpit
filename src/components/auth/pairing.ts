@@ -113,6 +113,25 @@ export function windowsSetupCommand(url: string, code: string, admin: boolean, l
   return `echo "${line}"| powershell -NoProfile -ExecutionPolicy Bypass -Command "& ([scriptblock]::Create((irm ${url})))"`;
 }
 
+// The same command as a file: double-click, no terminal to open. CRLF, or cmd misreads
+// labels. It holds a single-use code, so it deletes itself once the install succeeds.
+export function windowsSetupFile(command: string): string {
+  return [
+    '@echo off',
+    'chcp 65001 >nul',
+    'title Instalando o Deck',
+    command,
+    'if errorlevel 1 (',
+    '  echo.',
+    '  pause',
+    '  exit /b 1',
+    ')',
+    'timeout /t 5 >nul',
+    '(goto) 2>nul & del "%~f0"',
+    '',
+  ].join('\r\n');
+}
+
 // agent-setup.sh installs `deck-agent` with the box's own user, dirs and relay
 // baked in, so the command is the same on every box and nothing is interpolated.
 export const ENROLL_COMMAND = 'deck-agent enroll-device';

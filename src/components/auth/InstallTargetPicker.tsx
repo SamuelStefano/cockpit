@@ -19,7 +19,7 @@ export function InstallTargetPicker({ target, onTarget }: InstallTargetPickerPro
       <Segmented label="Onde instalar" items={TARGETS} value={target} onChange={onTarget} />
       {target === 'windows' && (
         <p className="mt-2.5 text-[12px] leading-relaxed text-neutral-400">
-          Abra o Prompt de Comando ou o PowerShell e cole o comando. Não precisa de WSL, Docker nem administrador. Log em <span className={mono}>~\.deck-agent\agent.log</span>.
+          Não precisa de WSL nem Docker. Node, Git e Claude entram sozinhos se faltarem. Log em <span className={mono}>~\.deck-agent\agent.log</span>.
         </p>
       )}
     </div>
