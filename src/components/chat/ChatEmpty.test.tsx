@@ -81,3 +81,15 @@ describe('ChatEmpty compact', () => {
     expect(queryByText(/Escrever um rascunho/)).toBeNull();
   });
 });
+
+describe('ChatEmpty keyboard transition', () => {
+  it('keeps the composer mounted when the keyboard opens', () => {
+    const tree = (compact: boolean) => <ChatEmpty onPrompt={() => {}} compact={compact}><textarea aria-label="composer" /></ChatEmpty>;
+    const { rerender, getByLabelText } = render(tree(false));
+    const before = getByLabelText('composer');
+    rerender(tree(true));
+    expect(getByLabelText('composer')).toBe(before);
+    rerender(tree(false));
+    expect(getByLabelText('composer')).toBe(before);
+  });
+});
