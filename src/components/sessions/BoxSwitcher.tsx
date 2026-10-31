@@ -93,7 +93,7 @@ export function BoxSwitcher({ userId, variant = 'block' }: { userId?: string; va
             </button>
             <button type="button" role="menuitem" onClick={s.startAdd} className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12.5px] text-neutral-300 hover:bg-neutral-800/60">
               <Icon name="plus" size={13} />
-              Adicionar máquina
+              Adicionar à Fleet
             </button>
           </div>
         </div>

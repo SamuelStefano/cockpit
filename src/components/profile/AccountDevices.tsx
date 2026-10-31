@@ -3,15 +3,15 @@ import { useBoxes } from '../../cockpit/useBoxes';
 import { Icon } from '../primitives';
 import { BoxDot } from '../sessions/BoxDot';
 
-// "Dispositivos" in the account menu: the machines this account reaches, the
+// "Fleet" in the account menu: the machines this account reaches, the
 // current one checked; picking another switches the Deck to it.
 export function AccountDevices({ onDone, onManage }: { onDone: () => void; onManage?: () => void }) {
   const { known, boxes, active, switchBox } = useBoxes();
   if (!known || boxes.length === 0) return null;
   return (
     <div className="mt-3 border-t border-neutral-800 pt-3">
-      <p className="text-[12px] font-medium text-neutral-500">Dispositivos</p>
-      <ul role="menu" aria-label="Dispositivos" className="mt-1 max-h-40 overflow-y-auto">
+      <p className="text-[12px] font-medium text-neutral-500">Fleet</p>
+      <ul role="menu" aria-label="Fleet" className="mt-1 max-h-40 overflow-y-auto">
         {boxes.map((b) => (
           <li key={b.id}>
             <button

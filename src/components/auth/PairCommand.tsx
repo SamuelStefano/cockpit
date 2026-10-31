@@ -22,7 +22,7 @@ function downloadInstaller(command: string) {
   const url = URL.createObjectURL(new Blob([windowsSetupFile(command)], { type: 'application/octet-stream' }));
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'Instalar Deck.cmd';
+  a.download = 'Install Fleet.cmd';
   a.click();
   URL.revokeObjectURL(url);
 }
