@@ -49,6 +49,20 @@ describe('decide', () => {
     expect(decide(i, [], [i], NOW, TRUSTED)).toEqual({ verdict: 'confirmed', reason: 'reportado por TaiGFS@gmail.com (confiável)', trusted: 'TaiGFS@gmail.com' });
   });
 
+  it('stays quiet on a routine kind from a trusted reporter while checks are green', () => {
+    for (const kind of ['login-refused', 'unclean-exit']) {
+      const i = inc(A, 0, 0, { kind, email: 'samuelstefanodocarmo@gmail.com' });
+      expect(decide(i, [], [i], NOW, TRUSTED).verdict).toBe('suppress');
+    }
+  });
+
+  it('still escalates a routine kind that persists or comes with a failing check', () => {
+    const long = inc(A, 11 * MIN, 0, { kind: 'login-refused', email: 'samuelstefanodocarmo@gmail.com' });
+    expect(decide(long, [], [long], NOW, TRUSTED).verdict).toBe('confirmed');
+    const fresh = inc(A, 0, 0, { kind: 'login-refused', email: 'samuelstefanodocarmo@gmail.com' });
+    expect(decide(fresh, [fail('ws_upgrade')], [fresh], NOW, TRUSTED).verdict).toBe('confirmed');
+  });
+
   it('keeps the trusted reporter on a synthetic outage', () => {
     const i = inc(A, 0, 0, { email: 'samuelstefanodocarmo@gmail.com' });
     expect(decide(i, [fail('ws_upgrade')], [i], NOW, TRUSTED)).toMatchObject({ verdict: 'confirmed', trusted: 'samuelstefanodocarmo@gmail.com' });

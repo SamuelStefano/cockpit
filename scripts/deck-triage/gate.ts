@@ -3,6 +3,7 @@ import type { Incident } from './incidents.ts';
 
 export const MULTI_ACCOUNT_WINDOW_MS = 10 * 60 * 1000;
 export const PERSIST_MS = 10 * 60 * 1000;
+const ROUTINE_KINDS = new Set(['login-refused', 'unclean-exit']);
 
 export type Verdict =
   | { verdict: 'confirmed'; reason: string; trusted?: string }
@@ -17,7 +18,9 @@ export type Verdict =
 export function decide(inc: Incident, synthFailing: Check[], all: Incident[], nowMs: number, trusted: ReadonlySet<string> = new Set()): Verdict {
   const t = inc.email && trusted.has(inc.email.toLowerCase()) ? inc.email : undefined;
   if (synthFailing.length) return { verdict: 'confirmed', reason: `checagem sintética falhando: ${synthFailing.map((c) => c.id).join(', ')}`, trusted: t };
-  if (t) return { verdict: 'confirmed', reason: `reportado por ${t} (confiável)`, trusted: t };
+  // With every check green these two are routine, not news: an expired login on a device and a planned restart.
+  const routine = ROUTINE_KINDS.has(inc.kind) && inc.lastAt - inc.firstAt < PERSIST_MS;
+  if (t && !routine) return { verdict: 'confirmed', reason: `reportado por ${t} (confiável)`, trusted: t };
   const accounts = new Set(all.filter((o) => o.kind === inc.kind && nowMs - o.lastAt <= MULTI_ACCOUNT_WINDOW_MS).map((o) => o.accountId));
   if (accounts.size >= 2) return { verdict: 'confirmed', reason: `${accounts.size} contas com ${inc.kind} em 10 min` };
   if (inc.lastAt - inc.firstAt >= PERSIST_MS) return { verdict: 'user-side', reason: `só esta conta, há ${Math.round((inc.lastAt - inc.firstAt) / 60_000)} min, com o servidor verde` };
