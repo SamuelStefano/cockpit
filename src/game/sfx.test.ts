@@ -25,10 +25,15 @@ const install = (Ctx: unknown) => { window.AudioContext = Ctx as typeof AudioCon
 const setHidden = (v: boolean) => Object.defineProperty(document, 'hidden', { configurable: true, get: () => v });
 
 describe('sfx', () => {
-  beforeEach(() => { localStorage.clear(); resetSfxForTests(); vi.useFakeTimers(); vi.setSystemTime(10_000); setHidden(false); });
+  beforeEach(() => { localStorage.clear(); resetSfxForTests(); savePref(GAME_SOUND_KEY, true); vi.useFakeTimers(); vi.setSystemTime(10_000); setHidden(false); });
   afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); setHidden(false); });
 
-  it('is on by default and plays with one shared context', () => {
+  it('is off by default', () => {
+    localStorage.clear();
+    expect(soundOn()).toBe(false);
+  });
+
+  it('plays with one shared context once enabled', () => {
     const { Ctx, created } = fakeCtx();
     install(Ctx);
     expect(soundOn()).toBe(true);
