@@ -6,6 +6,7 @@ export const STATE_LOOK: Record<string, { c: number; css: string; icon: string; 
   blocked: { c: 0xe5432f, css: '#ff6a55', icon: '▲', text: 'blocked' },
   silent: { c: 0x8a5cf6, css: '#b79bff', icon: '?', text: 'silent' },
   paused: { c: 0x8d9299, css: '#b5bac0', icon: '❚❚', text: 'paused' },
+  finished: { c: 0xe2b23c, css: '#e8c35a', icon: '◇', text: 'finished' },
   waiting: { c: 0x5a5a62, css: '#a7a39a', icon: '○', text: 'idle' },
   reviewing: { c: 0x5aa9e6, css: '#7cc0f2', icon: '◎', text: 'reviewing' },
   asleep: { c: 0x8d6a4a, css: '#d0a877', icon: 'z', text: 'out of quota' },

@@ -11,7 +11,9 @@ import { layoutWings, sectorRows, slotPosition } from './sectors';
 import type { AgentState, Decision, Floor, FloorAgent, FloorCrate, ModelFamily, SectorRow, Station, Wing } from './types';
 
 export const LIVE_AGENT_CAP = 18;
-export const RECENT_MS = 24 * 3600 * 1000;
+export const RECENT_MS = 2 * 3600 * 1000;
+export const FINISHED_MS = 30 * 60 * 1000;
+const IDLE_CAP = 6;
 export const CONTEXT_ALERT = 80;
 const MAX_CRATES_PER_STATUS = 8;
 
@@ -51,17 +53,26 @@ export function familyOf(model: string | null | undefined): ModelFamily {
 }
 
 const PREFIX_RE = /^\s*\[?([\p{L}][\p{L}\p{N}._-]{1,20})\]?\s*(?::|\s[-–—/]\s|\])/u;
+const GENERIC_AREA = /^(outros?|others?|general|geral|misc)$/i;
+const KEYWORDS: [RegExp, string][] = [[/\bitera/i, 'Itera'], [/\b(deck|cockpit|deckctl|canvas|relay|kanban)\b/i, 'Deck'], [/\bgrok/i, 'Grok'], [/\b(reel|post|carrossel|linkedin|campaigns?)\b/i, 'Content'], [/\bsupabase\b/i, 'Supabase']];
+const wingOf_ = (name: string) => ({ id: name.toLowerCase(), name: name[0].toUpperCase() + name.slice(1) });
+
 export function projectOf(title: string, area?: string): { id: string; name: string } {
-  const raw = area || PREFIX_RE.exec(title)?.[1];
-  if (!raw) return { id: 'general', name: 'General' };
-  return { id: raw.toLowerCase(), name: raw[0].toUpperCase() + raw.slice(1) };
+  if (area && !GENERIC_AREA.test(area)) return wingOf_(area);
+  const prefix = PREFIX_RE.exec(title)?.[1];
+  if (prefix && !GENERIC_AREA.test(prefix)) return wingOf_(prefix);
+  const hit = KEYWORDS.find(([re]) => re.test(title));
+  return hit ? wingOf_(hit[1]) : { id: 'general', name: 'General' };
 }
 
 export function pickSessions(input: Pick<LiveInput, 'sessions' | 'running' | 'now'>): { shown: LiveSession[]; elsewhere: number } {
-  const live = input.sessions.filter((s) => !isCronPing(s) && (input.running.has(s.id) || s.waiting || input.now - s.mtime < RECENT_MS));
-  const rank = (s: LiveSession) => (input.running.has(s.id) || s.waiting ? 1 : 0);
-  const sorted = [...live].sort((a, b) => rank(b) - rank(a) || b.mtime - a.mtime);
-  return { shown: sorted.slice(0, LIVE_AGENT_CAP), elsewhere: Math.max(0, sorted.length - LIVE_AGENT_CAP) };
+  const live = input.sessions.filter((s) => !isCronPing(s));
+  const active = (s: LiveSession) => input.running.has(s.id) || !!s.waiting;
+  const hot = live.filter(active).sort((a, b) => b.mtime - a.mtime);
+  // Idle desks are context, not news: a few recent ones, so running work stays the loudest thing on the floor.
+  const recent = live.filter((s) => !active(s) && input.now - s.mtime < RECENT_MS).sort((a, b) => b.mtime - a.mtime).slice(0, IDLE_CAP);
+  const all = [...hot, ...recent];
+  return { shown: all.slice(0, LIVE_AGENT_CAP), elsewhere: Math.max(0, live.filter((s) => active(s) || input.now - s.mtime < RECENT_MS).length - Math.min(all.length, LIVE_AGENT_CAP)) };
 }
 
 // An agent keeps its desk while it stays on the floor: wings stay in first-seen order and a slot
@@ -173,7 +184,8 @@ export function adaptLive(input: LiveInput, prev: Placement): LiveFloor {
     const pct = stat?.contextTokens ? ctxPct({ contextTokens: stat.contextTokens, model: stat.model }) : null;
     const isRunning = input.running.has(s.id);
     const asking = !!s.waiting && input.answered[s.id] !== s.mtime;
-    const state: AgentState = asking ? 'blocked' : isRunning ? 'working' : 'waiting';
+    const finished = !asking && !isRunning && input.now - s.mtime < FINISHED_MS;
+    const state: AgentState = asking ? 'blocked' : isRunning ? 'working' : finished ? 'finished' : 'waiting';
     const id = `s-${s.id}`;
     if (asking) {
       decisions.push(questionDecision(s, input, pos, id));
@@ -181,7 +193,7 @@ export function adaptLive(input: LiveInput, prev: Placement): LiveFloor {
     } else if (pct !== null && pct >= CONTEXT_ALERT) {
       decisions.push({ id: `ctx-${s.id}`, type: 'context', title: s.title || 'Untitled session', what: `Context at ${pct}%`, why: 'Hand off from the chat', born: stat?.lastAt ?? s.mtime, pos, focusAgentId: id, opts: [{ label: 'Open chat', hint: 'hand off there', rec: true }], actions: [{ kind: 'open', sessionId: s.id }] });
     }
-    const now = asking ? 'Waiting for your answer' : isRunning ? 'Running a turn' : 'Idle';
+    const now = asking ? 'Waiting for your answer' : isRunning ? 'Running a turn' : finished ? `Finished ${Math.max(1, Math.round((input.now - s.mtime) / 60000))}m ago, read it` : 'Idle';
     return {
       id, name: s.title || 'Untitled session', family: familyOf(model), modelLabel: model ? shortModel(model) : 'unknown', wingId: wing.id, sector: 'build', x: pos.x, z: pos.z, state,
       line: now, sessionId: s.id, ctx: pct === null ? null : pct / 100, phase: idx * 1.7,

@@ -5,7 +5,7 @@ import { box, cyl, disposeTree, ink, inkMat, newMat, PAL } from './kit';
 import { drawMonitor, H, STATE_LOOK, W } from './monitor';
 
 const FAMILY_COLOR: Record<ModelFamily, number> = { opus: PAL.terra, sonnet: PAL.blue, grok: PAL.char, haiku: 0x58a89a, codex: PAL.violet, unknown: 0x8d9299 };
-const FACES: Record<string, string> = { working: '•_•', thinking: '-_o', blocked: '>_<', silent: 'x_x', paused: 'u_u', waiting: '-_-', reviewing: 'o_o', cheer: '^o^', asleep: 'z_z', walking: '•‿•' };
+const FACES: Record<string, string> = { working: '•_•', thinking: '-_o', blocked: '>_<', silent: 'x_x', paused: 'u_u', waiting: '-_-', finished: '^_-', reviewing: 'o_o', cheer: '^o^', asleep: 'z_z', walking: '•‿•' };
 
 function limb(body: THREE.Object3D, x: number, y: number, z: number, l: number, m: THREE.Material): THREE.Group {
   const p = new THREE.Group();
@@ -149,6 +149,7 @@ export class AgentView {
     if (s === 'silent') { rx = 0.35; hx = 0.75; al = -0.1; ar = -0.1; }
     if (s === 'asleep') { rx = 0.5; hx = 0.9; al = -1.5; ar = -1.5; by += Math.sin(T * 1.6) * 0.03; }
     if (s === 'paused') { al = 0; ar = 0; }
+    if (s === 'finished') { rx = -0.22; hx = -0.2; al = -0.1; ar = -2.6 + Math.sin(T * 3 + ph) * 0.2; hz = Math.sin(T * 0.8 + ph) * 0.15; }
     if (s === 'waiting') { hz = Math.sin(T * 0.5 + ph) * 0.22; al = -0.25; ar = -0.25; rx = -0.1; by += Math.sin(T * 1.6 + ph) * 0.025; }
     if (s === 'cheer') { by = 0.2 + Math.abs(Math.sin(T * 8)); tz = 2.7; ll = Math.sin(T * 9) * 0.5; lr = -ll; al = -2.9 + Math.sin(T * 14) * 0.3; ar = -2.9 - Math.sin(T * 14) * 0.3; hx = -0.3; }
     let face = s;

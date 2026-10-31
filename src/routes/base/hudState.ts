@@ -35,6 +35,7 @@ export interface HudState {
   paused: boolean;
   awaiting: number;
   elsewhere: number;
+  finished: number;
   agentsShown: number;
   sectors: SectorRow[];
   dim: SectorId | null;
@@ -59,7 +60,7 @@ export interface HudState {
 export type { LogLine };
 
 export const emptyHud = (mode: BaseMode): HudState => ({
-  mode, alerts: [], clock: 0, pressure: 0, streak: 0, xp: 0, level: 1, speed: 1, paused: false, awaiting: 0, elsewhere: 0, agentsShown: 0, sectors: [], dim: null, wings: [], tickets: [],
+  mode, alerts: [], clock: 0, pressure: 0, streak: 0, xp: 0, level: 1, speed: 1, paused: false, awaiting: 0, elsewhere: 0, finished: 0, agentsShown: 0, sectors: [], dim: null, wings: [], tickets: [],
   inspect: null, journey: null, funnel: null, feed: [], rules: [], ruleOffer: null, toast: '', since: null, end: null, composer: false, history: false, pins: [], sound: 'off', replay: null, focused: false,
 });
 

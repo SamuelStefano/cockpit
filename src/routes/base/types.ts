@@ -1,5 +1,5 @@
 export type BaseMode = 'live' | 'practice';
-export type AgentState = 'working' | 'thinking' | 'blocked' | 'silent' | 'paused' | 'waiting' | 'reviewing' | 'asleep';
+export type AgentState = 'working' | 'thinking' | 'blocked' | 'silent' | 'paused' | 'waiting' | 'reviewing' | 'asleep' | 'finished';
 export type ModelFamily = 'opus' | 'sonnet' | 'haiku' | 'grok' | 'codex' | 'unknown';
 export type SectorId = 'intake' | 'build' | 'ship' | 'ops' | 'archive';
 export type MonitorTab = 'split' | 'preview' | 'diff' | 'terminal' | 'trace';

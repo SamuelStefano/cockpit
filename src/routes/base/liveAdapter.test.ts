@@ -108,3 +108,19 @@ describe('nextCronRun', () => {
     expect(nextCronRun({ ...base, schedule: { kind: 'interval', everyMinutes: 5 } }, NOW)).toBe(NOW + 300000);
   });
 });
+
+describe('live floor grouping from the real test', () => {
+  it('ignores generic areas and infers the project from the title', () => {
+    expect(projectOf('Revisar o kanban do deck', 'Outros').id).toBe('deck');
+    expect(projectOf('Bug grave no iterahq.dev').id).toBe('itera');
+    expect(projectOf('Algo sem projeto', 'Others').id).toBe('general');
+  });
+  it('puts running sessions first and caps idle desks', () => {
+    const now = 1e9;
+    const sessions = Array.from({ length: 12 }, (_, i) => ({ id: `i${i}`, title: 'Idle work', mtime: now - 1000 * (i + 1) }));
+    const old = { id: 'r', title: 'Old but running', mtime: now - 9e8 };
+    const { shown } = pickSessions({ sessions: [...sessions, old], running: new Set(['r']), now });
+    expect(shown[0].id).toBe('r');
+    expect(shown).toHaveLength(7);
+  });
+});

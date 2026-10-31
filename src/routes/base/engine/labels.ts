@@ -55,11 +55,11 @@ export class Labels {
     for (const a of agents) {
       const l = this.agents.get(a.id)!, st = STATE_LOOK[a.state] ?? STATE_LOOK.waiting, alarm = ALARM.has(a.state);
       l.place(a.x, 5.3, a.z + 0.5, cam, w, h);
-      l.show(!focused && (near || alarm));
+      l.show(!focused && (near || alarm || (!!a.sessionId && (a.state === 'working' || a.state === 'finished'))));
       l.el.classList.toggle('alarm', alarm);
       l.fill(`${near}|${a.state}|${a.name}|${a.modelLabel}|${a.line}`, (el) => {
         add(el, 'i', `${st.icon} `, alarm ? undefined : st.css);
-        add(el, 'b', a.name.slice(0, 28));
+        add(el, 'b', a.name.slice(0, near ? 28 : 20));
         if (near) { add(el, 'small', ` ${a.modelLabel}`); el.appendChild(document.createElement('br')); add(el, 'u', a.line.slice(0, 30)); }
       });
     }

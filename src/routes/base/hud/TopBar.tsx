@@ -20,6 +20,7 @@ export function TopBar({ hud, engine }: { hud: HudState; engine: BaseEngine }) {
         </>
       )}
       <b className={hud.awaiting ? 'base-hot' : ''}>{hud.awaiting ? `${hud.awaiting} await${hud.awaiting === 1 ? 's' : ''} you` : 'Nothing awaits you'}</b>
+      {!practice && hud.finished > 0 && <span className="base-streak">{hud.finished} finished to read</span>}
       {!practice && <span className="base-dim">{hud.agentsShown} on the floor{hud.elsewhere ? ` · +${hud.elsewhere} elsewhere` : ''}</span>}
       {practice && hud.streak > 1 && <span className="base-streak">×{hud.streak} streak</span>}
       {practice && <span className="base-clock">{fmtClock(hud.clock)}</span>}
