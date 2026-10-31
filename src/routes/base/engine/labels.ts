@@ -57,9 +57,12 @@ export class Labels {
       l.place(a.x, 5.3, a.z + 0.5, cam, w, h);
       l.show(!focused && (near || alarm || (!!a.sessionId && (a.state === 'working' || a.state === 'finished'))));
       l.el.classList.toggle('alarm', alarm);
+      l.el.classList.toggle('far', !near && !alarm);
       l.fill(`${near}|${a.state}|${a.name}|${a.modelLabel}|${a.line}`, (el) => {
         add(el, 'i', `${st.icon} `, alarm ? undefined : st.css);
-        add(el, 'b', a.name.slice(0, near ? 28 : 20));
+        // Far away the wing plaque already names the project and desks sit ~75px apart.
+        if (near || alarm) add(el, 'b', a.name.slice(0, near ? 28 : 20));
+        else if (a.state === 'working') add(el, 'b', a.name.replace(/^[^:]{1,20}:\s*/, '').slice(0, 11));
         if (near) { add(el, 'small', ` ${a.modelLabel}`); el.appendChild(document.createElement('br')); add(el, 'u', a.line.slice(0, 30)); }
       });
     }
