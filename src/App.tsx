@@ -144,7 +144,7 @@ function CockpitBody() {
 
   const { drawer, setDrawer, termSheet, setTermSheet, palette, setPalette, help, setHelp } = useOverlays(route);
   useEdgeSwipeOpen(isMobile && !drawer, () => setDrawer(true));
-  useGameSignals(route, palette);
+  useGameSignals(route, palette, cockpit.canvasBoard.cards);
   const [focusSignal, setFocusSignal] = useState(0);
 
   // Citar uma mensagem: vira blockquote no topo do rascunho atual (trunca longos).

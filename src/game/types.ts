@@ -1,6 +1,7 @@
 export type GameEventType =
   | 'turn_done' | 'turn_error' | 'message_sent' | 'session_new'
-  | 'route_visit' | 'palette_open' | 'egg_found' | 'fish_caught';
+  | 'route_visit' | 'palette_open' | 'egg_found' | 'fish_caught'
+  | 'pr_merged' | 'task_done';
 
 export interface GameEvent {
   type: GameEventType;

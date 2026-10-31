@@ -22,6 +22,8 @@ export const QUESTS: QuestDef[] = [
   { id: 'palette-1', title: 'Abra a paleta de comandos', goal: 1, xp: 15, step: on('palette_open') },
   { id: 'palette-3', title: 'Use a paleta 3 vezes', goal: 3, xp: 25, step: on('palette_open') },
   { id: 'fish-3', title: 'Pesque 3 coisas com o Bit', goal: 3, xp: 25, step: on('fish_caught') },
+  { id: 'merge-1', title: 'Mergeie um PR', goal: 1, xp: 45, step: on('pr_merged') },
+  { id: 'task-2', title: 'Conclua 2 tarefas do quadro', goal: 2, xp: 40, step: on('task_done') },
   { id: 'early-10', title: 'Termine um turno antes das 10h', goal: 1, xp: 30, step: turnWhen(({ now }) => now.getHours() < 10) },
   { id: 'late-18', title: 'Termine um turno depois das 18h', goal: 1, xp: 30, step: turnWhen(({ now }) => now.getHours() >= 18) },
   { id: 'parallel-2', title: 'Deixe 2 turnos rodando juntos', goal: 1, xp: 35, step: turnWhen(({ event }) => (event.concurrent ?? 0) >= 2) },

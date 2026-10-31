@@ -135,7 +135,7 @@ describe('time-based achievements', () => {
 describe('daily quests', () => {
   it('resets progress on a new day and gives the bonus when all 3 are done', () => {
     let s = emptyState();
-    const events: GameEvent[] = [done, { type: 'message_sent' }, { type: 'session_new' }, { type: 'route_visit', route: '/x' }, { type: 'palette_open' }, { type: 'fish_caught' }];
+    const events: GameEvent[] = [done, { type: 'message_sent' }, { type: 'session_new' }, { type: 'route_visit', route: '/x' }, { type: 'palette_open' }, { type: 'fish_caught' }, { type: 'pr_merged' }, { type: 'task_done' }];
     let bonus = false;
     for (let round = 0; round < 10; round++) {
       for (const ev of events) {

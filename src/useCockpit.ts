@@ -13,6 +13,7 @@ import { onAuthClose, tokenUnchangedAndLive, RELAY_AUTH_RETRY_MS, shouldRefreshS
 import { TOKEN_EXPIRED_CLOSE, TOKEN_EXPIRED_EVENT } from './lib/auth-events';
 import { requestNotifyPermission, notifyTurnDone, notifyTurnError } from './lib/notify';
 import { recordGameEvent } from './game/game-bus';
+import { toolGameEvent } from './game/real-events';
 import { wsBase, withBox, wsUrlWithToken, newId, metaToSession, mergeServerSessions, adoptClaimedRow, dedupById, mergeSeen, isCronPing } from './cockpit/session';
 import { setTtsSender, handleTtsMsg } from './cockpit/tts-bus';
 import { computeStalled, computeUpdated } from './cockpit/signals';
@@ -1134,6 +1135,8 @@ export function useCockpit(): Cockpit {
           updateThread(key, (prev) => [...prev, { id, role: 'assistant', blocks: [], ts: Date.now() }]);
         }
         patchRunMsg(key, (b) => upsertTool(b, msg.tool));
+        const gameEvent = toolGameEvent(msg.tool);
+        if (gameEvent) recordGameEvent(gameEvent);
         return;
       }
       case 'rate': {

@@ -3,7 +3,9 @@ import { ACHIEVEMENTS } from './achievements';
 import { questsForDay, QUEST_BONUS_XP } from './quests';
 import { isProgrammersDay } from './eggs';
 
-export const XP = { turnDone: 25, turnError: 2, message: 3, session: 5, route: 3, fish: 2, rareFish: 20, egg: 40, achievement: 25, programmersDay: 100 } as const;
+export const XP = { turnDone: 25, turnError: 2, message: 3, session: 5, route: 3, fish: 2, rareFish: 20, egg: 40, achievement: 25, programmersDay: 100, prMerged: 60, taskDone: 40 } as const;
+// Anti-farming: a merge or a card toggled back and forth pays at most this many times a day.
+export const REAL_XP_DAILY_CAP = 5;
 export const LIGHT_XP_DAILY_CAP = 20;
 
 const TITLES: { from: number; title: string }[] = [
@@ -173,6 +175,15 @@ export function applyEvent(prev: GameState, event: GameEvent, now: Date): { stat
       light(XP.fish);
       if (event.rare) gain(XP.rareFish);
       break;
+    case 'pr_merged':
+    case 'task_done': {
+      const cap = `cap:${event.type}`;
+      const paid = s.daily.progress[cap] ?? 0;
+      if (paid >= REAL_XP_DAILY_CAP) break;
+      s.daily.progress[cap] = paid + 1;
+      gain(event.type === 'pr_merged' ? XP.prMerged : XP.taskDone);
+      break;
+    }
     case 'egg_found':
       if (event.egg && !s.eggs.includes(event.egg)) { s.eggs.push(event.egg); gain(XP.egg); }
       break;
