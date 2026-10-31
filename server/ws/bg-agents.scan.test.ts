@@ -67,3 +67,17 @@ describe('scanSession incremental reads', () => {
     expect(scanSession(SID, now)).toEqual([parseAgentFile('a1', readFileSync(file, 'utf8'), statSync(file).mtimeMs, now)]);
   });
 });
+
+describe('agentDescription', () => {
+  it('reads the Task description and tolerates a missing file', async () => {
+    const { mkdtempSync, mkdirSync, writeFileSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const { agentDescription } = await import('./bg-agents');
+    const root = mkdtempSync(join(tmpdir(), 'bg-desc-'));
+    mkdirSync(join(root, 's1', 'subagents'), { recursive: true });
+    writeFileSync(join(root, 's1', 'subagents', 'agent-a1.meta.json'), JSON.stringify({ description: 'Arcade v2' }));
+    expect(agentDescription('s1', 'a1', root)).toBe('Arcade v2');
+    expect(agentDescription('s1', 'nope', root)).toBeUndefined();
+  });
+});

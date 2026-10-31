@@ -1,4 +1,4 @@
-import { closeSync, openSync, readSync, readdirSync, statSync } from 'node:fs';
+import { closeSync, openSync, readFileSync, readSync, readdirSync, statSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { projectSlug } from '../config';
@@ -161,6 +161,25 @@ function scanFile(path: string, id: string, now: number): BgAgent | null {
   return agentFrom(acc, id, st.mtimeMs, now);
 }
 
+// The description given to the Task tool ("Arcade v2") reads better than the first
+// line of its prompt, and the CLI keeps it beside the transcript. Absent or unreadable
+// on older CLIs: the prompt-derived label stays.
+const descriptions = new Map<string, { text?: string; at: number }>();
+const DESCRIPTION_RETRY_MS = 60_000;
+export function agentDescription(sessionId: string, agentId: string, root = join(homedir(), '.claude', 'projects', projectSlug(homedir())), now = Date.now()): string | undefined {
+  const path = join(root, sessionId, 'subagents', `agent-${agentId}.meta.json`);
+  const known = descriptions.get(path);
+  // This runs every 2 s per agent: a miss must not hit the disk on every scan.
+  if (known && (known.text || now - known.at < DESCRIPTION_RETRY_MS)) return known.text;
+  let text: string | undefined;
+  try {
+    const d = JSON.parse(readFileSync(path, 'utf8')).description;
+    if (typeof d === 'string' && d.trim()) text = d.trim();
+  } catch { /* falls back to the prompt label */ }
+  descriptions.set(path, { text, at: now });
+  return text;
+}
+
 // Exported for the Orchestrator's "Em andamento" panel (canvas/orchestrator-
 // activity.ts): its sessionId is never in `threads` (it's an interactive CLI
 // in a tmux pane, not one of our own runs), so scanActiveBgAgents' own
@@ -180,7 +199,7 @@ export function scanSession(sessionId: string, now: number): BgAgent[] {
     listed.add(path);
     let a: BgAgent | null;
     try { a = scanFile(path, id, now); } catch { fileCache.delete(path); continue; }
-    if (a) out.push(a);
+    if (a) out.push({ ...a, label: agentDescription(sessionId, id) ?? a.label });
   }
   for (const [path, c] of fileCache) {
     if ((path.startsWith(dir + '/') && !listed.has(path)) || now - c.seenAt > CACHE_IDLE_MS) fileCache.delete(path);

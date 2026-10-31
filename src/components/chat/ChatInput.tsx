@@ -63,6 +63,7 @@ interface ChatInputProps {
   queueReleaseAt?: number;
   onToggleQueuePause?: () => void;
   paused?: boolean;
+  agentOut?: { name: string; use: () => void };
   quotaResetsAt?: number | null;
   history: string[];
   pendingConfirm?: () => void;
@@ -73,7 +74,7 @@ interface ChatInputProps {
 }
 
 export function ChatInput(props: ChatInputProps) {
-  const { disabled, placeholder, onStop, value, setValue, mode, setMode, caps, bypass, setBypass, model, setModel, modelLocked, models, onRefreshModels, effort, setEffort, mcpServers, selectedMcps, setSelectedMcps, attachments, onRemoveAttachment, onOpenAttachment, attThumbs, onAttThumb, queued, queuedIds, queuedAtts, queuedModels, onRunQueuedBg, onRunQueuedNow, onCancelQueueAt, onEditQueuedAt, onMoveQueued, queueHeld = false, onResumeQueue, queuePaused = false, queueReleaseAt = 0, onToggleQueuePause, paused = false, quotaResetsAt, onCall, focusMode } = props;
+  const { disabled, placeholder, onStop, value, setValue, mode, setMode, caps, bypass, setBypass, model, setModel, modelLocked, models, onRefreshModels, effort, setEffort, mcpServers, selectedMcps, setSelectedMcps, attachments, onRemoveAttachment, onOpenAttachment, attThumbs, onAttThumb, queued, queuedIds, queuedAtts, queuedModels, onRunQueuedBg, onRunQueuedNow, onCancelQueueAt, onEditQueuedAt, onMoveQueued, queueHeld = false, onResumeQueue, queuePaused = false, queueReleaseAt = 0, onToggleQueuePause, paused = false, agentOut, quotaResetsAt, onCall, focusMode } = props;
   const hasAtt = attachments.length > 0;
   const attUploading = attachments.some((a) => a.uploading);
   const resetLabel = quotaResetsAt ? new Date(quotaResetsAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : null;
@@ -93,6 +94,7 @@ export function ChatInput(props: ChatInputProps) {
       {paused && (
         <ComposerNotice icon="clock">
           Tokens do plano esgotados — chat pausado{resetLabel ? ` até ${resetLabel}` : ''}. Nada é perdido: a fila retoma sozinha quando a janela resetar.
+          {agentOut && <button type="button" onClick={agentOut.use} className="ml-2 font-semibold underline underline-offset-2">Continuar com {agentOut.name}</button>}
         </ComposerNotice>
       )}
       </FocusCollapse>

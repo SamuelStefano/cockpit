@@ -7,7 +7,7 @@ import { RouteFallback } from './RouteFallback';
 import { ChunkErrorBoundary } from './ChunkErrorBoundary';
 import {
   Skills, Pontos,
-  Graph, Canvas, Conexoes, Configuracoes, Docs, DesignSystem, Onboarding, EquipePage, Agente, Arcade,
+  Graph, Canvas, Sala, Conexoes, Configuracoes, Docs, DesignSystem, Onboarding, EquipePage, Agente, Base, Arcade,
 } from './lazyRoutes';
 import type { ChatPanelProps } from '../components/chat/chat-panel-props';
 import type { TerminalsPanelProps } from '../components/Terminals';
@@ -109,6 +109,25 @@ export function RouteContent({ route, agentRoute, skillRoute, isMobile, isAdmin,
         <Graph connected={connected} graphs={c.graphs} loaded={c.graphsLoaded} openId={c.graphOpenId} opening={c.graphOpening} graph={c.graphData}
           building={c.graphBuilding} buildLog={c.graphBuildLog} buildError={c.graphBuildError} querying={c.graphQuerying} queryResult={c.graphQueryResult} queryHistory={c.graphQueryHistory}
           onGraphList={c.onGraphList} onGraphOpen={c.onGraphOpen} onGraphBuild={c.onGraphBuild} onClearBuildError={c.onClearBuildError} onGraphDelete={c.onGraphDelete} onGraphQuery={c.onGraphQuery} onGraphNodeOp={c.onGraphNodeOp} />
+      );
+    }
+    if (route === '/sala' && isAdmin) {
+      return (
+        <Sala
+          connected={connected} bots={c.bots} sessions={c.sessions} running={c.running} stats={c.stats}
+          computers={c.botComputers} peeks={c.sessionPeeks} onComputer={c.onBotComputerGet} onPeek={c.onSessionPeek}
+          onOpenSession={onOpenSession} />
+      );
+    }
+    if (route === '/base' && isAdmin) {
+      return (
+        <Base source={{
+          connected, sessions: c.sessions, running: c.runningAnywhere, termStats: c.canvasTermStats, threads: c.threads, peeks: c.sessionPeeks,
+          teamQuestions: c.pendingQuestions, graph: c.canvasGraph, board: c.canvasBoard, boardLoaded: c.canvasGraph !== null,
+          stats: c.stats, crons: c.cronsLoaded ? c.crons : null, mcpServers: c.mcpServers.length ? c.mcpServers : null,
+          onCtxStats: c.onCanvasCtxStats, onPeek: c.onSessionPeek, onLoadThread: c.onLoadThread, onCanvasGet: c.onCanvasGet, onCronsGet: c.onCronsGet,
+          onSendTo: c.onSendTo, onStop: c.onStop, onOpenSession,
+        }} />
       );
     }
     if (route === '/canvas' && isAdmin) {

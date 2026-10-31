@@ -1,7 +1,7 @@
 import type { PlanUsage, TeamBot } from '../../../shared/protocol';
 import { usageRows, type UsageRow } from './usage-rows';
-import { agentIdOf } from '../../../shared/agents';
-import { botDraftKey } from '../../../shared/team';
+import { agentIdOf, billsClaudePlan } from '../../../shared/agents';
+import { botDraftKey, botIdFromKey } from '../../../shared/team';
 
 export type UsageAgent = 'claude' | 'grok';
 
@@ -10,17 +10,34 @@ interface UsageAgentCtx {
   bots?: TeamBot[];
 }
 
-// Which account the header chip shows: the one the agent on screen spends. In
-// an agent's thread the bot's own model decides — the composer model there is
-// whatever the last thread pinned, not who answers this thread. Only Grok has its own
-// meter; every other agent (and every Claude model) stays on the Claude plan.
+// Same match as agentIdForSession: bound UUID, draft key, or bot-<id>. The
+// previous `sessionId ?? draftKey === activeId` missed a Grok bot whose
+// sessionId was already set while the UI was still on new-bot-<id>.
+function botForActive(bots: TeamBot[] | undefined, activeId: string | undefined): TeamBot | undefined {
+  if (!activeId || !bots?.length) return undefined;
+  const bound = bots.find((b) => b.sessionId === activeId || botDraftKey(b.id) === activeId);
+  if (bound) return bound;
+  const fromKey = botIdFromKey(activeId);
+  return fromKey ? bots.find((b) => b.id === fromKey) : undefined;
+}
+
+// In an agent's thread the bot's own model decides — the composer model there is
+// whatever the last thread pinned, not who answers this thread.
+export function effectiveModel(model: string | undefined, ctx: UsageAgentCtx = {}): string | undefined {
+  return botForActive(ctx.bots, ctx.activeId)?.model ?? model;
+}
+
+// Which account the header chip shows. Only Grok has its own meter; every other
+// agent (and every Claude model) stays on the Claude plan.
 export function usageAgentOf(model: string | undefined, ctx: UsageAgentCtx = {}): UsageAgent {
-  let m = model;
-  if (ctx.activeId) {
-    const bot = ctx.bots?.find((b) => (b.sessionId ?? botDraftKey(b.id)) === ctx.activeId);
-    if (bot) m = bot.model;
-  }
+  const m = effectiveModel(model, ctx);
   return m && agentIdOf(m) === 'grok' ? 'grok' : 'claude';
+}
+
+// The composer lock is the Claude window. An ACP thread (Grok, and the Equipe
+// bots pinned to it) keeps sending when that window is full.
+export function claudeQuotaApplies(model: string | undefined, ctx: UsageAgentCtx = {}): boolean {
+  return billsClaudePlan(effectiveModel(model, ctx));
 }
 
 export interface UsageReading {

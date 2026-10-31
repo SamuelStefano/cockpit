@@ -7,7 +7,7 @@ import { runAgent } from '../agents/acp-run';
 import { runByo } from '../agents/byo-run';
 import { byoModelOf } from '../../shared/byo-providers';
 import { restrictedModelError, stripRestricted } from '../engine/restricted-profile';
-import { agentIdOf, isAgentModel } from '../../shared/agents';
+import { agentIdOf, billsClaudePlan, isAgentModel } from '../../shared/agents';
 import { CONFIG } from '../config';
 import type { Role } from '../auth';
 import { broadcast, send } from './broadcast';
@@ -270,20 +270,19 @@ export function drainParked(): void {
   // Clientes só sabem do cooldown se forem avisados na virada.
   if (noteQuotaTransition(hold)) broadcastQueue();
   if (isQueuePaused()) return; // pausa manual do usuário: segura tudo até retomar
-  if (authHold()) return;      // dead OAuth login: every fired prompt would die until /login
-  if (hold) return;            // sem token: o turno morreria no limite e o prompt seria queimado
   // Janela recém-virada: em 04/09 uma sessão de 631k subiu 1 MINUTO após o reset e
   // já tinha comido 0,77M do ciclo novo quando o Samuel abriu o Deck. O #519
   // espalha a fila pelo tick de 30s; este cooldown dá ao poll de usage (60s) tempo
-  // de trazer o número novo antes do primeiro disparo.
-  if (inResetCooldown()) return;
+  // de trazer o número novo antes do primeiro disparo. A cota é do Claude: um item
+  // de agente externo (Grok) segue, porque a conta dele não está nessa janela.
   let fired = 0;
   for (const { sessionKey, first } of parkedHeads()) {
     if (fired >= MAX_DRAIN_PER_PASS) break;
     // Reavaliado a cada disparo: o turno que acabou de subir pode ter estourado a
     // janela, e o teto lido só no topo do dreno deixaria o resto da fila subir em
-    // cima de uma quota que já acabou.
-    if (quotaHold()) break;
+    // cima de uma quota que já acabou. Item de agente externo não gasta essa janela.
+    // Same for a dead OAuth login: every Claude prompt would die until /login, an agent's would not.
+    if (billsClaudePlan(first.model) && (authHold() || quotaHold() || inResetCooldown())) continue;
     if (first.held) continue;                   // bateu o teto de tentativas: espera o usuário mandar retomar
     // Turno parou numa pergunta: o translate mata o run pra o card ficar respondível,
     // então a sessão fica ociosa e o drainer a via como livre. O item subia como se
@@ -316,7 +315,7 @@ export function drainParked(): void {
     // Só quota (sem janela) e cold-busy (transitório) seguram — e em silêncio, que
     // o próximo tick resolve.
     const pre = ctxVerdict({ sessionId: first.resumeId, sessionKey, usage: getLastPlanUsage() });
-    if (pre.kind === 'quota' || pre.kind === 'cold-busy') continue;
+    if (billsClaudePlan(first.model) && (pre.kind === 'quota' || pre.kind === 'cold-busy')) continue;
     if (liveKey) {
       if (deliverIntoBgWait(liveKey, sessionKey)) fired++;
       continue;
@@ -440,8 +439,10 @@ export type BgRunReject = 'sem-item' | 'sem-contexto' | 'sem-quota' | 'sem-slot'
 export function runParkedInBackground(
   sessionKey: string, id: string, role?: Role, model?: string, attachRecovery = true, enforceHardCtxCap = false, flowHop?: number,
 ): { forkId: string } | { reject: BgRunReject } {
-  if (quotaHold()) return { reject: 'sem-quota' };
   const peek = findParked(sessionKey, id);
+  // Sem item ainda conta como cota do Claude: a recusa antiga era 'sem-quota'
+  // antes de olhar a fila, e um modelo externo explícito é o único furo.
+  if (quotaHold() && billsClaudePlan(model ?? peek?.model)) return { reject: 'sem-quota' };
   if (!peek) return { reject: 'sem-item' };
   // O fork LÊ o transcript inteiro do pai: é cold-start do tamanho da sessão de
   // origem, não um turno novo barato. Ainda assim o teto de contexto não barra —
@@ -449,7 +450,7 @@ export function runParkedInBackground(
   // envio manual. Quota e cold-busy seguram (janela de verdade acabando).
   const v = ctxVerdict({ sessionId: peek.resumeId, usage: getLastPlanUsage() });
   if (enforceHardCtxCap && v.kind === 'hard') return { reject: 'ctx-grande' };
-  if (v.kind === 'quota' || v.kind === 'cold-busy') return { reject: 'sem-quota' };
+  if (billsClaudePlan(model ?? peek.model) && (v.kind === 'quota' || v.kind === 'cold-busy')) return { reject: 'sem-quota' };
   // Sem transcript não há o que forkar, e rodar como turno novo perderia justamente
   // o contexto que é o motivo do disparo.
   const parent = resumableId(peek.resumeId);
@@ -493,7 +494,8 @@ export type NowRunReject = 'sem-item' | 'segurado' | 'fila-pausada' | 'sem-quota
 // pegava o item no tick seguinte, com a UI do index sem ver turno nenhum.
 export function runParkedNow(sessionKey: string, id: string, role?: Role): { ok: true } | { reject: NowRunReject } {
   if (isQueuePaused()) return { reject: 'fila-pausada' };
-  if (quotaHold()) return { reject: 'sem-quota' };
+  const queued = findParked(sessionKey, id);
+  if (quotaHold() && billsClaudePlan(queued?.model)) return { reject: 'sem-quota' };
   // Pergunta pendente: o drainer ignora a sessão até a resposta, então promover e
   // matar o turno deixaria o item no topo sem nada subir. Recusa aqui em vez de
   // limpar o latch: abrir mão do card é decisão explícita do usuário (queue-force).
@@ -982,6 +984,9 @@ export function startRun(o: StartRunOptions): 'pane' | 'rejected' | undefined {
       // Teto de tokens: um veredito só pro fechamento inteiro (devolver o item
       // drenado, segurar as filas e não retomar em cima do limite).
       const hold = quotaHold();
+      // A cota estourada é a do Claude. Um turno de Grok que fecha no meio dela
+      // ainda pode drenar o que o usuário mandou em seguida.
+      const claudeHeld = hold > 0 && billsClaudePlan(thread.params.model);
       // Turno que subiu da fila e morreu no limite sem consumir o prompt: devolve o
       // item pro topo em vez de perdê-lo (era o prompt "queimado" do bug).
       const parked = thread.parked;
@@ -1004,7 +1009,7 @@ export function startRun(o: StartRunOptions): 'pane' | 'rejected' | undefined {
       // o que sobrou. Sem tentativa contada (ver requeueParked).
       if (parked && thread.budgetStopped) {
         requeueParked(thread.parkedFrom ?? sessionKey, parked, false);
-      } else if (parked && (!produced || authBurned || burnedByQuota({ limited: hold > 0, tools: thread.tools.length, text: thread.text }))) {
+      } else if (parked && (!produced || authBurned || burnedByQuota({ limited: claudeHeld, tools: thread.tools.length, text: thread.text }))) {
         requeueParked(thread.parkedFrom ?? sessionKey, parked);
       }
       // Turno que morreu no meio sem dizer nada: avisa ANTES do 'done' (a bolha de
@@ -1065,7 +1070,7 @@ export function startRun(o: StartRunOptions): 'pane' | 'rejected' | undefined {
       const unattended = sessionKey.startsWith('cron-') || !!thread.params.teamHop || threadIsMarathon(sessionKey, thread.sessionId);
       emitTurnClosed({
         sessionKey, sessionId: thread.sessionId, prompt: thread.prompt, text: thread.text, params: thread.params,
-        ok: isCleanTurnClose(thread, { silent, authBurned, quotaBurned: burnedByQuota({ limited: hold > 0, tools: thread.tools.length, text: thread.text }) }),
+        ok: isCleanTurnClose(thread, { silent, authBurned, quotaBurned: burnedByQuota({ limited: claudeHeld, tools: thread.tools.length, text: thread.text }) }),
         hop: thread.flowHop ?? 0, unattended,
       });
       if (thread.sessionId && !thread.stopped && !unattended) void summarize(thread.sessionId);
@@ -1079,7 +1084,7 @@ export function startRun(o: StartRunOptions): 'pane' | 'rejected' | undefined {
       if (!thread.questioned) {
         // Sem token, a fila in-turn (memória) não pode nem rodar nem esperar em RAM:
         // vira fila ESTACIONADA (disco), que drena sozinha no reset.
-        if (hold || authBurned) parkPending(sessionKey, thread.sessionId);
+        if (claudeHeld || authBurned) parkPending(sessionKey, thread.sessionId);
         else {
           drainPending(sessionKey, thread.sessionId);
           // Gatilho da fila estacionada: se a in-turn (pending) não pegou a sessão,
@@ -1098,7 +1103,7 @@ export function startRun(o: StartRunOptions): 'pane' | 'rejected' | undefined {
       if (silent || (thread.reaped && thread.reaped !== 'total')) {
         // Sem token não adianta retomar nada (o turno novo morreria no limite
         // igual), mas o turno também não pode sumir: vira oferta com o motivo.
-        if (hold) offerResume(sessionKey, thread, 'quota', 'O turno caiu e a janela de token acabou — retomar agora morreria no limite. Retome quando a janela virar.');
+        if (claudeHeld) offerResume(sessionKey, thread, 'quota', 'O turno caiu e a janela de token acabou — retomar agora morreria no limite. Retome quando a janela virar.');
         else maybeAutoResume(sessionKey, thread, cause);
       }
     },

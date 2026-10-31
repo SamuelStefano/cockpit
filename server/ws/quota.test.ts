@@ -135,6 +135,11 @@ describe('burnedByQuota', () => {
     expect(burnedByQuota({ limited: true, tools: 0, text: 'Claude AI usage limit reached — resets at 5pm' })).toBe(true);
   });
 
+  it('returns the prompt on the CLI weekly and 5-hour bailouts', () => {
+    expect(burnedByQuota({ limited: false, tools: 0, text: "You've hit your weekly limit · resets Nov 3, 6am (UTC)" })).toBe(true);
+    expect(burnedByQuota({ limited: false, tools: 0, text: "You've hit your 5-hour limit · resets 7:30pm (UTC)" })).toBe(true);
+  });
+
   it('devolve pelo texto mesmo sem rate_limit_event (o CLI só imprime e sai)', () => {
     expect(burnedByQuota({ limited: false, tools: 0, text: 'Claude usage limit reached. Resets at 10pm.' })).toBe(true);
     expect(burnedByQuota({ limited: false, tools: 0, text: 'limite de uso atingido' })).toBe(true);
