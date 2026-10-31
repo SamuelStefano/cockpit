@@ -2,9 +2,9 @@ import { useState, useEffect, useCallback } from 'react';
 
 // Router minúsculo (sem dep): só troca a VIEW principal. useCockpit fica ACIMA
 // deste switch no App, então o WebSocket/terminais nunca desmontam ao navegar.
-export type Route = '/' | '/equipe/memoria' | '/skills' | '/pontos' | '/equipe/rotinas' | '/configuracoes' | '/configuracoes/uso' | '/configuracoes/pessoas' | '/configuracoes/maquina' | '/configuracoes/avancado' | '/graph' | '/canvas' | '/sala' | '/conexoes' | '/docs' | '/ds' | '/onboarding' | '/agentes' | '/base';
+export type Route = '/' | '/equipe/memoria' | '/skills' | '/pontos' | '/equipe/rotinas' | '/configuracoes' | '/configuracoes/uso' | '/configuracoes/pessoas' | '/configuracoes/maquina' | '/configuracoes/avancado' | '/graph' | '/canvas' | '/sala' | '/conexoes' | '/docs' | '/ds' | '/onboarding' | '/agentes' | '/base' | '/arcade';
 
-const ROUTES: Route[] = ['/', '/equipe/memoria', '/skills', '/pontos', '/equipe/rotinas', '/configuracoes', '/configuracoes/uso', '/configuracoes/pessoas', '/configuracoes/maquina', '/configuracoes/avancado', '/graph', '/canvas', '/sala', '/conexoes', '/docs', '/ds', '/onboarding', '/agentes', '/base'];
+const ROUTES: Route[] = ['/', '/equipe/memoria', '/skills', '/pontos', '/equipe/rotinas', '/configuracoes', '/configuracoes/uso', '/configuracoes/pessoas', '/configuracoes/maquina', '/configuracoes/avancado', '/graph', '/canvas', '/sala', '/conexoes', '/docs', '/ds', '/onboarding', '/agentes', '/base', '/arcade'];
 
 // Old URLs (bookmarks, deep links) keep working; the retired screens fall back to chat.
 const LEGACY: Record<string, string> = { '/notas': '/', '/play': '/', '/harness': '/', '/equipe': '/', '/contextos': '/equipe/memoria', '/crons': '/equipe/rotinas', '/uso': '/configuracoes/uso' };

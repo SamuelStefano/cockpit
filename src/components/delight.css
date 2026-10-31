@@ -1,0 +1,22 @@
+/* Small site-wide delights: transform and opacity only, all off under reduced motion. */
+@keyframes msgPop { 0% { opacity: 0; transform: translateY(8px) scale(0.94); } 60% { opacity: 1; transform: translateY(-1px) scale(1.015); } 100% { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes popSpring { 0% { opacity: 0; transform: scale(0.94) translateY(4px); } 60% { opacity: 1; transform: scale(1.015); } 100% { transform: scale(1); } }
+@keyframes rowWiggle { 0%, 100% { transform: translateX(0); } 20% { transform: translateX(-3px); } 40% { transform: translateX(3px); } 60% { transform: translateX(-2px); } 80% { transform: translateX(1px); } }
+@keyframes runDot { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.5); opacity: 0.55; } }
+@keyframes bitStartle { 0%, 100% { transform: translateY(0) rotate(0); } 15% { transform: translateY(-7px) rotate(-6deg); } 35% { transform: translateY(0) rotate(5deg); } 55% { transform: translateY(-3px) rotate(-3deg); } 75% { transform: rotate(2deg); } }
+@keyframes heartUp { 0% { opacity: 0; transform: translate(0, 4px) scale(0.5); } 20% { opacity: 1; } 100% { opacity: 0; transform: translate(var(--hx, 0), -26px) scale(1.1); } }
+
+.msg-pop { animation: msgPop 0.32s cubic-bezier(0.3, 1.3, 0.5, 1) both; }
+.pop-spring { animation: popSpring 0.22s cubic-bezier(0.3, 1.4, 0.5, 1) both; transform-origin: bottom left; }
+.press-spring { transition: transform 0.18s cubic-bezier(0.3, 1.7, 0.5, 1); }
+.press-spring:active:not(:disabled) { transform: scale(0.9, 0.92); transition-duration: 0.06s; }
+.row-wiggle { animation: rowWiggle 0.5s ease-in-out 1; }
+.run-dot { animation: runDot 1.4s ease-in-out infinite; }
+.bit-startle { animation: bitStartle 0.6s ease-out 1; }
+.bit-heart { position: absolute; left: 50%; top: 0; font-size: 11px; line-height: 1; pointer-events: none; animation: heartUp 1.3s ease-out both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .msg-pop, .pop-spring, .row-wiggle, .run-dot, .bit-startle, .bit-heart { animation: none; }
+  .press-spring { transition: none; }
+  .press-spring:active:not(:disabled) { transform: none; }
+}

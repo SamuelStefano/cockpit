@@ -88,7 +88,7 @@ export const MessageRow = memo(function MessageRow({ msg, avatar, bit, caretOnLa
     // data-mid em toda linha (não só nas do usuário): é a âncora que o
     // "carregar antigas" usa pra reposicionar o scroll. Uma resposta longa pode
     // ocupar a viewport inteira — sem âncora ali, a leitura saltava.
-    <div data-mid={msg.id} className="fade-up group/msg flex flex-col gap-2">
+    <div data-mid={msg.id} data-role="assistant" className="fade-up group/msg flex flex-col gap-2">
       {showModelLabel && (
         <div className="flex min-w-0 items-center gap-2 text-[13px] font-medium text-neutral-300">
           {avatar ?? <Bit state={bit ?? 'idle'} still={!bit} size={24} />}

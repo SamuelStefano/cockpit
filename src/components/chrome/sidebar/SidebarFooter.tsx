@@ -3,6 +3,7 @@ import { IconButton, type ConnState } from '../../primitives';
 import type { NavItem, NavRole } from '../nav-routes';
 import type { Route } from '../../../useRoute';
 import type { DropApi } from '../../../cockpit/useDrops';
+import { ArcadeButton } from '../../game/ArcadeButton';
 
 export interface AccountProps {
   userId?: string;
@@ -31,6 +32,7 @@ export function SidebarFooter({ routes, route, nav, counts, expanded, onSettings
       <div className={expanded ? 'min-w-0 flex-1' : ''}>
         <ProfileMenu {...account} conn={conn} role={role} placement="up-start" variant={expanded ? 'row' : 'rail'} routes={routes} route={route} nav={nav} counts={counts} />
       </div>
+      <ArcadeButton expanded={expanded} onOpen={() => nav('/arcade')} />
       {onSettings && <IconButton icon="sliders" label="Configurações" side={expanded ? 'top' : 'right'} onClick={onSettings} />}
     </div>
   );

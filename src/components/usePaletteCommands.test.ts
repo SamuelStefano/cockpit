@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
+import { savePref } from '../lib/persist';
+import { GAME_ENABLED_KEY } from '../lib/prefs';
 import { renderHook } from '@testing-library/react';
 import { usePaletteCommands } from './usePaletteCommands';
 import { navFor, type NavRole } from './chrome/nav-routes';
@@ -42,5 +44,31 @@ describe('usePaletteCommands prompt link', () => {
     expect(ids('')).not.toContain('copy-prompt-link');
     expect(ids('   ')).not.toContain('copy-prompt-link');
     expect(ids('olá')).toContain('copy-prompt-link');
+  });
+});
+
+describe('usePaletteCommands arcade', () => {
+  const cmds = (query?: string) => renderHook(() => usePaletteCommands({ ...base, query })).result.current.map((c) => c.id);
+  beforeEach(() => localStorage.clear());
+  it('offers the arcade commands to every role', () => {
+    expect(cmds()).toEqual(expect.arrayContaining(['arcade']));
+  });
+  it('shows the sandwich command only on the exact phrase', () => {
+    expect(cmds()).not.toContain('sudo-sandwich');
+    expect(cmds('sudo')).not.toContain('sudo-sandwich');
+    expect(cmds('Sudo make me a sandwich ')).toContain('sudo-sandwich');
+  });
+  it('lists the hidden codes only on the exact word', () => {
+    for (const e of ['iddqd', 'matrix', 'konami']) {
+      expect(cmds()).not.toContain(`egg-${e}`);
+      expect(cmds(e.slice(0, 3))).not.toContain(`egg-${e}`);
+      expect(cmds(` ${e.toUpperCase()} `)).toContain(`egg-${e}`);
+    }
+  });
+  it('hides all of it when the game is off', () => {
+    savePref(GAME_ENABLED_KEY, false);
+    expect(cmds('sudo make me a sandwich')).not.toContain('sudo-sandwich');
+    expect(cmds()).not.toContain('arcade');
+    expect(cmds('matrix')).not.toContain('egg-matrix');
   });
 });

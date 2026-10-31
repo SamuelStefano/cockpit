@@ -42,3 +42,19 @@ export const FUNNEL_IDLE_DEFAULT = 7;
 // grosso; iOS Safari não expõe navigator.vibrate, então lá vira no-op.
 export const HAPTICS_KEY = 'ui.haptics';
 export const HAPTICS_DEFAULT = true;
+
+// Deck Arcade: master switch for the whole gamification layer (HUD, toasts, effects,
+// easter eggs, event recording). Sound is separate and default ON: it is soft, rate
+// limited, silent in hidden tabs and held back until the first user gesture.
+export const GAME_ENABLED_KEY = 'game.enabled';
+export const GAME_ENABLED_DEFAULT = true;
+export const GAME_SOUND_KEY = 'game.sound';
+export const GAME_SOUND_DEFAULT = true;
+export const GAME_STATE_KEY = 'game.state';
+export const GAME_RECENT_KEY = 'game.recentEvents';
+export const GAME_CRT_KEY = 'game.crt';
+
+// "Bit brincalhão": o mascote apronta no chat parado e brinca na tela de conversa
+// nova. Ligado por padrão; prefers-reduced-motion desliga de qualquer jeito.
+export const BIT_PLAYFUL_KEY = 'bit.playful';
+export const BIT_PLAYFUL_DEFAULT = true;

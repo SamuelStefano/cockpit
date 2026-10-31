@@ -92,7 +92,7 @@ export function UserMessageRow({ msg, onEditUser, onQuote, onOpenAttachment, att
   return (
     <MessageActionsHost
       mid={msg.id}
-      className="fade-up group/u flex flex-wrap items-start justify-end gap-2 sm:flex-nowrap"
+      className="msg-pop group/u flex flex-wrap items-start justify-end gap-2 sm:flex-nowrap"
       spec={{ text: msg.text, onQuote, onEdit: onEditUser ? start : undefined }}
     >
       {/* No mobile as ações vão pra linha própria ABAIXO da bolha (order-3): o

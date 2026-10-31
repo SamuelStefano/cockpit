@@ -82,7 +82,7 @@ export function Popover({ open, onClose, children, content, side = 'bottom', ali
           role="dialog"
           aria-label={label}
           style={style}
-          className={`scroll-thin fixed z-70 overflow-y-auto ${tokens.radius.lg} ${tokens.surface.raised} ${className}`}
+          className={`pop-spring scroll-thin fixed z-70 overflow-y-auto ${tokens.radius.lg} ${tokens.surface.raised} ${className}`}
         >
           {content}
         </div>,

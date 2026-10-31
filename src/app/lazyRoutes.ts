@@ -20,5 +20,6 @@ export const DesignSystem = lazy(() => import('../routes/DesignSystem').then((m)
 export const Agente = lazy(() => import('../routes/Agente').then((m) => ({ default: m.Agente })));
 export const Onboarding = lazy(() => import('../routes/Onboarding').then((m) => ({ default: m.Onboarding })));
 export const Configuracoes = lazy(() => import('../routes/Configuracoes').then((m) => ({ default: m.Configuracoes })));
+export const Arcade = lazy(() => import('../routes/Arcade').then((m) => ({ default: m.Arcade })));
 export const Base = lazy(() => import('../routes/base/Base').then((m) => ({ default: m.Base })));
 export const Conexoes = lazy(() => import('../routes/Conexoes').then((m) => ({ default: m.Conexoes })));
