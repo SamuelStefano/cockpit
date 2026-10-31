@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Message } from '../../data/types';
 import type { CanvasCard } from '../../../shared/canvas';
-import { adaptLive, emptyPlacement, familyOf, LIVE_AGENT_CAP, nextCronRun, placeSessions, projectOf, type LiveInput } from './liveAdapter';
+import { pickSessions, adaptLive, emptyPlacement, familyOf, LIVE_AGENT_CAP, nextCronRun, placeSessions, projectOf, type LiveInput } from './liveAdapter';
 
 const NOW = 1_800_000_000_000;
 const input = (over: Partial<LiveInput> = {}): LiveInput => ({ sessions: [], running: new Set(), termStats: {}, threads: {}, tails: {}, teamQuestions: [], areas: {}, cards: null, stats: null, crons: null, mcpServers: null, answered: {}, now: NOW, ...over });
@@ -39,12 +39,12 @@ describe('adaptLive', () => {
   it('maps running, idle and waiting to real states', () => {
     const r = adaptLive(input({ sessions: [sess('run'), sess('idle'), sess('ask', { waiting: true })], running: new Set(['run']) }), emptyPlacement());
     const by = Object.fromEntries(r.floor.agents.map((a) => [a.sessionId, a.state]));
-    expect(by).toEqual({ run: 'working', idle: 'waiting', ask: 'blocked' });
+    expect(by).toEqual({ run: 'working', idle: 'finished', ask: 'blocked' });
   });
 
   it('caps the floor and reports the rest as elsewhere', () => {
     const sessions = Array.from({ length: LIVE_AGENT_CAP + 5 }, (_, i) => sess(`s${i}`));
-    const r = adaptLive(input({ sessions }), emptyPlacement());
+    const r = adaptLive(input({ sessions, running: new Set(sessions.map((s) => s.id)) }), emptyPlacement());
     expect(r.floor.agents).toHaveLength(LIVE_AGENT_CAP);
     expect(r.elsewhere).toBe(5);
   });

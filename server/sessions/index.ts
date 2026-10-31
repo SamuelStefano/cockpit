@@ -263,7 +263,14 @@ function answersAsk(o: any, pendingAsk?: string): boolean {
   if (!pendingAsk) return false;
   const c = o.message?.content;
   if (!Array.isArray(c)) return false;
-  return c.some((b: any) => b?.type === 'tool_result' && b.tool_use_id === pendingAsk);
+  return c.some((b: any) => b?.type === 'tool_result' && b.tool_use_id === pendingAsk && !isDeliveredAsDeckCard(b));
+}
+
+// permission-mcp denies the tool on purpose once the card reaches the user: that result means
+// "delivered, still waiting", so counting it as an answer hid every pending question.
+function isDeliveredAsDeckCard(b: any): boolean {
+  const text = typeof b.content === 'string' ? b.content : Array.isArray(b.content) ? b.content.map((x: any) => x?.text ?? '').join('') : '';
+  return text.startsWith('A pergunta foi entregue ao usuário como card no Deck');
 }
 
 function assistantBlocks(o: any): any[] {

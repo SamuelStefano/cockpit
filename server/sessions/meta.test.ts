@@ -86,6 +86,11 @@ describe('scanMetaText', () => {
     expect(scanMetaText([user('vai'), ask('toolu_1')].join('\n') + '\n').pendingAsk).toBe('toolu_1');
   });
 
+  it('keeps waiting when the result only says the card was delivered', () => {
+    const delivered = JSON.stringify({ type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu_1', is_error: true, content: 'A pergunta foi entregue ao usuário como card no Deck. A resposta dele chega como a próxima mensagem.' }] } });
+    expect(scanMetaText([user('vai'), ask('toolu_1'), delivered].join('\n') + '\n').pendingAsk).toBe('toolu_1');
+  });
+
   it('does not flag a turn that merely ended with a question mark', () => {
     const text = [user('e aí?'), asstText('Achei dois caminhos. Quer que eu siga pelo primeiro?')].join('\n') + '\n';
     expect(scanMetaText(text).pendingAsk).toBeUndefined();
