@@ -369,17 +369,61 @@ async function sendText(full: string, text: string, flags: Flags): Promise<void>
     return;
   }
 
-  client.send({ t: 'send', sessionKey: full, sessionId: full, text, model, effort });
-  const ack = await client.waitFor(
-    (m): m is Extract<ServerMsg, { t: 'started' | 'send-reject' | 'send-parked' }> =>
-      (m.t === 'started' || m.t === 'send-reject' || m.t === 'send-parked') && (m as { sessionKey?: string }).sessionKey === full,
-    DEFAULT_TIMEOUT_MS,
-  );
+  // msgId is the delivery receipt: the server echoes it back as a `user` frame
+  // once the text is part of a turn, as `triage` when it landed on a running
+  // turn, and on `send-reject`/`send-parked` when it did not. A bare `started`
+  // only proves SOME turn began on this key (a busy session or a twin thread
+  // answers it with its own), never that this text entered it.
+  const msgId = `deckctl-${randomUUID()}`;
+  client.send({ t: 'send', sessionKey: full, sessionId: full, text, msgId, model, effort });
+  const res = await awaitDelivery(client, full, msgId, DEFAULT_TIMEOUT_MS);
   client.close();
-  if (!ack) fail('no ack from server for send (timeout)');
-  if (ack.t === 'send-reject') fail(`send rejected: ${ack.message}`);
-  if (ack.t === 'send-parked') { console.log(`parked (queued for later): ${ack.message}`); return; }
-  console.log(`sent — turn started on ${shortId(full)}${ack.model ? ` (model ${ack.model})` : ''}`);
+  if (res.kind === 'timeout') fail('message not confirmed delivered (no echo for its msgId) — it may have been lost; check `deckctl read` before retrying', 1);
+  if (res.kind === 'rejected') fail(`send rejected: ${res.message}`);
+  if (res.kind === 'parked') { console.log(`parked (queued for later): ${res.message}`); return; }
+  if (res.kind === 'queued') { console.log(`delivered — session ${shortId(full)} was running; message ${res.action === 'merge' ? 'merged into' : 'queued behind'} the current turn (${res.action})`); return; }
+  if (res.kind === 'started') { console.log(`sent — turn started on ${shortId(full)}${res.model ? ` (model ${res.model})` : ''}`); return; }
+  console.log(`delivered — message ${msgId} entered ${shortId(full)} (no start/triage frame seen)`);
+}
+
+export type Delivery =
+  | { kind: 'started'; model?: string }
+  | { kind: 'queued'; action: string }
+  | { kind: 'delivered' }
+  | { kind: 'parked'; message: string }
+  | { kind: 'rejected'; message: string }
+  | { kind: 'timeout' };
+
+// Waits for the server's receipt of ONE send, matched by msgId. `started` alone
+// is never enough: it is only trusted after the msgId echo, since the user echo
+// is broadcast before the run's `started` on the free path.
+export async function awaitDelivery(client: Client, key: string, msgId: string, timeoutMs: number): Promise<Delivery> {
+  const first = await client.waitFor(
+    (m): m is Extract<ServerMsg, { t: 'user' | 'send-reject' | 'send-parked' | 'triage' | 'pane-delivered' }> =>
+      (m.t === 'user' && m.id === msgId)
+      || (m.t === 'triage' && m.msgId === msgId)
+      || (m.t === 'pane-delivered' && m.msgId === msgId)
+      || (m.t === 'send-reject' && (m.msgId === msgId || (!m.msgId && m.sessionKey === key)))
+      || (m.t === 'send-parked' && (m.msgId === msgId || (!m.msgId && m.sessionKey === key))),
+    timeoutMs,
+  );
+  if (!first) return { kind: 'timeout' };
+  if (first.t === 'send-reject') return { kind: 'rejected', message: first.message };
+  if (first.t === 'send-parked') return { kind: 'parked', message: first.message };
+  if (first.t === 'triage') return first.action === 'wait' || first.action === 'merge' ? { kind: 'queued', action: first.action } : { kind: 'delivered' };
+  if (first.t === 'pane-delivered') return { kind: 'delivered' };
+  // Echoed: now see what became of it (turn start vs. triage on a running turn).
+  const next = await client.waitFor(
+    (m): m is Extract<ServerMsg, { t: 'started' | 'triage' | 'send-reject' }> =>
+      (m.t === 'started' && m.sessionKey === key)
+      || (m.t === 'triage' && m.msgId === msgId)
+      || (m.t === 'send-reject' && m.msgId === msgId),
+    Math.min(timeoutMs, 8000),
+  );
+  if (next?.t === 'started') return { kind: 'started', model: next.model };
+  if (next?.t === 'send-reject') return { kind: 'rejected', message: next.message };
+  if (next?.t === 'triage') return next.action === 'wait' || next.action === 'merge' ? { kind: 'queued', action: next.action } : { kind: 'delivered' };
+  return { kind: 'delivered' };
 }
 
 async function cmdSend(id: string, text: string, flags: Flags): Promise<void> {
