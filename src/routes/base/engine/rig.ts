@@ -5,7 +5,7 @@ import type { SectorId } from '../types';
 
 // World is ~132 wide; the fleet shot backs off until it all fits the viewport's aspect.
 export function fleetDistance(aspect: number): number {
-  return Math.max(112, 150 / Math.max(aspect, 0.5));
+  return Math.max(100, 190 / Math.max(aspect, 0.5));
 }
 
 export class Rig {
@@ -48,7 +48,7 @@ export class Rig {
   pan(dx: number, dz: number) { this.tPos.x += dx; this.tLook.x += dx; this.tPos.z += dz; this.tLook.z += dz; }
   zoom(k: number) {
     const off = this.tPos.clone().sub(this.tLook).multiplyScalar(k), len = off.length();
-    if (len < 18 || len > 220) return;
+    if (len < 18 || len > 320) return;
     this.tPos.copy(this.tLook).add(off);
   }
   get zoomed() { return this.pos.distanceTo(this.look) < 90; }

@@ -62,7 +62,7 @@ export function sectorRows(agents: Pick<FloorAgent, 'sector' | 'state'>[], extra
       id: s.id, name: s.name, hotkey: s.hotkey, color: s.css,
       busy: mine.filter((a) => a.state === 'working' || a.state === 'thinking' || a.state === 'reviewing').length + (add.busy ?? 0),
       stuck: mine.filter((a) => a.state === 'blocked' || a.state === 'silent' || a.state === 'asleep').length + (add.stuck ?? 0),
-      waiting: mine.filter((a) => a.state === 'waiting' || a.state === 'paused').length + (add.waiting ?? 0),
+      waiting: mine.filter((a) => a.state === 'waiting' || a.state === 'paused' || a.state === 'finished').length + (add.waiting ?? 0),
     };
   });
 }

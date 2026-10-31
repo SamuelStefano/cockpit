@@ -432,6 +432,7 @@ export class BaseEngine {
       xp: s.xp, level: levelOf(s.xp), speed: this.speed, paused: this.paused,
       awaiting: practice ? s.alerts.length : this.live?.awaiting ?? 0,
       elsewhere: practice ? 0 : this.live?.elsewhere ?? 0,
+      finished: practice ? 0 : this.live?.floor.agents.filter((a) => a.state === 'finished').length ?? 0,
       agentsShown: this.floor.agents.length,
       sectors: this.sectors(), dim: this.dim,
       wings: this.floor.wings.map((w) => ({ id: w.id, name: w.name })),
