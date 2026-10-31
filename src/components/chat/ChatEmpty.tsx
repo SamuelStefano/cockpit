@@ -28,9 +28,11 @@ const SUGGESTION_ICONS: IconName[] = ['clipboard', 'pencil', 'eye'];
 
 export function ChatEmpty({ onPrompt, onSeed, suggestions = FALLBACK_SUGGESTIONS, children, needsProvider = false, compact = false }: ChatEmptyProps) {
   const pick = (text: string) => (onSeed && isVirtualKeyboardOnly() ? onSeed(text) : onPrompt(text));
-  if (compact) return <div className="flex min-h-0 flex-1 flex-col justify-end overflow-y-auto px-3 pt-2">{children}</div>;
+  // One tree for both layouts: remounting the composer here dropped its focus, which closed the
+  // keyboard, which reopened the hero, so a new chat on the phone flickered and took no typing.
   return (
-    <div className="flex min-h-0 flex-1 flex-col items-center overflow-y-auto px-3 pb-10">
+    <div className={`flex min-h-0 flex-1 flex-col overflow-y-auto px-3 ${compact ? 'justify-end pt-2' : 'items-center pb-10'}`}>
+      {!compact && <>
       <div className="min-h-6 flex-[6]" />
       <div className="bit-pop bit-greet mb-3"><Bit state="wave" size={96} title="Bora?" /></div>
       <h2 className="fade-up mb-7 px-3 text-center font-display text-[41px] font-bold leading-none tracking-normal text-neutral-50 pointer-coarse:text-[26px]">O que vamos trabalhar hoje?</h2>
@@ -45,7 +47,9 @@ export function ChatEmpty({ onPrompt, onSeed, suggestions = FALLBACK_SUGGESTIONS
           </a>
         </p>
       )}
+      </>}
       {children && <div className="w-full">{children}</div>}
+      {!compact && <>
       <div className="stagger-fade mt-5 flex w-full max-w-[760px] flex-col px-1">
         {suggestions.slice(0, 3).map((text, i) => (
           <button
@@ -69,6 +73,7 @@ export function ChatEmpty({ onPrompt, onSeed, suggestions = FALLBACK_SUGGESTIONS
         </button>
       )}
       <div className="min-h-0 flex-[4]" />
+      </>}
     </div>
   );
 }
