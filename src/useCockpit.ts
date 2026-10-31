@@ -12,7 +12,7 @@ import { boxStore, rosterMsg } from './cockpit/boxes-store';
 import { onAuthClose, tokenUnchangedAndLive, RELAY_AUTH_RETRY_MS, shouldRefreshSession, dialOnTokenChange } from './cockpit/ws-auth';
 import { TOKEN_EXPIRED_CLOSE, TOKEN_EXPIRED_EVENT } from './lib/auth-events';
 import { requestNotifyPermission, notifyTurnDone, notifyTurnError } from './lib/notify';
-import { recordGameEvent } from './game/game-bus';
+import { claimGameOnce, recordGameEvent } from './game/game-bus';
 import { toolGameEvent } from './game/real-events';
 import { wsBase, withBox, wsUrlWithToken, newId, metaToSession, mergeServerSessions, adoptClaimedRow, dedupById, mergeSeen, isCronPing } from './cockpit/session';
 import { setTtsSender, handleTtsMsg } from './cockpit/tts-bus';
@@ -1136,7 +1136,8 @@ export function useCockpit(): Cockpit {
         }
         patchRunMsg(key, (b) => upsertTool(b, msg.tool));
         const gameEvent = toolGameEvent(msg.tool);
-        if (gameEvent) recordGameEvent(gameEvent);
+        // A reconnect replays old tool frames long after the bus's short dedupe window.
+        if (gameEvent && claimGameOnce(`pr:${gameEvent.key}`, new Date().toISOString().slice(0, 10))) recordGameEvent(gameEvent);
         return;
       }
       case 'rate': {
