@@ -19,6 +19,5 @@
 .arcade-locked { filter: grayscale(1); opacity: 0.55; }
 
 @media (prefers-reduced-motion: reduce) {
-  .arcade-slide-up, .arcade-banner, .arcade-float, .arcade-god, .arcade-shake { animation: none; }
-  .arcade-pill-in { transform: translate(var(--arcade-x), 0); }
+  .arcade-pill-in, .arcade-flicker, .arcade-god, .arcade-shake { animation: none; }
 }
