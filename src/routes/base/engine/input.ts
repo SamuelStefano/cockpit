@@ -71,6 +71,8 @@ export function attachInput(e: BaseEngine): () => void {
     if (wing) e.goWing(wing.id);
     const sector = SECTORS.find((s) => s.hotkey.toLowerCase() === k);
     if (sector) e.goSector(sector.id);
+    if (k === '[') e.stepDesk(-1);
+    if (k === ']') e.stepDesk(1);
     if (k === 'm') e.cycleSound();
     if (!practice) return;
     if (k === 'f') e.openFunnel();

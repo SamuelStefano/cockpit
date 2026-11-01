@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { Message, ToolQuestion } from '../../data/types';
+import type { Message, ToolQuestion, ToolTodo } from '../../data/types';
 import type { CanvasBoard, CanvasGraph, SessionPeek, TermStats } from '../../../shared/canvas';
-import type { Cron, SysStats } from '../../../shared/protocol';
+import type { BgAgent, Cron, SysStats } from '../../../shared/protocol';
 import type { Session } from '../../data/types';
 import { adaptLive, emptyPlacement, type LiveAction, type LiveFloor, type Placement } from './liveAdapter';
 
@@ -12,6 +12,8 @@ export interface LiveSource {
   termStats: Record<string, Partial<TermStats>>;
   threads: Record<string, Message[] | undefined>;
   peeks: Record<string, SessionPeek | null>;
+  todos: Record<string, ToolTodo[] | undefined>;
+  bgAgents: Record<string, BgAgent[] | undefined>;
   teamQuestions: { sessionKey: string; questions: ToolQuestion[] }[];
   graph: CanvasGraph | null;
   board: CanvasBoard;
@@ -32,6 +34,8 @@ export interface LiveSource {
 export interface LiveActions { open: (id: string) => void; send: (id: string, text: string) => boolean; stop: (id: string) => void; act: (a: LiveAction) => void }
 
 const POLL_MS = 6000;
+
+export const runningAgents = (list: BgAgent[] | undefined): number => list?.filter((a) => a.status === 'running').length ?? 0;
 const BOARD_POLL_MS = 60000;
 
 function lastText(thread: Message[] | undefined): string | null {
@@ -57,14 +61,16 @@ export function useLiveFeed(s: LiveSource): { live: LiveFloor; actions: LiveActi
     for (const x of s.sessions) prs[x.id] = s.peeks[x.id]?.prs.length ?? 0;
     const areas: Record<string, string | undefined> = {};
     for (const n of s.graph?.nodes ?? []) if (n.kind === 'session') areas[n.ref] = n.area;
+    const bgRunning: Record<string, number> = {};
+    for (const x of s.sessions) bgRunning[x.id] = runningAgents(s.bgAgents?.[x.id]);
     const r = adaptLive({
       sessions: s.sessions, running: s.running, termStats: s.termStats, threads: s.threads, tails, prs, teamQuestions: s.teamQuestions, areas,
-      cards: s.boardLoaded ? s.board.cards : null, stats: s.stats, crons: s.crons, mcpServers: s.mcpServers?.length ?? null, answered, now: Date.now(),
+      cards: s.boardLoaded ? s.board.cards : null, stats: s.stats, crons: s.crons, mcpServers: s.mcpServers?.length ?? null, answered, bgRunning, now: Date.now(),
     }, placement.current);
     placement.current = r.placement;
     return r;
     // `tick` ages sessions out of the 24h window even when nothing else changes.
-  }, [s.sessions, s.running, s.termStats, s.threads, s.peeks, s.teamQuestions, s.graph, s.board, s.boardLoaded, s.stats, s.crons, s.mcpServers, answered, tick]);
+  }, [s.sessions, s.running, s.termStats, s.threads, s.peeks, s.teamQuestions, s.graph, s.board, s.boardLoaded, s.stats, s.crons, s.mcpServers, s.bgAgents, answered, tick]);
 
   const shownKey = live.shown.join(','), missingKey = live.missingThreads.join(',');
   const { connected, onCtxStats, onPeek, onLoadThread, onCanvasGet, onCronsGet } = s;

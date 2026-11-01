@@ -24,7 +24,7 @@ export function Inspector({ view, engine, live, source }: { view: InspectView; e
           </span>
         )}
       </div>
-      {isLive && <LiveDetail sessionId={view.sessionId!} running={!!view.running} source={source} />}
+      {isLive && <LiveDetail sessionId={view.sessionId!} running={!!view.running} source={source} onStep={(dir) => engine.stepDesk(dir)} />}
       <div className="acts">
         {isLive ? (
           <>

@@ -16,6 +16,7 @@ export const RECENT_MS = 2 * 3600 * 1000;
 export const FINISHED_MS = 30 * 60 * 1000;
 const IDLE_CAP = 6;
 export const CONTEXT_ALERT = 80;
+export const SILENT_MS = 5 * 60 * 1000;
 const MAX_CRATES_PER_STATUS = 8;
 const OUTBOX = { x: 3, z: 3.4 };
 
@@ -34,6 +35,8 @@ export interface LiveInput {
   crons: Cron[] | null;
   mcpServers: number | null;
   answered: Record<string, number>;
+  // Running background agents per session: a session waiting on them is working, not quiet.
+  bgRunning?: Record<string, number | undefined>;
   now: number;
 }
 
@@ -44,6 +47,18 @@ export type LiveAction = { kind: 'answer'; sessionId: string; text: string } | {
 export interface LiveDecision extends Decision { actions: LiveAction[] }
 
 export interface LiveFloor { floor: Floor; decisions: LiveDecision[]; elsewhere: number; awaiting: number; sectors: SectorRow[]; placement: Placement; missingThreads: string[]; shown: string[] }
+
+// A missing `lastAt` means unknown, never silent.
+export function silentFor(lastAt: number | undefined, now: number, bgRunning = 0): number | null {
+  if (lastAt === undefined || bgRunning > 0) return null;
+  const gap = now - lastAt;
+  return gap > SILENT_MS ? gap : null;
+}
+
+export function quietLabel(ms: number): string {
+  const m = Math.max(1, Math.floor(ms / 60000));
+  return m < 60 ? `No new activity for ${m}m` : `No new activity for ${Math.floor(m / 60)}h ${m % 60}m`;
+}
 
 export function familyOf(model: string | null | undefined): ModelFamily {
   const m = (model ?? '').toLowerCase();
@@ -190,7 +205,8 @@ export function adaptLive(input: LiveInput, prev: Placement): LiveFloor {
     const isRunning = input.running.has(s.id);
     const asking = !!s.waiting && input.answered[s.id] !== s.mtime;
     const finished = !asking && !isRunning && input.now - s.mtime < FINISHED_MS;
-    const state: AgentState = asking ? 'blocked' : isRunning ? 'working' : finished ? 'finished' : 'waiting';
+    const quiet = isRunning && !asking ? silentFor(stat?.lastAt, input.now, input.bgRunning?.[s.id]) : null;
+    const state: AgentState = asking ? 'blocked' : quiet !== null ? 'silent' : isRunning ? 'working' : finished ? 'finished' : 'waiting';
     const id = `s-${s.id}`;
     if (asking) {
       decisions.push(questionDecision(s, input, pos, id));
@@ -198,7 +214,7 @@ export function adaptLive(input: LiveInput, prev: Placement): LiveFloor {
     } else if (pct !== null && pct >= CONTEXT_ALERT) {
       decisions.push({ id: `ctx-${s.id}`, type: 'context', title: s.title || 'Untitled session', what: `Context at ${pct}%`, why: 'Hand off from the chat', born: stat?.lastAt ?? s.mtime, pos, focusAgentId: id, opts: [{ label: 'Open chat', hint: 'hand off there', rec: true }], actions: [{ kind: 'open', sessionId: s.id }] });
     }
-    const now = asking ? 'Waiting for your answer' : isRunning ? (latestAction(activityOf(thread)) ?? 'Running a turn') : finished ? `Finished ${Math.max(1, Math.round((input.now - s.mtime) / 60000))}m ago, read it` : 'Idle';
+    const now = asking ? 'Waiting for your answer' : quiet !== null ? quietLabel(quiet) : isRunning ? (latestAction(activityOf(thread)) ?? 'Running a turn') : finished ? `Finished ${Math.max(1, Math.round((input.now - s.mtime) / 60000))}m ago, read it` : 'Idle';
     return {
       id, name: s.title || 'Untitled session', family: familyOf(model), modelLabel: model ? shortModel(model) : 'unknown', wingId: wing.id, sector: 'build', x: pos.x, z: pos.z, state,
       line: now, sessionId: s.id, ctx: pct === null ? null : pct / 100, phase: idx * 1.7,

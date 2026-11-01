@@ -18,6 +18,7 @@ import { Particles } from './particles';
 import { Rig } from './rig';
 import { lightingAt } from './lighting';
 import { World } from './world';
+import { orderDesks, stepDesk } from '../deskOrder';
 
 const KEY = { rules: 'deck-base-rules', xp: 'deck-base-xp', sound: 'deck-base-sound' };
 const readJson = <T,>(k: string, d: T): T => { try { const v = localStorage.getItem(k); return v ? (JSON.parse(v) as T) : d; } catch { return d; } };
@@ -145,6 +146,10 @@ export class BaseEngine {
     if (this.mode === 'live') this.rig.inspect(a, this.floor.crates.find((c) => c.agentIds?.includes(id)));
     else this.rig.desk(a);
     this.publish();
+  }
+  stepDesk(dir: 1 | -1) {
+    const next = stepDesk(orderDesks(this.floor.agents, this.floor.wings), this.selectedId, dir);
+    if (next) this.select(next);
   }
   back() {
     const wing = this.floor.agents.find((a) => a.id === this.selectedId)?.wingId;
@@ -437,7 +442,7 @@ export class BaseEngine {
     const a = this.floor.agents.find((x) => x.id === this.selectedId);
     if (!a) return null;
     const base = { id: a.id, name: a.name, modelLabel: a.modelLabel, family: a.family, state: a.state, ctx: a.ctx };
-    if (a.monitor.kind === 'live') return { ...base, sessionId: a.sessionId, running: a.state === 'working', tail: a.monitor.tail };
+    if (a.monitor.kind === 'live') return { ...base, sessionId: a.sessionId, running: a.state === 'working' || a.state === 'silent', tail: a.monitor.tail };
     const s = this.sim.agents.find((x) => x.id === a.id);
     return { ...base, tab: a.monitor.tab, paused: s?.paused, supervised: s?.supervised };
   }
