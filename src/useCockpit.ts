@@ -1405,6 +1405,7 @@ export function useCockpit(): Cockpit {
             setSessions((prev) => prev.map((s) => ({ ...s, active: s.id === id })));
             if (id && !id.startsWith('new-') && !opened.current.has(id) && send(reopenMsg(id))) opened.current.add(id);
           },
+          id,
         );
         return;
       }
@@ -1444,6 +1445,7 @@ export function useCockpit(): Cockpit {
               focusSession(key);
               setSessions((prev) => prev.map((s) => ({ ...s, active: s.id === key })));
             },
+            key,
           );
         } else {
           notifyTurnError(sessionsRef.current.find((s) => s.id === activeRef.current)?.title ?? '', msg.message);

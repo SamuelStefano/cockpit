@@ -53,8 +53,9 @@ export function useOtherBoxToasts(enabled: boolean): void {
             switchBox(box);
           };
           const title = turnTitle(state, turn);
-          if (turn.ok) notifyTurnDone(title, open);
-          else notifyTurnError(title, '', open);
+          const tag = `${box}:${turn.sessionId || turn.sessionKey}`;
+          if (turn.ok) notifyTurnDone(title, open, tag);
+          else notifyTurnError(title, '', open, tag);
         },
       });
     });

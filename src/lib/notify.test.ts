@@ -281,3 +281,28 @@ describe('som', () => {
     expect(ctor).not.toHaveBeenCalled();
   });
 });
+
+describe('desktop shell', () => {
+  afterEach(() => { delete (globalThis as { deckDesktop?: unknown }).deckDesktop; vi.unstubAllGlobals(); });
+
+  it('notifies an unfocused visible window, tags by session, and restores it on click', () => {
+    const focusWindow = vi.fn();
+    (globalThis as { deckDesktop?: unknown }).deckDesktop = { focusWindow };
+    const instances: { tag?: string; onclick?: () => void; close: () => void }[] = [];
+    class FakeNotification {
+      static permission = 'granted';
+      tag?: string;
+      onclick?: () => void;
+      close = () => {};
+      constructor(_title: string, opts: { tag?: string }) { this.tag = opts.tag; instances.push(this); }
+    }
+    vi.stubGlobal('Notification', FakeNotification);
+    vi.spyOn(document, 'hasFocus').mockReturnValue(false);
+    const open = vi.fn();
+    notifyTurnDone('s', open, 'abc');
+    expect(instances[0].tag).toBe('cockpit-done:abc');
+    instances[0].onclick?.();
+    expect(focusWindow).toHaveBeenCalled();
+    expect(open).toHaveBeenCalled();
+  });
+});
