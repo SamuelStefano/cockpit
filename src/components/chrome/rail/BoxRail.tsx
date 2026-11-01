@@ -1,6 +1,7 @@
 import { useEscapeLayer } from '../../primitives/useEscapeLayer';
 import { Button, IconButton, Input, Modal } from '../../primitives';
 import { AddBoxModal } from '../../sessions/AddBoxModal';
+import { NO_UNREAD } from '../../../cockpit/box-unread';
 import { BoxRailMenu } from './BoxRailMenu';
 import { BoxRailTile } from './BoxRailTile';
 import { useBoxRail } from './useBoxRail';
@@ -19,7 +20,7 @@ export function BoxRail({ activeSessionId, userId }: { activeSessionId: string; 
       <div className="scroll-thin flex min-h-0 w-full flex-1 flex-col items-center gap-2 overflow-y-auto">
         {r.sorted.map((b) => (
           <BoxRailTile
-            key={b.id} box={b} active={b.id === r.active} level={r.levelOf(b.id)} onOpen={r.open}
+            key={b.id} box={b} active={b.id === r.active} level={r.levelOf(b.id)} unread={r.unread[b.id] ?? NO_UNREAD} onOpen={r.open}
             onMenu={(e, boxId) => {
               e.preventDefault();
               const rect = e.currentTarget.getBoundingClientRect();

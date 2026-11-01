@@ -3,6 +3,7 @@ import { registerBridge, showWindow } from './bridge';
 import { deckLinkFromArgv, type DeckLink } from './deep-link';
 import { hardenPermissions } from './security';
 import { createTray, HIDDEN_ARG } from './tray';
+import { startUpdater } from './updater';
 import { createMainWindow } from './window';
 
 app.enableSandbox();
@@ -38,6 +39,7 @@ if (!app.requestSingleInstanceLock()) {
     win = createMainWindow({ startHidden: process.argv.includes(HIDDEN_ARG) });
     registerBridge(win);
     tray = createTray(win);
+    startUpdater(() => win);
     win.on('close', (event) => {
       if (quitting) return;
       event.preventDefault();

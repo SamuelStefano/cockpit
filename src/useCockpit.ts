@@ -12,6 +12,7 @@ import { boxStore, rosterMsg } from './cockpit/boxes-store';
 import { onAuthClose, tokenUnchangedAndLive, RELAY_AUTH_RETRY_MS, shouldRefreshSession, dialOnTokenChange } from './cockpit/ws-auth';
 import { TOKEN_EXPIRED_CLOSE, TOKEN_EXPIRED_EVENT } from './lib/auth-events';
 import { useClientVisibility } from './cockpit/useClientVisibility';
+import { loadSeen, saveSeen } from './cockpit/box-unread';
 import { requestNotifyPermission, notifyTurnDone, notifyTurnError } from './lib/notify';
 import { claimGameOnce, recordGameEvent } from './game/game-bus';
 import { toolGameEvent } from './game/real-events';
@@ -148,6 +149,7 @@ export interface Cockpit extends LeafApis {
   runningAnywhere: Set<string>; // running ∪ live in the other backend process (display only)
   stalled: Set<string>;
   updated: Set<string>;
+  seen: Record<string, number>;
   runStart: Record<string, number>;
   draft: string;
   setDraft: (v: string) => void;
@@ -403,7 +405,9 @@ export function useCockpit(): Cockpit {
   const [mcpServers, setMcpServers] = useState<string[]>([]); // nomes disponíveis (mensagem mcp-servers no connect)
   // sessionId -> mtime já visto. Sessão cujo mtime no servidor avançou além do
   // visto = "atualizada" (produziu output enquanto você não olhava — run noturno).
-  const [seen, setSeen] = useState<Record<string, number>>(() => loadPref<Record<string, number>>('seen', {}));
+  // The app remounts on a box switch, so this is fixed for the life of the hook.
+  const seenBox = useRef(boxStore.get().pref).current;
+  const [seen, setSeen] = useState<Record<string, number>>(() => loadSeen(seenBox));
   // Sessão ativa com escrita vinda de FORA do app (claude no terminal) há <5s.
   const [terminalBusyId, setTerminalBusyId] = useState<string | null>(null);
   // Snapshot corrente da lista de tarefas por sessão (vem no frame history).
@@ -682,7 +686,7 @@ export function useCockpit(): Cockpit {
     setSeen((prev) => {
       if (!(oldKey in prev)) return prev;
       const next = moveKey(prev, oldKey, newId);
-      savePref('seen', next);
+      saveSeen(seenBox, next);
       return next;
     });
     // Anexo pendente também migra: um ack de upload em voo ainda aponta pra
@@ -839,7 +843,7 @@ export function useCockpit(): Cockpit {
         // (não vira "atualizada" retroativamente). Só mtime que AVANÇA depois badgeia.
         setSeen((prev) => {
           const { next, changed } = mergeSeen(prev, msg.items, new Set([activeRef.current]));
-          if (changed) savePref('seen', next);
+          if (changed) saveSeen(seenBox, next);
           return changed ? next : prev;
         });
         setLoading(false);
@@ -2365,7 +2369,7 @@ export function useCockpit(): Cockpit {
     setSeen((prev) => {
       if (prev[activeId] === s.mtime) return prev;
       const next = { ...prev, [activeId]: s.mtime };
-      savePref('seen', next);
+      saveSeen(seenBox, next);
       return next;
     });
   }, [activeId, sessions]);
@@ -2439,5 +2443,5 @@ export function useCockpit(): Cockpit {
 
   const attachmentsView = useMemo(() => markDuplicates(attachments, sentHashes[activeId]), [attachments, sentHashes, activeId]);
 
-  return { ...dropsApi, ...vaultApi, ...cronsApi, ...teamApi, ...botFilesApi, botComputers: botComputerApi.botComputers, onBotComputerGet: botComputerApi.onBotComputerGet, grokUsage: grokUsageApi.grokUsage, onRefreshGrokUsage: grokUsageApi.onRefreshGrokUsage, ...pointsApi, ...contextsApi, ...memoriesApi, ...skillsApi, ...graphsApi, ...canvasApi, ...adminApi, mcps: mcpsApi.mcps, mcpsBusy: mcpsApi.mcpsBusy, onMcpsGet: mcpsApi.onMcpsGet, agents: agentsApi.agents, claudeImport: claudeImportApi, connections: connectionsApi.connections, connectionsLoaded: connectionsApi.loaded, onConnectionsGet: connectionsApi.refresh, probeResult: probeApi.probeResult, probeBusy: probeApi.probeBusy, onProviderProbe: probeApi.onProviderProbe, onProviderProbeReset: probeApi.onProviderProbeReset, sessions, loading, activeId, setActiveId, messages, threads, onLoadThread, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], allSessionTodos: sessionTodos, allBgAgents: bgAgents, running, runningAnywhere, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, planBlockedUntil, planReadAt, planNextReadAt, stats, archived, contextTokens, contextModel, usageModel, sendCost, liveTurnTokens, turnStartedAt, bgAgents: activeBgAgents, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, interrupted, searchResults, onSearch, marathon, onToggleMarathon, attachments: attachmentsView, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, claudeLogin, claudeAccount, onClaudeAccountGet, onClaudeLogout, onClaudeLoginStart, onClaudeLoginCode, onClaudeLoginCancel, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, onRefreshPlanUsage, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onSendTo, canvasSendError, dismissCanvasSendError, onLaunchFork, canvasForkRuns, pendingSessionIds, onApproveWorkflow, onEditUser: editUser, onStop, onNew, onNewWithDraft, onHandoff, onLaunchAgent, handoffBusy, onFunnel, funnelBusy, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onLoadOlder, onOpenSummary, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueReleaseAt, queueSetPaused, queueRetry, queueRetarget, queueRunBg, queueRunNow, queueForce, resumeOffer: resumeOffers[activeId] ?? null, resumeRun, onOpenBot };
+  return { ...dropsApi, ...vaultApi, ...cronsApi, ...teamApi, ...botFilesApi, botComputers: botComputerApi.botComputers, onBotComputerGet: botComputerApi.onBotComputerGet, grokUsage: grokUsageApi.grokUsage, onRefreshGrokUsage: grokUsageApi.onRefreshGrokUsage, ...pointsApi, ...contextsApi, ...memoriesApi, ...skillsApi, ...graphsApi, ...canvasApi, ...adminApi, mcps: mcpsApi.mcps, mcpsBusy: mcpsApi.mcpsBusy, onMcpsGet: mcpsApi.onMcpsGet, agents: agentsApi.agents, claudeImport: claudeImportApi, connections: connectionsApi.connections, connectionsLoaded: connectionsApi.loaded, onConnectionsGet: connectionsApi.refresh, probeResult: probeApi.probeResult, probeBusy: probeApi.probeBusy, onProviderProbe: probeApi.onProviderProbe, onProviderProbeReset: probeApi.onProviderProbeReset, sessions, loading, activeId, setActiveId, messages, threads, onLoadThread, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], allSessionTodos: sessionTodos, allBgAgents: bgAgents, running, runningAnywhere, stalled, updated, seen, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, planBlockedUntil, planReadAt, planNextReadAt, stats, archived, contextTokens, contextModel, usageModel, sendCost, liveTurnTokens, turnStartedAt, bgAgents: activeBgAgents, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, interrupted, searchResults, onSearch, marathon, onToggleMarathon, attachments: attachmentsView, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, claudeLogin, claudeAccount, onClaudeAccountGet, onClaudeLogout, onClaudeLoginStart, onClaudeLoginCode, onClaudeLoginCancel, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, onRefreshPlanUsage, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onSendTo, canvasSendError, dismissCanvasSendError, onLaunchFork, canvasForkRuns, pendingSessionIds, onApproveWorkflow, onEditUser: editUser, onStop, onNew, onNewWithDraft, onHandoff, onLaunchAgent, handoffBusy, onFunnel, funnelBusy, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onLoadOlder, onOpenSummary, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueReleaseAt, queueSetPaused, queueRetry, queueRetarget, queueRunBg, queueRunNow, queueForce, resumeOffer: resumeOffers[activeId] ?? null, resumeRun, onOpenBot };
 }

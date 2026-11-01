@@ -9,6 +9,7 @@ vi.mock('../../sessions/AddBoxModal', () => ({ AddBoxModal: () => <div>pairing</
 
 import { boxStore } from '../../../cockpit/boxes-store';
 import { savePref } from '../../../lib/persist';
+import { boxUnreadStore } from '../../../cockpit/box-unread';
 import { BoxRail } from './BoxRail';
 import { LAST_SESSION_PREF, railTargetPath, rememberSession } from './useBoxRail';
 
@@ -75,6 +76,17 @@ describe('BoxRail', () => {
     render(<BoxRail activeSessionId="s3" />);
     push([info(A, 'VPS', true)]);
     expect(JSON.stringify(localStorage)).toContain('s3');
+  });
+
+  it('marks red count, white dot and a locked box, never a false empty state', () => {
+    render(<BoxRail activeSessionId="" />);
+    push([info(A, 'VPS', true), info(B, 'PC', true)]);
+    act(() => boxUnreadStore.set(B, { white: 1, red: 2, locked: false }));
+    expect(screen.getByRole('button', { name: /PC, online · 2 aguardando você · 1 com novidade/ })).toBeTruthy();
+    expect(screen.getByText('2')).toBeTruthy();
+    act(() => boxUnreadStore.set(B, { white: 0, red: 0, locked: true }));
+    expect(screen.getByRole('button', { name: /não está cadastrado/ })).toBeTruthy();
+    act(() => boxUnreadStore.reset());
   });
 
   it('keeps rename and revoke in the context menu', () => {

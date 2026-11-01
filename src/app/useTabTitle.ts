@@ -10,11 +10,11 @@ export function tabTitle(running: number, updated: number): string {
   return (parts.length ? parts.join(' ') + ' — ' : '') + 'Deck';
 }
 
-export function useTabTitle(running: Set<string>, updated: Set<string>) {
+export function useTabTitle(running: Set<string>, updated: Set<string>, redCount: number) {
   useEffect(() => {
     setTitleBase(tabTitle(running.size, updated.size));
-    // Só o "não visto" vira badge: "rodando" já não é novidade pra quem disparou,
-    // e um contador que nunca zera perde o sentido no ícone do app instalado.
-    setBadge(updated.size);
-  }, [running, updated]);
+    // The badge is what needs the person, across every box. "Finished" is a dot on
+    // the rail: a counter that rarely reaches zero stops meaning anything.
+    setBadge(redCount);
+  }, [running, updated, redCount]);
 }

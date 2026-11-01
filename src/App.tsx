@@ -33,6 +33,8 @@ import { useCockpit } from './useCockpit';
 import { useBoxes } from './cockpit/useBoxes';
 import { useOtherBoxToasts } from './app/useOtherBoxToasts';
 import { useDesktopLinks } from './app/useDesktopLinks';
+import { useActiveBoxUnread } from './app/useActiveBoxUnread';
+import { totalRed, useBoxUnread } from './cockpit/box-unread';
 import { boxStore } from './cockpit/boxes-store';
 import { takePendingPrompt, PROMPT_LINK_MAX } from './cockpit/prompt-link';
 import { toast } from './components/primitives/toast-bus';
@@ -141,7 +143,6 @@ function CockpitBody() {
   // heurística acertaria pelo motivo errado e mutilaria o chat à toa.
   const keyboardOpen = useKeyboardOpen() && isMobile;
   useKeyboardViewport();
-  useTabTitle(running, updated);
   useOtherBoxToasts(!isMobile);
   useDesktopLinks();
   const link: LinkState = conn.ws === 'connected' ? 'open' : conn.ws === 'reconnecting' ? 'connecting' : 'closed';
@@ -207,6 +208,8 @@ function CockpitBody() {
   const call = useCall({ messages, phase, onSend: handleSend, sessionKey: activeSessionId, pendingIds: cockpit.pendingSessionIds });
 
   const sidebarSessions = useMemo(() => withoutBotThreads(sessions, cockpit.bots), [sessions, cockpit.bots]);
+  useActiveBoxUnread(sidebarSessions, cockpit.seen, activeSessionId, runningAnywhere);
+  useTabTitle(running, updated, totalRed(useBoxUnread()));
   const sessionsProps = { sessions: sidebarSessions, loading, activeId: activeSessionId, onSelect: selectSession, onNew: handleNew, marathon, onToggleMarathon, onRename: handleRename, onDescribe: handleDescribe, onClose: handleCloseSession, onDelete: handleDeleteSession, onStop: handleStop, archived, onUnhide: handleUnhide, running: runningAnywhere, stalled, updated, runStart, searchResults, onSearch, userId: sbAuth.session?.user.id };
   useGlobalShortcuts({ sessions: sidebarSessions, running: runningAnywhere, activeSessionId, setActiveSessionId: selectSession, updated, nav, onNew: handleNew, setPalette, setHelp });
   const navCounts = useMemo(() => ({ '/canvas': sidebarSessions.filter((s) => s.waiting).length }), [sidebarSessions]);

@@ -67,6 +67,7 @@ export function parseSessions(items: unknown): SessionMeta[] {
       mtime: typeof m.mtime === 'number' ? m.mtime : 0,
       count: typeof m.count === 'number' ? m.count : 0,
       waiting: m.waiting === true,
+      ...(typeof m.lastTurnOk === 'boolean' ? { lastTurnOk: m.lastTurnOk } : {}),
     });
   }
   return out.sort((a, b) => b.mtime - a.mtime);

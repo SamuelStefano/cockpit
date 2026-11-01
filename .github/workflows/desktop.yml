@@ -29,8 +29,8 @@ jobs:
       # Smoke runs before fuses are flipped: Playwright launches through inspect flags.
       - run: npm run smoke
       - run: npm run package
-      - run: npx @electron/fuses read --app out/Deck-win32-x64/Deck.exe
-      - run: Compress-Archive -Path out/Deck-win32-x64/* -DestinationPath out/Deck-win-x64.zip
+      - run: npx @electron/fuses read --app out/win-unpacked/Deck.exe
+      - run: Compress-Archive -Path out/win-unpacked/* -DestinationPath out/Deck-win-x64.zip
         shell: pwsh
       - uses: actions/upload-artifact@v4
         with:
