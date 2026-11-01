@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { loadPref, savePref } from '../../../lib/persist';
+import { useBoxUnread } from '../../../cockpit/box-unread';
 import { useBoxSwitcher } from '../../sessions/useBoxSwitcher';
 import { chatPath } from '../../../useRoute';
 
@@ -22,6 +23,7 @@ export interface RailMenu { boxId: string; x: number; y: number }
 export function useBoxRail(activeSessionId: string) {
   const s = useBoxSwitcher();
   const [menu, setMenu] = useState<RailMenu | null>(null);
+  const unread = useBoxUnread();
 
   useEffect(() => {
     const prev = loadPref<Record<string, string>>(LAST_SESSION_PREF, {});
@@ -36,5 +38,5 @@ export function useBoxRail(activeSessionId: string) {
     s.select(id);
   }, [s]);
 
-  return { ...s, open, menu, openMenu: setMenu, closeMenu: () => setMenu(null) };
+  return { ...s, open, unread, menu, openMenu: setMenu, closeMenu: () => setMenu(null) };
 }
