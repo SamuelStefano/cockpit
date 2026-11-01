@@ -32,6 +32,7 @@ import { useAgentNav } from './app/useAgentNav';
 import { useCockpit } from './useCockpit';
 import { useBoxes } from './cockpit/useBoxes';
 import { useOtherBoxToasts } from './app/useOtherBoxToasts';
+import { DesktopTitleBar } from './app/DesktopTitleBar';
 import { useDesktopLinks } from './app/useDesktopLinks';
 import { useActiveBoxUnread } from './app/useActiveBoxUnread';
 import { totalRed, useBoxUnread } from './cockpit/box-unread';
@@ -291,6 +292,7 @@ function CockpitBody() {
         role={role}
       />
       <ShortcutsHelp open={help} onClose={() => setHelp(false)} />
+      <DesktopTitleBar />
       <div className="flex min-h-0 flex-1">
         {!isMobile && <BoxRail activeSessionId={activeSessionId} userId={sbAuth.session?.user.id} />}
         {!isMobile && (

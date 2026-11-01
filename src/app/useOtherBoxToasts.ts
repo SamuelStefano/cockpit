@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from 'react';
 import { BoxPeek, type PeekState, type TurnSummary } from '../cockpit/box-peek';
+import { boxSessionsStore } from '../cockpit/box-sessions';
 import { boxUnreadStore, loadSeen, NO_UNREAD, saveSeen, unreadLevels } from '../cockpit/box-unread';
 import { mergeSeen } from '../cockpit/session';
 import { WAITING_DISMISSED_KEY } from '../lib/prefs';
@@ -39,13 +40,14 @@ export function useOtherBoxToasts(enabled: boolean): void {
   );
   useEffect(() => {
     boxUnreadStore.retain(new Set([...(key ? key.split(',') : []), ...(active ? [active] : [])]));
+    boxSessionsStore.retain(new Set(key ? key.split(',') : []));
     if (!key) return;
     const peeks = key.split(',').map((box) => {
       let state: PeekState | undefined;
       return new BoxPeek(box, {
         dial,
         isEnrolled,
-        onChange: (s) => { state = s; publishUnread(box, s); },
+        onChange: (s) => { state = s; publishUnread(box, s); if (s.status === 'open') boxSessionsStore.set(box, s.sessions); },
         onTurn: (turn) => {
           const open = () => {
             const target = turnTarget(turn);

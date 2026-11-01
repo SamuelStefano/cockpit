@@ -5,6 +5,7 @@ import { WAITING_DISMISSED_KEY } from '../lib/prefs';
 import { useSidebarCollapsed } from '../components/chrome/sidebar/useSidebarCollapsed';
 import { requestTerminal, requestTerminalToggle } from '../lib/terminal-request';
 import { sidebarOrder } from './sidebar-order';
+import { useUnreadShortcuts } from './useUnreadShortcuts';
 import type { Session } from '../data/types';
 import type { Route } from '../useRoute';
 
@@ -40,6 +41,7 @@ export function useGlobalShortcuts({ sessions, running, activeSessionId, setActi
     () => sidebarOrder(sessions, { pinned: new Set(navPins), running, dismissed: new Set(Object.keys(dismissedMap)) }),
     [sessions, navPins, running, dismissedMap],
   );
+  useUnreadShortcuts({ ordered, activeId: activeSessionId, updated, select: setActiveSessionId, nav });
   // One ref for everything the key handlers read, so the listeners bind once.
   const live = useRef({ ordered, activeSessionId, updated, onNew, toggleSidebar, setActiveSessionId, nav });
   live.current = { ordered, activeSessionId, updated, onNew, toggleSidebar, setActiveSessionId, nav };
@@ -98,7 +100,7 @@ export function useGlobalShortcuts({ sessions, running, activeSessionId, setActi
   // focused (Alt+arrow is not a text-editing combo) and always lands on the chat.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (!e.altKey || e.metaKey || e.ctrlKey) return;
+      if (!e.altKey || e.metaKey || e.ctrlKey || e.shiftKey) return;
       if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
       if (modalOpen()) return;
       const { ordered: list, activeSessionId: active, setActiveSessionId: select, nav: go } = live.current;

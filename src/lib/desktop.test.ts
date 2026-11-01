@@ -1,12 +1,20 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { desktopVersion, focusDesktopWindow, inDesktopApp, setDesktopBadge } from './desktop';
+import { desktopVersion, focusDesktopWindow, hasCustomTitlebar, inDesktopApp, setDesktopBadge } from './desktop';
 
 const g = globalThis as { deckDesktop?: unknown };
 
 afterEach(() => { delete g.deckDesktop; });
 
 describe('desktop adapter', () => {
+  it("draws the title bar only on shells from apiVersion 3", () => {
+    expect(hasCustomTitlebar()).toBe(false);
+    g.deckDesktop = { apiVersion: 2 };
+    expect(hasCustomTitlebar()).toBe(false);
+    g.deckDesktop = { apiVersion: 3 };
+    expect(hasCustomTitlebar()).toBe(true);
+  });
+
   it('is a no-op in the browser', () => {
     expect(inDesktopApp()).toBe(false);
     expect(desktopVersion()).toBeNull();
