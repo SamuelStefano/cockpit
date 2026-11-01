@@ -5,6 +5,7 @@
 import { loadPref } from './persist';
 import { NOTIFY_SOUND_KEY, NOTIFY_SOUND_DEFAULT } from './prefs';
 import { focusDesktopWindow, inDesktopApp, setDesktopBadge } from './desktop';
+import { inShell, postToShell } from './shell';
 
 let baseTitle = typeof document !== 'undefined' ? document.title : 'Deck';
 let flashing = false;
@@ -89,7 +90,7 @@ export function setTitleBase(t: string): void {
 }
 
 export function requestNotifyPermission(): void {
-  if (typeof Notification === 'undefined') return;
+  if (inShell() || typeof Notification === 'undefined') return;
   if (Notification.permission === 'default') {
     Notification.requestPermission().catch(() => {});
   }
@@ -108,6 +109,11 @@ function activate(onActivate?: () => void): void {
 export function notifyTurnDone(sessionTitle: string, onActivate?: () => void, sessionKey?: string): void {
   if (typeof document === 'undefined') return;
   if (userIsLooking()) return;
+  // The native shell owns the local notification; the Notification API is absent in a WKWebView.
+  if (inShell()) {
+    postToShell({ type: 'notify', kind: 'turn-done', title: 'Deck — resposta pronta', body: sessionTitle || 'A sessão terminou de responder.', tag: sessionKey ? `cockpit-done:${sessionKey}` : 'cockpit-done' });
+    return;
+  }
   flashTitle();
   vibrate([30]);
   beep(660);
@@ -133,6 +139,10 @@ export function notifyTurnDone(sessionTitle: string, onActivate?: () => void, se
 export function notifyTurnError(sessionTitle: string, message: string, onActivate?: () => void, sessionKey?: string): void {
   if (typeof document === 'undefined') return;
   if (userIsLooking()) return;
+  if (inShell()) {
+    postToShell({ type: 'notify', kind: 'turn-error', title: 'Deck — turno falhou', body: (sessionTitle ? `${sessionTitle} — ` : '') + (message || 'A sessão terminou com erro.'), tag: sessionKey ? `cockpit-error:${sessionKey}` : 'cockpit-error' });
+    return;
+  }
   flashTitle();
   vibrate([60, 40, 60]);
   beep(220);
