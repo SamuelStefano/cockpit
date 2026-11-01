@@ -8,6 +8,7 @@ import './index.css';
 import { CockpitApp } from './App';
 import { ChunkErrorBoundary, reloadOnStaleChunk } from './app/ChunkErrorBoundary';
 import { parseSharePath } from './lib/share';
+import { trackTabHidden } from './app/entry-landing';
 
 const SharedConversationView = lazy(() => import('./components/share/SharedConversationView'));
 
@@ -17,6 +18,7 @@ window.addEventListener('vite:preloadError', (e) => { if (reloadOnStaleChunk()) 
 const sharePath = parseSharePath(window.location.pathname) ? window.location.pathname : null;
 
 capturePromptFromLocation();
+trackTabHidden();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
