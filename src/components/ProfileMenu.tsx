@@ -8,6 +8,8 @@ import { AvatarFace } from './avatar/AvatarFace';
 import { useProfileMenu } from './avatar/useProfileMenu';
 import { DropButton } from './drop/DropButton';
 import type { DropApi } from '../cockpit/useDrops';
+import { DeleteAccountModal } from './auth/DeleteAccount';
+import { useDeleteAccount } from './auth/useDeleteAccount';
 
 interface ProfileMenuProps {
   userId?: string;
@@ -38,9 +40,11 @@ const PANEL_PLACEMENT = {
 export function ProfileMenu({ userId, onSignOut, onChangePassword, drops, conn, role, placement = 'down-end', variant = 'icon', routes, route, nav, counts }: ProfileMenuProps = {}) {
   const { name, avatar, synced, syncFailed, open, setOpen, wrapRef } = useProfileMenu(userId);
 
+  const del = useDeleteAccount(async () => { await onSignOut?.(); });
   const badge = role ? roleBadge(role) : null;
   return (
     <div ref={wrapRef} className="relative">
+      {onSignOut && <DeleteAccountModal d={del} />}
       {variant !== 'icon' ? (
         <button
           onClick={() => setOpen((o) => !o)}
@@ -111,6 +115,7 @@ export function ProfileMenu({ userId, onSignOut, onChangePassword, drops, conn, 
               <Button variant="danger" size="sm" icon="x" className="w-full" onClick={() => { setOpen(false); onSignOut?.(); }}>
                 Desconectar conta
               </Button>
+              <Button variant="ghost" size="sm" className="mt-1 w-full" onClick={() => { setOpen(false); void del.show(); }}>Excluir conta</Button>
             </div>
           )}
         </div>
