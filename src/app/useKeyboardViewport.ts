@@ -10,7 +10,7 @@ export function useKeyboardViewport(): void {
     if (!vv) return;
     const root = document.documentElement;
     const apply = () => {
-      if (vv.height < window.innerHeight * RATIO) root.style.setProperty('--app-height', `${Math.round(vv.height)}px`);
+      if (vv.scale <= 1 && vv.height < window.innerHeight * RATIO) root.style.setProperty('--app-height', `${Math.round(vv.height)}px`);
       else root.style.removeProperty('--app-height');
       if (window.scrollY !== 0) window.scrollTo(0, 0);
     };
