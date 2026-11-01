@@ -220,6 +220,10 @@ interface TaskStatusCmd {
   kind: 'task-status';
   taskId: string;
   status: DflTaskDbStatus;
+  // Unconfirmed push: never move a task DFL already has as finished (done /
+  // dev_completed). The Deck's reopen check reads a local snapshot up to ~15 min
+  // old; this makes DFL itself refuse, atomically, in the same PATCH.
+  unlessFinished?: boolean;
 }
 
 async function createTask(cmd: TaskCreateCmd): Promise<Record<string, unknown>> {
@@ -245,6 +249,8 @@ async function createTask(cmd: TaskCreateCmd): Promise<Record<string, unknown>> 
   return { taskId, name: inserted[0].name, status: inserted[0].status };
 }
 
+export const FINISHED_IN_DFL = 'FINISHED_IN_DFL';
+
 async function updateTaskStatus(cmd: TaskStatusCmd): Promise<Record<string, unknown>> {
   if (!uuidRe.test(cmd.taskId)) throw new Error('taskId inválido');
   if (!TASK_STATUSES.has(cmd.status)) throw new Error('status inválido');
@@ -254,10 +260,12 @@ async function updateTaskStatus(cmd: TaskStatusCmd): Promise<Record<string, unkn
   // select inclui updated_at: server/canvas/dfl-status-sync.ts precisa dele pra
   // manter o "relógio DFL" do link alinhado com o que o PATCH realmente gravou,
   // em vez de reconstruir a partir de um `now` local que pode divergir por ms.
-  const updated = await pgFetch(`tasks?id=eq.${cmd.taskId}&select=id,status,updated_at`, {
+  const guard = cmd.unlessFinished ? '&status=not.in.(dev_completed,done)' : '';
+  const updated = await pgFetch(`tasks?id=eq.${cmd.taskId}${guard}&select=id,status,updated_at`, {
     schema: 'work', method: 'PATCH', headers: { Prefer: 'return=representation' },
     body: JSON.stringify({ status: cmd.status, updated_at: now }),
   }) as { id: string; status: string; updated_at: string }[];
+  if (!updated?.length && cmd.unlessFinished) throw new Error(`${FINISHED_IN_DFL}: a task já está concluída no DFL (ou não existe) — confirme pra reabrir`);
   if (!updated?.length) throw new Error('PATCH task não achou a linha (id inválido ou sem permissão)');
   return { taskId: cmd.taskId, status: updated[0].status, updatedAt: updated[0].updated_at };
 }
