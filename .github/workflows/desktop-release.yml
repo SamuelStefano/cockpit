@@ -1,0 +1,56 @@
+name: Desktop release
+
+on:
+  push:
+    tags: ['desktop-v*']
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - run: npm ci
+      - name: Tag matches the package version
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+        run: test "$TAG" = "desktop-v$(node -p "require('./package.json').version")"
+      - run: npx tsc -p tsconfig.json --noEmit
+      - run: npm test
+      - run: npm run dist
+      - run: npx @electron/fuses read --app out/win-unpacked/Deck.exe
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release
+          if-no-files-found: error
+          path: |
+            desktop/out/Deck-Setup.exe
+            desktop/out/Deck-Setup.exe.blockmap
+            desktop/out/latest.yml
+
+  # The only job with write access: it installs nothing and runs no repo code.
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: gh release create "$TAG" Deck-Setup.exe Deck-Setup.exe.blockmap latest.yml --repo "$REPO" --title "$TAG" --notes "Deck for Windows. Unsigned: SmartScreen warns on first install."

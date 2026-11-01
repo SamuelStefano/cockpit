@@ -1,6 +1,7 @@
 import { app, BrowserWindow } from 'electron';
 import { registerBridge, showWindow } from './bridge';
 import { hardenPermissions } from './security';
+import { startUpdater } from './updater';
 import { createMainWindow } from './window';
 
 app.enableSandbox();
@@ -22,5 +23,6 @@ if (!app.requestSingleInstanceLock()) {
     win = createMainWindow();
     registerBridge(win);
     win.on('closed', () => { win = null; });
+    startUpdater(() => win);
   });
 }
