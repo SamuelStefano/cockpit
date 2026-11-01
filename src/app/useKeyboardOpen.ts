@@ -1,9 +1,7 @@
 import { useState, useEffect } from 'react';
+import { viewportShrunk } from './keyboard-shrunk';
 
-// Teclado virtual aberto = viewport visível muito menor que a janela. 0.75 é
-// folgado o bastante pra não confundir com a barra de endereço do Safari (que
-// come ~10%) e apertado pra pegar qualquer teclado (que come ~40%).
-const RATIO = 0.75;
+// Teclado virtual aberto = viewport visível bem menor que a maior já vista (keyboard-shrunk).
 // Com `interactive-widget=resizes-content` (o do index.html) o browser encolhe a
 // PRÓPRIA janela ao abrir o teclado: visualViewport.height passa a ser igual a
 // innerHeight e a razão acima nunca dispara. A media query curta é o sinal desse
@@ -26,7 +24,7 @@ export function keyboardOpen(): boolean {
   const short = window.matchMedia(SHORT).matches && editableFocused();
   const vv = window.visualViewport;
   if (!vv) return short;
-  return short || vv.height < window.innerHeight * RATIO;
+  return short || viewportShrunk(vv.height, window.innerHeight, window.innerWidth);
 }
 
 // Estado inicial já LÊ o valor (mesmo motivo do useIsMobile): abrir o chat com o
@@ -36,19 +34,22 @@ export function useKeyboardOpen(): boolean {
   useEffect(() => {
     const apply = () => setOpen(keyboardOpen());
     apply();
+    let settle = 0;
+    const applyLater = () => { apply(); clearTimeout(settle); settle = window.setTimeout(apply, 350); };
     const mq = window.matchMedia(SHORT);
     const vv = window.visualViewport;
     mq.addEventListener('change', apply);
     vv?.addEventListener('resize', apply);
     vv?.addEventListener('scroll', apply);
-    document.addEventListener('focusin', apply);
-    document.addEventListener('focusout', apply);
+    document.addEventListener('focusin', applyLater);
+    document.addEventListener('focusout', applyLater);
     return () => {
+      clearTimeout(settle);
       mq.removeEventListener('change', apply);
       vv?.removeEventListener('resize', apply);
       vv?.removeEventListener('scroll', apply);
-      document.removeEventListener('focusin', apply);
-      document.removeEventListener('focusout', apply);
+      document.removeEventListener('focusin', applyLater);
+      document.removeEventListener('focusout', applyLater);
     };
   }, []);
   return open;
