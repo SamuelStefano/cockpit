@@ -4,6 +4,15 @@ export const APP_ORIGIN = 'https://deck.devfellowship.com';
 // the app origin in the main frame, which is what the bridge trusts.
 const EXTERNAL_SCHEMES = new Set(['https:', 'http:', 'mailto:']);
 
+// nginx decodes and merges slashes before matching, so the raw path can hide it.
+function isSandboxPath(pathname: string): boolean {
+  try {
+    return decodeURIComponent(pathname).replace(/\/+/g, '/').startsWith('/sandbox');
+  } catch {
+    return true;
+  }
+}
+
 export type LinkAction = 'app' | 'external' | 'blocked';
 
 // The OS treats file:, smb: and ms-msdt: links as actions, and link text can come
@@ -15,7 +24,7 @@ export function classifyLink(raw: string): LinkAction {
   } catch {
     return 'blocked';
   }
-  if (url.origin === APP_ORIGIN) return url.pathname.startsWith('/sandbox/') ? 'blocked' : 'app';
+  if (url.origin === APP_ORIGIN) return isSandboxPath(url.pathname) ? 'blocked' : 'app';
   return EXTERNAL_SCHEMES.has(url.protocol) ? 'external' : 'blocked';
 }
 

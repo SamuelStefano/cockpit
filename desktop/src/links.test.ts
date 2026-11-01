@@ -5,6 +5,9 @@ describe('classifyLink', () => {
   it.each([
     [`${APP_ORIGIN}/c/abc`, 'app'],
     [`${APP_ORIGIN}/sandbox/frame.html`, 'blocked'],
+    [`${APP_ORIGIN}/%73andbox/frame.html`, 'blocked'],
+    [`${APP_ORIGIN}//sandbox/frame.html`, 'blocked'],
+    [`${APP_ORIGIN}/%zz`, 'blocked'],
     ['https://github.com/x', 'external'],
     ['http://example.com', 'external'],
     ['mailto:a@b.c', 'external'],
