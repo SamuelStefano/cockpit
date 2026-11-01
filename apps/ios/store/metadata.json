@@ -1,0 +1,55 @@
+{
+  "bundleId": "com.tainanfidelis.deck",
+  "primaryCategory": "DEVELOPER_TOOLS",
+  "secondaryCategory": "PRODUCTIVITY",
+  "copyright": "2026 DevFellowship",
+  "supportUrl": "https://deck.devfellowship.com/support",
+  "marketingUrl": "https://deck.devfellowship.com",
+  "privacyPolicyUrl": "https://deck.devfellowship.com/privacy",
+  "ageRating": {
+    "advertising": false,
+    "alcoholTobaccoOrDrugUseOrReferences": "NONE",
+    "contests": "NONE",
+    "gambling": false,
+    "gamblingSimulated": "NONE",
+    "gunsOrOtherWeapons": "NONE",
+    "healthOrWellnessTopics": false,
+    "horrorOrFearThemes": "NONE",
+    "lootBox": false,
+    "matureOrSuggestiveThemes": "NONE",
+    "medicalOrTreatmentInformation": "NONE",
+    "messagingAndChat": false,
+    "parentalControls": false,
+    "ageAssurance": false,
+    "profanityOrCrudeHumor": "NONE",
+    "sexualContentGraphicAndNudity": "NONE",
+    "sexualContentOrNudity": "NONE",
+    "socialMedia": false,
+    "unrestrictedWebAccess": false,
+    "userGeneratedContent": false,
+    "violenceCartoonOrFantasy": "NONE",
+    "violenceRealistic": "NONE",
+    "violenceRealisticProlongedGraphicOrSadistic": "NONE"
+  },
+  "review": {
+    "contactFromAscAppId": "6756785447",
+    "demoAccountRequired": true,
+    "notes": "Deck is a chat client for the user's own server. The user runs an agent (a coding assistant) on a server they control; Deck is the app they use to talk to it from a phone. The app does not run the agent itself.\n\nThe users are developers and students who already run their own Deck server (a VPS or a computer) and want to reach their agent from an iPhone.\n\nBusiness model: there is no subscription, no plan and no paid content. Everything is free and identical for every account. The app has no In-App Purchase and shows no price anywhere. There is nothing to buy on the web either, and no previously bought subscription to access.\n\nAccounts: signup is free and happens inside the app, with an email address and a password. A new account has no server yet. It sees a screen that says it needs the user's own server, with Sign out and Delete account. Account deletion: profile menu > Excluir conta, in the app (also on the no-server screen). It removes the account and its data.\n\nWidgets: the app has no Widgets, no app extension and no Live Activity.\n\nDemo account: the Sign-in information fields hold a student account. It is connected to a box (a server) that DevFellowship operates for this review, so the reviewer sees the full chat without owning a server. The box is ours; users normally connect their own.\n\nHow to test, step by step:\n1. Open Deck and sign in with the demo account from the Sign-in information fields.\n2. The dashboard lists one connected box. Tap it.\n3. Tap the chat input and type: Say hello and list the files in the current folder. Tap Send. The agent on the box replies in the chat.\n4. Tap the microphone button next to the input, allow microphone and speech recognition, and say a short sentence. The text appears in the input. Denying either permission only disables that button.\n5. Long-press a reply and choose Compartilhar to open the iOS share sheet.\n6. Optional, Photos: in a chat, tap Ativar prints automáticos above the input (it is off until tapped). iOS then asks for Photos access. Take a screenshot (or take one in another app and return to Deck): a prompt shows a thumbnail and Colar o print no chat? Tapping Colar attaches the image to the message; tapping Agora não discards it. Nothing is sent without that tap. Denying or choosing Selected Photos only turns this offer off or limits it; the rest of the app is unchanged. Access can be revoked in Settings > Deck > Photos.\n7. When a reply finishes, the app shows a local notification. iOS asks for notification permission the first time; denying it only turns the notice off.\n8. To check deletion: profile menu > Excluir conta > type the email to confirm. Use a new account for this, not the demo account.\n\nNative parts: local notifications when a reply finishes, the iOS share sheet, haptics, microphone dictation (speech recognition), and the optional screenshot offer (read-only Photos access, only after the user turns it on). The app does not record audio in the background and has no background audio mode.\n\nPrivacy policy: https://deck.devfellowship.com/privacy\nSupport: https://deck.devfellowship.com/support"
+  },
+  "locales": {
+    "pt-BR": {
+      "name": "Deck",
+      "subtitle": "Teu agente, no celular",
+      "promotionalText": "Converse com o agente que roda no teu próprio servidor. Dite por voz e receba um aviso quando a resposta terminar.",
+      "description": "O Deck é o app de conversa com o agente que roda no teu próprio servidor.\n\nTu tens um servidor (uma VPS ou um computador) com um agente de código. O Deck leva esse agente pro teu celular.\n\nConverse\n- Manda uma mensagem e o agente no teu servidor responde.\n- Dita por voz: aperta o microfone e fala. O iPhone transcreve pra ti.\n- Compartilha uma resposta pela folha de compartilhamento do iOS.\n\nFica sabendo na hora\n- Uma notificação local avisa quando a resposta termina, mesmo com o app em segundo plano.\n\nTeu servidor, teus dados\n- O agente roda na máquina que tu controla. O Deck é só o cliente.\n- Podes excluir a conta dentro do app, em Ajustes.\n\nImportante: o Deck precisa de um servidor Deck teu. Uma conta nova ainda não tem servidor, e o app explica como conectar um.\n\nPolítica de privacidade: https://deck.devfellowship.com/privacy\nSuporte: https://deck.devfellowship.com/support",
+      "keywords": "agente,chat,servidor,código,terminal,dev,ia,voz,vps,programação,assistente"
+    },
+    "en-US": {
+      "name": "Deck",
+      "subtitle": "Your agent, on your phone",
+      "promotionalText": "Chat with the agent that runs on your own server. Dictate by voice and get a notice when a reply finishes.",
+      "description": "Deck is the chat app for the agent that runs on your own server.\n\nYou have a server (a VPS or a computer) with a coding agent. Deck brings that agent to your phone.\n\nChat\n- Send a message and the agent on your server answers.\n- Dictate by voice: tap the microphone and talk. Your iPhone transcribes it.\n- Share a reply from the iOS share sheet.\n\nKnow right away\n- A local notification tells you when a reply finishes, even with the app in the background.\n\nYour server, your data\n- The agent runs on a machine you control. Deck is only the client.\n- You can delete your account inside the app, in the profile menu.\n\nNote: Deck needs your own Deck server. A new account has no server yet, and the app explains how to connect one.\n\nPrivacy policy: https://deck.devfellowship.com/privacy\nSupport: https://deck.devfellowship.com/support",
+      "keywords": "agent,chat,server,code,terminal,developer,ai,voice,vps,coding,assistant"
+    }
+  }
+}

@@ -61,7 +61,8 @@ export default defineConfig({
     maxWorkers: 2,
     // Worktree de agente é uma cópia do repo em commit antigo: a suite dele
     // roda junto e falha por código que a main já corrigiu.
-    exclude: [...configDefaults.exclude, '.claude/worktrees/**', 'desktop/**'],
+    // apps/** is the iOS shell: its own lockfile and React, its tests run in apps/ios.
+    exclude: [...configDefaults.exclude, '.claude/worktrees/**', 'desktop/**', 'apps/**'],
   },
   server: {
     host: '127.0.0.1',

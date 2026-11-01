@@ -1,0 +1,35 @@
+{
+  "cli": {
+    "version": ">= 24.10.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "base": {
+      "env": {
+        "EXPO_NO_TELEMETRY": "1"
+      }
+    },
+    "simulator": {
+      "extends": "base",
+      "distribution": "internal",
+      "ios": { "simulator": true }
+    },
+    "development": {
+      "extends": "base",
+      "developmentClient": true,
+      "distribution": "internal",
+      "ios": { "simulator": false },
+      "env": { "APP_VARIANT": "development" }
+    },
+    "production": {
+      "extends": "base",
+      "distribution": "store",
+      "autoIncrement": true,
+      "channel": "production"
+    },
+    "production-bundle": {
+      "extends": "production",
+      "env": { "DECK_WEB_BUNDLE": "1" }
+    }
+  }
+}
