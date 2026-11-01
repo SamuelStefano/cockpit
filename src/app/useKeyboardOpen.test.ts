@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
 import { useKeyboardOpen } from './useKeyboardOpen';
+import { resetViewportBaseline } from './keyboard-shrunk';
 
 function stubMatchMedia(matches: boolean) {
   vi.stubGlobal('matchMedia', (query: string) => ({
@@ -39,7 +40,7 @@ function focusTextarea() {
   return ta;
 }
 
-afterEach(() => { vi.unstubAllGlobals(); document.body.innerHTML = ''; });
+afterEach(() => { vi.unstubAllGlobals(); document.body.innerHTML = ''; resetViewportBaseline(); });
 
 describe('useKeyboardOpen', () => {
   it('acusa teclado quando o viewport visível cai abaixo de 75% da janela', () => {
