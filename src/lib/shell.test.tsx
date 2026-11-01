@@ -4,7 +4,10 @@ import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 
 vi.mock('./supabase', () => ({ supabase: { auth: { getSession: async () => ({ data: { session: { access_token: 't', user: { email: 'ana@x.com' } } } }) } }, SUPABASE_ENABLED: true }));
 
-import { inShell, postToShell } from './shell';
+import { inShell, postToShell, parseShellEvent, onShellEvent, dataUrlToFile, MAX_SCREENSHOT_CHARS } from './shell';
+import { act } from '@testing-library/react';
+import { useScreenshotOffer } from '../components/chat/useScreenshotOffer';
+import { ScreenshotPrompt } from '../components/chat/ScreenshotPrompt';
 import { notifyTurnDone, notifyTurnError } from './notify';
 import { webauthnAvailable } from '../cockpit/passkey';
 import { needsAiConsent, recordAiConsent } from './aiConsent';
@@ -170,5 +173,146 @@ describe('store-facing copy has no commerce words in the shell', () => {
       expect(text.length, name).toBeGreaterThan(0);
       expect(text, name).not.toMatch(FORBIDDEN);
     }
+  });
+});
+
+const JPEG = 'data:image/jpeg;base64,/9j/4AAQSkZJRg==';
+const emit = (detail: unknown) => act(() => { window.dispatchEvent(new CustomEvent('deck-shell', { detail })); });
+const sent = () => post.mock.calls.map((c) => JSON.parse(c[0]));
+
+describe('parseShellEvent', () => {
+  it('accepts the three events', () => {
+    expect(parseShellEvent({ type: 'screenshots-status', status: 'limited' })).toEqual({ type: 'screenshots-status', status: 'limited' });
+    expect(parseShellEvent({ type: 'screenshot-available', id: 'A/L0/001', thumbnail: JPEG })).toMatchObject({ id: 'A/L0/001' });
+    expect(parseShellEvent({ type: 'screenshot-data', id: 'A/L0/001', dataUrl: JPEG })).toMatchObject({ dataUrl: JPEG });
+  });
+  it('refuses anything else', () => {
+    for (const bad of [null, 'x', [], {}, { type: 'nope' }, { type: 'screenshots-status', status: 'maybe' },
+      { type: 'screenshot-available', id: 'a b', thumbnail: JPEG },
+      { type: 'screenshot-available', id: 'ok', thumbnail: 'https://evil.com/x.jpg' },
+      { type: 'screenshot-data', id: 'ok', dataUrl: 'data:image/svg+xml;base64,PHN2Zz4=' },
+      { type: 'screenshot-data', id: 'ok', dataUrl: 'data:image/jpeg;base64,' + 'A'.repeat(MAX_SCREENSHOT_CHARS) },
+      { type: 'screenshot-data', id: 'ok', dataUrl: 'data:image/jpeg;base64,AA"onerror="x' }]) {
+      expect(parseShellEvent(bad)).toBeNull();
+    }
+  });
+});
+
+describe('dataUrlToFile', () => {
+  it('builds a JPEG File with the decoded bytes, and refuses non-JPEG', () => {
+    const f = dataUrlToFile(JPEG, 'p.jpg')!;
+    expect(f.name).toBe('p.jpg');
+    expect(f.type).toBe('image/jpeg');
+    expect(f.size).toBe(atob('/9j/4AAQSkZJRg==').length);
+    expect(dataUrlToFile('data:text/html;base64,AAAA', 'x')).toBeNull();
+  });
+});
+
+describe('onShellEvent', () => {
+  it('does nothing in a browser', () => {
+    const cb = vi.fn();
+    const off = onShellEvent(cb);
+    emit({ type: 'screenshots-status', status: 'granted' });
+    expect(cb).not.toHaveBeenCalled();
+    off();
+  });
+});
+
+function Harness({ onUpload }: { onUpload: (f: File) => void }) {
+  const s = useScreenshotOffer(onUpload);
+  return <ScreenshotPrompt s={s} />;
+}
+
+describe('screenshot offer', () => {
+  it('renders nothing and sends nothing in a browser, even with the opt-in set', () => {
+    localStorage.setItem('deckScreenshotsOptIn', '1');
+    const { container } = render(<Harness onUpload={vi.fn()} />);
+    emit({ type: 'screenshot-available', id: 'A', thumbnail: JPEG });
+    expect(container.textContent).toBe('');
+    expect(post).not.toHaveBeenCalled();
+  });
+
+  it('asks first, sends screenshots-enable only after the user taps', () => {
+    enterShell();
+    render(<Harness onUpload={vi.fn()} />);
+    expect(post).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText('Ativar prints automáticos'));
+    expect(sent()).toEqual([{ v: 1, type: 'screenshots-enable' }]);
+    expect(localStorage.getItem('deckScreenshotsOptIn')).toBe('1');
+  });
+
+  it('re-sends enable on load when this device opted in', () => {
+    enterShell();
+    localStorage.setItem('deckScreenshotsOptIn', '1');
+    render(<Harness onUpload={vi.fn()} />);
+    expect(sent()).toEqual([{ v: 1, type: 'screenshots-enable' }]);
+  });
+
+  it('"Agora não" on the opt-in hides it for good without messaging the shell', () => {
+    enterShell();
+    const { unmount } = render(<Harness onUpload={vi.fn()} />);
+    fireEvent.click(screen.getByLabelText('Dispensar aviso'));
+    expect(screen.queryByText('Ativar prints automáticos')).toBeNull();
+    unmount();
+    render(<Harness onUpload={vi.fn()} />);
+    expect(screen.queryByText('Ativar prints automáticos')).toBeNull();
+    expect(post).not.toHaveBeenCalled();
+  });
+
+  it('shows the prompt, and Colar accepts then uploads the file once, as a pending attachment', () => {
+    enterShell();
+    localStorage.setItem('deckScreenshotsOptIn', '1');
+    const onUpload = vi.fn();
+    render(<Harness onUpload={onUpload} />);
+    post.mockReset();
+    emit({ type: 'screenshot-available', id: 'A/L0/001', thumbnail: JPEG });
+    expect(screen.getByText('Colar o print no chat?')).toBeTruthy();
+    expect(screen.getByAltText('Miniatura do print')).toBeTruthy();
+    expect(onUpload).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText('Colar'));
+    expect(sent()).toEqual([{ v: 1, type: 'screenshot-accept', id: 'A/L0/001' }]);
+    expect(onUpload).not.toHaveBeenCalled();
+    emit({ type: 'screenshot-data', id: 'A/L0/001', dataUrl: JPEG });
+    emit({ type: 'screenshot-data', id: 'A/L0/001', dataUrl: JPEG });
+    expect(onUpload).toHaveBeenCalledTimes(1);
+    expect(onUpload.mock.calls[0][0]).toBeInstanceOf(File);
+    expect(onUpload.mock.calls[0][0].type).toBe('image/jpeg');
+    expect(screen.queryByText('Colar o print no chat?')).toBeNull();
+  });
+
+  it('ignores data nobody accepted, and data for another id', () => {
+    enterShell();
+    localStorage.setItem('deckScreenshotsOptIn', '1');
+    const onUpload = vi.fn();
+    render(<Harness onUpload={onUpload} />);
+    emit({ type: 'screenshot-data', id: 'A', dataUrl: JPEG });
+    emit({ type: 'screenshot-available', id: 'A', thumbnail: JPEG });
+    fireEvent.click(screen.getByText('Colar'));
+    emit({ type: 'screenshot-data', id: 'B', dataUrl: JPEG });
+    expect(onUpload).not.toHaveBeenCalled();
+  });
+
+  it('Agora não drops the offer and sends nothing', () => {
+    enterShell();
+    localStorage.setItem('deckScreenshotsOptIn', '1');
+    const onUpload = vi.fn();
+    render(<Harness onUpload={onUpload} />);
+    post.mockReset();
+    emit({ type: 'screenshot-available', id: 'A', thumbnail: JPEG });
+    fireEvent.click(screen.getByText('Agora não'));
+    expect(screen.queryByText('Colar o print no chat?')).toBeNull();
+    expect(post).not.toHaveBeenCalled();
+    emit({ type: 'screenshot-data', id: 'A', dataUrl: JPEG });
+    expect(onUpload).not.toHaveBeenCalled();
+  });
+
+  it('explains denied and limited access', () => {
+    enterShell();
+    localStorage.setItem('deckScreenshotsOptIn', '1');
+    render(<Harness onUpload={vi.fn()} />);
+    emit({ type: 'screenshots-status', status: 'denied' });
+    expect(screen.getByText(/Sem acesso às fotos/)).toBeTruthy();
+    emit({ type: 'screenshots-status', status: 'limited' });
+    expect(screen.getByText(/Acesso limitado às fotos/)).toBeTruthy();
   });
 });
