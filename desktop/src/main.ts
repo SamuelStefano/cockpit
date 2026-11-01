@@ -22,7 +22,8 @@ if (!app.requestSingleInstanceLock()) {
     win.webContents.send('deck:link', link);
   };
 
-  app.setAsDefaultProtocolClient('deck');
+  // Unpackaged, this would register electron.exe as the deck:// handler.
+  if (app.isPackaged) app.setAsDefaultProtocolClient('deck');
 
   app.on('second-instance', (_event, argv) => {
     if (win) showWindow(win);
@@ -40,6 +41,8 @@ if (!app.requestSingleInstanceLock()) {
     registerBridge(win);
     tray = createTray(win);
     startUpdater(() => win);
+    // before-quit does not fire on a Windows shutdown or logoff; hiding here would hold it up.
+    win.on('session-end', () => { quitting = true; });
     win.on('close', (event) => {
       if (quitting) return;
       event.preventDefault();
