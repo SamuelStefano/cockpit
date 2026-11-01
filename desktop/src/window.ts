@@ -84,6 +84,9 @@ export function createMainWindow(): BrowserWindow {
       nodeIntegrationInSubFrames: false,
       webviewTag: false,
       spellcheck: true,
+      backgroundThrottling: false,
+      preload: join(__dirname, 'preload.js'),
+      additionalArguments: [`--deck-version=${app.getVersion()}`],
     },
   });
   if (state.maximized) win.maximize();
