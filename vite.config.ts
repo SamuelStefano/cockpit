@@ -4,6 +4,7 @@ import { configDefaults } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 import { vendorChunk } from './vendor-chunks.ts';
+import { buildManifestPlugin } from './vite-build-manifest.ts';
 
 const BG = '#101013'; // --bg de src/index.css: a splash do iOS tem que casar com o app
 
@@ -12,6 +13,7 @@ const BG = '#101013'; // --bg de src/index.css: a splash do iOS tem que casar co
 export default defineConfig({
   plugins: [
     react(),
+    buildManifestPlugin(),
     // O SW existe SÓ pra tornar o Deck instalável (na home screen o iOS libera a
     // Notification API, que no Safari em aba não existe). Nada de precache: o Deck
     // é ao vivo (WebSocket + estado do servidor) e um bundle servido do cache viraria
