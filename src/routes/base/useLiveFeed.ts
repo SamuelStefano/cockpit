@@ -53,10 +53,12 @@ export function useLiveFeed(s: LiveSource): { live: LiveFloor; actions: LiveActi
   const live = useMemo(() => {
     const tails: Record<string, string | null> = {};
     for (const x of s.sessions) tails[x.id] = lastText(s.threads[x.id]) ?? s.peeks[x.id]?.lastAssistant ?? null;
+    const prs: Record<string, number> = {};
+    for (const x of s.sessions) prs[x.id] = s.peeks[x.id]?.prs.length ?? 0;
     const areas: Record<string, string | undefined> = {};
     for (const n of s.graph?.nodes ?? []) if (n.kind === 'session') areas[n.ref] = n.area;
     const r = adaptLive({
-      sessions: s.sessions, running: s.running, termStats: s.termStats, threads: s.threads, tails, teamQuestions: s.teamQuestions, areas,
+      sessions: s.sessions, running: s.running, termStats: s.termStats, threads: s.threads, tails, prs, teamQuestions: s.teamQuestions, areas,
       cards: s.boardLoaded ? s.board.cards : null, stats: s.stats, crons: s.crons, mcpServers: s.mcpServers?.length ?? null, answered, now: Date.now(),
     }, placement.current);
     placement.current = r.placement;

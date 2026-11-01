@@ -44,6 +44,13 @@ export class Rig {
   }
   fly(p: Point) { this.tPos.set(p.x, 24, p.z + 27); this.tLook.set(p.x, 1, p.z); }
   desk(p: Point) { this.tPos.set(p.x, 5.7, p.z + 8.4); this.tLook.set(p.x, 5.1, p.z - 0.65); }
+  // Pulled back and shifted so the desk and its box both clear the detail panel on the right.
+  inspect(p: Point, box?: Point) {
+    const cx = box ? (p.x + box.x) / 2 : p.x, cz = box ? (p.z + box.z) / 2 : p.z + 2;
+    const span = box ? Math.hypot(box.x - p.x, box.z - p.z) : 0, d = Math.max(24, span * 1.05);
+    this.tPos.set(cx + d * 0.2, d * 0.82, cz + d);
+    this.tLook.set(cx + d * 0.2, 1.5, cz);
+  }
   addShake(v: number) { this.shake = Math.max(this.shake, v); }
   pan(dx: number, dz: number) { this.tPos.x += dx; this.tLook.x += dx; this.tPos.z += dz; this.tLook.z += dz; }
   zoom(k: number) {

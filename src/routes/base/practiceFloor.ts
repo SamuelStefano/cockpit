@@ -34,7 +34,7 @@ export function practiceFloor(s: Sim): Floor {
   const agents = s.agents.map((a, i) => practiceAgent(s, a, i));
   return {
     agents, wings: s.wings,
-    crates: s.crates.map((c) => ({ id: `crate-${c.id}`, title: c.title, x: c.x, y: c.y, z: c.z, band: c.band, flag: c.flag, star: c.star, held: c.held })),
+    crates: s.crates.map((c) => ({ id: `crate-${c.id}`, title: c.title, x: c.x, y: c.y, z: c.z, band: c.band, flag: c.flag, star: c.star, held: c.held, agentIds: [c.a.id] })),
     packets: s.packets.map((p) => {
       const k = Math.min(p.t, 1);
       return { id: p.id, color: p.color, x: p.from.x + (p.to.x - p.from.x) * k, y: p.from.y + (p.to.y - p.from.y) * k + Math.sin(k * Math.PI) * 5, z: p.from.z + (p.to.z - p.from.z) * k };

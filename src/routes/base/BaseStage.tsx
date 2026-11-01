@@ -15,7 +15,7 @@ export function BaseStage({ source }: { source: LiveSource }) {
     <div className="base-root">
       <div ref={worldRef} className="base-world" />
       <div ref={labelsRef} className="base-labels" />
-      {engine && <Hud store={store} engine={engine} live={actions} />}
+      {engine && <Hud store={store} engine={engine} live={actions} source={source} />}
     </div>
   );
 }
