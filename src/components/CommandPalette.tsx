@@ -5,6 +5,10 @@ import { useEscapeLayer } from './primitives/useEscapeLayer';
 import { useBackClose } from './primitives/useBackClose';
 import { filterCommands, capSessions } from './command-palette-filter';
 import { usePaletteCommands } from './usePaletteCommands';
+import { otherBoxCommands } from './palette-other-boxes';
+import { useBoxSessions } from '../cockpit/box-sessions';
+import { useBoxes } from '../cockpit/useBoxes';
+import { chatPath } from '../useRoute';
 import { CommandPaletteResults, PALETTE_LIST_ID, paletteOptionId } from './CommandPaletteResults';
 import type { Route } from '../useRoute';
 import type { PermMode } from '../../shared/protocol';
@@ -36,7 +40,14 @@ export function CommandPalette({ open, onClose, nav, onNew, mode, setMode, sessi
   useBackClose(open, onClose);
 
   const commands = usePaletteCommands({ onClose, nav, onNew, mode, setMode, sessions, onSelectSession, running, onStop, onFocusComposer, onShowHelp, draft, role, query: q });
-  const filtered = useMemo(() => capSessions(filterCommands(commands, q), q), [q, commands]);
+  const { boxes, active, switchBox } = useBoxes();
+  const byBox = useBoxSessions();
+  const others = useMemo(() => otherBoxCommands(q, boxes.filter((b) => b.id !== active), byBox, (box, id) => {
+    history.pushState(null, '', chatPath(id));
+    switchBox(box);
+    onClose();
+  }), [q, boxes, active, byBox, switchBox, onClose]);
+  const filtered = useMemo(() => capSessions(filterCommands([...commands, ...others], q), q), [q, commands, others]);
 
   useEscapeLayer(open, onClose);
   useEffect(() => { setSel(0); }, [q, open]);

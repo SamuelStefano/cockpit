@@ -8,6 +8,11 @@ export function inDesktopApp(): boolean {
   return bridge() !== undefined;
 }
 
+// Shells before apiVersion 3 draw the native title bar: a second one would stack on it.
+export function hasCustomTitlebar(): boolean {
+  return (bridge()?.apiVersion ?? 0) >= 3;
+}
+
 export function desktopVersion(): string | null {
   return bridge()?.appVersion ?? null;
 }

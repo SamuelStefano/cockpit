@@ -1,6 +1,7 @@
-import { app, globalShortcut, type BrowserWindow, type Tray } from 'electron';
+import { app, globalShortcut, Menu, type BrowserWindow, type Tray } from 'electron';
 import { registerBridge, showWindow } from './bridge';
 import { deckLinkFromArgv, type DeckLink } from './deep-link';
+import { appMenuTemplate } from './menu';
 import { hardenPermissions } from './security';
 import { createTray, HIDDEN_ARG } from './tray';
 import { startUpdater } from './updater';
@@ -36,6 +37,7 @@ if (!app.requestSingleInstanceLock()) {
 
   void app.whenReady().then(() => {
     hardenPermissions();
+    Menu.setApplicationMenu(Menu.buildFromTemplate(appMenuTemplate(app.isPackaged)));
     win = createMainWindow({ startHidden: process.argv.includes(HIDDEN_ARG) });
     registerBridge(win);
     tray = createTray(win);

@@ -77,6 +77,8 @@ export function createMainWindow({ startHidden }: { startHidden: boolean }): Bro
     title: 'Deck',
     icon: join(__dirname, '..', 'assets', 'icon.png'),
     autoHideMenuBar: true,
+    titleBarStyle: 'hidden',
+    titleBarOverlay: { color: '#0a0a0a', symbolColor: '#a3a3a3', height: 32 },
     webPreferences: {
       sandbox: true,
       contextIsolation: true,

@@ -14,7 +14,7 @@ ipcRenderer.on('deck:link', (_event, link: DeckLink) => {
 });
 
 contextBridge.exposeInMainWorld('deckDesktop', {
-  apiVersion: 2,
+  apiVersion: 3,
   appVersion: version,
   focusWindow: () => ipcRenderer.send('deck:focus-window'),
   setBadge: (count: number) => ipcRenderer.send('deck:set-badge', count),

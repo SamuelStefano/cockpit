@@ -18,6 +18,13 @@ export function rememberSession(map: Record<string, string>, box: string | null,
   return { ...map, [box]: sessionId };
 }
 
+export function openBox(id: string, active: string | null, switchBox: (id: string) => void): void {
+  if (id === active) return;
+  const path = railTargetPath(location.pathname, loadPref<Record<string, string>>(LAST_SESSION_PREF, {})[id]);
+  if (path) history.pushState(null, '', path);
+  switchBox(id);
+}
+
 export interface RailMenu { boxId: string; x: number; y: number }
 
 export function useBoxRail(activeSessionId: string) {
@@ -31,12 +38,7 @@ export function useBoxRail(activeSessionId: string) {
     if (next !== prev) savePref(LAST_SESSION_PREF, next);
   }, [s.active, activeSessionId]);
 
-  const open = useCallback((id: string) => {
-    if (id === s.active) return;
-    const path = railTargetPath(location.pathname, loadPref<Record<string, string>>(LAST_SESSION_PREF, {})[id]);
-    if (path) history.pushState(null, '', path);
-    s.select(id);
-  }, [s]);
+  const open = useCallback((id: string) => openBox(id, s.active, s.select), [s]);
 
   return { ...s, open, unread, menu, openMenu: setMenu, closeMenu: () => setMenu(null) };
 }
