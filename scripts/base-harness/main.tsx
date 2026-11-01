@@ -34,6 +34,10 @@ const source: LiveSource = {
   termStats: { s1: { model: 'claude-opus-4-5', contextTokens: 40000 }, s4: { model: 'claude-sonnet-4-5', contextTokens: 170000 } },
   threads: { s2: [question] as never, s1: working as never },
   peeks: { s3: { lastAssistant: 'Real transcript tail from the peek.', prs: [{ url: 'https://github.com/x/y/pull/1', label: 'PR #1' }], links: [] } },
+  todos: {
+    s1: [{ content: 'Read the relay client', status: 'completed' }, { content: 'Write the banner', status: 'in_progress' }, { content: 'Run the tests', status: 'pending' }],
+  },
+  bgAgents: { s1: [{ id: 'b1', label: 'Explore', startedAt: now - 60000, tokens: 1200, status: 'running', durationMs: 0 }] },
   teamQuestions: [],
   graph: null,
   board: { cards: [{ id: 'c1', title: 'Card in review', prompt: '', status: 'review', kind: 'task', contextIds: [], sessionIds: [], createdAt: 0, updatedAt: 0 }, { id: 'c2', title: 'Card todo', prompt: '', status: 'todo', kind: 'task', contextIds: [], sessionIds: [], createdAt: 0, updatedAt: 0 }] } as never,
