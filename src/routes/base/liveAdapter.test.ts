@@ -124,3 +124,23 @@ describe('live floor grouping from the real test', () => {
     expect(shown).toHaveLength(7);
   });
 });
+
+describe('box link', () => {
+  const written = [{ id: 'a', role: 'assistant', blocks: [{ type: 'tool', tool: { id: 't', name: 'Write', label: 'Write', command: '/x.ts', status: 'done', output: [], diff: { path: '/x.ts', old: '', new: 'y' } } }] }] as unknown as Message[];
+  const s = sess('one');
+  const crates = (over: Partial<LiveInput>) => adaptLive(input({ sessions: [s], ...over }), emptyPlacement()).floor.crates;
+  it('gives a session no box until it has real output', () => {
+    expect(crates({})).toEqual([]);
+  });
+  it('parks a box by the desk once a file or PR exists', () => {
+    expect(crates({ threads: { one: written } })[0]).toMatchObject({ id: 'out-one', agentIds: ['s-one'] });
+    expect(crates({ prs: { one: 1 } })[0]).toMatchObject({ id: 'out-one', band: true });
+  });
+  it('prefers the real card link over a desk box, and keeps it past the status cap', () => {
+    const others = Array.from({ length: 9 }, (_, i) => ({ ...card(`c${i}`, 'todo'), updatedAt: 100 + i }));
+    const mine = { ...card('mine', 'todo'), sessionIds: ['one'] };
+    const out = crates({ cards: [...others, mine], prs: { one: 1 } });
+    expect(out.find((c) => c.id === 'card-mine')?.agentIds).toEqual(['s-one']);
+    expect(out.some((c) => c.id === 'out-one')).toBe(false);
+  });
+});

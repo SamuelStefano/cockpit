@@ -44,9 +44,8 @@ export function attachInput(e: BaseEngine): () => void {
     const agent = all.find((h) => h.object.userData.agentId);
     if (agent) {
       const id = agent.object.userData.agentId as string;
-      const a = e.floor.agents.find((x) => x.id === id);
-      if (a && (e.selectedId || e.viewWingId === a.wingId || !e.floor.wings.some((w) => w.id === a.wingId))) e.select(id);
-      else if (a) e.goWing(a.wingId);
+      // One click always opens the desk and draws its link to the box.
+      e.select(id);
       return;
     }
     if (e.selectedId) e.back();

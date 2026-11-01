@@ -40,6 +40,7 @@ export interface FloorCrate {
   flag?: boolean;
   star?: boolean;
   held?: boolean;
+  agentIds?: string[];
 }
 
 export interface FloorPacket { id: number; x: number; y: number; z: number; color: number }

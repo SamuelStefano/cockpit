@@ -2,7 +2,7 @@ import { useSyncExternalStore } from 'react';
 import type { BaseEngine } from '../engine/engine';
 import type { HudState } from '../hudState';
 import type { Store } from '../store';
-import type { LiveActions } from '../useLiveFeed';
+import type { LiveActions, LiveSource } from '../useLiveFeed';
 import { AlertStack } from './AlertStack';
 import { BottomBar } from './BottomBar';
 import { ComposerPanel } from './ComposerPanel';
@@ -20,7 +20,7 @@ import { SideButtons } from './SideButtons';
 import { SinceYouLeft } from './SinceYouLeft';
 import { TopBar } from './TopBar';
 
-export function Hud({ store, engine, live }: { store: Store<HudState>; engine: BaseEngine; live: LiveActions }) {
+export function Hud({ store, engine, live, source }: { store: Store<HudState>; engine: BaseEngine; live: LiveActions; source: LiveSource }) {
   const hud = useSyncExternalStore(store.subscribe, store.get);
   const practice = hud.mode === 'practice';
   return (
@@ -34,7 +34,7 @@ export function Hud({ store, engine, live }: { store: Store<HudState>; engine: B
       <Pins hud={hud} engine={engine} />
       {practice && <ReplayBar hud={hud} engine={engine} />}
       {practice && <BottomBar hud={hud} engine={engine} />}
-      {hud.inspect && <Inspector key={hud.inspect.id} view={hud.inspect} engine={engine} live={live} />}
+      {hud.inspect && <Inspector key={hud.inspect.id} view={hud.inspect} engine={engine} live={live} source={source} />}
       {hud.journey && <JourneyPanel view={hud.journey} engine={engine} />}
       {hud.funnel && <FunnelPanel view={hud.funnel} engine={engine} />}
       {hud.history && <HistoryPanel hud={hud} engine={engine} />}
