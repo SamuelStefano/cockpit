@@ -1,7 +1,7 @@
 {
   "name": "deck-desktop",
   "private": true,
-  "version": "0.1.1",
+  "version": "0.1.0",
   "description": "Deck desktop app",
   "author": "Samuel Stefano",
   "main": "dist/main.js",
