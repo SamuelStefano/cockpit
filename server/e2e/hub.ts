@@ -29,7 +29,7 @@ const SWEEP_MS = 10_000;
 const DROPPABLE = /^\{"t":"(delta|thinking|stats|bgAgents)"/;
 // A peek (another box's sidebar) subscribes to the summary: only these frames
 // are sealed for it, and the only thing it may ask for is the session list.
-const SUMMARY_OUT = /^\{"t":"(sessions|busy|agent-[a-z-]+)"/;
+const SUMMARY_OUT = /^\{"t":"(sessions|busy|turn-summary|agent-[a-z-]+)"/;
 const SUMMARY_IN = new Set(['list']);
 
 export type PeerScope = 'full' | 'summary';
@@ -87,6 +87,8 @@ export class SealedPeer extends EventEmitter {
   readonly openedAt = Date.now();
   readyState = 1;
   scope: PeerScope = 'full';
+  // Starts visible: a client that never reports must keep the loops it relies on.
+  hidden = false;
   private chain: Promise<unknown> = Promise.resolve();
 
   constructor(
@@ -117,9 +119,15 @@ export class SealedPeer extends EventEmitter {
   deliver(frame: { s: unknown; d: unknown }): void {
     this.chain = this.chain.then(async () => {
       const text = await this.channel.open(frame);
-      if (this.readyState !== 1 || this.subscribe(text) || this.intercept(this, text)) return;
+      if (this.readyState !== 1 || this.visibility(text) || this.subscribe(text) || this.intercept(this, text)) return;
       this.emit('message', Buffer.from(text));
     }).catch(() => this.close(true));
+  }
+
+  private visibility(text: string): boolean {
+    if (!text.startsWith('{"t":"client-visibility"')) return false;
+    try { this.hidden = (JSON.parse(text) as { hidden?: unknown }).hidden === true; } catch { /* malformed: state unchanged */ }
+    return true;
   }
 
   // Narrowing is one-way: a summary peer never widens back to the full stream.
@@ -169,6 +177,13 @@ export class SealedHub {
   constructor(private readonly o: HubOptions) {
     this.sweeper = setInterval(() => this.sweep(), SWEEP_MS);
     this.sweeper.unref?.();
+  }
+
+  // Summary peers and hidden tabs read no stats, usage or health: counting them
+  // would keep those loops running for as long as a tray app stays connected.
+  hasFullPeers(): boolean {
+    for (const p of this.peers.values()) if (p.scope === 'full' && !p.hidden) return true;
+    return false;
   }
 
   sweep(now = Date.now()): void {

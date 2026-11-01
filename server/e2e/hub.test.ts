@@ -753,6 +753,45 @@ describe('summary subscription (a peek from another box\'s sidebar)', () => {
     expect(types).toEqual(['sessions', 'busy', 'agent-custom-result']);
   });
 
+  it('seals turn-summary for a peek, so another box can toast', async () => {
+    const { h, say, wire, read } = await peek();
+    await say({ t: 'subscribe', scope: 'summary' });
+    const before = wire().length;
+    h.served[0].send('{"t":"turn-summary","sessionKey":"k","sessionId":"s","ok":true}');
+    await flush();
+    expect((await read(wire().slice(before))).map((s) => JSON.parse(s).t)).toEqual(['turn-summary']);
+  });
+
+  it('a peek keeps the box peered but not a full client', async () => {
+    const { h, say } = await peek();
+    expect(h.hub.hasFullPeers()).toBe(true);
+    await say({ t: 'subscribe', scope: 'summary' });
+    await flush();
+    expect(h.hub.peers.size).toBe(1);
+    expect(h.hub.hasFullPeers()).toBe(false);
+  });
+
+  it('a hidden tab stops counting, returns on show, and the frame never reaches serve', async () => {
+    const { h, say } = await peek();
+    const seen: string[] = [];
+    h.served[0].on('message', (b: Buffer) => seen.push(b.toString()));
+    await say({ t: 'client-visibility', hidden: true });
+    await flush();
+    expect(h.hub.peers.size).toBe(1);
+    expect(h.hub.hasFullPeers()).toBe(false);
+    await say({ t: 'client-visibility', hidden: false });
+    await flush();
+    expect(h.hub.hasFullPeers()).toBe(true);
+    expect(seen).toEqual([]);
+  });
+
+  it('a malformed visibility value counts as visible, the side that keeps loops alive', async () => {
+    const { h, say } = await peek();
+    await say({ t: 'client-visibility', hidden: 'yes' });
+    await flush();
+    expect(h.hub.hasFullPeers()).toBe(true);
+  });
+
   it('a peer that never subscribed keeps the whole stream', async () => {
     const { h, wire, read } = await peek();
     const before = wire().length;

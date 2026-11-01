@@ -33,7 +33,7 @@ export function serveConnection(ws: WebSocket, opts: { role: Role; root?: boolea
   // No modo dial (agente T3) o caps autoritativo é do relay (papel da conta vem do
   // JWT). O agente NÃO reanuncia caps — senão sobrescreveria o papel do viewer com
   // o papel-de-engine 'student'. busy/replay/stats seguem (estado de engine).
-  if (sendCaps) send(ws, { t: 'caps', caps: capsFor(role, CONFIG, root) });
+  if (sendCaps) send(ws, { t: 'caps', caps: { ...capsFor(role, CONFIG, root), clientVisibility: true } });
   // Fato do engine (a box) — vai sempre, inclusive no dial T3, pra a UI avisar
   // que nada roda até conectar uma conta Anthropic aqui.
   const authReady = claudeReady();
@@ -68,7 +68,7 @@ export function serveConnection(ws: WebSocket, opts: { role: Role; root?: boolea
     // dispatch — ignora ANTES do authorize, senão o allowlist default-deny respondia
     // 'sem permissão' (toast espúrio na aba a cada abrir/fechar) p/ agente student.
     const ctrlT = msg.t as string;
-    if (ctrlT === 'browsers-present' || ctrlT === 'no-browsers') return;
+    if (ctrlT === 'browsers-present' || ctrlT === 'no-browsers' || ctrlT === 'client-visibility') return;
     // Every tab sends its box list on connect; a non-admin tab's is dropped quietly, not toasted.
     if (msg.t === 'box-roster' && role !== 'admin') return;
     // Teto por conexão antes de qualquer trabalho: corta loop de frames (DoS).
