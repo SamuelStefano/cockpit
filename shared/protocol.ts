@@ -722,6 +722,7 @@ export type ClientMsg =
   // (relay/NAT dropou sem FIN, laptop dormiu) segue "OPEN" pro browser sem disparar
   // onclose — o pong é o único sinal de que o ida-e-volta ainda vive.
   | { t: 'ping' }
+  | { t: 'client-visibility'; hidden: boolean }
   // The relay's box list, forwarded by the tab so the box can describe its siblings
   // in the Deck context of the sessions it spawns (boxes never get it from the relay).
   | { t: 'box-roster'; boxes: RosterBox[] }
@@ -986,7 +987,9 @@ export type ClientMsg =
 // bypass (env opt-in + admin + loopback). A UI só mostra o switch quando true.
 // role: engine Role no loopback ('admin'|'student'); AccountRole no T3
 // ('root'|'admin'|'fellow'). Privilegiado = 'admin'|'root'.
-export type Caps = { role: 'root' | 'admin' | 'fellow' | 'student'; canBypass: boolean };
+// clientVisibility: this agent understands client-visibility. An older student agent answers
+// any unknown frame with "sem permissão", so the client only sends it when this is true.
+export type Caps = { role: 'root' | 'admin' | 'fellow' | 'student'; canBypass: boolean; clientVisibility?: boolean };
 
 export type ServerMsg =
   | { t: 'caps'; caps: Caps }
@@ -1004,6 +1007,8 @@ export type ServerMsg =
   // pra mostrar o dashboard de pareamento quando não há agente atendendo.
   | { t: 'agent-online' }
   | { t: 'agent-offline' }
+  // Lean turn-end signal for peeks: no text, read only by other-box watchers.
+  | { t: 'turn-summary'; sessionKey: string; sessionId: string; ok: boolean }
   | { t: 'pong' }  // resposta ao ping do cliente — prova que o socket ainda faz ida-e-volta
   | { t: 'sessions'; items: SessionMeta[] }
   | { t: 'archived'; items: SessionMeta[] }

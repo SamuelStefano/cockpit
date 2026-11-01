@@ -30,6 +30,7 @@ import { RouteContent } from './app/RouteContent';
 import { useAgentNav } from './app/useAgentNav';
 import { useCockpit } from './useCockpit';
 import { useBoxes } from './cockpit/useBoxes';
+import { useOtherBoxToasts } from './app/useOtherBoxToasts';
 import { boxStore } from './cockpit/boxes-store';
 import { takePendingPrompt, PROMPT_LINK_MAX } from './cockpit/prompt-link';
 import { toast } from './components/primitives/toast-bus';
@@ -139,6 +140,7 @@ function CockpitBody() {
   const keyboardOpen = useKeyboardOpen() && isMobile;
   useKeyboardViewport();
   useTabTitle(running, updated);
+  useOtherBoxToasts(!isMobile);
   const link: LinkState = conn.ws === 'connected' ? 'open' : conn.ws === 'reconnecting' ? 'connecting' : 'closed';
   const anyRunning = runningAnywhere.size > 0;
   const justDone = useJustDone(anyRunning);

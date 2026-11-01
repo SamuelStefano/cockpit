@@ -23,9 +23,23 @@ export interface PeekDeps {
   isEnrolled: (box: string) => Promise<boolean>;
   dial: (box: string) => PeekSocket;
   onChange: (s: PeekState) => void;
+  onTurn?: (t: TurnSummary) => void;
+}
+
+export interface TurnSummary {
+  sessionKey: string;
+  sessionId: string;
+  ok: boolean;
+}
+
+export function parseTurnSummary(m: Record<string, unknown>): TurnSummary | null {
+  if (typeof m.sessionKey !== 'string' || !m.sessionKey || m.sessionKey.length > MAX_ID) return null;
+  const sessionId = typeof m.sessionId === 'string' && m.sessionId.length <= MAX_ID ? m.sessionId : '';
+  return { sessionKey: m.sessionKey, sessionId, ok: m.ok === true };
 }
 
 const MAX_SESSIONS = 500;
+const MAX_ID = 200;
 const RETRY_MS = [2_000, 5_000, 15_000, 30_000];
 
 export function peekUrl(base: string, box: string): string {
@@ -105,6 +119,10 @@ export class BoxPeek {
     try { m = JSON.parse(text); } catch { return; }
     if (m.t === 'sessions') this.set({ sessions: parseSessions(m.items) });
     else if (m.t === 'busy' && Array.isArray(m.keys)) this.set({ busy: m.keys.filter((k): k is string => typeof k === 'string') });
+    else if (m.t === 'turn-summary') {
+      const turn = parseTurnSummary(m as Record<string, unknown>);
+      if (turn) this.deps.onTurn?.(turn);
+    }
   }
 
   dispose(): void {

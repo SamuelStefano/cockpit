@@ -5,9 +5,9 @@ import { pinnedAgents } from './device-store';
 import { SealedSocket } from './sealed-socket';
 import { wsBase } from './session';
 
-const dial = (box: string): PeekSocket =>
+export const dial = (box: string): PeekSocket =>
   new SealedSocket(peekUrl(wsBase(), box), loadPref<string>('auth.token', ''), { box, peek: true });
-const isEnrolled = async (box: string) => (await pinnedAgents(box)).length > 0;
+export const isEnrolled = async (box: string) => (await pinnedAgents(box)).length > 0;
 
 export function useBoxPeek(box: string, enabled: boolean): PeekState {
   const [state, setState] = useState<PeekState>(IDLE_PEEK);

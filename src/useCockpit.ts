@@ -11,6 +11,7 @@ import { boxHealthStore } from './cockpit/box-health-store';
 import { boxStore, rosterMsg } from './cockpit/boxes-store';
 import { onAuthClose, tokenUnchangedAndLive, RELAY_AUTH_RETRY_MS, shouldRefreshSession, dialOnTokenChange } from './cockpit/ws-auth';
 import { TOKEN_EXPIRED_CLOSE, TOKEN_EXPIRED_EVENT } from './lib/auth-events';
+import { useClientVisibility } from './cockpit/useClientVisibility';
 import { requestNotifyPermission, notifyTurnDone, notifyTurnError } from './lib/notify';
 import { claimGameOnce, recordGameEvent } from './game/game-bus';
 import { toolGameEvent } from './game/real-events';
@@ -502,6 +503,8 @@ export function useCockpit(): Cockpit {
     ws.send(JSON.stringify(m));
     return true;
   }, []);
+
+  useClientVisibility(caps, send);
 
   useEffect(() => { const off = boxStore.subscribe(() => { const m = rosterMsg(); if (m) send(m); }); return () => { off(); }; }, [send]);
 

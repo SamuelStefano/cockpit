@@ -1058,6 +1058,7 @@ export function startRun(o: StartRunOptions): 'pane' | 'rejected' | undefined {
       notePlanUsageChanged();
       if (thread.params.model && agentIdOf(thread.params.model) === 'grok') noteGrokUsageChanged();
       broadcast({ t: 'done', sessionKey, sessionId: thread.sessionId ?? '', costUsd: thread.costUsd, durationMs: thread.durationMs, numTurns: thread.numTurns, turnTokens: thread.turnTokens, inputTokens: thread.inputTokens, outputTokens: thread.outputTokens, endReason: thread.endReason, model: thread.model, stopped: thread.stopped });
+      if (!thread.stopped) broadcast({ t: 'turn-summary', sessionKey, sessionId: thread.sessionId ?? '', ok: thread.endReason === 'success' });
       // Resumo IA do que a sessão fez, atualizado ao fim do turno (pedido do Samuel).
       // Fire-and-forget: best-effort, nunca bloqueia/derruba o fechamento do run.
       // Pula em stop do usuário (turno interrompido não vale uma chamada API paga) —
@@ -1116,6 +1117,7 @@ export function startRun(o: StartRunOptions): 'pane' | 'rejected' | undefined {
     recordIncident({ kind: 'run-error', sessionKey, detail: `spawn failed: ${started.error}`.slice(0, 400) });
     broadcast({ t: 'error', sessionKey, message: `Não consegui iniciar o turno: ${started.error}` });
     broadcast({ t: 'done', sessionKey, sessionId: thread.sessionId ?? '', stopped: true });
+    broadcast({ t: 'turn-summary', sessionKey, sessionId: thread.sessionId ?? '', ok: false });
     return;
   }
   thread.handle = started.handle;

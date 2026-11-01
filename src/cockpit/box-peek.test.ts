@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi, afterEach } from 'vitest';
-import { BoxPeek, parseSessions, peekUrl, type PeekSocket, type PeekState } from './box-peek';
+import { BoxPeek, parseSessions, parseTurnSummary, peekUrl, type PeekSocket, type PeekState } from './box-peek';
 
 const BOX = '11111111-1111-4111-8111-111111111111';
 
@@ -51,7 +51,32 @@ describe('parseSessions', () => {
   });
 });
 
+describe('parseTurnSummary', () => {
+  it('needs a key, caps ids, and treats anything but ok:true as a failure', () => {
+    expect(parseTurnSummary({ sessionId: 's' })).toBeNull();
+    expect(parseTurnSummary({ sessionKey: 'k'.repeat(201) })).toBeNull();
+    expect(parseTurnSummary({ sessionKey: 'k', sessionId: 9, ok: 'yes' })).toEqual({ sessionKey: 'k', sessionId: '', ok: false });
+    expect(parseTurnSummary({ sessionKey: 'k', sessionId: 's', ok: true })).toEqual({ sessionKey: 'k', sessionId: 's', ok: true });
+  });
+});
+
 describe('BoxPeek', () => {
+  it('hands a turn-summary to onTurn', async () => {
+    const socks: FakeSock[] = [];
+    const onTurn = vi.fn();
+    const peek = new BoxPeek(BOX, {
+      isEnrolled: async () => true,
+      dial: () => { const s = new FakeSock(); socks.push(s); return s; },
+      onChange: () => {},
+      onTurn,
+    });
+    await tick();
+    socks[0].open();
+    socks[0].frame({ t: 'turn-summary', sessionKey: 'k', sessionId: 's', ok: true });
+    expect(onTurn).toHaveBeenCalledWith({ sessionKey: 'k', sessionId: 's', ok: true });
+    peek.dispose();
+  });
+
   it('never dials a box this device is not enrolled on', async () => {
     const { socks, last } = make(false);
     await tick();
