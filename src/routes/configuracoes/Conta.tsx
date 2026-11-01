@@ -9,6 +9,7 @@ import { usePersisted } from '../../lib/persist';
 import { SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT, GROUP_NOTES_KEY, GROUP_NOTES_DEFAULT, NOTIFY_SOUND_KEY, NOTIFY_SOUND_DEFAULT, BIT_PLAYFUL_KEY, BIT_PLAYFUL_DEFAULT, HAPTICS_KEY, HAPTICS_DEFAULT, GAME_ENABLED_KEY, GAME_ENABLED_DEFAULT, GAME_SOUND_KEY, GAME_SOUND_DEFAULT } from '../../lib/prefs';
 import { isIOS, isStandalone } from '../../lib/platform';
 import { requestNotifyPermission } from '../../lib/notify';
+import { DESKTOP_DOWNLOAD_URL, inDesktopApp } from '../../lib/desktop';
 import { SwitchRow } from './SwitchRow';
 import { DevicesSection } from '../../components/profile/DevicesSection';
 import { SendDiagButton } from '../../components/chrome/SendDiagButton';
@@ -65,6 +66,9 @@ export function Conta({ account, role }: { account: AccountProps; role: NavRole 
         <SwitchRow label="Arcade" hint="Nível, missões, conquistas e segredos. Desligado, some tudo e nada é registrado" checked={gameOn} onChange={() => setGameOn((v) => !v)} />
         {gameOn && <SwitchRow label="Sons do Arcade" hint="Efeitos de 8 bits em conquistas, e level up" checked={gameSound} onChange={() => setGameSound((v) => !v)} />}
         <SwitchRow label="Bit brincalhão" hint="O mascote apronta no chat parado e brinca na conversa nova" checked={bitPlayful} onChange={() => setBitPlayful((v) => !v)} />
+        {!inDesktopApp() && !isIOS() && (
+          <ListRow label="App para Windows" hint="Janela própria, bandeja e avisos nativos. Sem assinatura: o Windows avisa na primeira instalação" trailing={<a href={DESKTOP_DOWNLOAD_URL} className="text-[13px] text-orange-300 underline underline-offset-2 hover:text-orange-200">Baixar</a>} />
+        )}
         {account.drops && (
           <ListRow label="Drop privado" hint="Entrega segredo ou script ao agente sem passar pelo chat" trailing={<DropButton api={account.drops} bare />} />
         )}

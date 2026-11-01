@@ -1,5 +1,7 @@
 import type { DeckDesktopBridge, DeckDesktopLink } from '../../shared/desktop-bridge';
 
+export const DESKTOP_DOWNLOAD_URL = 'https://github.com/SamuelStefano/cockpit/releases/latest/download/Deck-Setup.exe';
+
 function bridge(): Partial<DeckDesktopBridge> | undefined {
   return (globalThis as { deckDesktop?: Partial<DeckDesktopBridge> }).deckDesktop;
 }
