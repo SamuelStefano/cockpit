@@ -41,4 +41,43 @@ describe('useDropForm', () => {
     rerender({ open: true });
     expect(onDropList).toHaveBeenCalledTimes(1);
   });
+
+  const pick = async (result: { current: ReturnType<typeof useDropForm> }, name: string, bytes: Uint8Array<ArrayBuffer>) => {
+    const file = new File([bytes], name);
+    await act(async () => { result.current.onFile({ target: { files: [file], value: '' } } as never); await new Promise((r) => setTimeout(r, 20)); });
+  };
+
+  it('text file: prefills slug, hides content, sends the original frame', async () => {
+    const api = apiWith(vi.fn(), []);
+    const { result } = renderHook(() => useDropForm(api, true));
+    await pick(result, 'deploy.env', new TextEncoder().encode('A=1'));
+    expect(result.current.slug).toBe('deploy.env');
+    expect(result.current.content).toBe('');
+    expect(result.current.file).toEqual({ name: 'deploy.env', bytes: 3, binary: false });
+    act(() => { result.current.submit(); });
+    expect(api.onDropPut).toHaveBeenCalledWith('deploy.env', 'A=1', undefined, undefined);
+    expect(result.current.file).toBeNull();
+  });
+
+  it('binary file goes as base64', async () => {
+    const api = apiWith(vi.fn(), []);
+    const { result } = renderHook(() => useDropForm(api, true));
+    await pick(result, 'asc-api-key.p8', new Uint8Array([0, 1, 2]));
+    expect(result.current.slug).toBe('asc-api-key.p8');
+    act(() => { result.current.submit(); });
+    expect(api.onDropPut).toHaveBeenCalledWith('asc-api-key.p8', 'AAEC', undefined, 'base64');
+  });
+
+  it('old agent saving base64 text: removes the drop and reports', async () => {
+    const onDropRm = vi.fn();
+    let api = { ...apiWith(vi.fn(), []), onDropRm };
+    const { result, rerender } = renderHook(() => useDropForm(api, true));
+    await pick(result, 'k.p8', new Uint8Array([0, 1, 2]));
+    act(() => { result.current.submit(); });
+    api = { ...api, lastDrop: { slug: 'k.p8', path: '/x', bytes: 4, sha256: 'a', mtime: 1 } };
+    rerender();
+    expect(onDropRm).toHaveBeenCalledWith('k.p8');
+    expect(result.current.erro).toContain('antigo');
+    expect(result.current.ref).toBeNull();
+  });
 });

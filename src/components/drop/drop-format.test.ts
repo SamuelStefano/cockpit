@@ -24,3 +24,25 @@ describe('drop-format', () => {
     expect(slugFromName('a'.repeat(80)).length).toBe(64);
   });
 });
+
+import { classifyBytes, bytesToBase64 } from './drop-format';
+
+describe('drop file payload', () => {
+  it('keeps the dot in asc-api-key.p8', () => {
+    expect(slugFromName('asc-api-key.p8')).toBe('asc-api-key.p8');
+    expect(slugFromName('AuthKey ABC.p8')).toBe('AuthKey-ABC.p8');
+  });
+  it('sends valid UTF-8 as text', () => {
+    const p = classifyBytes(new TextEncoder().encode('A=ção'));
+    expect(p.encoding).toBeUndefined();
+    expect(p.content).toBe('A=ção');
+  });
+  it('sends NUL or invalid UTF-8 as base64', () => {
+    expect(classifyBytes(new Uint8Array([65, 0, 66])).encoding).toBe('base64');
+    const p = classifyBytes(new Uint8Array([0xff, 0xfe, 0x80]));
+    expect(p).toEqual({ content: '//6A', encoding: 'base64', bytes: 3 });
+  });
+  it('base64 of large input does not overflow the stack', () => {
+    expect(bytesToBase64(new Uint8Array(1_000_000).fill(1)).length).toBe(1_333_336);
+  });
+});

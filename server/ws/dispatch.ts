@@ -669,7 +669,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     // e o traria pro transcript pela porta dos fundos. Unicast (send), sem
     // broadcast — segredo não faz fan-out cego pros outros aparelhos.
     case 'drop-put': {
-      const r = await putDrop(msg.slug, msg.content, msg.ttlMs);
+      const r = await putDrop(msg.slug, msg.content, msg.ttlMs, msg.encoding);
       if ('error' in r) { send(ws, { t: 'error', message: r.error }); return; }
       send(ws, { t: 'drop', ref: r });
       send(ws, { t: 'drops', items: await listDrops() });
