@@ -31,7 +31,7 @@ const source: LiveSource = {
     { id: 's5', title: 'no prefix session', relative: '', snippet: '', mtime: now - 5000, hasTerminal: false, active: false },
   ],
   running: new Set(['s1', 's3']),
-  termStats: { s1: { model: 'claude-opus-4-5', contextTokens: 40000 }, s4: { model: 'claude-sonnet-4-5', contextTokens: 170000 } },
+  termStats: { s3: { model: 'grok-4' }, s5: { model: 'grok-4' }, s1: { model: 'claude-opus-4-5', contextTokens: 40000 }, s4: { model: 'claude-sonnet-4-5', contextTokens: 170000 } },
   threads: { s2: [question] as never, s1: working as never },
   peeks: { s3: { lastAssistant: 'Real transcript tail from the peek.', prs: [{ url: 'https://github.com/x/y/pull/1', label: 'PR #1' }], links: [] } },
   todos: {

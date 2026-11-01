@@ -36,7 +36,7 @@ export function buildBit(root: THREE.Object3D, tipColor: number): BodyForm {
 export function buildMascot(root: THREE.Object3D, id: string): BodyForm {
   const { shape, color } = mascotOf(id), hex = new THREE.Color(color).getHex();
   const parsed = new SVGLoader().parse(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><path d="${shape.body}"/></svg>`);
-  const geo = new THREE.ExtrudeGeometry(parsed.paths[0].toShapes(true), { depth: DEPTH, bevelEnabled: true, bevelSize: 3, bevelThickness: 3, bevelSegments: 3, curveSegments: 18 });
+  const geo = new THREE.ExtrudeGeometry(SVGLoader.createShapes(parsed.paths[0]), { depth: DEPTH, bevelEnabled: true, bevelSize: 3, bevelThickness: 3, bevelSegments: 3, curveSegments: 18 });
   geo.translate(-32, -32, -DEPTH / 2);
   const mesh = new THREE.Mesh(geo, newMat(hex));
   const s = MASCOT_UNITS / 64;
