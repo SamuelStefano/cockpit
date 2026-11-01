@@ -14,6 +14,8 @@ const web = await page.evaluate(() => ({
   nodeProcess: typeof globalThis.process,
   sw: 'serviceWorker' in navigator,
 }));
+// Copied first: Chromium logs its own refusal of the probe below.
+const loadErrors = [...errors];
 const opened = await page.evaluate(() => window.open('file:///C:/Windows/System32/calc.exe'));
 const windows = app.windows().length;
 await app.close();
@@ -22,8 +24,8 @@ const failures = [];
 if (!url.startsWith('https://deck.devfellowship.com')) failures.push(`wrong url ${url}`);
 if (web.nodeRequire !== 'undefined' || web.nodeProcess !== 'undefined') failures.push('node leaked into the page');
 if (opened !== null || windows !== 1) failures.push('window.open was not denied');
-if (errors.length) failures.push(`console errors: ${errors.join(' | ')}`);
-console.log(JSON.stringify({ url, web, windows, errors }, null, 2));
+if (loadErrors.length) failures.push(`console errors: ${loadErrors.join(' | ')}`);
+console.log(JSON.stringify({ url, web, windows, loadErrors }, null, 2));
 if (failures.length) {
   console.error(failures.join('\n'));
   process.exit(1);
