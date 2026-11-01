@@ -6,6 +6,8 @@ import type { ClientMsg, ServerMsg } from '../../shared/protocol';
 type Send = (m: ClientMsg) => boolean;
 
 const TTS_TIMEOUT_MS = 20000;
+const STT_TOKEN_TIMEOUT_MS = 8000;
+const sttPending = new Map<string, (token: string | null) => void>();
 const pending = new Map<string, { resolve: (b: Blob) => void; reject: (e: Error) => void }>();
 let sender: Send | null = null;
 let seq = 0;
@@ -15,6 +17,10 @@ export function setTtsSender(send: Send | null) {
 }
 
 export function handleTtsMsg(msg: ServerMsg): boolean {
+  if (msg.t === 'stt-token-result') {
+    sttPending.get(msg.reqId)?.(msg.token ?? null);
+    return true;
+  }
   if (msg.t !== 'tts-audio' && msg.t !== 'tts-error') return false;
   const p = pending.get(msg.reqId);
   if (!p) return true;
@@ -49,5 +55,16 @@ export function requestTts(text: string, signal: AbortSignal): Promise<Blob> {
       done();
       reject(new Error('socket not open'));
     }
+  });
+}
+
+// Resolves null on any failure: the caller falls back to the browser recognizer.
+export function requestSttToken(): Promise<string | null> {
+  return new Promise((resolve) => {
+    const reqId = `stt${Date.now().toString(36)}${(seq++).toString(36)}`;
+    const finish = (token: string | null) => { clearTimeout(timer); sttPending.delete(reqId); resolve(token); };
+    const timer = setTimeout(() => finish(null), STT_TOKEN_TIMEOUT_MS);
+    sttPending.set(reqId, finish);
+    if (!sender || !sender({ t: 'stt-token', reqId })) finish(null);
   });
 }

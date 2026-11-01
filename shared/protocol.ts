@@ -832,6 +832,7 @@ export type ClientMsg =
   | { t: 'team-delete'; id: string }
   // One chunk (<=600 chars) rendered to mp3 by the box; answered by tts-audio or tts-error with the same reqId.
   | { t: 'tts'; reqId: string; text: string }
+  | { t: 'stt-token'; reqId: string }
   | { t: 'agent-build'; reqId: string; history: { role: 'user' | 'assistant'; text: string }[]; draft: { name: string; label: string; instructions: string; skills: string[] } }
   | { t: 'team-messages-get'; botId?: string; peer?: string; before?: number }
   | { t: 'team-pause-set'; paused: boolean }
@@ -1093,6 +1094,7 @@ export type ServerMsg =
   | { t: 'triage'; sessionKey: string; msgId?: string; action: TriageAction; reason: string }
   | { t: 'tts-audio'; reqId: string; audio: string }
   | { t: 'tts-error'; reqId: string }
+  | { t: 'stt-token-result'; reqId: string; token?: string }
   | { t: 'agent-build-result'; reqId: string; ok: boolean; text?: string; error?: string }
   | { t: 'quick-answer'; sessionKey: string; id: string; text: string; ts: number }
   // model = modelo PEDIDO no turno (alias/id); carimba a bolha na hora pra o label

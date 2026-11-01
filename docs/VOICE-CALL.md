@@ -2,7 +2,7 @@
 
 The phone button ("Ligar") in the composer toolbar opens a hands-free conversation with the session.
 
-Flow: continuous `SpeechRecognition` → silence timer decides the end of an utterance → `onSend` →
+Flow: continuous recognition (ElevenLabs Scribe realtime when the box has a key, see below; else `SpeechRecognition`) → silence timer decides the end of an utterance → `onSend` →
 when the turn goes idle, the final text (after the last tool call, markdown/code stripped, ≤ ~420 chars)
 is spoken with `speechSynthesis` in short chunks → back to listening.
 
@@ -18,7 +18,14 @@ Barge-in: while speaking, the mic keeps listening. Heard text that is a substrin
 treated as echo and dropped; anything else with ≥ 2 words stops the TTS and becomes the next utterance.
 Headphones give the best result — speakers can still leak echo through noise-cancelling heuristics.
 
-## Browser limits
+## ElevenLabs
+
+With `COCKPIT_ELEVENLABS_API_KEY` (process env or `~/.deck-agent/env.json`) the box mints a single-use token (`stt-token`
+frame) and the browser streams 16 kHz PCM straight to Scribe realtime, so transcription works in an iOS home-screen
+app and any webview with a microphone. The account key never reaches the client. Replies use the same key plus
+`COCKPIT_ELEVENLABS_VOICE_ID`. Billing runs while the mic is open, including while the agent thinks.
+
+## Browser limits (fallback engine)
 
 - iOS Safari: `webkitSpeechRecognition` works only in Safari itself (not in a home-screen PWA/webview) and needs
   a user gesture + mic permission; `speechSynthesis` is unlocked by a silent utterance queued inside the tap.
@@ -30,5 +37,4 @@ Headphones give the best result — speakers can still leak echo through noise-c
 
 ## Not in this slice
 
-- ElevenLabs TTS via a server-side proxy on the box (key never in the bundle). Default stays browser TTS.
 - Per-device voice/speed settings; summarising long answers with a model instead of the first sentences.

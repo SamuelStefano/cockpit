@@ -1,9 +1,11 @@
 import { MsEdgeTTS, OUTPUT_FORMAT } from 'msedge-tts';
+import { managedEnvSync } from './admin-ops';
 
 export const TTS_MAX_CHARS = 600;
 const DEFAULT_VOICE = 'pt-BR-AntonioNeural';
 const ELEVENLABS_MODEL = 'eleven_flash_v2_5';
 const ELEVENLABS_BASE = 'https://api.elevenlabs.io/v1/text-to-speech';
+const ELEVENLABS_STT_TOKEN_URL = 'https://api.elevenlabs.io/v1/single-use-token/realtime_scribe';
 const UPSTREAM_TIMEOUT_MS = 20000;
 
 export class TtsError extends Error {
@@ -24,11 +26,13 @@ export function escapeXml(s: string): string {
 export interface TtsEnv { COCKPIT_TTS_VOICE?: string; COCKPIT_ELEVENLABS_API_KEY?: string; COCKPIT_ELEVENLABS_VOICE_ID?: string }
 
 // Literal process.env reads: env-example.test.ts scans for them.
+// The managed file counts too: a key saved from the Deck reaches the voice without a restart.
 function readTtsEnv(): TtsEnv {
+  const managed = managedEnvSync();
   return {
-    COCKPIT_TTS_VOICE: process.env.COCKPIT_TTS_VOICE,
-    COCKPIT_ELEVENLABS_API_KEY: process.env.COCKPIT_ELEVENLABS_API_KEY,
-    COCKPIT_ELEVENLABS_VOICE_ID: process.env.COCKPIT_ELEVENLABS_VOICE_ID,
+    COCKPIT_TTS_VOICE: process.env.COCKPIT_TTS_VOICE || managed.COCKPIT_TTS_VOICE,
+    COCKPIT_ELEVENLABS_API_KEY: process.env.COCKPIT_ELEVENLABS_API_KEY || managed.COCKPIT_ELEVENLABS_API_KEY,
+    COCKPIT_ELEVENLABS_VOICE_ID: process.env.COCKPIT_ELEVENLABS_VOICE_ID || managed.COCKPIT_ELEVENLABS_VOICE_ID,
   };
 }
 
@@ -75,4 +79,18 @@ export function synthesize(text: string, env: TtsEnv = readTtsEnv()): Promise<Bu
   const voiceId = env.COCKPIT_ELEVENLABS_VOICE_ID?.trim();
   if (key && voiceId) return synthesizeElevenLabs(text, key, voiceId);
   return synthesizeEdge(text, edgeVoice(env));
+}
+
+// Null means "no key here": the client then falls back to the browser recognizer.
+export async function mintSttToken(env: TtsEnv = readTtsEnv(), fetchImpl: typeof fetch = fetch): Promise<string | null> {
+  const key = env.COCKPIT_ELEVENLABS_API_KEY?.trim();
+  if (!key) return null;
+  const res = await fetchImpl(ELEVENLABS_STT_TOKEN_URL, {
+    method: 'POST',
+    headers: { 'xi-api-key': key },
+    signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+  });
+  if (!res.ok) throw new TtsError(502, `elevenlabs ${res.status}`);
+  const { token } = await res.json() as { token?: unknown };
+  return typeof token === 'string' && token ? token : null;
 }
