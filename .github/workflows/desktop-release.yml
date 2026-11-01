@@ -53,4 +53,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
           REPO: ${{ github.repository }}
-        run: gh release create "$TAG" Deck-Setup.exe Deck-Setup.exe.blockmap latest.yml --repo "$REPO" --title "$TAG" --notes "Deck for Windows. Unsigned: SmartScreen warns on first install."
+        run: |
+          gh release create "$TAG" Deck-Setup.exe Deck-Setup.exe.blockmap latest.yml --repo "$REPO" --title "$TAG" --notes "Deck for Windows. Unsigned, so SmartScreen warns on first install."
