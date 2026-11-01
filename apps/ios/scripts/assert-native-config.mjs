@@ -29,10 +29,11 @@ import { existsSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 
 // Microphone and speech recognition: voice input in the chat (the web page dictates through the
-// WebView). Nothing else: a camera or photo string here would be a permission the app does not use.
+// WebView), and Photos (the opt-in "paste my latest screenshot" offer; read-only, never write). Nothing else:
+// a camera or photo-add string here would be a permission the app does not use.
 // Add a key when a native module needs a new purpose string.
-export const REQUIRED_PURPOSE_STRINGS = ['NSMicrophoneUsageDescription', 'NSSpeechRecognitionUsageDescription'];
-export const FORBIDDEN_PURPOSE_STRINGS = ['NSCameraUsageDescription', 'NSPhotoLibraryUsageDescription', 'NSPhotoLibraryAddUsageDescription', 'NSFaceIDUsageDescription', 'NSLocationWhenInUseUsageDescription'];
+export const REQUIRED_PURPOSE_STRINGS = ['NSMicrophoneUsageDescription', 'NSSpeechRecognitionUsageDescription', 'NSPhotoLibraryUsageDescription'];
+export const FORBIDDEN_PURPOSE_STRINGS = ['NSCameraUsageDescription', 'NSPhotoLibraryAddUsageDescription', 'NSFaceIDUsageDescription', 'NSLocationWhenInUseUsageDescription'];
 
 /** Map of top-level key -> raw value tag/text of a plist (enough for these checks). */
 export function plistTopLevel(xml) {
@@ -123,6 +124,7 @@ export const REQUIRED_COLLECTED_TYPES = [
   'NSPrivacyCollectedDataTypeEmailAddress',
   'NSPrivacyCollectedDataTypeUserID',
   'NSPrivacyCollectedDataTypeOtherUserContent',
+  'NSPrivacyCollectedDataTypePhotosorVideos',
 ];
 
 /** The reasons declared for one required-reason category (empty when the category is absent). */

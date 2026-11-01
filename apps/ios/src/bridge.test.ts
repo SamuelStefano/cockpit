@@ -44,6 +44,18 @@ describe('parseBridgeMessage', () => {
     expect(parseBridgeMessage(undefined)).toBeNull();
     expect(parseBridgeMessage(msg({ v: 1, type: 'share', message: 'x'.repeat(MAX_RAW_BYTES) }))).toBeNull();
   });
+  it('parses the screenshot messages strictly', () => {
+    expect(parseBridgeMessage(msg({ v: 1, type: 'screenshots-enable' }))).toEqual({ type: 'screenshots-enable' });
+    expect(parseBridgeMessage(msg({ v: 1, type: 'screenshots-disable', extra: 1 }))).toEqual({ type: 'screenshots-disable' });
+    expect(parseBridgeMessage(msg({ v: 1, type: 'screenshot-accept', id: 'AB12-CD/L0/001' }))).toEqual({ type: 'screenshot-accept', id: 'AB12-CD/L0/001' });
+    expect(parseBridgeMessage(msg({ v: 1, type: 'screenshot-accept' }))).toBeNull();
+    expect(parseBridgeMessage(msg({ v: 1, type: 'screenshot-accept', id: 5 }))).toBeNull();
+    expect(parseBridgeMessage(msg({ v: 1, type: 'screenshot-accept', id: '' }))).toBeNull();
+    expect(parseBridgeMessage(msg({ v: 1, type: 'screenshot-accept', id: 'a b' }))).toBeNull();
+    expect(parseBridgeMessage(msg({ v: 1, type: 'screenshot-accept', id: "x');alert(1);('" }))).toBeNull();
+    expect(parseBridgeMessage(msg({ v: 1, type: 'screenshot-accept', id: 'a'.repeat(201) }))).toBeNull();
+    expect(parseBridgeMessage(msg({ v: 2, type: 'screenshots-enable' }))).toBeNull();
+  });
   it('ignores prototype keys', () => {
     expect(parseBridgeMessage('{"v":1,"type":"haptic","style":"light","__proto__":{"x":1}}')).toEqual({ type: 'haptic', style: 'light' });
   });

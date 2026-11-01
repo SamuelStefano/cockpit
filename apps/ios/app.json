@@ -16,7 +16,8 @@
       },
       "infoPlist": {
         "NSMicrophoneUsageDescription": "Deck uses the microphone so you can dictate a message to your agent by voice in the chat.",
-        "NSSpeechRecognitionUsageDescription": "Deck uses speech recognition to turn your voice into text for the message you dictate in the chat."
+        "NSSpeechRecognitionUsageDescription": "Deck uses speech recognition to turn your voice into text for the message you dictate in the chat.",
+        "NSPhotoLibraryUsageDescription": "Deck looks at your most recent screenshot, only after you turn on automatic screenshots, to offer to paste it into your chat. A screenshot is sent to your agent only when you tap to paste it."
       },
       "privacyManifests": {
         "NSPrivacyTracking": false,
@@ -30,6 +31,12 @@
           },
           {
             "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypeUserID",
+            "NSPrivacyCollectedDataTypeLinked": true,
+            "NSPrivacyCollectedDataTypeTracking": false,
+            "NSPrivacyCollectedDataTypePurposes": ["NSPrivacyCollectedDataTypePurposeAppFunctionality"]
+          },
+          {
+            "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypePhotosorVideos",
             "NSPrivacyCollectedDataTypeLinked": true,
             "NSPrivacyCollectedDataTypeTracking": false,
             "NSPrivacyCollectedDataTypePurposes": ["NSPrivacyCollectedDataTypePurposeAppFunctionality"]
@@ -64,6 +71,7 @@
     "plugins": [
       "expo-router",
       "expo-notifications",
+      ["expo-media-library", { "photosPermission": "Deck looks at your most recent screenshot, only after you turn on automatic screenshots, to offer to paste it into your chat. A screenshot is sent to your agent only when you tap to paste it.", "savePhotosPermission": false }],
       [
         "expo-splash-screen",
         {

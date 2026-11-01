@@ -9,6 +9,9 @@
  *   { v: 1, type: 'notify', title, body }        local notification (expo-notifications)
  *   { v: 1, type: 'share',  message?, url? }     iOS share sheet
  *   { v: 1, type: 'haptic', style }              haptic feedback
+ *   { v: 1, type: 'screenshots-enable' }         the user opted in to the screenshot offer (Photos are read only after this)
+ *   { v: 1, type: 'screenshots-disable' }        the user turned it off
+ *   { v: 1, type: 'screenshot-accept', id }      the user accepted the offered screenshot: send it back
  *
  * Pure TypeScript: no React Native import.
  */
@@ -25,7 +28,13 @@ export type HapticStyle = (typeof HAPTIC_STYLES)[number];
 export type BridgeMessage =
   | { type: 'notify'; title: string; body: string }
   | { type: 'share'; message?: string; url?: string }
-  | { type: 'haptic'; style: HapticStyle };
+  | { type: 'haptic'; style: HapticStyle }
+  | { type: 'screenshots-enable' }
+  | { type: 'screenshots-disable' }
+  | { type: 'screenshot-accept'; id: string };
+
+/** A Photos local identifier ("UUID/L0/001"): short, printable, no spaces. */
+export const SCREENSHOT_ID = /^[A-Za-z0-9][A-Za-z0-9/_.:-]{0,199}$/;
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
@@ -78,6 +87,12 @@ export function parseBridgeMessage(raw: unknown): BridgeMessage | null {
       return typeof data.style === 'string' && (HAPTIC_STYLES as readonly string[]).includes(data.style)
         ? { type: 'haptic', style: data.style as HapticStyle }
         : null;
+    case 'screenshots-enable':
+      return { type: 'screenshots-enable' };
+    case 'screenshots-disable':
+      return { type: 'screenshots-disable' };
+    case 'screenshot-accept':
+      return typeof data.id === 'string' && SCREENSHOT_ID.test(data.id) ? { type: 'screenshot-accept', id: data.id } : null;
     default:
       return null;
   }

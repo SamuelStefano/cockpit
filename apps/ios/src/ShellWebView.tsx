@@ -1,10 +1,13 @@
 import Constants from 'expo-constants';
 import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
-import { BackHandler, Linking, StyleSheet, View } from 'react-native';
+import * as ScreenCapture from 'expo-screen-capture';
+import { AppState, BackHandler, Linking, StyleSheet, View } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import { loadWebBundleStatus } from '../modules/dfl-web-bundle';
 import { isTrustedSender, parseBridgeMessage } from './bridge';
 import { runBridgeMessage } from './bridgeHandlers';
+import { createNativeScreenshotController } from './screenshotsNative';
+import { buildEventScript, type ShellEvent } from './shellEvents';
 import { chromeReducer, initialChrome, LOAD_TIMEOUT_MS, webViewHandlesBack } from './chromeState';
 import { LoadingVeil } from './LoadingVeil';
 import { OfflineCard } from './OfflineCard';
@@ -19,6 +22,28 @@ export function ShellWebView({ path }: { path: string }) {
   const [chrome, dispatch] = useReducer(chromeReducer, initialChrome);
   const webRef = useRef<WebView>(null);
   const canGoBack = useRef(false);
+  const pageUrl = useRef<string | undefined>(undefined);
+  // Events go to the page only while it is the app origin (an external page never gets a screenshot).
+  const sendToWeb = useCallback((event: ShellEvent) => {
+    if (!isTrustedSender(pageUrl.current, SHELL.origin)) return;
+    webRef.current?.injectJavaScript(buildEventScript(event));
+  }, []);
+  const screenshots = useMemo(() => createNativeScreenshotController(sendToWeb), [sendToWeb]);
+
+  useEffect(() => {
+    // Both triggers do nothing until the web sent `screenshots-enable` (the user opted in).
+    const appState = AppState.addEventListener('change', (s) => {
+      if (s === 'active') void screenshots.check();
+    });
+    // A print taken inside Deck: iOS tells us before the photo reaches the library, so wait a moment.
+    const shot = ScreenCapture.addScreenshotListener(() => {
+      setTimeout(() => void screenshots.check(), 1500);
+    });
+    return () => {
+      appState.remove();
+      shot.remove();
+    };
+  }, [screenshots]);
   const uri = useMemo(() => `${SHELL.origin}${path.startsWith('/') ? path : `/${path}`}`, [path]);
 
   useEffect(() => {
@@ -39,8 +64,13 @@ export function ShellWebView({ path }: { path: string }) {
   const onMessage = useCallback((e: WebViewMessageEvent) => {
     if (!isTrustedSender(e.nativeEvent.url, SHELL.origin)) return;
     const message = parseBridgeMessage(e.nativeEvent.data);
-    if (message) void runBridgeMessage(message);
-  }, []);
+    if (!message) return;
+    pageUrl.current = e.nativeEvent.url;
+    if (message.type === 'screenshots-enable') void screenshots.enable();
+    else if (message.type === 'screenshots-disable') screenshots.disable();
+    else if (message.type === 'screenshot-accept') void screenshots.accept(message.id);
+    else void runBridgeMessage(message);
+  }, [screenshots]);
 
   return (
     <View style={styles.root}>
@@ -61,6 +91,7 @@ export function ShellWebView({ path }: { path: string }) {
         onMessage={onMessage}
         onNavigationStateChange={(s) => {
           canGoBack.current = s.canGoBack;
+          pageUrl.current = s.url;
         }}
         onLoadStart={() => dispatch({ type: 'loadStart' })}
         onLoadEnd={() => dispatch({ type: 'loadEnd' })}
