@@ -23,6 +23,7 @@ import { EggsHost } from './components/game/EggsHost';
 import { useGameSignals } from './game/useGameSignals';
 import { BoxHealthHost } from './components/health/BoxHealthHost';
 import { bitStateFor } from './components/bit/bit-state';
+import { BoxRail } from './components/chrome/rail/BoxRail';
 import { RailChats } from './components/chrome/sidebar/RailChats';
 import { useJustDone } from './components/bit/useJustDone';
 import type { LinkState } from './components/bit/turn-bit-state';
@@ -218,7 +219,7 @@ function CockpitBody() {
     onOpen: agent.open, canManage: isAdmin, paused: cockpit.teamPaused, onPauseSet: cockpit.onTeamPauseSet,
   };
   const quotaNotice = claudeQuota && quotaGate.warn && !quotaClosed && rate ? <QuotaBanner reset={relReset(rate.resetsAt)} onClose={() => setQuotaClosed(true)} /> : null;
-  const bodyFooter = isMobile ? null : <BodyFooter userId={sbAuth.session?.user.id} end={quotaNotice} />;
+  const bodyFooter = isMobile ? null : <BodyFooter end={quotaNotice} />;
   const chatWithTeam = { ...chatProps, teamSlot: <TeamStack {...teamProps} />, footer: bodyFooter };
   const openPalette = () => { setDrawer(false); setPalette(true); };
   const account = { userId: sbAuth.session?.user.id, onSignOut: SUPABASE_ENABLED ? sbAuth.signOut : undefined, onChangePassword: SUPABASE_ENABLED ? sbAuth.changePassword : undefined, drops: dropApi };
@@ -284,6 +285,7 @@ function CockpitBody() {
       />
       <ShortcutsHelp open={help} onClose={() => setHelp(false)} />
       <div className="flex min-h-0 flex-1">
+        {!isMobile && <BoxRail activeSessionId={activeSessionId} userId={sbAuth.session?.user.id} />}
         {!isMobile && (
           <Sidebar
             route={route} nav={nav} role={role} navCounts={navCounts} onNew={handleNew} onPalette={() => setPalette(true)}
