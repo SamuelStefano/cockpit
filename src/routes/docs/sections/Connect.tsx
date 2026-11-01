@@ -57,8 +57,8 @@ export function Connect() {
         Pra ter controle total da própria box (terminais reais + Configurações de administração), o dono sobe o agente com <Pill>DECK_AGENT_ROLE=admin</Pill>.
       </Callout>
       <Callout icon="circle" tone="sky">
-        <span className="font-medium">Beta · relay confiável.</span> Hoje o relay é operado pela DevFellowship: ele encaminha sua sessão pra sua VPS,
-        mas tecnicamente vê o tráfego. A verificação ponta-a-ponta (relay sem poder forjar comandos) entra antes de abrir pra VPSs de terceiros.
+        <span className="font-medium">Relay operado pela DevFellowship.</span> Ele encaminha sua sessão pra sua VPS. Com o canal selado ligado (o padrão do agente),
+        o conteúdo vai cifrado entre o app e a VPS e o relay vê só metadados; com <Pill>DECK_E2E=off</Pill> ele vê o tráfego em claro.
       </Callout>
     </section>
   );
