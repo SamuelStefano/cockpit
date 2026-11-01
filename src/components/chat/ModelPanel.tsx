@@ -3,6 +3,7 @@ import type { Connection } from '../../../shared/connections';
 import type { ModelInfo } from '../../../shared/protocol';
 import { CAP_LABEL, PROVIDERS, type Cap, type ProviderId } from '../../../shared/model-catalog';
 import { Icon, tokens, type IconName } from '../primitives';
+import { useCoarse } from '../primitives/useCoarse';
 import { usePersisted } from '../../lib/persist';
 import { normalizeModelId } from './toolbar-format';
 import { buildGroups, pushRecent, toggleFav, type PickItem } from './model-list';
@@ -78,6 +79,8 @@ export function ModelPanel(p: ModelPanelProps) {
   const [favs, setFavs] = usePersisted<string[]>(FAVS_KEY, []);
   const [recents, setRecents] = usePersisted<string[]>(RECENTS_KEY, []);
   const searchRef = useRef<HTMLInputElement>(null);
+  // On touch, focusing here raises the keyboard and reflows the whole app under the sheet.
+  const coarse = useCoarse();
   const groups = useMemo(
     () => buildGroups({ options: p.options, connections: p.connections, favs, recents, query, fallbackFor: p.fallbackFor }),
     [p.options, p.connections, favs, recents, query, p.fallbackFor],
@@ -99,7 +102,7 @@ export function ModelPanel(p: ModelPanelProps) {
         <Icon name="search" size={14} className="shrink-0 text-neutral-500" />
         <input
           ref={searchRef}
-          autoFocus
+          autoFocus={!coarse}
           aria-label="Buscar modelo"
           placeholder="Buscar modelo"
           value={query}
