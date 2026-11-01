@@ -764,7 +764,9 @@ export type ClientMsg =
   // box do agente sem passar pelo chat. `drop-put` responde SÓ a referência — o
   // conteúdo nunca volta, senão ele entraria no estado do cliente e derrotaria o
   // propósito. `drop-open` é o último recurso, explícito.
-  | { t: 'drop-put'; slug: string; content: string; ttlMs?: number }
+  // `encoding: 'base64'` = binary file (.p8, .p12, images). Absent = UTF-8 text, the
+  // original frame, so text drops keep working against agents that predate it.
+  | { t: 'drop-put'; slug: string; content: string; ttlMs?: number; encoding?: 'base64' }
   | { t: 'drop-list' }
   | { t: 'drop-open'; slug: string }
   | { t: 'drop-rm'; slug: string }

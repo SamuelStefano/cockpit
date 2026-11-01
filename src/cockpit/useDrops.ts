@@ -11,7 +11,7 @@ export interface Drops {
   onDropList: () => void;
   // Devolve se o frame saiu: com o socket fechado o envio é descartado em silêncio e
   // o formulário não pode limpar o segredo achando que gravou.
-  onDropPut: (slug: string, content: string, ttlMs?: number) => boolean;
+  onDropPut: (slug: string, content: string, ttlMs?: number, encoding?: 'base64') => boolean;
   onDropRm: (slug: string) => void;
   onMsg: (msg: ServerMsg) => boolean;
 }
@@ -44,7 +44,7 @@ export function useDrops(send: (m: ClientMsg) => boolean): Drops {
     dropsLoaded,
     lastDrop,
     onDropList: useCallback(() => { send({ t: 'drop-list' }); }, [send]),
-    onDropPut: useCallback((slug: string, content: string, ttlMs?: number) => send({ t: 'drop-put', slug, content, ttlMs }), [send]),
+    onDropPut: useCallback((slug: string, content: string, ttlMs?: number, encoding?: 'base64') => send({ t: 'drop-put', slug, content, ttlMs, ...(encoding ? { encoding } : {}) }), [send]),
     onDropRm: useCallback((slug: string) => { send({ t: 'drop-rm', slug }); }, [send]),
     onMsg,
   };

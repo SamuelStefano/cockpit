@@ -111,11 +111,30 @@ async function refFor(slug: string, full: string, expiresAt?: number): Promise<D
 
 // Grava o drop e devolve SÓ a referência — nunca o conteúdo. Quem quiser o texto
 // pede drop-open de propósito.
-export async function putDrop(slug: string, content: unknown, ttlMs?: unknown): Promise<DropRef | { error: string }> {
+// Strict: Buffer.from(x, 'base64') silently skips garbage, so it would store a
+// corrupted binary. Canonical alphabet + padding, and the size is checked BEFORE
+// decoding so an oversized frame never allocates.
+export function decodeBase64Strict(content: string): Buffer | { error: string } {
+  if (content.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(content)) return { error: 'base64 inválido' };
+  const pad = content.endsWith('==') ? 2 : content.endsWith('=') ? 1 : 0;
+  if ((content.length / 4) * 3 - pad > MAX_BYTES) return { error: 'conteúdo grande demais' };
+  return Buffer.from(content, 'base64');
+}
+
+export async function putDrop(slug: string, content: unknown, ttlMs?: unknown, encoding?: unknown): Promise<DropRef | { error: string }> {
   const full = pathFor(slug);
   if (!full) return { error: 'nome inválido' };
   if (typeof content !== 'string' || content.length === 0) return { error: 'conteúdo vazio' };
-  const buf = Buffer.from(content, 'utf8');
+  if (encoding !== undefined && encoding !== 'base64') return { error: 'encoding inválido' };
+  let buf: Buffer;
+  if (encoding === 'base64') {
+    const dec = decodeBase64Strict(content);
+    if (!Buffer.isBuffer(dec)) return dec;
+    buf = dec;
+  } else {
+    buf = Buffer.from(content, 'utf8');
+  }
+  if (buf.length === 0) return { error: 'conteúdo vazio' };
   if (buf.length > MAX_BYTES) return { error: 'conteúdo grande demais' };
 
   await ensureDir();
