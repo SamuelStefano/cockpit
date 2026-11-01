@@ -311,7 +311,7 @@ function CockpitBody() {
             {/* Um de cada vez na mesma âncora, e offline ganha: sem servidor não há
                 versão nova pra buscar, e recarregar ali só daria página em branco. */}
             <RestartNotice show={restarting && !showOffline} />
-            <UpdateNotice show={updateReady && !updateClosed && !showOffline && !restarting} onApply={applyUpdate} onDismiss={() => setUpdateClosed(true)} />
+            <UpdateNotice show={updateReady && !updateClosed && !showOffline && !restarting && !anyRunning} onApply={applyUpdate} onDismiss={() => setUpdateClosed(true)} />
           </div>
 
           <RouteContent
