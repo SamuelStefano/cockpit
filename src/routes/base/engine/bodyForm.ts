@@ -6,7 +6,7 @@ import { box, ink, inkMat, newMat } from './kit';
 
 export const BIT_ORANGE = 0xf97316;
 export const BIT_LIMB = 0xc2410c;
-const MASCOT_UNITS = 2.1, DEPTH = 22;
+const MASCOT_UNITS = 2.1, DEPTH = 34;
 
 export interface FaceAnchor { x: number; y: number; z: number; size: number }
 export interface BodyForm { face: FaceAnchor; tip: THREE.MeshStandardMaterial | null; limb: number; hideTorso: boolean }
@@ -15,7 +15,7 @@ const hash = (s: string) => { let h = 0; for (const c of s) h = (h * 31 + c.char
 
 export function mascotOf(id: string) {
   const shapes = Object.keys(MASCOT_SHAPES) as (keyof typeof MASCOT_SHAPES)[], h = hash(id);
-  return { shape: MASCOT_SHAPES[shapes[h % shapes.length]], color: MASCOT_COLORS[(h >>> 8) % MASCOT_COLORS.length] };
+  return { shape: MASCOT_SHAPES[shapes[h % shapes.length]], color: MASCOT_COLORS[(Math.imul(h, 2654435761) >>> 13) % MASCOT_COLORS.length] };
 }
 
 // The Deck's Bit in clay: a terminal head with a screen on both sides and a glowing antenna.
