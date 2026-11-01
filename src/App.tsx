@@ -32,6 +32,7 @@ import { useAgentNav } from './app/useAgentNav';
 import { useCockpit } from './useCockpit';
 import { useBoxes } from './cockpit/useBoxes';
 import { useOtherBoxToasts } from './app/useOtherBoxToasts';
+import { useDesktopLinks } from './app/useDesktopLinks';
 import { useActiveBoxUnread } from './app/useActiveBoxUnread';
 import { totalRed, useBoxUnread } from './cockpit/box-unread';
 import { boxStore } from './cockpit/boxes-store';
@@ -143,6 +144,7 @@ function CockpitBody() {
   const keyboardOpen = useKeyboardOpen() && isMobile;
   useKeyboardViewport();
   useOtherBoxToasts(!isMobile);
+  useDesktopLinks();
   const link: LinkState = conn.ws === 'connected' ? 'open' : conn.ws === 'reconnecting' ? 'connecting' : 'closed';
   const anyRunning = runningAnywhere.size > 0;
   const justDone = useJustDone(anyRunning);

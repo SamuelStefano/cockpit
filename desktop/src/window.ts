@@ -62,7 +62,7 @@ function attachOfflineRetry(win: BrowserWindow): void {
   win.on('closed', () => clearTimeout(timer));
 }
 
-export function createMainWindow(): BrowserWindow {
+export function createMainWindow({ startHidden }: { startHidden: boolean }): BrowserWindow {
   const state = parseWindowState(readState());
   const placed = isOnScreen(state.x, state.y);
   const win = new BrowserWindow({
@@ -90,7 +90,7 @@ export function createMainWindow(): BrowserWindow {
     },
   });
   if (state.maximized) win.maximize();
-  win.once('ready-to-show', () => win.show());
+  if (!startHidden) win.once('ready-to-show', () => win.show());
   win.on('close', () => saveState(win));
   hardenNavigation(win.webContents);
   attachContextMenu(win);

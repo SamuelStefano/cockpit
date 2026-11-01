@@ -1,4 +1,4 @@
-import type { DeckDesktopBridge } from '../../shared/desktop-bridge';
+import type { DeckDesktopBridge, DeckDesktopLink } from '../../shared/desktop-bridge';
 
 function bridge(): Partial<DeckDesktopBridge> | undefined {
   return (globalThis as { deckDesktop?: Partial<DeckDesktopBridge> }).deckDesktop;
@@ -25,4 +25,8 @@ export function setDesktopBadge(count: number): boolean {
   if (!fn) return false;
   fn(count);
   return true;
+}
+
+export function onDesktopLink(cb: (link: DeckDesktopLink) => void): void {
+  bridge()?.onLink?.(cb);
 }

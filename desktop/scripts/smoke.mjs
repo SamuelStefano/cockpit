@@ -19,12 +19,14 @@ const web = await page.evaluate(() => ({
 const loadErrors = [...errors];
 const opened = await page.evaluate(() => window.open('file:///C:/Windows/System32/calc.exe'));
 const windows = app.windows().length;
+// Closing hides to the tray by design; the smoke test ends the process itself.
+await app.evaluate(({ app: a }) => a.quit());
 await app.close();
 
 const failures = [];
 if (!url.startsWith('https://deck.devfellowship.com')) failures.push(`wrong url ${url}`);
 if (web.nodeRequire !== 'undefined' || web.nodeProcess !== 'undefined') failures.push('node leaked into the page');
-if (web.bridge !== 'apiVersion,appVersion,focusWindow,setBadge') failures.push(`bridge is ${web.bridge}`);
+if (web.bridge !== 'apiVersion,appVersion,focusWindow,onLink,setBadge') failures.push(`bridge is ${web.bridge}`);
 if (opened !== null || windows !== 1) failures.push('window.open was not denied');
 if (loadErrors.length) failures.push(`console errors: ${loadErrors.join(' | ')}`);
 console.log(JSON.stringify({ url, web, windows, loadErrors }, null, 2));

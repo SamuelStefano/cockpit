@@ -160,6 +160,9 @@ function flashTitle(): void {
     document.title = baseTitle;
     flashing = false;
     document.removeEventListener('visibilitychange', restore);
+    window.removeEventListener('focus', restore);
   };
   document.addEventListener('visibilitychange', restore);
+  // A desktop window behind others stays visible, so only focus ends the flash there.
+  window.addEventListener('focus', restore);
 }
