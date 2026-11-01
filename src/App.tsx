@@ -48,6 +48,8 @@ import { navRole, navLabel } from './components/chrome/nav-routes';
 import { useRoleLanding } from './app/useRoleLanding';
 import { useIsMobile } from './app/useIsMobile';
 import { useKeyboardOpen } from './app/useKeyboardOpen';
+import { useKeyboardViewport } from './app/useKeyboardViewport';
+import { entryOpensNewChat } from './app/entry-landing';
 import { useTabTitle } from './app/useTabTitle';
 import { useOfflineLatch } from './app/useOfflineLatch';
 import { useReconnectAction } from './app/useReconnectAction';
@@ -135,6 +137,7 @@ function CockpitBody() {
   // Só o celular tem teclado por cima da tela; num desktop de janela baixa a
   // heurística acertaria pelo motivo errado e mutilaria o chat à toa.
   const keyboardOpen = useKeyboardOpen() && isMobile;
+  useKeyboardViewport();
   useTabTitle(running, updated);
   const link: LinkState = conn.ws === 'connected' ? 'open' : conn.ws === 'reconnecting' ? 'connecting' : 'closed';
   const anyRunning = runningAnywhere.size > 0;
@@ -179,7 +182,7 @@ function CockpitBody() {
 
   // Between a reload and the first session list there is no active session yet: without
   // this the chat flashed the empty "new chat" screen before jumping back to the open one.
-  const restoring = !activeSessionId && (loading || sessions.length > 0) && (!!chatId || !!loadPref('activeId', ''));
+  const restoring = !entryOpensNewChat && !activeSessionId && (loading || sessions.length > 0) && (!!chatId || !!loadPref('activeId', ''));
 
   const activeSession = sessions.find((s) => s.id === activeSessionId) || archived.find((s) => s.id === activeSessionId) || null;
 
@@ -189,6 +192,12 @@ function CockpitBody() {
     nav('/');
   }, [cockpitNew, setDrawer, nav]);
   useEffect(() => { if (takeNewIntent(boxStore.get().pref)) handleNew(); }, [handleNew]);
+  const enteredNew = useRef(false);
+  useEffect(() => {
+    if (!entryOpensNewChat || enteredNew.current) return;
+    enteredNew.current = true;
+    handleNew();
+  }, [handleNew]);
 
   const call = useCall({ messages, phase, onSend: handleSend, sessionKey: activeSessionId, pendingIds: cockpit.pendingSessionIds });
 
