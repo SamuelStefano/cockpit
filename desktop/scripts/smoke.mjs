@@ -13,6 +13,7 @@ const web = await page.evaluate(() => ({
   nodeRequire: typeof globalThis.require,
   nodeProcess: typeof globalThis.process,
   sw: 'serviceWorker' in navigator,
+  bridge: Object.keys(globalThis.deckDesktop ?? {}).sort().join(),
 }));
 // Copied first: Chromium logs its own refusal of the probe below.
 const loadErrors = [...errors];
@@ -23,6 +24,7 @@ await app.close();
 const failures = [];
 if (!url.startsWith('https://deck.devfellowship.com')) failures.push(`wrong url ${url}`);
 if (web.nodeRequire !== 'undefined' || web.nodeProcess !== 'undefined') failures.push('node leaked into the page');
+if (web.bridge !== 'apiVersion,appVersion,focusWindow,setBadge') failures.push(`bridge is ${web.bridge}`);
 if (opened !== null || windows !== 1) failures.push('window.open was not denied');
 if (loadErrors.length) failures.push(`console errors: ${loadErrors.join(' | ')}`);
 console.log(JSON.stringify({ url, web, windows, loadErrors }, null, 2));
