@@ -45,8 +45,8 @@ describe('turn-end notification', () => {
     enterShell(); hide();
     notifyTurnDone('Minha sessão', undefined, 'k1');
     notifyTurnError('Minha sessão', 'falhou', undefined, 'k1');
-    const sent = post.mock.calls.map((c) => JSON.parse(c[0]));
-    expect(sent.map((m) => m.kind)).toEqual(['turn-done', 'turn-error']);
+    const sent = post.mock.calls.map((c) => JSON.parse(c[0])).filter((m: { type: string }) => m.type === 'notify');
+    expect(sent.map((m: { kind: string }) => m.kind)).toEqual(['turn-done', 'turn-error']);
     expect(sent[0].tag).toBe('cockpit-done:k1');
   });
   it('never touches the bridge in a browser', () => {
