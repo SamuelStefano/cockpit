@@ -39,7 +39,8 @@ export function hardenNavigation(contents: WebContents): void {
     event.preventDefault();
   });
   contents.setWindowOpenHandler(({ url }) => {
-    openExternally(url);
+    if (classifyLink(url) === 'app') void contents.loadURL(url);
+    else openExternally(url);
     return { action: 'deny' };
   });
   contents.on('will-attach-webview', (event) => event.preventDefault());

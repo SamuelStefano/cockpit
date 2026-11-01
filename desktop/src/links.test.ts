@@ -4,6 +4,7 @@ import { APP_ORIGIN, canGrantPermission, classifyLink } from './links';
 describe('classifyLink', () => {
   it.each([
     [`${APP_ORIGIN}/c/abc`, 'app'],
+    [`${APP_ORIGIN}/sandbox/frame.html`, 'blocked'],
     ['https://github.com/x', 'external'],
     ['http://example.com', 'external'],
     ['mailto:a@b.c', 'external'],
@@ -25,6 +26,10 @@ describe('canGrantPermission', () => {
     expect(canGrantPermission('media', APP_ORIGIN, true)).toBe(true);
     expect(canGrantPermission('media', APP_ORIGIN, false)).toBe(false);
     expect(canGrantPermission('media', 'https://evil.com', true)).toBe(false);
+  });
+
+  it('lets the terminal paste', () => {
+    expect(canGrantPermission('clipboard-read', APP_ORIGIN, true)).toBe(true);
   });
 
   it('never grants what the app does not use', () => {

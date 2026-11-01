@@ -1,5 +1,7 @@
 export const APP_ORIGIN = 'https://deck.devfellowship.com';
 
+// /sandbox/ runs untrusted previews inside frames; as a top-level page it would hold
+// the app origin in the main frame, which is what the bridge trusts.
 const EXTERNAL_SCHEMES = new Set(['https:', 'http:', 'mailto:']);
 
 export type LinkAction = 'app' | 'external' | 'blocked';
@@ -13,11 +15,11 @@ export function classifyLink(raw: string): LinkAction {
   } catch {
     return 'blocked';
   }
-  if (url.origin === APP_ORIGIN) return 'app';
+  if (url.origin === APP_ORIGIN) return url.pathname.startsWith('/sandbox/') ? 'blocked' : 'app';
   return EXTERNAL_SCHEMES.has(url.protocol) ? 'external' : 'blocked';
 }
 
-const GRANTED_PERMISSIONS = new Set(['media', 'notifications', 'clipboard-sanitized-write']);
+const GRANTED_PERMISSIONS = new Set(['media', 'notifications', 'clipboard-read', 'clipboard-sanitized-write']);
 
 export function canGrantPermission(permission: string, origin: string, isMainFrame: boolean): boolean {
   return isMainFrame && origin === APP_ORIGIN && GRANTED_PERMISSIONS.has(permission);
