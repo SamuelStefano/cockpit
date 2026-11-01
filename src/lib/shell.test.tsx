@@ -36,7 +36,7 @@ describe('inShell', () => {
     expect(postToShell({ type: 'notify', kind: 'turn-done', title: 'a', body: 'b', tag: 'c' })).toBe(false);
     enterShell();
     expect(postToShell({ type: 'notify', kind: 'turn-done', title: 'a', body: 'b', tag: 'c' })).toBe(true);
-    expect(JSON.parse(post.mock.calls[0][0])).toMatchObject({ type: 'notify', kind: 'turn-done' });
+    expect(JSON.parse(post.mock.calls[0][0])).toMatchObject({ v: 1, type: 'notify', kind: 'turn-done' });
   });
 });
 

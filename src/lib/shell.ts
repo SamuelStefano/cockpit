@@ -9,12 +9,17 @@ export function inShell(): boolean {
 
 // What the web side may ask the native shell to do.
 export type ShellMessage =
-  | { type: 'notify'; kind: 'turn-done' | 'turn-error'; title: string; body: string; tag: string };
+  | { type: 'notify'; kind: 'turn-done' | 'turn-error'; title: string; body: string; tag: string }
+  | { type: 'share'; message: string }
+  | { type: 'haptic'; style: 'light' | 'medium' | 'success' | 'error' };
+
+// Must match BRIDGE_VERSION in apps/ios/src/bridge.ts: the shell drops any other version.
+const BRIDGE_VERSION = 1;
 
 export function postToShell(msg: ShellMessage): boolean {
   if (!inShell()) return false;
   try {
-    (window as unknown as ShellGlobal).ReactNativeWebView!.postMessage?.(JSON.stringify(msg));
+    (window as unknown as ShellGlobal).ReactNativeWebView!.postMessage?.(JSON.stringify({ v: BRIDGE_VERSION, ...msg }));
     return true;
   } catch {
     return false;

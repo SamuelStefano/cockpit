@@ -111,6 +111,7 @@ export function notifyTurnDone(sessionTitle: string, onActivate?: () => void, se
   if (userIsLooking()) return;
   // The native shell owns the local notification; the Notification API is absent in a WKWebView.
   if (inShell()) {
+    postToShell({ type: 'haptic', style: 'success' });
     postToShell({ type: 'notify', kind: 'turn-done', title: 'Deck — resposta pronta', body: sessionTitle || 'A sessão terminou de responder.', tag: sessionKey ? `cockpit-done:${sessionKey}` : 'cockpit-done' });
     return;
   }
@@ -140,6 +141,7 @@ export function notifyTurnError(sessionTitle: string, message: string, onActivat
   if (typeof document === 'undefined') return;
   if (userIsLooking()) return;
   if (inShell()) {
+    postToShell({ type: 'haptic', style: 'error' });
     postToShell({ type: 'notify', kind: 'turn-error', title: 'Deck — turno falhou', body: (sessionTitle ? `${sessionTitle} — ` : '') + (message || 'A sessão terminou com erro.'), tag: sessionKey ? `cockpit-error:${sessionKey}` : 'cockpit-error' });
     return;
   }

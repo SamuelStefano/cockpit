@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { COARSE_QUERY } from '../primitives/useCoarse';
 import { useCopied } from '../../lib/useCopied';
+import { inShell, postToShell } from '../../lib/shell';
 import { haptic } from '../../lib/haptics';
 import { useLongPress } from '../sessions/useLongPress';
 import { MessageActionsSheet, type MessageAction } from './MessageActionsSheet';
@@ -28,6 +29,7 @@ function speakText(text: string) {
 
 export function buildActions(spec: MessageActionsSpec, copy: (t: string) => void): MessageAction[] {
   const list: MessageAction[] = [{ id: 'copy', label: 'Copiar', icon: 'copy', run: () => copy(spec.text) }];
+  if (inShell()) list.push({ id: 'share', label: 'Compartilhar', icon: 'external', run: () => { postToShell({ type: 'share', message: spec.text }); } });
   if (spec.speak && typeof window !== 'undefined' && 'speechSynthesis' in window) list.push({ id: 'speak', label: 'Ler em voz alta', icon: 'volume', run: () => speakText(spec.text) });
   if (spec.onEdit) list.push({ id: 'edit', label: 'Editar e reenviar', icon: 'pencil', run: spec.onEdit });
   if (spec.onRegenerate) list.push({ id: 'regen', label: 'Gerar de novo', icon: 'rotate', run: spec.onRegenerate });
