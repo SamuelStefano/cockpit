@@ -8,6 +8,7 @@ const ICON: Record<ActivityItem['kind'], string> = { file: '✎', command: '$', 
 const STATUS_LABEL = { todo: 'To do', doing: 'Doing', review: 'In review', done: 'Done' } as const;
 const REFRESH_MS = 8000, MAX_ROWS = 300, MAX_OUTPUT = 200;
 const hhmm = (ts?: number) => (ts ? new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '');
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 const safeUrl = (u: string) => /^https?:\/\//i.test(u);
 
 function Row({ item }: { item: ActivityItem }) {
@@ -72,7 +73,7 @@ export function LiveDetail({ sessionId, running, source }: { sessionId: string; 
         {sum.written.slice(-6).map((f) => <p key={f} className="file" title={f}>+ {baseName(f)}</p>)}
       </section>
       <div className="stats">
-        <span>{sum.commands} commands</span><span>{sum.reads} reads</span><span>{sum.agents} agents</span>
+        <span>{plural(sum.commands, 'command')}</span><span>{plural(sum.reads, 'read')}</span><span>{plural(sum.agents, 'agent')}</span>
         {sum.failed > 0 && <span className="bad">{sum.failed} failed</span>}
       </div>
       <div className="filters" role="tablist">
