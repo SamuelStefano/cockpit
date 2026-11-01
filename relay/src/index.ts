@@ -51,6 +51,11 @@ export interface RelayStore {
   // Service-role insert into diag_reports (migration 0008). Optional so a store
   // without the table keeps working: the frame is then dropped.
   insertDiagReport?(row: DiagReportRow): Promise<boolean>;
+  // Hard-deletes the account: its public share snapshots, then the auth user (the
+  // account/agent/pairing rows cascade). Idempotent: an already-deleted user is true.
+  // Throws on any other failure so nothing is half-deleted silently. Optional so a
+  // store without the admin API answers 501.
+  deleteAccount?(accountId: string): Promise<boolean>;
 }
 
 export interface DiagReportRow {
@@ -136,6 +141,16 @@ export function createRelay(cfg: RelayConfig) {
   const AGENT_PREAUTH_MAX = 16 * 1024;
   const jwks: JwksFn = makeJwks(cfg.jwksUrl);
   const pairThrottle = slidingWindow(5, 60_000);
+  // Deleting calls the Supabase admin API with the service key: bounded per account.
+  const deleteThrottle = slidingWindow(3, 60_000);
+  // Deleted accounts keep a valid JWT until it expires; refuse them on the WS until then.
+  const deletedUntil = new Map<string, number>();
+  const isDeleted = (accountId: string): boolean => {
+    const until = deletedUntil.get(accountId);
+    if (until === undefined) return false;
+    if (until <= nowMs()) { deletedUntil.delete(accountId); return false; }
+    return true;
+  };
   // Agent diag reports write the DB with the service role: a crash-looping box
   // must not turn into an insert storm.
   const diagPerBox = slidingWindow(6, 3600_000);
@@ -314,6 +329,31 @@ export function createRelay(cfg: RelayConfig) {
       } catch { res.writeHead(500); res.end('error'); }
       return;
     }
+    // POST /account/delete — the signed-in user deletes their own account (JWT in the
+    // header only). Root accounts are refused: they own the deployment. Idempotent.
+    if (req.method === 'POST' && urlPath === '/account/delete') {
+      const auth = req.headers.authorization ?? '';
+      const id = auth.startsWith('Bearer ') ? await identityFrom(auth.slice(7)) : null;
+      if (!id) { res.writeHead(401); res.end('auth'); return; }
+      if (id.role === 'root') { res.writeHead(403); res.end('root account'); return; }
+      if (!deleteThrottle(id.accountId)) { res.writeHead(429); res.end('slow down'); return; }
+      if (!cfg.store.deleteAccount) { res.writeHead(501); res.end('unsupported'); return; }
+      try {
+        await cfg.store.deleteAccount(id.accountId);
+      } catch (e) {
+        console.error('[relay] deleteAccount:', e);
+        obs.event('account_delete', { ok: false });
+        res.writeHead(502); res.end('error'); return;
+      }
+      deletedUntil.set(id.accountId, id.expMs ?? nowMs() + 3600_000);
+      boxRows.delete(id.accountId);
+      for (const box of registry.agentIds(id.accountId)) registry.agentSocket(id.accountId, box)?.terminate?.();
+      registry.eachBrowser(id.accountId, (s) => { try { (s as WebSocket).close(4403, 'account deleted'); } catch { /* indo */ } });
+      obs.event('account_delete', { ok: true });
+      res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+      res.end(JSON.stringify({ ok: true }));
+      return;
+    }
     // GET /status — sonda do monitor externo. O corpo PÚBLICO é deliberadamente
     // pobre (vivo? há quanto tempo?): contagem de contas e de agentes online é dado
     // de negócio e fica atrás do segredo. Sem DECK_STATUS_TOKEN configurado o detalhe
@@ -385,7 +425,7 @@ export function createRelay(cfg: RelayConfig) {
     // would leave a dead tab in the registry forever and the agent would never get
     // `no-browsers`.
     if (ws.readyState !== WebSocket.OPEN) return;
-    if (!id) { ws.close(4401, 'auth'); return; }            // default-deny (red line #10)
+    if (!id || isDeleted(id.accountId)) { ws.close(4401, 'auth'); return; }            // default-deny (red line #10)
     const accountId = id.accountId;
     acctHid = obs.hid(accountId);
     // Checked and registered with no await in between, so concurrent opens can't overshoot.
