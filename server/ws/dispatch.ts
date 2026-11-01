@@ -28,7 +28,7 @@ import { getMemories, saveMemory, deleteMemory, validateMemoryInput, readMemorie
 import { botTurnFor, botDenyRules } from '../team-prompt';
 import { agentBuilderTurn } from '../engine/triage';
 import { cleanBuildRequest } from './agent-build';
-import { parseTtsText, synthesize } from '../tts';
+import { parseTtsText, synthesize, mintSttToken } from '../tts';
 import { sendTeamMessages, sendTeamPaused, setTeamPause } from './team-frames';
 import { clearBotQuestion, sendTeamPending } from './team-pending-frames';
 import { sendBotComputer, sendBotFile, sendBotFiles } from './team-files-frames';
@@ -908,6 +908,12 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
         const audio = await synthesize(parseTtsText(typeof msg.text === 'string' ? msg.text : ''));
         send(ws, { t: 'tts-audio', reqId, audio: audio.toString('base64') });
       } catch { fail(); } finally { ttsInFlight.set(ws, (ttsInFlight.get(ws) ?? 1) - 1); }
+      return;
+    }
+    case 'stt-token': {
+      const reqId = typeof msg.reqId === 'string' ? msg.reqId.slice(0, 64) : '';
+      if (!reqId) return;
+      send(ws, { t: 'stt-token-result', reqId, token: (await mintSttToken().catch(() => null)) ?? undefined });
       return;
     }
     case 'agent-build': {

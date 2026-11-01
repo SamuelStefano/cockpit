@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import {
+import { mintSttToken,
   TTS_MAX_CHARS, TtsError, edgeVoice, escapeXml, parseTtsText, synthesizeElevenLabs,
 } from './tts';
 
@@ -53,5 +53,22 @@ describe('synthesizeElevenLabs', () => {
     const err = (await synthesizeElevenLabs('x', 'k-123', 'v', fetchImpl as unknown as typeof fetch).catch((e) => e)) as TtsError;
     expect(err.status).toBe(502);
     expect(err.message).not.toContain('k-123');
+  });
+});
+
+describe('mintSttToken', () => {
+  const env = { COCKPIT_ELEVENLABS_API_KEY: 'k' };
+  it('returns null without a key and never calls upstream', async () => {
+    const f = vi.fn();
+    expect(await mintSttToken({}, f as unknown as typeof fetch)).toBeNull();
+    expect(f).not.toHaveBeenCalled();
+  });
+  it('returns the single-use token', async () => {
+    const f = vi.fn(async () => new Response(JSON.stringify({ token: 'tok' })));
+    expect(await mintSttToken(env, f as unknown as typeof fetch)).toBe('tok');
+  });
+  it('throws when upstream refuses', async () => {
+    const f = vi.fn(async () => new Response('', { status: 401 }));
+    await expect(mintSttToken(env, f as unknown as typeof fetch)).rejects.toThrow('elevenlabs 401');
   });
 });

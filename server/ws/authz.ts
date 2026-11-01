@@ -43,6 +43,8 @@ const STUDENT_ALLOWED: ReadonlySet<ClientMsg['t']> = new Set([
   'agent-build',
   // Text in, mp3 out, no tools and no state; same level as sending a chat message.
   'tts',
+  // Mints a single-use transcription token; the account key stays on the box.
+  'stt-token',
   'crons-get', 'cron-save', 'cron-delete', 'cron-run',
   // Read-only, limited to a bot in this account's team.json and to that bot's
   // workspace after realpath (ws/team-files-frames.ts, team-files.ts).

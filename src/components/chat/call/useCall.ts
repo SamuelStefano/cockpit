@@ -8,6 +8,7 @@ import { endOfUtteranceDelay, isBargeIn, isEcho, isSendable, nextStreak } from '
 import { callSpeechSupported, useCallSpeech } from './useCallSpeech';
 import { useCallRecognizer } from './useCallRecognizer';
 import { useWakeLock } from './useWakeLock';
+import { primeScribeAudio, scribeSupported } from './scribe-capture';
 import { leftConversation } from './session-switch';
 
 const NO_TURN_START_MS = 20000;
@@ -24,7 +25,7 @@ interface Args {
 export type CallApi = ReturnType<typeof useCall>;
 
 export function useCall({ messages, phase, onSend, sessionKey = '', pendingIds }: Args) {
-  const supported = callSpeechSupported && speechCtor() !== null;
+  const supported = callSpeechSupported && (scribeSupported() || speechCtor() !== null);
   const [state, dispatch] = useReducer(callReducer, initialCallState);
   const [heard, setHeard] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -122,6 +123,7 @@ export function useCall({ messages, phase, onSend, sessionKey = '', pendingIds }
   const dial = () => {
     setError(null);
     speech.prime();
+    primeScribeAudio();
     dispatch({ type: 'dial' });
   };
   const hangup = () => dispatch({ type: 'hangup' });
