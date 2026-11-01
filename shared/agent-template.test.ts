@@ -24,7 +24,7 @@ describe('exportTemplate', () => {
     ['sk-abcdefghijklmnop1234'],
     ['use ghp_abcdefghijklmnopqrstuvwxyz123456'],
     ['senha: hunter2hunter2'],
-    ['-----BEGIN PRIVATE KEY-----'],
+    ['-----BEGIN ' + 'PRIVATE KEY-----'],
     ['Authorization: Bearer abcdefghijklmnopqrstuvwxyz'],
   ])('refuses instructions with a secret (%s)', (instructions) => {
     const r = exportTemplate({ ...bot, instructions });

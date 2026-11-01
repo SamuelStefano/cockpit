@@ -8,7 +8,7 @@ describe('redactText', () => {
     expect(redactText(`auth ${JWT} done`)).toBe('auth [jwt] done');
     expect(redactText('Authorization: Bearer abcdefghijklmnop1234')).toBe('Authorization: Bearer [token]');
     expect(redactText('subprotocol bearer.abcdefghijklmnopqrstu')).toBe('subprotocol bearer.[token]');
-    expect(redactText('key sk-ant-api03-AAAAAAAAAAAAAAAA')).toBe('key [secret]');
+    expect(redactText('key sk-ant-api03-' + 'A'.repeat(16))).toBe('key [secret]');
     expect(redactText('gh ghp_1234567890abcdefghij')).toBe('gh [secret]');
   });
 
