@@ -71,7 +71,7 @@ describe('machines and devices', () => {
 
 describe('payload safety', () => {
   const secrets = [
-    'sk-ant-api03-AAAAAAAAAAAAAAAAAAAA', 'ghp_abcdefghijklmnopqrstuvwxyz0123', 'Bearer abc.def.ghi',
+    'sk-ant-api03-' + 'A'.repeat(20), 'ghp_abcdefghijklmnopqrstuvwxyz0123', 'Bearer abc.def.ghi',
     'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0In0.sig', 'a'.repeat(64), 'https://x/cb?access_token=hunter2hunter2',
   ];
   it('scrubs secret-looking text from details', () => {
