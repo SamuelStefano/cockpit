@@ -61,7 +61,7 @@ export default defineConfig({
     maxWorkers: 2,
     // Worktree de agente é uma cópia do repo em commit antigo: a suite dele
     // roda junto e falha por código que a main já corrigiu.
-    exclude: [...configDefaults.exclude, '.claude/worktrees/**'],
+    exclude: [...configDefaults.exclude, '.claude/worktrees/**', 'desktop/**'],
   },
   server: {
     host: '127.0.0.1',

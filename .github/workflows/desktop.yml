@@ -1,0 +1,38 @@
+name: Desktop
+
+on:
+  pull_request:
+    paths: ['desktop/**', '.github/workflows/desktop.yml']
+  push:
+    branches: [main]
+    paths: ['desktop/**', '.github/workflows/desktop.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - run: npm ci
+      - run: npx tsc -p tsconfig.json --noEmit
+      - run: npm test
+      # Smoke runs before fuses are flipped: Playwright launches through inspect flags.
+      - run: npm run smoke
+      - run: npm run package
+      - run: npx @electron/fuses read --app out/Deck-win32-x64/Deck.exe
+      - run: Compress-Archive -Path out/Deck-win32-x64/* -DestinationPath out/Deck-win-x64.zip
+        shell: pwsh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Deck-win-x64
+          path: desktop/out/Deck-win-x64.zip
