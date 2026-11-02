@@ -85,6 +85,9 @@ export interface RelayConfig {
   // Override da resolução de identidade do browser (default: JWT via JWKS). Existe
   // só pra TESTE de integração local (stub) — em prod fica undefined = JWKS real.
   resolveIdentity?: (token: string | null) => Promise<Identity | null>;
+  // Test seams only; prod uses the real JWKS factory and the 8 s browser deadline.
+  jwksFactory?: (url: string) => JwksFn;
+  browserAuthStallMs?: number;
 }
 
 const tokenFromUrl = (url: string | undefined): string | null => {
@@ -134,7 +137,22 @@ export function createRelay(cfg: RelayConfig) {
   // Agents send no Origin and the sealed channel is opaque: 16KB is far above any
   // legitimate handshake frame (hello/auth/pair) and bounds what an unauthed peer can push.
   const AGENT_PREAUTH_MAX = 16 * 1024;
-  const jwks: JwksFn = makeJwks(cfg.jwksUrl);
+  const newJwks = () => (cfg.jwksFactory ?? makeJwks)(cfg.jwksUrl);
+  // Swapped after a stalled verification: a fetch stuck inside the old instance must not wedge later logins.
+  let jwks: JwksFn = newJwks();
+  const STALLED = Symbol('auth-stalled');
+  const authStallMs = cfg.browserAuthStallMs ?? 8_000;
+  async function identityWithDeadline(token: string | null): Promise<Identity | null | typeof STALLED> {
+    let timer: NodeJS.Timeout | undefined;
+    try {
+      return await Promise.race([
+        identityFrom(token),
+        new Promise<typeof STALLED>((resolve) => { timer = setTimeout(() => resolve(STALLED), authStallMs); }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
   const pairThrottle = slidingWindow(5, 60_000);
   // Agent diag reports write the DB with the service role: a crash-looping box
   // must not turn into an insert storm.
@@ -378,8 +396,14 @@ export function createRelay(cfg: RelayConfig) {
     if ((rawBox !== null && !isBoxId(rawBox)) || (peek && rawBox === null)) { obs.event('browser_open', { peek, box: rawBox !== null, bad: true }); clearTimeout(authTimer); ws.close(4400, 'bad box'); return; }
     const box = rawBox ? rawBox.toLowerCase() : '';
     obs.event('browser_open', { peek, box: box !== '' });
-    const id = await identityFrom(tokenFromSubprotocol(req.headers['sec-websocket-protocol']) ?? tokenFromUrl(req.url));
+    const id = await identityWithDeadline(tokenFromSubprotocol(req.headers['sec-websocket-protocol']) ?? tokenFromUrl(req.url));
     clearTimeout(authTimer);
+    if (id === STALLED) {
+      obs.event('browser_auth_stall', {});
+      jwks = newJwks();
+      if (ws.readyState === WebSocket.OPEN) { try { ws.close(4408, 'auth timeout'); } catch { /* indo */ } }
+      return;
+    }
     // The socket may have closed during the await (F5, pre-auth flood, auth
     // timeout). Its 'close' already fired with no listener, so registering it now
     // would leave a dead tab in the registry forever and the agent would never get

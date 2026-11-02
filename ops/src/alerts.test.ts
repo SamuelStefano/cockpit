@@ -11,7 +11,7 @@ let seq = 0;
 const report = (over: Partial<DiagReport> = {}): DiagReport => ({
   id: `00000000-0000-0000-0000-${String(++seq).padStart(12, '0')}`,
   created_at: new Date(1_800_000_000_000 + seq * 1000).toISOString(),
-  account_id: ACC, source: 'browser', kind: 'box-offline', box_id: BOX,
+  account_id: ACC, source: 'browser', kind: 'manual', box_id: BOX,
   app_version: null, user_agent: null, payload: { cause: 'box-offline', lastClose: { code: 4404 } },
   ...over,
 });
@@ -49,7 +49,7 @@ describe('alerter', () => {
   });
 
   it('sends each new report once and resumes from the saved cursor', async () => {
-    const a = report({ kind: 'js-error' });
+    const a = report({ kind: 'test' });
     const { alerter, sent, cursor, db } = setup([a]);
     await alerter.tick();
     await alerter.tick();
@@ -58,12 +58,12 @@ describe('alerter', () => {
     expect(sent[0]).toContain('box-um');
     expect(sent[0]).toContain(`https://ops.example/reports/${a.id}`);
 
-    const b = report({ kind: 'crash', created_at: a.created_at });
+    const b = report({ kind: 'manual', created_at: a.created_at });
     db.rows.push(b);
     const restarted = setup(db.rows, cursor);
     await restarted.alerter.tick();
     expect(restarted.sent).toHaveLength(1);
-    expect(restarted.sent[0]).toContain('crash');
+    expect(restarted.sent[0]).toContain('browser/manual');
   });
 
   it('groups the same account and kind within 15 minutes and folds the count in', async () => {
@@ -78,13 +78,33 @@ describe('alerter', () => {
   });
 
   it('caps at 20 messages per hour', async () => {
-    const rows = Array.from({ length: 25 }, (_, i) => report({ kind: `k${i}` }));
+    const rows = Array.from({ length: 25 }, (_, i) => report({ account_id: `aaaaaaaa-0000-0000-0000-${String(i).padStart(12, '0')}` }));
     const { alerter, sent, advance, db } = setup(rows);
     expect(await alerter.tick()).toEqual({ sent: HOURLY_MAX, folded: 5 });
     advance(60 * 60 * 1000);
-    db.rows.push(report({ kind: 'later' }));
+    db.rows.push(report({ account_id: 'aaaaaaaa-0000-0000-0000-999999999999' }));
     await alerter.tick();
     expect(sent).toHaveLength(HOURLY_MAX + 1);
+  });
+
+  it('forwards only human-filed kinds and advances the cursor silently past the rest', async () => {
+    const auto = report({ kind: 'box-offline' });
+    const crash = report({ source: 'agent', kind: 'crash' });
+    const human = report({ kind: 'manual' });
+    const { alerter, sent, cursor } = setup([auto, crash, human]);
+    expect(await alerter.tick()).toEqual({ sent: 1, folded: 0 });
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).toContain(human.id);
+    expect(cursor.value).toEqual({ at: human.created_at, ids: [human.id] });
+  });
+
+  it('advances the cursor over a batch of only auto reports without sending', async () => {
+    const a = report({ kind: 'box-offline' });
+    const b = report({ kind: 'crash' });
+    const { alerter, sent, cursor } = setup([a, b]);
+    expect(await alerter.tick()).toEqual({ sent: 0, folded: 0 });
+    expect(sent).toEqual([]);
+    expect(cursor.value).toEqual({ at: b.created_at, ids: [b.id] });
   });
 
   it('advances past a report even when Telegram fails', async () => {
