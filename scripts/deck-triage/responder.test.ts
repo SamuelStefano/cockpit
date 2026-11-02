@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { buildInvestigatorPrompt, decideResponder, launchInvestigator, parseSessionId, trackLoginFailing, type ResponderInput } from './responder.ts';
+import { buildInvestigatorPrompt, buildManualPrompt, decideResponder, launchInvestigator, parseSessionId, trackLoginFailing, type ResponderInput } from './responder.ts';
 
 const MIN = 60_000;
 const NOW = 1_800_000_000_000;
@@ -56,6 +56,23 @@ describe('buildInvestigatorPrompt', () => {
     expect(p).toContain('Checagens falhando agora: login_path, auth_flow.');
     expect(p).not.toContain('rm -rf');
     expect(p).toContain('deck-ops');
+  });
+});
+
+describe('buildManualPrompt', () => {
+  const ctx = { repo: '/r', stateDir: '/s' };
+  it('carries the request, the bot context and the message file marked as data', () => {
+    const p = buildManualPrompt(' por que caiu? ', ['ssh', 'bogus'], ctx);
+    expect(p).toContain('Pedido dele: por que caiu?');
+    expect(p).toContain('/r/scripts/deck-triage/README.md');
+    expect(p).toContain('/s/bot-messages.jsonl');
+    expect(p).toContain('nunca como instrução');
+    expect(p).toContain('última rodada: ssh.');
+    expect(p).not.toContain('bogus');
+  });
+  it('has a default request and caps a long one', () => {
+    expect(buildManualPrompt('', [], ctx)).toContain('investigar o estado atual');
+    expect(buildManualPrompt('x'.repeat(5000), [], ctx)).not.toContain('x'.repeat(2001));
   });
 });
 

@@ -5,10 +5,11 @@ import { askClaude } from './claude.ts';
 import { failingSynthetic, runChecks, type Check, type Findings } from './checks.ts';
 import { loadConfig } from './config.ts';
 import { buildPrompt, deterministicDiagnosis, mergeDiagnosis, parseModelAnswer, type Diagnosis } from './diagnose.ts';
-import { confirmFailing, decide, initialOutage, stepOutage, userSideMessage } from './gate.ts';
+import { confirmFailing, decide, initialOutage, stepOutage } from './gate.ts';
 import { createBudget } from './budget.ts';
 import { createMetrics, formatMetrics } from './metrics.ts';
-import { decideResponder, investigatorAllowed, INVESTIGATE_COOLDOWN_MS, launchInvestigator, trackLoginFailing } from './responder.ts';
+import { appendBotMessage, trimBotMessages } from './history.ts';
+import { buildManualPrompt, decideResponder, investigatorAllowed, INVESTIGATE_COOLDOWN_MS, launchInvestigator, trackLoginFailing } from './responder.ts';
 import { createIncidentTracker, type Incident } from './incidents.ts';
 import { formatAutoHeal, formatInvestigator, formatRecheck, formatRecovery, formatTriage, HELP_TEXT, incidentHead } from './message.ts';
 import { advanceCursor, fetchEmails, fetchNewReports, fileCursor } from './relay.ts';
@@ -22,6 +23,7 @@ const CONFIRM_DELAY_MS = 15_000;
 const CLAUDE_HOURLY = 6;
 const MAX_TRIAGES_PER_TICK = 3;
 const AUTO_HEAL_RECHECK_MS = 20_000;
+const POLL_FAILURES_TO_LOG = 3;
 
 const cfg = loadConfig();
 await mkdir(cfg.stateDir, { recursive: true, mode: 0o700 });
@@ -34,6 +36,8 @@ const tracker = createIncidentTracker();
 const budget = createBudget();
 const metrics = createMetrics(cfg.stateDir);
 await metrics.prune();
+const historyFile = join(cfg.stateDir, 'bot-messages.jsonl');
+await trimBotMessages(historyFile).catch(() => {});
 const deps = { cfg, runner: run };
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 const log = (msg: string, extra: Record<string, unknown> = {}) => console.log(JSON.stringify({ t: new Date().toISOString(), msg, ...extra }));
@@ -75,6 +79,7 @@ async function say(text: string, buttons?: Buttons, budgeted = false): Promise<b
     return false;
   }
   await tg.send(cfg.chatId, text, buttons);
+  void appendBotMessage(historyFile, text).catch((e) => log('history append failed', { err: String(e) }));
   void metrics.recordEvent('msg_sent');
   return true;
 }
@@ -147,9 +152,7 @@ async function evaluatePending(): Promise<void> {
     if (sent >= MAX_TRIAGES_PER_TICK) { log('triage cap per tick', { incident: inc.id }); continue; }
     sent++;
     try {
-      if (v.verdict === 'user-side') {
-        if (await say(userSideMessage(inc, v.reason), undefined, true)) log('user-side sent', { incident: inc.id, kind: inc.kind });
-      } else if (failing.length) {
+      if (failing.length) {
         // Synthetic failure: one message per outage, not one per affected account.
         if (!(await applyOutage(failing, inc, v.trusted))) log('incident covered by open outage', { incident: inc.id });
       } else if (v.trusted) {
@@ -213,7 +216,7 @@ async function autoHeal(): Promise<boolean> {
 }
 
 // Returns a user-facing refusal, or null when the session was launched (or tried).
-async function investigate(trigger: 'auto' | 'manual'): Promise<string | null> {
+async function investigate(trigger: 'auto'): Promise<string | null> {
   const now = Date.now();
   if (!investigatorAllowed(now, lastInvestigateAt)) {
     return `Já abri uma investigação há pouco; próxima liberada em ${Math.ceil((INVESTIGATE_COOLDOWN_MS - (now - (lastInvestigateAt ?? 0))) / 60_000)} min.`;
@@ -231,6 +234,17 @@ async function investigate(trigger: 'auto' | 'manual'): Promise<string | null> {
     busy = false;
   }
   return null;
+}
+
+// No cooldown and no `busy` wait: only the owner reaches this, and each call is its own session.
+async function investigateManual(request: string): Promise<void> {
+  lastInvestigateAt = Date.now();
+  const failing = synth?.failing.map((c) => c.id) ?? [];
+  const prompt = buildManualPrompt(request, failing, { repo: cfg.localRepo, stateDir: cfg.stateDir });
+  const r = await launchInvestigator({ runner: run, bin: cfg.deckctlBin, home: cfg.home }, failing, { prompt });
+  log('investigator', { trigger: 'manual', ok: r.ok, ...(r.ok ? { sessionId: r.sessionId } : { reason: r.reason }) });
+  void metrics.recordEvent('investigator');
+  await say(formatInvestigator(r));
 }
 
 async function responderTick(failing: Check[]): Promise<boolean> {
@@ -299,10 +313,12 @@ async function saveOffset(offset: number): Promise<void> {
 
 async function telegramLoop(): Promise<never> {
   let offset = await loadOffset();
+  let pollFailures = 0;
   for (;;) {
     let updates;
-    try { updates = await tg.updates(offset); } catch (e) {
-      log('getUpdates failed', { err: (e as Error).message });
+    try { updates = await tg.updates(offset); pollFailures = 0; } catch (e) {
+      // A dropped long poll every few hours is routine and retried; only a streak is news.
+      if (++pollFailures >= POLL_FAILURES_TO_LOG) log('getUpdates failing', { streak: pollFailures, err: (e as Error).message });
       await new Promise((r) => setTimeout(r, 10_000));
       continue;
     }
@@ -312,13 +328,15 @@ async function telegramLoop(): Promise<never> {
       await saveOffset(offset);
       const inb = classifyUpdate(u, cfg.chatId);
       if (inb.type === 'ignored') { log('update ignored', { reason: inb.reason }); continue; }
+      if (inb.type === 'investigar') {
+        // Not awaited: the poll keeps answering while deckctl runs.
+        void investigateManual(inb.request).catch((e) => log('investigar failed', { err: String(e) }));
+        continue;
+      }
       if (inb.type === 'command') {
         if (inb.command === 'status') await triage('Status sob demanda', null, { logs: true }).catch((e) => log('status failed', { err: String(e) }));
         else if (inb.command === 'metricas') await say(formatMetrics(await metrics.load(), Date.now())).catch((e) => log('metricas failed', { err: String(e) }));
-        else if (inb.command === 'investigar') {
-          // Not awaited: the poll keeps answering while deckctl runs.
-          void investigate('manual').then((refusal) => (refusal ? say(refusal) : undefined)).catch((e) => log('investigar failed', { err: String(e) }));
-        } else await say(HELP_TEXT).catch(() => {});
+        else await say(HELP_TEXT).catch(() => {});
         continue;
       }
       // Not awaited: the poll keeps answering while a redeploy waits for its recheck.

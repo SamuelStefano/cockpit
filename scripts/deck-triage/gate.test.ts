@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Check } from './checks.ts';
-import { confirmFailing, decide, initialOutage, stepOutage, userSideMessage } from './gate.ts';
+import { confirmFailing, decide, initialOutage, stepOutage } from './gate.ts';
 import type { Incident } from './incidents.ts';
 
 const MIN = 60_000;
@@ -39,9 +39,18 @@ describe('decide', () => {
     expect(decide(i, [], [i, old, otherKind], NOW).verdict).toBe('suppress');
   });
 
-  it('classifies one account with 3+ reports over 10 min and green synthetics as user-side', () => {
-    const i = inc(C, 11 * MIN, 0, { count: 3 });
-    expect(decide(i, [], [i], NOW)).toMatchObject({ verdict: 'user-side' });
+  it('stays quiet for one account, however long it persists', () => {
+    const i = inc(A, 30 * MIN, 0, { count: 9 });
+    expect(decide(i, [], [i], NOW).verdict).toBe('suppress');
+  });
+
+  it('stays quiet for routine kinds across accounts while checks are green', () => {
+    for (const kind of ['login-refused', 'unclean-exit', 'js-error']) {
+      const a = inc(A, 0, 0, { kind });
+      const b = inc(C, 0, 0, { kind });
+      expect(decide(a, [], [a, b], NOW).verdict).toBe('suppress');
+      expect(decide(a, [fail('ws_upgrade')], [a, b], NOW).verdict).toBe('confirmed');
+    }
   });
 
   it('keeps one account quiet when it has few reports or has not persisted', () => {
@@ -114,13 +123,5 @@ describe('confirmFailing', () => {
     let calls = 0;
     expect(await confirmFailing(async () => { calls++; return []; }, async () => {})).toEqual([]);
     expect(calls).toBe(1);
-  });
-});
-
-describe('userSideMessage', () => {
-  it('names the account and a client-side cause', () => {
-    const m = userSideMessage(inc(C, 11 * MIN), 'só esta conta');
-    expect(m).toContain('33333333');
-    expect(m).toMatch(/cache de DNS/);
   });
 });
