@@ -30,6 +30,12 @@ describe('probeScript auth section', () => {
     expect(script).toContain('relay_start');
     expect(script.indexOf('@@auth')).toBeLessThan(script.indexOf('@@end'));
   });
+
+  it('bounds every journal read so a slow journal cannot look like ssh down', () => {
+    const script = probeScript(null);
+    expect(script.match(/journalctl/g)?.length).toBe(script.match(/timeout 8 journalctl/g)?.length);
+    expect(script).toContain('journal-timeout');
+  });
 });
 
 describe('advanceCursor', () => {
