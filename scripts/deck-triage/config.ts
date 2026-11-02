@@ -18,6 +18,8 @@ export interface TriageConfig {
   anthropicKey: string | null;
   model: string;
   claudeBin: string;
+  deckctlBin: string;
+  home: string;
   stateDir: string;
   localRepo: string;
   trustedEmails: Set<string>;
@@ -71,6 +73,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): TriageConfig {
     anthropicKey: e.ANTHROPIC_API_KEY?.trim() || null,
     model: e.DECK_TRIAGE_MODEL?.trim() || 'claude-sonnet-4-6',
     claudeBin: e.CLAUDE_BIN?.trim() || join(home, '.local/bin/claude'),
+    deckctlBin: e.DECKCTL_BIN?.trim() || join(home, '.local/bin/deckctl'),
+    home,
     stateDir: e.DECK_TRIAGE_STATE || join(home, '.cache/deck-triage'),
     localRepo: e.DECK_LOCAL_REPO || join(home, 'cockpit'),
     trustedEmails: parseEmailList(e.TRUSTED_REPORTER_EMAILS),

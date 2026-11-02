@@ -22,6 +22,16 @@ describe('probeScript / emailsScript', () => {
   });
 });
 
+describe('probeScript auth section', () => {
+  it('counts auth ok, 4408 closes and stalls since the last relay start', () => {
+    const script = probeScript(null);
+    expect(script).toContain('@@auth');
+    expect(script).toContain('browser_auth_stall');
+    expect(script).toContain('relay_start');
+    expect(script.indexOf('@@auth')).toBeLessThan(script.indexOf('@@end'));
+  });
+});
+
 describe('advanceCursor', () => {
   it('moves to the newest ms and remembers ids at that instant', () => {
     const c = advanceCursor({ at: '2026-10-28T15:00:00.000Z', ids: [] }, [

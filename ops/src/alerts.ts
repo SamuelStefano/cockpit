@@ -8,6 +8,8 @@ export const HOURLY_MAX = 20;
 const HOUR_MS = 60 * 60 * 1000;
 const BATCH = 200;
 const TELEGRAM_MAX = 4000;
+// Auto-filed reports are triaged by deck-triage; only a human's report goes straight to the chat.
+const FORWARDED_KINDS: ReadonlySet<string> = new Set(['manual', 'test']);
 
 // Reports at exactly `at` were already handled; ids keeps them out of the next gte read.
 export interface Cursor { at: string; ids: string[] }
@@ -103,6 +105,10 @@ export function createAlerter(deps: AlerterDeps): Alerter {
       let sent = 0;
       let folded = 0;
       for (const r of rows) {
+        if (!FORWARDED_KINDS.has(r.kind)) {
+          cursor = r.created_at === cursor.at ? { at: cursor.at, ids: [...cursor.ids, r.id] } : { at: r.created_at, ids: [r.id] };
+          continue;
+        }
         const t = deps.now();
         const key = `${r.account_id}|${r.kind}`;
         sendTimes = sendTimes.filter((x) => t - x < HOUR_MS);
