@@ -7,7 +7,7 @@ import { cleanText } from './sanitize.ts';
 const MIN = 60_000;
 
 export const ACTIONS = {
-  restart_relay: { label: 'Reiniciar relay', cooldownMs: 10 * MIN, recheck: ['relay_local', 'relay_active', 'public_status', 'fallback_status'] },
+  restart_relay: { label: 'Reiniciar relay', cooldownMs: 10 * MIN, recheck: ['relay_local', 'relay_active', 'public_status', 'fallback_status', 'login_path', 'auth_flow'] },
   reload_caddy: { label: 'Recarregar Caddy', cooldownMs: 10 * MIN, recheck: ['caddy_active', 'public_status', 'fallback_status'] },
   redeploy_web: { label: 'Redeploy deck-web', cooldownMs: 20 * MIN, recheck: ['dokploy_web', 'spa_bundle'] },
   redeploy_ops: { label: 'Redeploy deck-ops', cooldownMs: 20 * MIN, recheck: ['dokploy_ops'] },

@@ -1,6 +1,7 @@
 import { Resolver } from 'node:dns/promises';
 import { request } from 'node:https';
 import { randomBytes } from 'node:crypto';
+import { WebSocket } from 'ws';
 import { readdir, readFile, readlink } from 'node:fs/promises';
 import { APPS, RELAY_FALLBACK, RELAY_HOSTNAME, RELAY_IP, SPA_URL, WEB_HOSTNAME, type TriageConfig } from './config.ts';
 import { run, ssh, withTimeout, type Runner } from './exec.ts';
@@ -9,9 +10,10 @@ import { cleanText } from './sanitize.ts';
 
 export type CheckId =
   | 'dns_cf' | 'dns_google' | 'dns_web' | 'ws_upgrade' | 'public_status' | 'fallback_status' | 'ssh' | 'relay_local' | 'relay_active'
-  | 'caddy_active' | 'dokploy_web' | 'dokploy_ops' | 'spa_bundle' | 'agents' | 'local_agent_service' | 'local_agent_owner';
+  | 'caddy_active' | 'dokploy_web' | 'dokploy_ops' | 'spa_bundle' | 'agents' | 'local_agent_service' | 'local_agent_owner'
+  | 'login_path' | 'auth_flow';
 export type CheckStatus = 'ok' | 'fail' | 'warn' | 'skip';
-export interface Check { id: CheckId; status: CheckStatus; detail: string }
+export interface Check { id: CheckId; status: CheckStatus; detail: string; metrics?: Record<string, number> }
 export interface Findings { at: string; checks: Check[]; relayLog: string[] }
 
 export const CHECK_LABELS: Record<CheckId, string> = {
@@ -31,11 +33,13 @@ export const CHECK_LABELS: Record<CheckId, string> = {
   agents: 'boxes da conta',
   local_agent_service: 'deck-agent (systemd, esta VPS)',
   local_agent_owner: 'agente do dono (~/cockpit)',
+  login_path: 'login no relay (JWT forjado deve dar 4401 rápido)',
+  auth_flow: 'logins reais no relay (últimos 10 min)',
 };
 
 // Checks run from this VPS, outside any user's network. One failing (twice) = real outage.
 export const SYNTHETIC_IDS: ReadonlySet<CheckId> = new Set<CheckId>([
-  'dns_cf', 'dns_google', 'dns_web', 'public_status', 'fallback_status', 'ws_upgrade', 'spa_bundle', 'ssh', 'relay_local', 'relay_active', 'caddy_active',
+  'dns_cf', 'dns_google', 'dns_web', 'public_status', 'fallback_status', 'ws_upgrade', 'spa_bundle', 'ssh', 'relay_local', 'relay_active', 'caddy_active', 'login_path', 'auth_flow',
 ]);
 
 export const failingSynthetic = (f: Findings): Check[] => f.checks.filter((c) => SYNTHETIC_IDS.has(c.id) && c.status === 'fail');
@@ -46,6 +50,7 @@ export interface CheckDeps {
   fetchImpl?: typeof fetch;
   resolve4?: (server: string, host: string) => Promise<string[]>;
   wsUpgrade?: (url: string) => Promise<number>;
+  loginProbe?: (url: string, origin: string) => Promise<number>;
 }
 
 const T = 8_000;
@@ -100,6 +105,37 @@ async function wsCheck(wsUpgrade: NonNullable<CheckDeps['wsUpgrade']>): Promise<
   } catch (e) {
     const cause = (e as { code?: string }).code;
     return { id, status: 'fail', detail: cleanText(cause ?? (e as Error).message, 100) };
+  }
+}
+
+const b64u = (o: unknown) => Buffer.from(JSON.stringify(o)).toString('base64url');
+// Unsigned garbage on purpose: it is no secret and can only ever be refused (4401).
+export const PROBE_TOKEN = `${b64u({ alg: 'ES256', typ: 'JWT', kid: 'probe-unknown' })}.${b64u({ sub: 'probe' })}.AAAA`;
+export const LOGIN_OK_MS = 5_000;
+export const LOGIN_HARD_MS = 12_000;
+
+// Resolves with the close code the relay answers a forged login with.
+function defaultLoginProbe(url: string, origin: string): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const ws = new WebSocket(url, { origin, handshakeTimeout: LOGIN_HARD_MS });
+    const timer = setTimeout(() => { ws.terminate(); reject(new Error(`sem fechamento em ${LOGIN_HARD_MS / 1000}s`)); }, LOGIN_HARD_MS);
+    ws.on('close', (code) => { clearTimeout(timer); resolve(code); });
+    ws.on('error', (e) => { clearTimeout(timer); reject(e); });
+    ws.on('unexpected-response', (_req, res) => { clearTimeout(timer); res.resume(); reject(new Error(`HTTP ${res.statusCode}`)); });
+  });
+}
+
+export async function loginCheck(loginProbe: NonNullable<CheckDeps['loginProbe']>, now: () => number = Date.now): Promise<Check> {
+  const id: CheckId = 'login_path';
+  const t0 = now();
+  try {
+    const code = await withTimeout(loginProbe(`wss://${RELAY_HOSTNAME}/ws?token=${PROBE_TOKEN}`, `https://${WEB_HOSTNAME}`), LOGIN_HARD_MS, 'login');
+    const ms = now() - t0;
+    if (code === 4401 && ms <= LOGIN_OK_MS) return { id, status: 'ok', detail: `4401 em ${ms} ms`, metrics: { login_ms: ms } };
+    if (code === 4401) return { id, status: 'fail', detail: `4401 mas lento: ${ms} ms (limite ${LOGIN_OK_MS} ms)`, metrics: { login_ms: ms } };
+    return { id, status: 'fail', detail: `fechou com ${code} em ${ms} ms, esperado 4401`, metrics: { login_ms: ms } };
+  } catch (e) {
+    return { id, status: 'fail', detail: cleanText((e as { code?: string }).code ?? (e as Error).message, 100) };
   }
 }
 
@@ -165,11 +201,23 @@ export function summarizeAgents(raw: string | undefined): Check {
   return { id, status: live.length ? 'ok' : 'warn', detail: `${live.length} ativa(s): ${parts.join('; ')}` };
 }
 
+export const AUTH_FLOW_MIN_STALLS = 3;
+
+export function authFlowCheck(raw: string | undefined): Check {
+  const id: CheckId = 'auth_flow';
+  const m = /^ok=(\d{1,7}) c4408=(\d{1,7}) stall=(\d{1,7})$/.exec((raw ?? '').trim());
+  if (!m) return { id, status: 'warn', detail: 'contagem ilegível' };
+  const [ok, c4408, stall] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const metrics = { auth_ok: ok, close_4408: c4408, stall };
+  const detail = `10 min: ${ok} login(s) ok, ${c4408} fechamento(s) 4408, ${stall} travada(s)`;
+  return { id, status: c4408 >= AUTH_FLOW_MIN_STALLS && ok === 0 ? 'fail' : 'ok', detail, metrics };
+}
+
 async function relayProbe(deps: CheckDeps, accountId: string | null): Promise<{ checks: Check[]; log: string[] }> {
   const res = await ssh(deps.runner ?? run, deps.cfg.relay, probeScript(accountId), 25_000);
   if (res.code === null || res.code === 255 || !res.stdout.includes('@@end')) {
     const why = res.timedOut ? 'timeout' : cleanText(res.stderr, 100) || `exit ${res.code}`;
-    const ids: CheckId[] = ['relay_local', 'relay_active', 'caddy_active'];
+    const ids: CheckId[] = ['relay_local', 'relay_active', 'caddy_active', 'auth_flow'];
     return { checks: [{ id: 'ssh', status: 'fail', detail: why }, ...ids.map((id) => ({ id, status: 'skip' as const, detail: 'sem ssh' }))], log: [] };
   }
   const s = parseSections(res.stdout);
@@ -180,6 +228,7 @@ async function relayProbe(deps: CheckDeps, accountId: string | null): Promise<{ 
     { id: 'relay_local', status: code === '200' ? 'ok' : 'fail', detail: `HTTP ${cleanText(code, 5) || '000'}` },
     active(s.relay, 'relay_active'),
     active(s.caddy, 'caddy_active'),
+    authFlowCheck(s.auth),
   ];
   if (accountId) checks.push(summarizeAgents(s.agents ?? '[]'));
   const log = (s.log ?? '').split('\n').filter(Boolean).slice(-50).map((l) => cleanText(l, 240));
@@ -222,20 +271,21 @@ export async function runChecks(deps: CheckDeps, accountId: string | null, scope
   const full = scope === 'full';
   const guard = <T>(p: Promise<T>, fallback: T) => withTimeout(p, 40_000, 'check').catch(() => fallback);
   const skipped = (id: CheckId): Promise<Check> => Promise.resolve({ id, status: 'skip', detail: 'fora do escopo' });
-  const [dnsCf, dnsGg, dnsWeb, pub, fb, ws, probe, web, ops, bundle, local] = await Promise.all([
+  const [dnsCf, dnsGg, dnsWeb, pub, fb, ws, login, probe, web, ops, bundle, local] = await Promise.all([
     dnsCheck('dns_cf', '1.1.1.1', resolve4),
     dnsCheck('dns_google', '8.8.8.8', resolve4),
     webDnsCheck(resolve4),
     httpStatus('public_status', `https://${RELAY_HOSTNAME}/status`, f),
     httpStatus('fallback_status', `https://${RELAY_FALLBACK}/status`, f),
     wsCheck(deps.wsUpgrade ?? defaultWsUpgrade),
+    loginCheck(deps.loginProbe ?? defaultLoginProbe),
     guard(relayProbe(deps, full ? accountId : null), { checks: [{ id: 'ssh' as const, status: 'fail' as const, detail: 'timeout' }], log: [] }),
     full ? dokployCheck('dokploy_web', APPS.web, deps) : skipped('dokploy_web'),
     full ? dokployCheck('dokploy_ops', APPS.ops, deps) : skipped('dokploy_ops'),
     bundleCheck(f, resolve4),
     full ? guard(localAgentChecks(deps), []) : Promise.resolve([]),
   ]);
-  return { at: now().toISOString(), checks: [dnsCf, dnsGg, dnsWeb, pub, fb, ws, ...probe.checks, web, ops, bundle, ...local], relayLog: full ? probe.log : [] };
+  return { at: now().toISOString(), checks: [dnsCf, dnsGg, dnsWeb, pub, fb, ws, login, ...probe.checks, web, ops, bundle, ...local], relayLog: full ? probe.log : [] };
 }
 
 export const byId = (f: Findings) => new Map(f.checks.map((c) => [c.id, c]));

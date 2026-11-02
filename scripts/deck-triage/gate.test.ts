@@ -39,26 +39,31 @@ describe('decide', () => {
     expect(decide(i, [], [i, old, otherKind], NOW).verdict).toBe('suppress');
   });
 
-  it('classifies one account stuck for 10 min with green synthetics as user-side', () => {
-    const i = inc(C, 11 * MIN);
+  it('classifies one account with 3+ reports over 10 min and green synthetics as user-side', () => {
+    const i = inc(C, 11 * MIN, 0, { count: 3 });
     expect(decide(i, [], [i], NOW)).toMatchObject({ verdict: 'user-side' });
   });
 
-  it('escalates a trusted reporter at once even with green synthetics', () => {
-    const i = inc(B, 0, 0, { email: 'TaiGFS@gmail.com' });
+  it('keeps one account quiet when it has few reports or has not persisted', () => {
+    const few = inc(C, 11 * MIN, 0, { count: 2 });
+    const short = inc(C, 9 * MIN, 0, { count: 5 });
+    expect(decide(few, [], [few], NOW).verdict).toBe('suppress');
+    expect(decide(short, [], [short], NOW).verdict).toBe('suppress');
+  });
+
+  it('escalates a trusted reporter at once for a manual report, even with green synthetics', () => {
+    const i = inc(B, 0, 0, { kind: 'manual', email: 'TaiGFS@gmail.com' });
     expect(decide(i, [], [i], NOW, TRUSTED)).toEqual({ verdict: 'confirmed', reason: 'reportado por TaiGFS@gmail.com (confiável)', trusted: 'TaiGFS@gmail.com' });
   });
 
-  it('stays quiet on a routine kind from a trusted reporter while checks are green', () => {
-    for (const kind of ['login-refused', 'unclean-exit']) {
+  it('does not escalate an auto-filed report on the trusted bypass', () => {
+    for (const kind of ['relay-unreachable', 'login-refused', 'unclean-exit', 'js-error']) {
       const i = inc(A, 0, 0, { kind, email: 'samuelstefanodocarmo@gmail.com' });
       expect(decide(i, [], [i], NOW, TRUSTED).verdict).toBe('suppress');
     }
   });
 
-  it('still escalates a routine kind that persists or comes with a failing check', () => {
-    const long = inc(A, 11 * MIN, 0, { kind: 'login-refused', email: 'samuelstefanodocarmo@gmail.com' });
-    expect(decide(long, [], [long], NOW, TRUSTED).verdict).toBe('confirmed');
+  it('still confirms an auto-filed report from a trusted email when a check is failing', () => {
     const fresh = inc(A, 0, 0, { kind: 'login-refused', email: 'samuelstefanodocarmo@gmail.com' });
     expect(decide(fresh, [fail('ws_upgrade')], [fresh], NOW, TRUSTED).verdict).toBe('confirmed');
   });
@@ -75,17 +80,24 @@ describe('decide', () => {
 });
 
 describe('stepOutage', () => {
-  it('announces down once, then recovered once', () => {
-    let s = initialOutage();
-    let r = stepOutage(s, [fail('dns_cf')], NOW);
-    expect(r.event).toEqual({ type: 'down', failing: ['dns_cf'] });
-    s = r.state;
-    r = stepOutage(s, [fail('dns_cf'), fail('ws_upgrade')], NOW + MIN);
+  it('opens silently, announces after 5 min, recovers once', () => {
+    let r = stepOutage(initialOutage(), [fail('dns_cf')], NOW);
+    expect(r.event).toEqual({ type: 'opened', failing: ['dns_cf'] });
+    r = stepOutage(r.state, [fail('dns_cf'), fail('ws_upgrade')], NOW + 2 * MIN);
     expect(r.event.type).toBe('none');
-    s = r.state;
-    r = stepOutage(s, [], NOW + 7 * MIN);
-    expect(r.event).toEqual({ type: 'recovered', downMs: 7 * MIN });
-    expect(stepOutage(r.state, [], NOW + 9 * MIN).event.type).toBe('none');
+    r = stepOutage(r.state, [fail('dns_cf')], NOW + 5 * MIN);
+    expect(r.event).toEqual({ type: 'down', failing: ['dns_cf'] });
+    r = stepOutage(r.state, [fail('dns_cf')], NOW + 8 * MIN);
+    expect(r.event.type).toBe('none');
+    r = stepOutage(r.state, [], NOW + 12 * MIN);
+    expect(r.event).toEqual({ type: 'recovered', downMs: 12 * MIN, announced: true });
+    expect(stepOutage(r.state, [], NOW + 14 * MIN).event.type).toBe('none');
+  });
+
+  it('a blip that recovers before the announcement is recovered with announced=false', () => {
+    let r = stepOutage(initialOutage(), [fail('ssh')], NOW);
+    r = stepOutage(r.state, [], NOW + 2 * MIN);
+    expect(r.event).toEqual({ type: 'recovered', downMs: 2 * MIN, announced: false });
   });
 });
 

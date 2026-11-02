@@ -37,6 +37,7 @@ export function probeScript(accountId: string | null): string {
     'else',
     '  echo "@@log"; journalctl -u deck-relay -n 50 -o cat --no-pager 2>/dev/null',
     'fi',
+    'echo "@@auth"; journalctl -u deck-relay --since "10 minutes ago" -o cat --no-pager 2>/dev/null | awk \'/"ev":"relay_start"/{ok=0;c=0;s=0} /"ev":"browser_auth_ok"/{ok++} /"ev":"browser_close"/&&/"code":4408/{c++} /"ev":"browser_auth_stall"/{s++} END{printf "ok=%d c4408=%d stall=%d\\n",ok,c,s}\'',
     'echo "@@end"',
   ].join('\n');
 }

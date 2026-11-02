@@ -8,12 +8,18 @@ export function incidentHead(inc: Incident): string {
   return `Triagem ${inc.id}: ${inc.kind} (${inc.count} relatório(s), ${who})`;
 }
 
-export function formatTriage(head: string, d: Diagnosis, f: Findings): string {
+// Failing and warning checks only, plus a count of the green ones. Relay log lines are
+// shown only when asked for (/status); the Claude prompt always gets the full data.
+export function formatTriage(head: string, d: Diagnosis, f: Findings, opts: { logs?: boolean } = {}): string {
   const lines = [head, '', `Causa provável (${d.source}): ${d.cause}`];
   if (d.owner) lines.push('', `Você precisa: ${d.owner}`);
   if (d.actions.length) lines.push('', `Correções disponíveis: ${d.actions.map((a) => ACTIONS[a].label).join(', ')}`);
-  lines.push('', 'Evidências:', ...evidenceLines(f));
-  if (f.relayLog.length) lines.push('', 'Log do relay (últimas):', ...f.relayLog.slice(-5));
+  const shown = evidenceLines(f);
+  const bad = shown.filter((l) => !l.startsWith('ok   '));
+  lines.push('', 'Evidências:', ...bad);
+  const green = shown.length - bad.length;
+  if (green) lines.push(`+${green} verdes`);
+  if (opts.logs && f.relayLog.length) lines.push('', 'Log do relay (últimas):', ...f.relayLog.slice(-5));
   return lines.join('\n');
 }
 
@@ -33,4 +39,23 @@ export function formatRecovery(downMs: number, wasFailing: string[]): string {
   return `Recuperado: checagens sintéticas verdes de novo depois de ${Math.max(1, Math.round(downMs / 60_000))} min (falhavam: ${wasFailing.join(', ')}).`;
 }
 
-export const HELP_TEXT = 'deck-triage: /status roda as checagens agora. Os botões só aparecem nas triagens e executam apenas ações da allowlist.';
+export function formatAutoHeal(loginMs: number, action: ActionId, result: string, f: Findings): string {
+  return [
+    `Login travado há ${Math.max(1, Math.round(loginMs / 60_000))} min: executei ${ACTIONS[action].label} sozinho (limite de 1 por hora).`,
+    formatRecheck(action, result, f),
+  ].join('\n');
+}
+
+export function formatInvestigator(r: { ok: true; sessionId: string } | { ok: false; reason: string }): string {
+  return r.ok
+    ? `Abri uma sessão para investigar a queda (Opus): ${r.sessionId}. Ela diagnostica e termina com causa e evidência.`
+    : `Não consegui abrir a sessão de investigação: ${r.reason}.`;
+}
+
+export const HELP_TEXT = [
+  'deck-triage:',
+  '/status roda as checagens agora.',
+  '/metricas mostra disponibilidade, login e mensagens de 24 h e 7 d.',
+  '/investigar abre uma sessão Opus para diagnosticar a queda (máx 1 a cada 6 h).',
+  'Os botões só aparecem nas triagens e executam apenas ações da allowlist.',
+].join('\n');
