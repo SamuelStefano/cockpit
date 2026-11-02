@@ -188,10 +188,11 @@ async function pollReports(): Promise<void> {
   for (const closed of tracker.prune(Date.now())) if (closed.state === 'pending') log('incident closed without escalation', { incident: closed.id, kind: closed.kind });
 }
 
-async function autoHeal(): Promise<void> {
-  if (busy) return;
+// Returns true when the restart ran, so its one message stands in for the outage announcement.
+async function autoHeal(): Promise<boolean> {
+  if (busy) return false;
   const g = gate.check('restart_relay');
-  if (!g.ok) { log('auto-heal refused by gate', { reason: g.reason }); return; }
+  if (!g.ok) { log('auto-heal refused by gate', { reason: g.reason }); return false; }
   busy = true;
   try {
     gate.record('restart_relay');
@@ -205,6 +206,7 @@ async function autoHeal(): Promise<void> {
     await sleep(AUTO_HEAL_RECHECK_MS);
     const f = await runChecks(deps, null, 'synthetic');
     await say(formatAutoHeal(downMs, 'restart_relay', result, f));
+    return true;
   } finally {
     busy = false;
   }
@@ -231,20 +233,21 @@ async function investigate(trigger: 'auto' | 'manual'): Promise<string | null> {
   return null;
 }
 
-async function responderTick(failing: Check[]): Promise<void> {
+async function responderTick(failing: Check[]): Promise<boolean> {
   const ids = failing.map((c) => c.id);
   loginFailingSince = trackLoginFailing(loginFailingSince, ids, Date.now());
   const d = decideResponder({ now: Date.now(), failingIds: ids, loginFailingSince, outage, lastHealAt, lastInvestigateAt });
-  if (d === 'heal') await autoHeal();
-  else if (d === 'investigate') await investigate('auto');
+  if (d === 'heal') return autoHeal();
+  if (d === 'investigate') await investigate('auto');
+  return false;
 }
 
 async function syntheticLoop(): Promise<never> {
   for (;;) {
     try {
       const failing = await syntheticFailing();
-      await applyOutage(failing, null);
-      await responderTick(failing);
+      // A healed login outage costs one message: the next tick announces only if it is still down.
+      if (!(await responderTick(failing))) await applyOutage(failing, null);
     } catch (e) { log('synthetic failed', { err: String(e) }); }
     await metrics.heartbeat();
     await sleep(SYNTHETIC_MS);
