@@ -36,7 +36,8 @@ describe('classifyUpdate', () => {
 
 describe('commands', () => {
   it('routes /investigar and /metricas for the owner only', () => {
-    expect(classifyUpdate(msg(OWNER, OWNER, '/investigar'), OWNER)).toEqual({ type: 'command', command: 'investigar' });
+    expect(classifyUpdate(msg(OWNER, OWNER, '/investigar'), OWNER)).toEqual({ type: 'investigar', request: '' });
+    expect(classifyUpdate(msg(OWNER, OWNER, '/investigar@Deck_Ops_bot por que caiu?'), OWNER)).toEqual({ type: 'investigar', request: 'por que caiu?' });
     expect(classifyUpdate(msg(OWNER, OWNER, '/metricas@Deck_Ops_bot'), OWNER)).toEqual({ type: 'command', command: 'metricas' });
     expect(classifyUpdate(msg(5, 5, '/investigar'), OWNER).type).toBe('ignored');
     expect(classifyUpdate(msg(5, OWNER, '/metricas'), OWNER).type).toBe('ignored');

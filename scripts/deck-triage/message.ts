@@ -48,7 +48,7 @@ export function formatAutoHeal(loginMs: number, action: ActionId, result: string
 
 export function formatInvestigator(r: { ok: true; sessionId: string } | { ok: false; reason: string }): string {
   return r.ok
-    ? `Abri uma sessão para investigar a queda (Opus): ${r.sessionId}. Ela diagnostica e termina com causa e evidência.`
+    ? `Abri uma sessão de investigação (Opus): ${r.sessionId}. Ela termina com causa e evidência; continue a conversa nela pelo Deck.`
     : `Não consegui abrir a sessão de investigação: ${r.reason}.`;
 }
 
@@ -56,6 +56,6 @@ export const HELP_TEXT = [
   'deck-triage:',
   '/status roda as checagens agora.',
   '/metricas mostra disponibilidade, login e mensagens de 24 h e 7 d.',
-  '/investigar abre uma sessão Opus para diagnosticar a queda (máx 1 a cada 6 h).',
+  '/investigar [pedido] abre uma sessão Opus sua, com o contexto do bot e as últimas mensagens dele. Sem limite.',
   'Os botões só aparecem nas triagens e executam apenas ações da allowlist.',
 ].join('\n');

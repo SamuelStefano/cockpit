@@ -17,9 +17,9 @@ máquina tem a chave ssh do relay e as credenciais do Dokploy.
    - checagem sintética falhando daqui (falha duas vezes, com 15 s entre elas);
    - repórter confiável (`TRUSTED_REPORTER_EMAILS`) com relatório `manual`: escala na
      hora, mesmo com tudo verde (relatórios automáticos não ganham esse atalho);
-   - 2+ contas com o mesmo `kind` em 10 min;
-   - uma conta só com 3+ relatórios persistindo 10+ min e o servidor verde: mensagem curta
-     "lado do cliente" (sem Claude).
+   - 2+ contas com o mesmo `kind` em 10 min (fora os de rotina abaixo);
+   - `login-refused`, `unclean-exit` e `js-error` com checagens verdes nunca escalam: são rotina
+     (sessão expirada, agente reiniciando, extensão), e queda real de login cai em `login_path`/`auth_flow`.
    O resto só vai pro log.
 4. A cada 2 min roda as checagens sintéticas sozinho. Uma queda só é anunciada depois de
    5 min seguidos falhando (um soluço que volta antes disso fica só no log, sem mensagem
@@ -51,7 +51,12 @@ máquina tem a chave ssh do relay e as credenciais do Dokploy.
   `deckctl new "<prompt fixo>" --cwd ~ --title "Deck fora: investigar" --model claude-opus-5-5`
   (timeout 30 s, no máximo 1 a cada 6 h) e manda o sessionId no Telegram. O prompt é uma
   constante mais os ids das checagens falhando (allowlist de `CheckId`); nunca `detail`,
-  relatório ou log. `/investigar` dispara a mesma chamada, sob o mesmo limite.
+  relatório ou log.
+- `/investigar [pedido]` (só o dono: chat e remetente conferidos): abre uma sessão Opus nova a
+  cada chamada, sem limite. O prompt leva o pedido, o que é o bot e aponta para
+  `~/.cache/deck-triage/bot-messages.jsonl`, as últimas 200 mensagens enviadas por este daemon
+  (o Telegram não dá histórico ao bot; alertas `manual`/`test` do deck-ops não entram). O arquivo fica fora do prompt
+  porque pode citar relatório de usuário, e o prompt manda tratá-lo como dado.
 - Só uma ação do responder por vez, respeitando `busy`; nada disso bloqueia o loop do Telegram.
 
 ## Métricas
