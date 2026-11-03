@@ -42,6 +42,11 @@ on:
         description: submit only. Must equal the bundle id (com.tainanfidelis.deck).
         type: string
         default: ''
+      profile:
+        description: build only. production = live site (TestFlight only). production-bundle = web inside the app (App Store).
+        type: choice
+        options: [production, production-bundle]
+        default: production
       approval_ref:
         description: submit only. Link to the written OK of the App Store Connect account owner (issue, PR or message URL).
         type: string
@@ -137,8 +142,9 @@ jobs:
         if: ${{ inputs.action == 'build' }}
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          PROFILE: ${{ inputs.profile }}
         # Waits for the build so the submit to TestFlight runs with the key file still on disk.
-        run: npx --yes eas-cli@24.10.0 build --platform ios --profile production-bundle --non-interactive --wait --auto-submit-with-profile=production
+        run: npx --yes eas-cli@24.10.0 build --platform ios --profile "$PROFILE" --non-interactive --wait --auto-submit-with-profile=production
 
       - name: Remove the key
         if: always()
