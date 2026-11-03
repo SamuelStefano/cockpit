@@ -1,6 +1,7 @@
 import type { IconName } from '../../components/primitives';
 import type { NavRole } from '../../components/chrome/nav-routes';
 import type { Route } from '../../useRoute';
+import { inShell } from '../../lib/shell';
 
 export type SettingsSection = 'conta' | 'uso' | 'pessoas' | 'maquina' | 'avancado';
 
@@ -30,5 +31,6 @@ export function sectionOf(route: Route): SettingsSection {
 // server hands to the root alone and only when accounts exist (Supabase on).
 export function settingsSections(role: NavRole, accountsEnabled: boolean): SectionItem[] {
   if (role === 'student') return ALL.filter((s) => s.id === 'conta');
-  return ALL.filter((s) => s.id !== 'pessoas' || (role === 'root' && accountsEnabled));
+  // Plan usage is hidden in the store build.
+  return ALL.filter((s) => (s.id !== 'pessoas' || (role === 'root' && accountsEnabled)) && (s.id !== 'uso' || !inShell()));
 }

@@ -9,8 +9,18 @@ export { isCronPing };
 // deploy do front separado do back (ex: Vercel servindo a SPA, backend atrás de
 // Tailscale serve) seta VITE_WS_URL pra apontar pro host real do backend. Sem
 // isso a SPA tenta wss://<host-do-front>/ws e não acha ninguém atendendo.
-const ENV_WS = (import.meta.env.VITE_WS_URL ?? '').trim();
-export const WS_URL = ENV_WS || `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`;
+// A bundled build has no host of its own (custom scheme): there the same-host
+// fallback is meaningless and the production relay is used.
+export const DEFAULT_RELAY_WS = 'wss://deck-relay.devfellowship.com/ws';
+
+export function resolveWsUrl(env: string | undefined, loc: { protocol: string; host: string } | undefined): string {
+  const fromEnv = (env ?? '').trim();
+  if (fromEnv) return fromEnv;
+  if (loc && (loc.protocol === 'https:' || loc.protocol === 'http:')) return `${loc.protocol === 'https:' ? 'wss' : 'ws'}://${loc.host}/ws`;
+  return DEFAULT_RELAY_WS;
+}
+
+export const WS_URL = resolveWsUrl(import.meta.env.VITE_WS_URL, typeof location === 'undefined' ? undefined : location);
 
 // Override por dispositivo (#147): um build único no Vercel não consegue setar
 // VITE_WS_URL por aparelho. Salvar o endereço do backend no localStorage deixa o

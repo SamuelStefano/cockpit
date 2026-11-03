@@ -69,6 +69,8 @@ import { useChatUrl } from './app/useChatUrl';
 import { claudeQuotaApplies, usageAgentOf } from './components/chrome/usage-agent';
 import { withoutBotThreads } from './components/sessions/bot-threads';
 import { useCall } from './components/chat/call/useCall';
+import { useAiConsent } from './components/chat/useAiConsent';
+import { AiConsentSheet } from './components/chat/AiConsentSheet';
 import { ConnectionsContext } from './cockpit/ConnectionsContext';
 
 function CockpitBody() {
@@ -79,7 +81,7 @@ function CockpitBody() {
     archived, onUnhide: handleUnhide, contextTokens, contextModel, sendCost, liveTurnTokens, turnStartedAt, bgAgents, usage, truncated, lastTurn, lastEnd, searchResults, onSearch,
     skills,
     attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb,
-    onSend: handleSend, onApproveWorkflow, onEditUser: editUser, onStop: handleStop, onNew: cockpitNew, onNewWithDraft, marathon, onToggleMarathon, onRename: handleRename, onDescribe: handleDescribe, onClose: handleCloseSession, onDelete: handleDeleteSession,
+    onSend: rawSend, onApproveWorkflow, onEditUser: editUser, onStop: handleStop, onNew: cockpitNew, onNewWithDraft, marathon, onToggleMarathon, onRename: handleRename, onDescribe: handleDescribe, onClose: handleCloseSession, onDelete: handleDeleteSession,
     onOpenFull, onLoadOlder, onOpenSummary, onHandoff, handoffBusy,
     queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueReleaseAt, queueSetPaused, queueRetry, queueRetarget, queueRunBg, queueRunNow, queueForce, resumeOffer, resumeRun,
     drops, dropsLoaded, lastDrop, onDropList, onDropPut, onDropRm,
@@ -110,6 +112,8 @@ function CockpitBody() {
   // a sessão vem do login e o access_token alimenta o WS. No loopback (Supabase
   // desligado) este hook fica inerte e o gate de token de sempre vale.
   const sbAuth = useSupabaseAuth((token) => submitToken(token ?? ''));
+  const consent = useAiConsent(sbAuth.session?.user.id, rawSend, setDraft);
+  const handleSend = consent.send;
   useProfileHydration(sbAuth.session?.user.id);
   useSessionPrefsHydration(sbAuth.session?.user.id);
 
@@ -269,6 +273,7 @@ function CockpitBody() {
 
   return (
     <ConnectionsContext.Provider value={connectionsCtx}>
+      <AiConsentSheet open={consent.open} onAgree={consent.agree} onDecline={consent.decline} />
     <TopBarSlotContext.Provider value={topBarSlot}>
     {/* Safe-area nos quatro lados: com `viewport-fit=cover` o notch em landscape
         come a lateral, e sem left/right o header e o composer ficam sob o entalhe. */}

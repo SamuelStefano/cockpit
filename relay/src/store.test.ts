@@ -147,3 +147,55 @@ describe('supabaseStore boxes', () => {
     expect(Object.keys(JSON.parse(String(calls[0].init?.body)))).toEqual(['revoked_at']);
   });
 });
+
+describe('supabaseStore.deleteAccount', () => {
+  const ID = '11111111-2222-3333-4444-555555555555';
+  type Hit = { url: string; method?: string; body?: string };
+  function routed(handler: (h: Hit) => { status: number; body?: unknown }) {
+    const hits: Hit[] = [];
+    const impl = (async (url: string, init?: RequestInit) => {
+      const h = { url: String(url), method: init?.method, body: init?.body as string | undefined };
+      hits.push(h);
+      const r = handler(h);
+      return { ok: r.status >= 200 && r.status < 300, status: r.status, json: async () => r.body ?? [] } as Response;
+    }) as unknown as typeof fetch;
+    return { impl, hits };
+  }
+
+  it('purges shares/<uid>/ objects, then deletes the auth user with the service key', async () => {
+    let listed = 0;
+    const { impl, hits } = routed((h) => {
+      if (h.url.includes('/object/list/shares')) return { status: 200, body: listed++ === 0 ? [{ name: 'a', id: '1' }, { name: 'b', id: '2' }] : [] };
+      return { status: 200 };
+    });
+    expect(await supabaseStore({ ...CFG, fetchImpl: impl }).deleteAccount!(ID)).toBe(true);
+    const rm = hits.find((h) => h.method === 'DELETE' && h.url.endsWith('/storage/v1/object/shares'))!;
+    expect(JSON.parse(rm.body!)).toEqual({ prefixes: [`${ID}/a`, `${ID}/b`] });
+    expect(JSON.parse(hits[0].body!).prefix).toBe(`${ID}/`);
+    const last = hits[hits.length - 1];
+    expect(last.url).toBe(`https://proj.supabase.co/auth/v1/admin/users/${ID}`);
+    expect(last.method).toBe('DELETE');
+  });
+
+  it('treats an already-deleted user as success (idempotent)', async () => {
+    const { impl } = routed((h) => (h.url.includes('/auth/v1/admin/users') ? { status: 404 } : { status: 200, body: [] }));
+    expect(await supabaseStore({ ...CFG, fetchImpl: impl }).deleteAccount!(ID)).toBe(true);
+  });
+
+  it('does not delete the auth user when the share purge fails', async () => {
+    const { impl, hits } = routed((h) => (h.url.includes('/object/list/shares') ? { status: 500 } : { status: 200 }));
+    await expect(supabaseStore({ ...CFG, fetchImpl: impl }).deleteAccount!(ID)).rejects.toThrow();
+    expect(hits.some((h) => h.url.includes('/auth/v1/admin'))).toBe(false);
+  });
+
+  it('throws on an auth failure other than 404', async () => {
+    const { impl } = routed((h) => (h.url.includes('/auth/v1/admin/users') ? { status: 500 } : { status: 200, body: [] }));
+    await expect(supabaseStore({ ...CFG, fetchImpl: impl }).deleteAccount!(ID)).rejects.toThrow();
+  });
+
+  it('refuses a malformed id before any request', async () => {
+    const { impl, hits } = routed(() => ({ status: 200 }));
+    await expect(supabaseStore({ ...CFG, fetchImpl: impl }).deleteAccount!('../x')).rejects.toThrow();
+    expect(hits).toEqual([]);
+  });
+});

@@ -35,11 +35,13 @@ describe('InstallExplainer', () => {
 });
 
 describe('RelayVisibility', () => {
-  it('states what the relay sees and never claims end-to-end encryption', () => {
+  it('states what the relay sees, by channel mode, without overclaiming', () => {
     const { container } = render(<RelayVisibility />);
     expect(screen.getByText('O que o relay vê')).toBeTruthy();
-    expect(RELAY_SEES.join(' ')).toContain('sem criptografia ponta a ponta');
-    expect(container.textContent).toContain('em breve');
-    expect(RELAY_SOON).not.toMatch(/criptografad/i);
+    const facts = RELAY_SEES.join(' ');
+    expect(facts).toContain('canal selado');
+    expect(facts).toContain('metadados');
+    expect(facts).toContain('DECK_E2E=off');
+    expect(container.textContent).toContain(RELAY_SOON);
   });
 });

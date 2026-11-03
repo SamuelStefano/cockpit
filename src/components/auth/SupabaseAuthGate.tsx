@@ -70,9 +70,14 @@ export function SupabaseAuthGate({ auth }: { auth: AuthGateActions }) {
         )}
         {mode !== 'forgot' && (
           <p className="mt-3 text-[12px] leading-relaxed text-neutral-600">
-            Depois de entrar, conecte sua VPS pra começar a usar o Deck na sua máquina.
+            O Deck precisa do seu próprio servidor. Depois de entrar, conecte-o para começar a usar o Deck na sua máquina.
           </p>
         )}
+        <p className="mt-4 flex justify-center gap-3 text-[11.5px] text-neutral-600">
+          <a href="/privacy/" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-neutral-400">Privacidade</a>
+          <a href="/terms/" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-neutral-400">Termos</a>
+          <a href="/support/" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-neutral-400">Suporte</a>
+        </p>
       </form>
     </div>
   );

@@ -12,6 +12,7 @@ import { contextMeter, turnStatParts } from './toolbar-format';
 import type { TurnStats } from '../../../shared/protocol';
 import type { ChatAgentHeader } from './chat-panel-props';
 import { UsageDock, readUsage, type UsageDockProps } from '../chrome/sidebar/UsageDock';
+import { inShell } from '../../lib/shell';
 
 export type ChatHeaderAgent = ChatAgentHeader & { name: string };
 
@@ -65,7 +66,7 @@ export function ChatHeader({ session, messages, isEmpty, contextTokens, contextM
   const canDelete = saved && !agent && !!onDelete;
   const ctx = contextMeter(contextTokens, contextModel);
   const phoneMenu = !!onMenu;
-  const reading = phoneMenu && usage ? readUsage(usage) : null;
+  const reading = phoneMenu && usage && !inShell() ? readUsage(usage) : null;
   const usageHot = !!reading && (reading.paused || reading.warn || (reading.s.pct ?? 0) >= 85);
   const ctxHot = (ctx?.pct ?? 0) >= 85;
   // An agent owns one bound thread (BotThread stubs onNew), so a restart control would be dead.
@@ -150,7 +151,7 @@ export function ChatHeader({ session, messages, isEmpty, contextTokens, contextM
         {agent?.actions}
         {teamSlot}
         <ContextRing tokens={contextTokens} model={contextModel} onNew={agent ? undefined : onNew} />
-        {usage && <UsageDock {...usage} />}
+        {usage && !inShell() && <UsageDock {...usage} />}
         {terminalButton}
         {moreMenu}
       </div>

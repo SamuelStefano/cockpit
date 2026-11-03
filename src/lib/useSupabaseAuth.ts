@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { TOKEN_EXPIRED_EVENT } from './auth-events';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from './supabase';
+import { appOrigin } from './origin';
 
 // Traduz o erro do Supabase pra uma mensagem curta em pt-BR. Pura/testável: casa
 // pelo `code` (novo) ou pela substring da mensagem (fallback). Default genérico.
@@ -99,7 +100,7 @@ export function useSupabaseAuth(onToken: (token: string | null) => void): AuthSt
     if (!supabase) return false;
     setError('');
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${globalThis.location.origin}/?reset=1`,
+      redirectTo: `${appOrigin()}/?reset=1`,
     });
     if (error) { setError(friendlyAuthError(error)); return false; }
     return true;

@@ -6,6 +6,7 @@ import { useShikiTokens } from './useShikiTokens';
 import { renderTokens } from './shiki-render';
 import { LivePreview, BenchPreview, SandboxPreview } from './lazyPreviews';
 import { BENCH_SLUG_RE } from '../../../shared/bench';
+import { inShell } from '../../lib/shell';
 import { parseSandboxTarget } from '../../../shared/sandbox-preview';
 
 // Linguagens que viram tela viva no chat em vez de bloco realçado.
@@ -23,12 +24,13 @@ const loadingPreview = (node: ReactNode) => (
 );
 
 export function CodeBlock({ code, lang }: CodeBlockProps) {
-  if (lang && PREVIEW_LANGS.has(lang)) return loadingPreview(<LivePreview code={code} lang={lang} />);
+  // The store build never runs agent-generated code: the block stays highlighted text.
+  if (lang && PREVIEW_LANGS.has(lang) && !inShell()) return loadingPreview(<LivePreview code={code} lang={lang} />);
   // ```bench:<slug> — o slug é resolvido pelo REGISTRO do servidor, não é caminho.
   const slug = lang?.startsWith('bench:') ? lang.slice(6) : '';
-  if (slug && BENCH_SLUG_RE.test(slug)) return loadingPreview(<BenchPreview code={code} repo={slug} />);
+  if (slug && BENCH_SLUG_RE.test(slug) && !inShell()) return loadingPreview(<BenchPreview code={code} repo={slug} />);
   // ```sandbox — corpo é a URL de um app no ar. URL inválida cai no bloco de texto.
-  if (lang === 'sandbox') {
+  if (lang === 'sandbox' && !inShell()) {
     const target = parseSandboxTarget(code);
     if (target) return loadingPreview(<SandboxPreview target={target} />);
   }

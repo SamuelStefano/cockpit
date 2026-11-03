@@ -4,6 +4,7 @@ import { deviceFrames } from '../../cockpit/sealed-socket';
 import { useBoxes } from '../../cockpit/useBoxes';
 import { enrollLinkUrl, fmtCountdown, parseCodeFrame, type MintedCode } from '../../cockpit/enroll-link';
 import { toast } from '../primitives';
+import { appOrigin } from '../../lib/origin';
 
 // An enrolled device mints a one-time enroll code over its sealed channel and
 // shows it as a QR of a Deck link (code in the fragment). The new device scans
@@ -36,7 +37,7 @@ export function useDeviceLink() {
     return () => clearInterval(id);
   }, [open, minted]);
 
-  const url = minted && active ? enrollLinkUrl(window.location.origin, { code: minted.code, box: active, expiresAt: minted.expiresAt }) : '';
+  const url = minted && active ? enrollLinkUrl(appOrigin(), { code: minted.code, box: active, expiresAt: minted.expiresAt }) : '';
   const qr = useMemo(
     () => (url ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(renderSVG(url, { ecc: 'M', border: 2, pixelSize: 8 }))}` : ''),
     [url],

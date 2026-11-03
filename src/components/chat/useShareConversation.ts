@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { toast } from '../primitives';
 import type { Message } from '../../data/types';
 import { SUPABASE_ENABLED } from '../../lib/supabase';
+import { inShell } from '../../lib/shell';
 import { createShare, revokeShare, listShares, type StoredShare } from '../../lib/shareService';
 
 const CONFIRM = 'Qualquer pessoa com o link verá esta conversa (sem saídas de ferramentas). Continuar?';
@@ -37,5 +38,5 @@ export function useShareConversation(title: string, messages: Message[], session
     } finally { setBusy(false); }
   };
 
-  return { enabled: SUPABASE_ENABLED && !!sessionId, busy, current, share, revoke };
+  return { enabled: SUPABASE_ENABLED && !!sessionId && !inShell(), busy, current, share, revoke };
 }

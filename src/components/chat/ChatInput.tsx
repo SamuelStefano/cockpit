@@ -11,6 +11,8 @@ import { SlashPalette, SLASH_LIST_ID, slashOptionId } from './SlashPalette';
 import type { PermMode, Effort, ModelInfo, Caps } from '../../../shared/protocol';
 import type { Attachment } from '../../useCockpit';
 import { useChatInput } from './useChatInput';
+import { useScreenshotOffer } from './useScreenshotOffer';
+import { ScreenshotPrompt } from './ScreenshotPrompt';
 import { composerMaxH } from './fit-height';
 import { FocusCollapse } from './FocusCollapse';
 import { FocusSummary } from './FocusSummary';
@@ -79,6 +81,7 @@ export function ChatInput(props: ChatInputProps) {
   const attUploading = attachments.some((a) => a.uploading);
   const resetLabel = quotaResetsAt ? new Date(quotaResetsAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : null;
   const { taRef, fileRef, cameraRef, sel, setSel, showPalette, matches, complete, submit, onKey, onCompositionEnd, grow, pick, dragging, onDragEnter, onDragOver, onDragLeave, onDrop, onPaste, mic, ghost, ghostShown, acceptGhost, touch, dismissPalette, hintSeen } = useChatInput({ ...props, hasAtt, attUploading });
+  const shots = useScreenshotOffer(props.onUpload);
   const settings = { mode, setMode, caps, bypass, setBypass, model, effort, setEffort, mcpServers, selectedMcps, setSelectedMcps };
   // `relative z-20` na casca: o header sticky do CodeBlock é z-10 no contexto
   // raiz e pintava POR CIMA dos popovers do composer (MCP/skills), cobrindo
@@ -89,6 +92,7 @@ export function ChatInput(props: ChatInputProps) {
       {mic.error && <ComposerNotice icon="mic" onDismiss={mic.dismissError}>{mic.error}</ComposerNotice>}
       <FocusCollapse hidden={!!focusMode}>
       {hasAtt && <AttachmentChips attachments={attachments} onRemoveAttachment={onRemoveAttachment} onOpen={onOpenAttachment} thumbs={attThumbs} onThumb={onAttThumb} />}
+      <ScreenshotPrompt s={shots} />
       {mic.hint && <ComposerNotice icon="mic" tone="info" onDismiss={mic.dismissHint}>{mic.hint}</ComposerNotice>}
       {queued.length > 0 && <QueuedBanner queued={queued} queuedIds={queuedIds} queuedAtts={queuedAtts} queuedModels={queuedModels} models={models} onRunBg={onRunQueuedBg} onRunNow={onRunQueuedNow} onCancelQueueAt={onCancelQueueAt} onEdit={onEditQueuedAt} onMove={onMoveQueued} held={queueHeld} onResume={onResumeQueue} paused={queuePaused} releaseAt={queueReleaseAt} onTogglePause={onToggleQueuePause} quotaHeld={paused} resetLabel={resetLabel} />}
       {paused && (

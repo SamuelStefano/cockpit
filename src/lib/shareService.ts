@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { appOrigin } from './origin';
 import { buildShareSnapshot, shareId, sharePath } from './share';
 import type { Message } from '../data/types';
 
@@ -32,7 +33,7 @@ export async function createShare(sessionId: string, title: string, messages: Me
   const blob = new Blob([JSON.stringify(buildShareSnapshot(title, messages))], { type: 'application/json' });
   const { error } = await supabase!.storage.from('shares').upload(path, blob, { contentType: 'application/json', upsert: false });
   if (error) throw new Error(error.message);
-  const share = { sessionId, path, url: `${location.origin}/s/${uid}/${id}`, title };
+  const share = { sessionId, path, url: `${appOrigin()}/s/${uid}/${id}`, title };
   save([...listShares(), share]);
   return share;
 }

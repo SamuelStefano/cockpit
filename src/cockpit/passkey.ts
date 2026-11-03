@@ -2,6 +2,7 @@ import { PRF_SALT, deriveFromPrf } from '../../shared/e2e/passkey';
 import { randomBytes, utf8, type Bytes } from '../../shared/e2e/bytes';
 import { sha256 } from '../../shared/e2e/channel';
 import { adoptPasskey } from './device-store';
+import { inShell } from '../lib/shell';
 
 // The only WebAuthn code: it gets the PRF output and hands it to
 // shared/e2e/passkey.ts, which everything after it (and its tests) goes through.
@@ -14,8 +15,9 @@ export type PasskeyOutcome = 'ok' | 'unsupported';
 
 interface PrfResults { prf?: { enabled?: boolean; results?: { first?: BufferSource } } }
 
+// A WKWebView has no passkey/PRF, and the shell never offers one.
 export function webauthnAvailable(): boolean {
-  return typeof window !== 'undefined' && typeof window.PublicKeyCredential === 'function' && !!navigator.credentials;
+  return !inShell() && typeof window !== 'undefined' && typeof window.PublicKeyCredential === 'function' && !!navigator.credentials;
 }
 
 const prfInput = () => ({ prf: { eval: { first: PRF_SALT } } }) as unknown as AuthenticationExtensionsClientInputs;
