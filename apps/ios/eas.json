@@ -36,7 +36,10 @@
     "production-bundle": {
       "extends": "production",
       "env": {
-        "DECK_WEB_BUNDLE": "1"
+        "DECK_WEB_BUNDLE": "1",
+        "VITE_SUPABASE_URL": "https://ikxtdssxmcgipyfpwmar.supabase.co",
+        "VITE_SUPABASE_ANON_KEY": "sb_publishable_adszvBmAzerotXCIbzJolQ_4HUPgA3l",
+        "VITE_WS_URL": "wss://deck-relay.163-176-220-63.sslip.io/ws"
       }
     }
   },

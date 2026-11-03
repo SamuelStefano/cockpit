@@ -8,7 +8,7 @@
     "start": "expo start --go",
     "bundle:ios": "expo export --platform ios --output-dir dist-ios --dump-sourcemap",
     "bundle:web": "node scripts/bundle-web.mjs",
-    "eas-build-post-install": "if [ \"$DECK_WEB_BUNDLE\" = \"1\" ]; then node scripts/bundle-web.mjs; fi",
+    "eas-build-post-install": "if [ \"$DECK_WEB_BUNDLE\" = \"1\" ]; then npm ci --prefix ../.. --ignore-scripts --no-audit --no-fund && node scripts/bundle-web.mjs; fi",
     "doctor": "expo-doctor",
     "typecheck": "tsc -p . --noEmit",
     "test": "vitest run --config vitest.config.ts && node --test scripts/asc-store.test.mjs",
