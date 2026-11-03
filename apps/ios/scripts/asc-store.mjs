@@ -273,11 +273,17 @@ export function createApi({ fetchImpl = globalThis.fetch, token, base = ASC_BASE
   const planned = [];
   const toUrl = (path) => (path.startsWith('http') ? path : `${base}${path}`);
   async function raw(method, path, body) {
-    const res = await fetchImpl(toUrl(path), {
-      method,
-      headers: { authorization: `Bearer ${token()}`, ...(body ? { 'content-type': 'application/json' } : {}) },
-      ...(body ? { body: JSON.stringify(body) } : {}),
-    });
+    // App Store Connect answers intermittent 500s; only reads are retried, a write is never repeated.
+    let res;
+    for (let attempt = 0; ; attempt++) {
+      res = await fetchImpl(toUrl(path), {
+        method,
+        headers: { authorization: `Bearer ${token()}`, ...(body ? { 'content-type': 'application/json' } : {}) },
+        ...(body ? { body: JSON.stringify(body) } : {}),
+      });
+      if (method !== 'GET' || res.status < 500 || attempt >= 4) break;
+      await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
+    }
     const text = await res.text();
     let json = null;
     try {
