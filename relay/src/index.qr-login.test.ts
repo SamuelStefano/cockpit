@@ -67,12 +67,13 @@ describe('QR sign-in: request (login screen shows the QR)', () => {
   it('logs in only after approval, only with the secret, only once', async () => {
     const minted: string[] = [];
     const post = await listen(store(minted));
-    const r = await (await post('request', undefined, undefined, { 'user-agent': 'Phone Safari' })).json() as { id: string; secret: string };
+    const r = await (await post('request', undefined, undefined, { 'user-agent': 'Phone Safari' })).json() as { id: string; secret: string; code: string };
     expect(await (await post('poll', { id: r.id, secret: r.secret })).json()).toEqual({ status: 'pending' });
     expect((await post('peek', { id: r.id })).status).toBe(401);
     expect(await (await post('peek', { id: r.id }, 'user')).json()).toMatchObject({ ua: 'Phone Safari' });
-    expect((await post('answer', { id: r.id, approve: true }, 'user')).status).toBe(200);
-    expect((await post('answer', { id: r.id, approve: true }, 'other')).status).toBe(410);
+    expect((await post('answer', { id: r.id, approve: true }, 'user')).status).toBe(422);
+    expect((await post('answer', { id: r.id, approve: true, code: r.code }, 'user')).status).toBe(200);
+    expect((await post('answer', { id: r.id, approve: true, code: r.code }, 'other')).status).toBe(410);
     expect((await post('poll', { id: r.id, secret: 'y'.repeat(43) })).status).toBe(410);
     const ok = await post('poll', { id: r.id, secret: r.secret });
     expect(await ok.json()).toEqual({ status: 'approved', tokenHash: 'hash-accA' });
@@ -87,6 +88,14 @@ describe('QR sign-in: request (login screen shows the QR)', () => {
     expect((await post('answer', { id: r.id, approve: false }, 'user')).status).toBe(200);
     expect((await post('poll', { id: r.id, secret: r.secret })).status).toBe(410);
     expect(minted).toEqual([]);
+  });
+
+  it('burns the request after three wrong codes', async () => {
+    const post = await listen(store([]));
+    const r = await (await post('request')).json() as { id: string; secret: string; code: string };
+    const wrong = r.code === '0000' ? '1111' : '0000';
+    for (let i = 0; i < 3; i++) expect((await post('answer', { id: r.id, approve: true, code: wrong }, 'user')).status).toBe(422);
+    expect((await post('answer', { id: r.id, approve: true, code: r.code }, 'user')).status).toBe(410);
   });
 
   it('rejects malformed bodies', async () => {

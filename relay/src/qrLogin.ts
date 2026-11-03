@@ -1,4 +1,4 @@
-import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
 
 // Sign-in by QR, two directions, both in memory only (a relay restart just
 // voids the pending QRs; nobody is locked out, they scan again).
@@ -10,12 +10,16 @@ import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 // Request (the login screen shows the QR): an unauthenticated device opens a
 // request and keeps its secret; a signed-in device that scans the QR sees who
 // asked (user agent) and approves or refuses. Only the holder of the secret can
-// collect the approval, and only once.
+// collect the approval, and only once. The approver must also type the short
+// code shown next to the QR: a link forwarded by someone else carries no code,
+// so it cannot be approved by a tap alone.
 
 export const QR_TICKET_TTL_MS = 10 * 60_000;
 export const QR_REQUEST_TTL_MS = 3 * 60_000;
 const MAX_ENTRIES = 2_000;
 const UA_MAX = 160;
+const CODE_TRIES = 3;
+export const isQrCode = (v: unknown): v is string => typeof v === 'string' && /^\d{4}$/.test(v);
 
 const KEY_RE = /^[A-Za-z0-9_-]{43}$/;
 export const isQrKey = (v: unknown): v is string => typeof v === 'string' && KEY_RE.test(v);
@@ -24,7 +28,7 @@ const newKey = () => randomBytes(32).toString('base64url');
 const digest = (s: string) => createHash('sha256').update(s).digest();
 
 interface Ticket { accountId: string; expiresAt: number }
-interface Pending { secret: Buffer; ua: string; expiresAt: number; accountId?: string }
+interface Pending { secret: Buffer; code: string; tries: number; ua: string; expiresAt: number; accountId?: string }
 
 export type PollResult = { status: 'pending' } | { status: 'approved'; accountId: string } | { status: 'gone' };
 
@@ -69,14 +73,15 @@ export function createQrLogin(now: () => number = Date.now) {
       return t.accountId;
     },
 
-    openRequest(ua: unknown): { id: string; secret: string; expiresAt: number } | null {
+    openRequest(ua: unknown): { id: string; secret: string; code: string; expiresAt: number } | null {
       sweep();
       if (requests.size >= MAX_ENTRIES) return null;
       const id = newKey();
       const secret = newKey();
       const expiresAt = now() + QR_REQUEST_TTL_MS;
-      requests.set(id, { secret: digest(secret), ua: cleanUa(ua), expiresAt });
-      return { id, secret, expiresAt };
+      const code = String(randomInt(0, 10_000)).padStart(4, '0');
+      requests.set(id, { secret: digest(secret), code, tries: 0, ua: cleanUa(ua), expiresAt });
+      return { id, secret, code, expiresAt };
     },
 
     // What the approving device is shown. Already-answered requests are not.
@@ -87,14 +92,19 @@ export function createQrLogin(now: () => number = Date.now) {
       return { ua: r.ua, expiresAt: r.expiresAt };
     },
 
-    // First answer wins; a refusal deletes the request.
-    answerRequest(id: string, accountId: string, approve: boolean): boolean {
-      if (!isQrKey(id)) return false;
+    // First answer wins; a refusal deletes the request. An approval needs the
+    // code; three wrong codes burn the request.
+    answerRequest(id: string, accountId: string, approve: boolean, code?: unknown): 'ok' | 'gone' | 'bad-code' {
+      if (!isQrKey(id)) return 'gone';
       const r = liveRequest(id);
-      if (!r || r.accountId) return false;
-      if (!approve) { requests.delete(id); return true; }
+      if (!r || r.accountId) return 'gone';
+      if (!approve) { requests.delete(id); return 'ok'; }
+      if (!isQrCode(code) || !timingSafeEqual(Buffer.from(code), Buffer.from(r.code))) {
+        if (++r.tries >= CODE_TRIES) requests.delete(id);
+        return 'bad-code';
+      }
       r.accountId = accountId;
-      return true;
+      return 'ok';
     },
 
     // A wrong secret looks exactly like a missing request.

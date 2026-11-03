@@ -53,12 +53,15 @@ export function useDeviceLink() {
   const left = minted ? minted.expiresAt - now : 0;
   const expired = !!minted && left <= 0;
 
+  // The copied link is enroll-only: text travels through chats and clipboards,
+  // so the login ticket stays in the QR on this screen.
+  const copyUrl = minted && active ? enrollLinkUrl(appOrigin(), { code: minted.code, box: active, expiresAt: minted.expiresAt }) : '';
   const copy = useCallback(() => {
-    if (!url) return;
-    navigator.clipboard?.writeText(url)
-      .then(() => toast('Link copiado. Abra no outro aparelho; vale uma vez, por 10 minutos.', { tone: 'ok' }))
+    if (!copyUrl) return;
+    navigator.clipboard?.writeText(copyUrl)
+      .then(() => toast('Link copiado. Abra no outro aparelho e entre com sua conta; vale uma vez, por 10 minutos.', { tone: 'ok' }))
       .catch(() => toast('Não consegui copiar o link.', { tone: 'error' }));
-  }, [url]);
+  }, [copyUrl]);
 
   return {
     open, start: () => setOpen(true), close: () => { setOpen(false); setMinted(null); },

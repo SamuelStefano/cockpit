@@ -14,9 +14,10 @@ export function QrLoginPanel({ onBack }: { onBack: () => void }) {
   return (
     <div className="flex flex-col items-center gap-3">
       <p className="text-[13px] leading-relaxed text-neutral-400">
-        No celular onde o Deck já está aberto, aponte a câmera para o código e aprove o acesso.
+        No celular onde o Deck já está aberto, aponte a câmera para o QR e digite lá o código abaixo.
       </p>
       {q.qr && <img src={q.qr} alt="QR para entrar no Deck" className="h-56 w-56 rounded-lg bg-white" />}
+      {q.code && <p className="font-mono text-[26px] tracking-[0.35em] text-neutral-100" aria-label="código de confirmação">{q.code}</p>}
       {q.phase === 'waiting' && <p className="text-[12px] text-neutral-500">expira em {q.countdown}</p>}
       {MESSAGE[q.phase] && <p className="py-2 text-center text-[12.5px] text-neutral-400">{MESSAGE[q.phase]}</p>}
       {(q.phase === 'expired' || q.phase === 'failed') && (

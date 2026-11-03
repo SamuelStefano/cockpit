@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { linkStore } from '../../cockpit/enroll-link-boot';
-import { QR_TICKET_KEY, clearQrKey, readQrKey, redeemTicket } from '../../cockpit/qr-login';
+import { QR_TICKET_KEY, clearQrKey, readQrKey, redeemTicket, runOnce } from '../../cockpit/qr-login';
 import { sessionFromTokenHash } from './qrSession';
+
+let pendingTicket: string | null = null;
 
 export type TicketLoginState = 'idle' | 'busy' | 'failed';
 
@@ -10,15 +12,15 @@ export type TicketLoginState = 'idle' | 'busy' | 'failed';
 export function useQrTicketLogin(): TicketLoginState {
   const [state, setState] = useState<TicketLoginState>(() => (readQrKey(linkStore(), QR_TICKET_KEY) ? 'busy' : 'idle'));
   useEffect(() => {
-    const ticket = readQrKey(linkStore(), QR_TICKET_KEY);
+    const ticket = readQrKey(linkStore(), QR_TICKET_KEY) ?? pendingTicket;
     if (!ticket) return;
+    pendingTicket = ticket;
     clearQrKey(linkStore(), QR_TICKET_KEY);
     let live = true;
-    void (async () => {
+    void runOnce(`ticket:${ticket}`, async () => {
       const hash = await redeemTicket(ticket);
-      const ok = hash ? await sessionFromTokenHash(hash) : false;
-      if (live && !ok) setState('failed');
-    })();
+      return hash ? sessionFromTokenHash(hash) : false;
+    }).then((ok) => { pendingTicket = null; if (live && !ok) setState('failed'); });
     return () => { live = false; };
   }, []);
   return state;

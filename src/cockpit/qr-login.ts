@@ -66,14 +66,15 @@ export async function redeemTicket(ticket: string, f?: Fetch): Promise<string | 
   } catch { return null; }
 }
 
-export interface QrRequest { id: string; secret: string; expiresAt: number }
+export interface QrRequest { id: string; secret: string; code: string; expiresAt: number }
 
 export async function openRequest(f?: Fetch): Promise<QrRequest | null> {
   try {
     const r = await post('request', {}, undefined, f);
     if (!r.ok) return null;
     const j = await r.json() as Partial<QrRequest>;
-    return isQrKey(j.id) && isQrKey(j.secret) && typeof j.expiresAt === 'number' ? { id: j.id, secret: j.secret, expiresAt: j.expiresAt } : null;
+    return isQrKey(j.id) && isQrKey(j.secret) && typeof j.code === 'string' && /^\d{4}$/.test(j.code) && typeof j.expiresAt === 'number'
+      ? { id: j.id, secret: j.secret, code: j.code, expiresAt: j.expiresAt } : null;
   } catch { return null; }
 }
 
@@ -99,8 +100,22 @@ export async function peekRequest(token: string, id: string, f?: Fetch): Promise
   } catch { return null; }
 }
 
-export async function answerRequest(token: string, id: string, approve: boolean, f?: Fetch): Promise<boolean> {
-  try { return (await post('answer', { id, approve }, token, f)).ok; } catch { return false; }
+export type AnswerOutcome = 'ok' | 'bad-code' | 'gone';
+
+export async function answerRequest(token: string, id: string, approve: boolean, code: string, f?: Fetch): Promise<AnswerOutcome> {
+  try {
+    const r = await post('answer', approve ? { id, approve, code } : { id, approve }, token, f);
+    return r.ok ? 'ok' : r.status === 422 ? 'bad-code' : 'gone';
+  } catch { return 'gone'; }
+}
+
+// One-shot work keyed by a single-use value: a StrictMode remount (or any
+// second mount) joins the same promise instead of spending the value twice.
+const once = new Map<string, Promise<unknown>>();
+export function runOnce<T>(key: string, work: () => Promise<T>): Promise<T> {
+  let p = once.get(key) as Promise<T> | undefined;
+  if (!p) { p = work(); once.set(key, p); }
+  return p;
 }
 
 // "iPhone · Safari" from a raw user agent; enough for a person to recognise it.

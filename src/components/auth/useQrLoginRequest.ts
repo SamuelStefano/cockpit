@@ -61,6 +61,7 @@ export function useQrLoginRequest(active: boolean) {
   return {
     phase,
     qr: phase === 'waiting' ? qr : '',
+    code: phase === 'waiting' && req ? req.code : '',
     countdown: req ? fmtCountdown(req.expiresAt - now) : '',
     again: () => setRound((n) => n + 1),
   };

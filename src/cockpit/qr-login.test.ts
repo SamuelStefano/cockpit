@@ -39,7 +39,7 @@ describe('captureQrLogin', () => {
 });
 
 describe('pollRequest', () => {
-  const req = { id: K, secret: K, expiresAt: 0 };
+  const req = { id: K, secret: K, code: '1234', expiresAt: 0 };
   it('maps relay answers', async () => {
     const f = (status: number, body?: unknown) => (async () => new Response(body ? JSON.stringify(body) : null, { status })) as unknown as typeof fetch;
     expect(await pollRequest(req, f(410))).toEqual({ status: 'gone' });

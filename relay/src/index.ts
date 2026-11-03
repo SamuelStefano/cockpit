@@ -301,6 +301,7 @@ export function createRelay(cfg: RelayConfig) {
   const qrAnonThrottle = slidingWindow(20, 60_000);
   const qrPollThrottle = slidingWindow(90, 60_000);
   const qrGlobal = slidingWindow(3_000, 60_000);
+  const qrPollGlobal = slidingWindow(20_000, 60_000);
   const readJson = (req: IncomingMessage, max = 1024): Promise<Record<string, unknown> | null> => new Promise((resolve) => {
     const declared = Number(req.headers['content-length']);
     if (Number.isFinite(declared) && declared > max) { req.resume(); resolve(null); return; }
@@ -338,8 +339,8 @@ export function createRelay(cfg: RelayConfig) {
   };
   const handleQr = async (req: IncomingMessage, res: import('node:http').ServerResponse, route: string) => {
     if (!originAllowed(origins, req.headers.origin)) { res.writeHead(403); res.end(); return; }
-    if (!qrGlobal('all')) { res.writeHead(429); res.end('slow down'); return; }
     const ip = clientIp(req);
+    if (!(route === 'poll' ? qrPollGlobal('all') : qrGlobal('all'))) { res.writeHead(429); res.end('slow down'); return; }
     if (route === 'ticket' || route === 'peek' || route === 'answer') {
       const id = await bearer(req);
       if (!id) { res.writeHead(401); res.end('auth'); return; }
@@ -359,9 +360,10 @@ export function createRelay(cfg: RelayConfig) {
         sendJson(res, 200, p); return;
       }
       if (typeof body.approve !== 'boolean') { res.writeHead(400); res.end('bad request'); return; }
-      const ok = qr.answerRequest(body.id, id.accountId, body.approve);
-      obs.event('qr_answer', { ok, approve: body.approve });
-      if (!ok) { res.writeHead(410); res.end('gone'); return; }
+      const out = qr.answerRequest(body.id, id.accountId, body.approve, body.code);
+      obs.event('qr_answer', { out, approve: body.approve });
+      if (out === 'bad-code') { res.writeHead(422); res.end('bad code'); return; }
+      if (out === 'gone') { res.writeHead(410); res.end('gone'); return; }
       sendJson(res, 200, { ok: true }); return;
     }
     if (route === 'poll') {

@@ -16,9 +16,9 @@ describe('createQrLogin', () => {
   it('does not show or re-answer an approved request', () => {
     const q = createQrLogin();
     const r = q.openRequest('ua')!;
-    expect(q.answerRequest(r.id, 'a', true)).toBe(true);
+    expect(q.answerRequest(r.id, 'a', true, r.code)).toBe('ok');
     expect(q.peekRequest(r.id)).toBeNull();
-    expect(q.answerRequest(r.id, 'b', true)).toBe(false);
+    expect(q.answerRequest(r.id, 'b', true, r.code)).toBe('gone');
     expect(q.poll(r.id, r.secret)).toEqual({ status: 'approved', accountId: 'a' });
   });
 
