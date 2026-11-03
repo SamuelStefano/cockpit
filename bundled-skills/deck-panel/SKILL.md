@@ -41,7 +41,8 @@ Same subject across several sessions = one card. Empty column is fine (shows "�
   "columns": [
     { "label": "Done", "tone": "green", "items": [
       { "title": "Google login", "tag": "app · PR #12",
-        "detail": "What changed, in 1–3 sentences.", "link": "https://github.com/..." },
+        "detail": "What changed, in 1–3 sentences.", "link": "https://github.com/...",
+        "session": "4248d7d1" },
       "A plain string also works"
     ]},
     { "label": "Blocked", "tone": "red", "items": [
@@ -54,4 +55,6 @@ Same subject across several sessions = one card. Empty column is fine (shows "�
 - Card `title`: up to 6 words, no jargon. `tag`: project · PR/session.
 - `detail`: shown only in the modal — what happened or what is missing, and what is needed.
 - `link`: real http(s) URLs only (PR, deploy). Never invent one.
+- `session`: 8-char id (or full UUID) of the session behind the card, from `deckctl sessions`. The modal shows an "Open session" link in the same box. Cite it whenever a session exists; never invent one.
+- Outside panels, a bare session id in the text (`4248d7d1`) also becomes a clickable link when that session exists.
 - Valid JSON, no comments. Tones: green, orange, yellow, red, neutral, purple.

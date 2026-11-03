@@ -3,6 +3,12 @@ import { tokenizeInline } from './tokenize-inline';
 import { WikiLink } from './wikilink-context';
 import { MdImage } from './image-context';
 import { safeHref } from '../../../lib/safe-href';
+import { splitSessionRefs } from './session-link';
+import { SessionLink } from './session-link-context';
+
+function withSessionLinks(text: string): ReactNode[] {
+  return splitSessionRefs(text).map((p, i) => (p.type === 'ref' ? <SessionLink key={i} value={p.value} /> : p.value));
+}
 
 export function renderInline(text: string, keyBase: string): ReactNode[] {
   const nodes: ReactNode[] = [];
@@ -11,7 +17,7 @@ export function renderInline(text: string, keyBase: string): ReactNode[] {
     const key = `${keyBase}-${i++}`;
     switch (t.type) {
       case 'text':
-        nodes.push(<span key={key}>{t.value}</span>);
+        nodes.push(<span key={key}>{withSessionLinks(t.value)}</span>);
         break;
       case 'wikilink':
         nodes.push(<WikiLink key={key} value={t.value} />);
@@ -28,7 +34,7 @@ export function renderInline(text: string, keyBase: string): ReactNode[] {
       case 'code':
         nodes.push(
           <code key={key} className="rounded-sm bg-neutral-800 px-1.5 py-0.5 font-mono text-[0.86em] text-orange-300 [overflow-wrap:anywhere]">
-            {t.value}
+            {/^[0-9a-f-]{8,36}$/i.test(t.value) ? <SessionLink value={t.value} /> : t.value}
           </code>
         );
         break;

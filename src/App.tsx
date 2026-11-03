@@ -71,6 +71,7 @@ import { withoutBotThreads } from './components/sessions/bot-threads';
 import { useCall } from './components/chat/call/useCall';
 import { useAiConsent } from './components/chat/useAiConsent';
 import { AiConsentSheet } from './components/chat/AiConsentSheet';
+import { SessionLinkContext } from './components/primitives/markdown/session-link-context';
 import { ConnectionsContext } from './cockpit/ConnectionsContext';
 
 function CockpitBody() {
@@ -96,6 +97,7 @@ function CockpitBody() {
     else navChat(id);
   }, [setActiveSessionId, nav, navChat]);
   useChatUrl({ route, chatId, navChat, activeId: activeSessionId, setActiveId: setActiveSessionId, sessions, archived });
+  const sessionLinks = useMemo(() => ({ ids: [...sessions, ...archived].map((x) => x.id), open: selectSession }), [sessions, archived, selectSession]);
   // Default-deny: sem caps (ainda não chegou) = não-admin. No T3 o caps vem do
   // relay (papel da conta no JWT); no loopback, do token/role local.
   const role = navRole(caps?.role);
@@ -273,6 +275,7 @@ function CockpitBody() {
 
   return (
     <ConnectionsContext.Provider value={connectionsCtx}>
+    <SessionLinkContext.Provider value={sessionLinks}>
       <AiConsentSheet open={consent.open} onAgree={consent.agree} onDecline={consent.decline} />
     <TopBarSlotContext.Provider value={topBarSlot}>
     {/* Safe-area nos quatro lados: com `viewport-fit=cover` o notch em landscape
@@ -343,6 +346,7 @@ function CockpitBody() {
       <EggsHost />
     </div>
     </TopBarSlotContext.Provider>
+    </SessionLinkContext.Provider>
     </ConnectionsContext.Provider>
   );
 }

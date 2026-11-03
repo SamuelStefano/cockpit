@@ -18,6 +18,11 @@ export function registerBridge(win: BrowserWindow): void {
   ipcMain.on('deck:focus-window', (event) => {
     if (trusted(win, event)) showWindow(win);
   });
+  // Taskbar flashing replaces the toast; it ends on its own when the window gains focus.
+  ipcMain.on('deck:flash-window', (event) => {
+    if (trusted(win, event) && !win.isFocused()) win.flashFrame(true);
+  });
+  win.on('focus', () => win.flashFrame(false));
   ipcMain.on('deck:set-badge', (event, value: unknown) => {
     const count = validBadgeCount(value);
     if (count === null || !trusted(win, event)) return;
