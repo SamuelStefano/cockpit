@@ -138,7 +138,7 @@ jobs:
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         # Waits for the build so the submit to TestFlight runs with the key file still on disk.
-        run: npx --no-install eas build --platform ios --profile production-bundle --non-interactive --wait --auto-submit-with-profile=production
+        run: npx --yes eas-cli@24.10.0 build --platform ios --profile production-bundle --non-interactive --wait --auto-submit-with-profile=production
 
       - name: Remove the key
         if: always()
