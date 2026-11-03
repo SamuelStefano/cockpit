@@ -59,6 +59,8 @@ export interface RelayStore {
   deleteAccount?(accountId: string): Promise<boolean>;
   // QR sign-in: a one-time magic-link token hash for this user (never emailed).
   mintLoginToken?(accountId: string): Promise<string>;
+  // False when the access token's session was signed out (signature alone can't tell).
+  sessionAlive?(accessToken: string): Promise<boolean>;
 }
 
 export interface DiagReportRow {
@@ -331,7 +333,9 @@ export function createRelay(cfg: RelayConfig) {
   const bearer = async (req: IncomingMessage): Promise<Identity | null> => {
     const auth = req.headers.authorization ?? '';
     const id = auth.startsWith('Bearer ') ? await identityFrom(auth.slice(7)) : null;
-    return id && !isDeleted(id.accountId) ? id : null;
+    if (!id || isDeleted(id.accountId)) return null;
+    if (cfg.store.sessionAlive && !(await cfg.store.sessionAlive(auth.slice(7)))) return null;
+    return id;
   };
   const loginToken = async (accountId: string): Promise<string | null> => {
     if (!cfg.store.mintLoginToken || isDeleted(accountId)) return null;
@@ -350,7 +354,7 @@ export function createRelay(cfg: RelayConfig) {
         const t = qr.mintTicket(id.accountId);
         if (!t) { res.writeHead(503); res.end('busy'); return; }
         obs.event('qr_ticket', { ok: true });
-        sendJson(res, 200, t); return;
+        sendJson(res, 200, { ...t, ttlMs: t.expiresAt - nowMs() }); return;
       }
       const body = await readJson(req);
       if (!body || !isQrKey(body.id)) { res.writeHead(400); res.end('bad request'); return; }
@@ -383,7 +387,7 @@ export function createRelay(cfg: RelayConfig) {
       if (!cfg.store.mintLoginToken) { res.writeHead(501); res.end('unsupported'); return; }
       const r = qr.openRequest(req.headers['user-agent']);
       if (!r) { res.writeHead(503); res.end('busy'); return; }
-      sendJson(res, 200, r); return;
+      sendJson(res, 200, { ...r, ttlMs: r.expiresAt - nowMs() }); return;
     }
     if (route === 'redeem') {
       const body = await readJson(req);

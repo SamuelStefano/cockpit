@@ -56,5 +56,6 @@ export function useQrApprove(signedIn: boolean) {
     setCode: (v: string) => setCode(v.replace(/\D/g, '').slice(0, 4)),
     canApprove: code.length === 4,
     approve: () => void answer(true), refuse: () => void answer(false),
+    dismiss: () => { setId(null); setCode(''); setErr(''); },
   };
 }

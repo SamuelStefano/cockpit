@@ -165,6 +165,16 @@ export function supabaseStore(cfg: StoreConfig): RelayStore {
     // from it (migration 0001). A user already gone (404) counts as done, so a retry
     // after a lost response succeeds. Any other failure throws: nothing is half-deleted
     // silently and the caller can retry.
+    // A signature-valid JWT may belong to a session already signed out; GoTrue's
+    // /user refuses those, so QR minting never outlives a sign-out.
+    async sessionAlive(accessToken) {
+      const root = cfg.url.replace(/\/$/, '');
+      try {
+        const r = await f(`${root}/auth/v1/user`, { headers: { apikey: cfg.serviceKey, authorization: `Bearer ${accessToken}` }, signal: AbortSignal.timeout(REQ_TIMEOUT_MS) });
+        return r.ok;
+      } catch { return false; }
+    },
+
     // QR sign-in: a magic-link token hash for this exact user, never emailed.
     // The address is read from the user row (not the caller's JWT) and the link
     // must come back for the same id, or nothing is handed out.

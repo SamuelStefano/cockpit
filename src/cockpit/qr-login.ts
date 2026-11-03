@@ -72,7 +72,9 @@ export async function openRequest(f?: Fetch): Promise<QrRequest | null> {
   try {
     const r = await post('request', {}, undefined, f);
     if (!r.ok) return null;
-    const j = await r.json() as Partial<QrRequest>;
+    const j = await r.json() as Partial<QrRequest> & { ttlMs?: unknown };
+    // The relay's clock decides expiry; the local deadline only drives the countdown.
+    if (typeof j.ttlMs === 'number' && j.ttlMs > 0) j.expiresAt = Date.now() + j.ttlMs;
     return isQrKey(j.id) && isQrKey(j.secret) && typeof j.code === 'string' && /^\d{4}$/.test(j.code) && typeof j.expiresAt === 'number'
       ? { id: j.id, secret: j.secret, code: j.code, expiresAt: j.expiresAt } : null;
   } catch { return null; }

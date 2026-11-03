@@ -47,6 +47,12 @@ describe('QR sign-in: ticket (signed-in device shows the QR)', () => {
     expect(minted).toEqual(['accA']);
   });
 
+  it('refuses a signed-out session even with a valid signature', async () => {
+    const post = await listen(store([], { async sessionAlive() { return false; } }));
+    expect((await post('ticket', undefined, 'user')).status).toBe(401);
+    expect((await post('answer', { id: 'x'.repeat(43), approve: false }, 'user')).status).toBe(401);
+  });
+
   it('answers 501 when the store cannot mint, and 502 when it fails', async () => {
     const post = await listen(store([], { mintLoginToken: undefined }));
     expect((await post('ticket', undefined, 'user')).status).toBe(501);

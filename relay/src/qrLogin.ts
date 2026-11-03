@@ -14,7 +14,7 @@ import { createHash, randomBytes, randomInt, timingSafeEqual } from 'node:crypto
 // code shown next to the QR: a link forwarded by someone else carries no code,
 // so it cannot be approved by a tap alone.
 
-export const QR_TICKET_TTL_MS = 10 * 60_000;
+export const QR_TICKET_TTL_MS = 5 * 60_000;
 export const QR_REQUEST_TTL_MS = 3 * 60_000;
 const MAX_ENTRIES = 2_000;
 const UA_MAX = 160;
