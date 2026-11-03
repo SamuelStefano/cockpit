@@ -15,7 +15,14 @@
 const DEV = process.env.APP_VARIANT === 'development';
 const BUNDLE = process.env.DECK_WEB_BUNDLE === '1';
 
-const withScenes = (config) => ({ ...config, plugins: [...(config.plugins ?? []), './plugins/withSceneLifecycle'] });
+const withScenes = (config) => ({ ...config, plugins: [
+    // Registered first and last: mod order differs by type, and the entitlement must be gone whichever runs last.
+    './plugins/withoutPushEntitlement',
+    ...(config.plugins ?? []),
+    './plugins/withSceneLifecycle',
+    './plugins/withoutPushEntitlement',
+  ],
+});
 
 function withWebBundle(config) {
   if (!BUNDLE) return config;
