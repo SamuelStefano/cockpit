@@ -38,14 +38,14 @@
   },
   "locales": {
     "pt-BR": {
-      "name": "Deck",
+      "name": "Deck Multi-Agents",
       "subtitle": "Teu agente, no celular",
       "promotionalText": "Converse com o agente que roda no teu próprio servidor. Dite por voz e receba um aviso quando a resposta terminar.",
       "description": "O Deck é o app de conversa com o agente que roda no teu próprio servidor.\n\nTu tens um servidor (uma VPS ou um computador) com um agente de código. O Deck leva esse agente pro teu celular.\n\nConverse\n- Manda uma mensagem e o agente no teu servidor responde.\n- Dita por voz: aperta o microfone e fala. O iPhone transcreve pra ti.\n- Compartilha uma resposta pela folha de compartilhamento do iOS.\n\nFica sabendo na hora\n- Uma notificação local avisa quando a resposta termina, mesmo com o app em segundo plano.\n\nTeu servidor, teus dados\n- O agente roda na máquina que tu controla. O Deck é só o cliente.\n- Podes excluir a conta dentro do app, em Ajustes.\n\nImportante: o Deck precisa de um servidor Deck teu. Uma conta nova ainda não tem servidor, e o app explica como conectar um.\n\nPolítica de privacidade: https://deck.devfellowship.com/privacy\nSuporte: https://deck.devfellowship.com/support",
       "keywords": "agente,chat,servidor,código,terminal,dev,ia,voz,vps,programação,assistente"
     },
     "en-US": {
-      "name": "Deck",
+      "name": "Deck Multi-Agents",
       "subtitle": "Your agent, on your phone",
       "promotionalText": "Chat with the agent that runs on your own server. Dictate by voice and get a notice when a reply finishes.",
       "description": "Deck is the chat app for the agent that runs on your own server.\n\nYou have a server (a VPS or a computer) with a coding agent. Deck brings that agent to your phone.\n\nChat\n- Send a message and the agent on your server answers.\n- Dictate by voice: tap the microphone and talk. Your iPhone transcribes it.\n- Share a reply from the iOS share sheet.\n\nKnow right away\n- A local notification tells you when a reply finishes, even with the app in the background.\n\nYour server, your data\n- The agent runs on a machine you control. Deck is only the client.\n- You can delete your account inside the app, in the profile menu.\n\nNote: Deck needs your own Deck server. A new account has no server yet, and the app explains how to connect one.\n\nPrivacy policy: https://deck.devfellowship.com/privacy\nSupport: https://deck.devfellowship.com/support",

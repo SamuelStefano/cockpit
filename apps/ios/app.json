@@ -118,7 +118,7 @@
     },
     "owner": "devfellowship",
     "runtimeVersion": {
-      "policy": "fingerprint"
+      "policy": "appVersion"
     },
     "updates": {
       "checkAutomatically": "NEVER",
