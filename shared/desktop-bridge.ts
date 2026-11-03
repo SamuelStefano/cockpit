@@ -8,5 +8,6 @@ export interface DeckDesktopBridge {
   appVersion: string;
   focusWindow: () => void;
   setBadge: (count: number) => void;
+  flashWindow?: () => void;
   onLink: (cb: (link: DeckDesktopLink) => void) => void;
 }

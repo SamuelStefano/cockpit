@@ -5,6 +5,7 @@ export interface PanelItem {
   detail?: string;
   link?: string;
   tag?: string;
+  session?: string;
 }
 
 export interface PanelColumn {
@@ -29,13 +30,19 @@ const safeLink = (v: unknown): string | undefined => {
   return s && /^https?:\/\//i.test(s) ? s : undefined;
 };
 
+// Only an id-shaped value (8-hex prefix or UUID) can name a session; the app still checks it exists.
+const sessionRef = (v: unknown): string | undefined => {
+  const s = str(v)?.trim();
+  return s && /^(?:[0-9a-f]{8}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.test(s) ? s : undefined;
+};
+
 function parseItem(raw: unknown): PanelItem | null {
   if (typeof raw === 'string') return str(raw) ? { title: raw } : null;
   if (!raw || typeof raw !== 'object') return null;
   const o = raw as Record<string, unknown>;
   const title = str(o.title);
   if (!title) return null;
-  return { title, detail: str(o.detail), link: safeLink(o.link), tag: str(o.tag) };
+  return { title, detail: str(o.detail), link: safeLink(o.link), tag: str(o.tag), session: sessionRef(o.session) };
 }
 
 function parseColumn(raw: unknown): PanelColumn | null {

@@ -4,7 +4,7 @@
 
 import { loadPref } from './persist';
 import { NOTIFY_SOUND_KEY, NOTIFY_SOUND_DEFAULT } from './prefs';
-import { focusDesktopWindow, inDesktopApp, setDesktopBadge } from './desktop';
+import { flashDesktopWindow, focusDesktopWindow, inDesktopApp, setDesktopBadge } from './desktop';
 import { inShell, postToShell } from './shell';
 
 let baseTitle = typeof document !== 'undefined' ? document.title : 'Deck';
@@ -118,6 +118,7 @@ export function notifyTurnDone(sessionTitle: string, onActivate?: () => void, se
   flashTitle();
   vibrate([30]);
   beep(660);
+  if (flashDesktopWindow()) return;
   if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
     try {
       const n = new Notification('Deck — resposta pronta', {
@@ -148,6 +149,7 @@ export function notifyTurnError(sessionTitle: string, message: string, onActivat
   flashTitle();
   vibrate([60, 40, 60]);
   beep(220);
+  if (flashDesktopWindow()) return;
   if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
     try {
       const n = new Notification('Deck — turno falhou', {

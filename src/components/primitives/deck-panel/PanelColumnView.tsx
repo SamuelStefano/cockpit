@@ -14,7 +14,7 @@ export function PanelColumnView({ column, onOpen }: { column: PanelColumn; onOpe
       </div>
       <ul className="space-y-1.5">
         {column.items.map((item, i) => {
-          const clickable = Boolean(item.detail || item.link);
+          const clickable = Boolean(item.detail || item.link || item.session);
           return (
             <li key={i}>
               <button

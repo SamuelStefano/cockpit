@@ -14,9 +14,10 @@ ipcRenderer.on('deck:link', (_event, link: DeckLink) => {
 });
 
 contextBridge.exposeInMainWorld('deckDesktop', {
-  apiVersion: 3,
+  apiVersion: 4,
   appVersion: version,
   focusWindow: () => ipcRenderer.send('deck:focus-window'),
+  flashWindow: () => ipcRenderer.send('deck:flash-window'),
   setBadge: (count: number) => ipcRenderer.send('deck:set-badge', count),
   onLink: (cb: (link: DeckLink) => void) => {
     listener = cb;

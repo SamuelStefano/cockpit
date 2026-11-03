@@ -306,3 +306,34 @@ describe('desktop shell', () => {
     expect(open).toHaveBeenCalled();
   });
 });
+
+describe('desktop shell flash', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    delete (globalThis as { deckDesktop?: unknown }).deckDesktop;
+  });
+
+  it('flashes the taskbar instead of showing a notification', () => {
+    setVisibility('hidden');
+    const flashWindow = vi.fn();
+    const Ctor = vi.fn();
+    vi.stubGlobal('Notification', Object.assign(Ctor, { permission: 'granted' }));
+    (globalThis as { deckDesktop?: unknown }).deckDesktop = { flashWindow };
+    vi.spyOn(document, 'hasFocus').mockReturnValue(false);
+    notifyTurnDone('Sessão', undefined, 'k1');
+    expect(flashWindow).toHaveBeenCalledOnce();
+    expect(Ctor).not.toHaveBeenCalled();
+    resetState();
+  });
+
+  it('keeps the web notification on a shell without flashWindow', () => {
+    setVisibility('hidden');
+    const Ctor = vi.fn(() => ({}));
+    vi.stubGlobal('Notification', Object.assign(Ctor, { permission: 'granted' }));
+    (globalThis as { deckDesktop?: unknown }).deckDesktop = {};
+    vi.spyOn(document, 'hasFocus').mockReturnValue(false);
+    notifyTurnDone('Sessão', undefined, 'k2');
+    expect(Ctor).toHaveBeenCalledOnce();
+    resetState();
+  });
+});

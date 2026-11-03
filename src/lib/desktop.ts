@@ -27,6 +27,14 @@ export function focusDesktopWindow(): boolean {
   return true;
 }
 
+// Older shells lack flashWindow: the caller falls back to a web notification.
+export function flashDesktopWindow(): boolean {
+  const fn = bridge()?.flashWindow;
+  if (!fn) return false;
+  fn();
+  return true;
+}
+
 export function setDesktopBadge(count: number): boolean {
   const fn = bridge()?.setBadge;
   if (!fn) return false;
