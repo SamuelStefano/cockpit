@@ -6,7 +6,7 @@ export function DeviceLinkModal({ l }: { l: ReturnType<typeof useDeviceLink> }) 
   return (
     <Modal open={l.open} onClose={l.close} title="Conectar outro aparelho" icon="smartphone" maxWidth="max-w-sm">
       <p className="text-[13px] leading-relaxed text-neutral-400">
-        No aparelho novo, abra a câmera e aponte para o QR. Ele entra sozinho. Vale uma vez, por 10 minutos.
+        No aparelho novo, abra a câmera e aponte para o QR. Ele entra sozinho, já com a sua conta. Vale uma vez; use em até 5 minutos.
       </p>
       <div className="mt-4 flex flex-col items-center gap-3">
         {l.loading && <p className="py-16 text-[12.5px] text-neutral-500">gerando código…</p>}

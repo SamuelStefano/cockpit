@@ -47,6 +47,7 @@ import { useSupabaseAuth } from './lib/useSupabaseAuth';
 import { useProfileHydration } from './lib/profile';
 import { useSessionPrefsHydration } from './lib/session-prefs';
 import { resolveAuthGate, useSealState } from './app/AuthGateView';
+import { QrApproveModal } from './components/auth/QrApproveModal';
 import { relReset } from './lib/time';
 import { useTerminalTabs } from './app/useTerminalTabs';
 import { useGlobalShortcuts } from './app/useGlobalShortcuts';
@@ -276,6 +277,7 @@ function CockpitBody() {
   return (
     <ConnectionsContext.Provider value={connectionsCtx}>
     <SessionLinkContext.Provider value={sessionLinks}>
+      {SUPABASE_ENABLED && <QrApproveModal signedIn={!!sbAuth.session} />}
       <AiConsentSheet open={consent.open} onAgree={consent.agree} onDecline={consent.decline} />
     <TopBarSlotContext.Provider value={topBarSlot}>
     {/* Safe-area nos quatro lados: com `viewport-fit=cover` o notch em landscape
