@@ -165,6 +165,29 @@ export function supabaseStore(cfg: StoreConfig): RelayStore {
     // from it (migration 0001). A user already gone (404) counts as done, so a retry
     // after a lost response succeeds. Any other failure throws: nothing is half-deleted
     // silently and the caller can retry.
+    // QR sign-in: a magic-link token hash for this exact user, never emailed.
+    // The address is read from the user row (not the caller's JWT) and the link
+    // must come back for the same id, or nothing is handed out.
+    async mintLoginToken(accountId) {
+      if (!UUID.test(accountId)) throw new Error('mintLoginToken: bad id');
+      const root = cfg.url.replace(/\/$/, '');
+      const authz = { apikey: cfg.serviceKey, authorization: `Bearer ${cfg.serviceKey}`, 'content-type': 'application/json' };
+      const u = await f(`${root}/auth/v1/admin/users/${accountId}`, { headers: authz, signal: AbortSignal.timeout(REQ_TIMEOUT_MS) });
+      if (!u.ok) throw new Error(`user read failed: ${u.status}`);
+      const user = (await u.json()) as { id?: string; email?: string; banned_until?: string | null };
+      if (user.id !== accountId || !user.email) throw new Error('user mismatch');
+      if (user.banned_until && Date.parse(user.banned_until) > Date.now()) throw new Error('user banned');
+      const g = await f(`${root}/auth/v1/admin/generate_link`, {
+        method: 'POST', headers: authz, signal: AbortSignal.timeout(REQ_TIMEOUT_MS),
+        body: JSON.stringify({ type: 'magiclink', email: user.email }),
+      });
+      if (!g.ok) throw new Error(`generate_link failed: ${g.status}`);
+      const j = (await g.json()) as { id?: string; hashed_token?: string; user?: { id?: string }; properties?: { hashed_token?: string } };
+      const hash = j.properties?.hashed_token ?? j.hashed_token;
+      if ((j.user?.id ?? j.id) !== accountId || typeof hash !== 'string' || !hash) throw new Error('generate_link mismatch');
+      return hash;
+    },
+
     async deleteAccount(accountId) {
       if (!UUID.test(accountId)) throw new Error('deleteAccount: bad id');
       const root = cfg.url.replace(/\/$/, '');
