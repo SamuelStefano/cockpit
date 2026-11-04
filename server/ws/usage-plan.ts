@@ -3,6 +3,8 @@ import { join, dirname } from 'node:path';
 import { homedir } from 'node:os';
 import type { PlanUsage, PlanLimit } from '../../shared/protocol';
 import { broadcast } from './broadcast';
+import { credMtime } from './auth-health';
+import { dropRateFromOldLogin } from './rate';
 import { readOAuthToken, OAUTH_BETA } from '../oauth';
 import { fetchUsageFromHeaders, mergeHeaderUsage } from './usage-headers';
 
@@ -421,6 +423,7 @@ export function planUsageFrame(now = Date.now(), always = false): PlanUsageFrame
 }
 
 function emit(): void {
+  if (dropRateFromOldLogin(credMtime())) broadcast({ t: 'rate', resetsAt: 0, status: 'allowed' });
   const frame = planUsageFrame();
   if (frame) broadcast(frame);
 }

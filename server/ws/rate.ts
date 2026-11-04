@@ -22,3 +22,12 @@ export function getLastRate() {
 export function setLastRate(r: { resetsAt: number; status: string }) {
   lastRate = { resetsAt: r.resetsAt, status: typeof r.status === 'string' ? r.status : 'allowed', setAt: Date.now() };
 }
+
+// A ceiling belongs to the login that hit it. After `/login` (account switch) the
+// credentials file is newer than the event, and the old `rejected` kept the composer
+// and the queue locked on an account with tokens left until the old reset.
+export function dropRateFromOldLogin(credMtimeMs: number): boolean {
+  if (!lastRate || credMtimeMs <= lastRate.setAt) return false;
+  lastRate = null;
+  return true;
+}
