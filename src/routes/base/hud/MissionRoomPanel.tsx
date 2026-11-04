@@ -80,7 +80,14 @@ export function MissionRoomPanel({ missions, open, onClose, selectedId, onSelect
             <button type="button" aria-label="Close mission" onClick={() => onSelectMission(null)}>×</button>
           </header>
           {selected.suggested && <p className="why">{selected.reason}</p>}
-          <pre>{selected.description || selected.summary}</pre>
+          <p className="what">{selected.summary}</p>
+          {selected.why && <p className="why-matters">{selected.why}</p>}
+          {selected.description && (
+            <details className="tech">
+              <summary>Ver prompt técnico</summary>
+              <pre>{selected.description}</pre>
+            </details>
+          )}
           <footer>
             <button type="button" className="done" onClick={() => complete(selected)}>Complete mission</button>
           </footer>

@@ -92,6 +92,15 @@ export interface CardDflLink {
   error?: string;
 }
 
+// Plain-language rewrite of a card for the Base Mission Room (server/
+// mission-summary.ts). Derived, never persisted on the board: the server
+// attaches it to outgoing frames and sanitizeCard drops it on save.
+export interface CardPlain {
+  title: string;
+  what: string;
+  why: string;
+}
+
 export interface CanvasCard {
   id: string;
   title: string;
@@ -105,6 +114,7 @@ export interface CanvasCard {
   updatedAt: number;
   reuse?: CardReuse;
   dfl?: CardDflLink;
+  plain?: CardPlain;
 }
 
 export interface CanvasNode {

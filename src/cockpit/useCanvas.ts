@@ -184,6 +184,16 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
     // Slim patch (card-review.ts auto-moving a card to "review"): update just
     // that card's status locally instead of waiting for a full canvas-board —
     // the server only sends this one field, not the whole board, on purpose.
+    if (msg.t === 'canvas-card-plain') {
+      setBoard((b) => {
+        const i = b.cards.findIndex((c) => c.id === msg.cardId);
+        if (i < 0 || b.cards[i].updatedAt !== msg.cardUpdatedAt) return b;
+        const cards = [...b.cards];
+        cards[i] = { ...cards[i], plain: msg.plain };
+        return { ...b, cards };
+      });
+      return true;
+    }
     if (msg.t === 'canvas-card-status') {
       setBoard((b) => {
         const i = b.cards.findIndex((c) => c.id === msg.cardId);

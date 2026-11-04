@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CanvasCard } from '../../../shared/canvas';
-import { buildMissions } from './missions';
+import { buildMissions, SUMMARY_PENDING } from './missions';
 
 const card = (id: string, o: Partial<CanvasCard> = {}): CanvasCard => ({
   id, title: `Title ${id}`, prompt: 'Do the thing', status: 'todo', kind: 'task',
@@ -15,12 +15,19 @@ describe('buildMissions', () => {
     const m = buildMissions([card('a'), card('b', { status: 'done' }), card('c', { status: 'review' }), card('d', { kind: 'content' })], 0);
     expect(m.map((x) => x.id).sort()).toEqual(['a', 'd']);
   });
-  it('summarizes the first meaningful line, clipped to 90 chars', () => {
-    const m = buildMissions([card('a', { prompt: '\n\n## Fix the login redirect\nmore' }), card('b', { prompt: 'x'.repeat(200) }), card('c', { prompt: '  \n ' })], 0);
-    const by = Object.fromEntries(m.map((x) => [x.id, x]));
-    expect(by.a.summary).toBe('Fix the login redirect');
-    expect(by.b.summary.length).toBeLessThanOrEqual(90);
-    expect(by.c.summary).toBe('Title c');
+  it('uses the plain-language summary when present', () => {
+    const plain = { title: 'Fix login', what: 'Users return to the page they left.', why: 'Less frustration.' };
+    const [m] = buildMissions([card('a', { prompt: 'Refactor useAuth redirect in src/x.ts', plain })], 0);
+    expect(m.title).toBe('Fix login');
+    expect(m.summary).toBe(plain.what);
+    expect(m.why).toBe(plain.why);
+    expect(m.description).toBe('Refactor useAuth redirect in src/x.ts');
+  });
+  it('shows the card title and a placeholder (never the prompt) until plain exists', () => {
+    const [m] = buildMissions([card('a', { prompt: 'Refactor useAuth redirect' })], 0);
+    expect(m.title).toBe('Title a');
+    expect(m.summary).toBe(SUMMARY_PENDING);
+    expect(m.why).toBe('');
   });
   it('sizes by prompt length with matching xp', () => {
     const m = buildMissions([card('s', { prompt: 'a'.repeat(299) }), card('m', { prompt: 'a'.repeat(300) }), card('l', { prompt: 'a'.repeat(1200) })], 0);

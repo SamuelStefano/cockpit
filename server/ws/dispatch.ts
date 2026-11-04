@@ -73,6 +73,7 @@ import { requestGrokUsageRefresh, grokUsageFrame } from './usage-grok';
 import { listGraphs, readGraph, buildGraph, deleteGraph, queryGraph, nodeOp } from '../graph';
 import { buildBench } from '../bench';
 import { buildCanvas } from '../canvas/index';
+import { withPlain } from '../mission-summary';
 import { readOrchestrator } from '../canvas/orchestrator';
 import { readOrchestratorActivity } from '../canvas/orchestrator-activity';
 import { readBusyElsewhereSessionIds, readBusyHeadlessElsewhereSessionIds, refreshLivenessSnapshot } from '../canvas/cv-liveness';
@@ -105,7 +106,7 @@ startCanvasFlows();
 // (F5, a second tab, /canvas opened after the flow already fired) needs this
 // on the SAME frame as the board, not just the one-shot canvas-flow-run
 // broadcast it may have missed entirely.
-const boardFrame = (board: CanvasBoard) => ({ t: 'canvas-board' as const, board, flowRuns: activeFlowRuns() });
+const boardFrame = (board: CanvasBoard) => ({ t: 'canvas-board' as const, board: withPlain(board), flowRuns: activeFlowRuns() });
 
 // CPU samples for the canvas-term-stats POLL, keyed per SOCKET — not one
 // shared map. cpuPercent is a delta against the previous sample per key

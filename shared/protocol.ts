@@ -2,7 +2,7 @@
 // REGRA (squad L3): types-only — zero import de node:*/fs. O bundle do browser
 // importa este arquivo.
 
-import type { AreaBudget, AreaId, CanvasBoard, CanvasCard, CanvasFlow, CanvasFlowRun, CanvasGraph, CanvasPos, CardStatus, OrchestratorActivity, OrchestratorInfo, SessionPeek, TermStats } from './canvas';
+import type { AreaBudget, AreaId, CanvasBoard, CanvasCard, CanvasFlow, CanvasFlowRun, CanvasGraph, CanvasPos, CardPlain, CardStatus, OrchestratorActivity, OrchestratorInfo, SessionPeek, TermStats } from './canvas';
 import type { AreaUsage } from './canvas-budget';
 import type { DflDraft, DraftOp } from './dfl-drafts';
 import type { McpsState } from './mcps';
@@ -1163,6 +1163,9 @@ export type ServerMsg =
   // board, so it doesn't have to have caught the one-shot canvas-flow-run
   // broadcast to know the card is running.
   | { t: 'canvas-board'; board: CanvasBoard; flowRuns: CanvasFlowRun[] }
+  // Plain-language summary of one card became ready (server/mission-summary.ts);
+  // patches just that card's `plain`, never the whole board.
+  | { t: 'canvas-card-plain'; cardId: string; cardUpdatedAt: number; plain: CardPlain }
   // A flow just delivered its result to its target — the UI pulses that arrow
   // and patches just this flow's counters, never the whole board (which would
   // leak every card's prompt and every other flow's template to every socket).
