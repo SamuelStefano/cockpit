@@ -41,6 +41,9 @@
 #   DECK_ISOLATED=1    instalação isolada (rode com sudo): cria o usuário `deck` SEM sudo, roda o
 #                      instalador inteiro como ele e deixa só a unit systemd (User=deck) com root.
 #                      Não mexe na sua conta, no seu Node nem nos seus pacotes
+#   DECK_USER=NOME     usuário do SO do modo isolado (ou `--user NOME`); default: deck. Com outro nome o
+#                      serviço vira deck-agent-NOME e o wrapper deck-agent-NOME, então duas instalações
+#                      na mesma máquina não se sobrescrevem
 #   DECK_NO_SERVICE=1  uso interno do modo isolado: instala tudo menos o serviço e grava
 #                      $AGENT_DIR/install.env (chmod 600) pro processo root registrar a unit
 #   DECK_SETUP_URL     de onde baixar este script no modo isolado quando ele veio por pipe (teste)
@@ -50,8 +53,27 @@ set -euo pipefail
 # Default restritivo; installs no HOME do próprio usuário funcionam com 077.
 umask 077
 
-CODE="${1:-}"
+CODE=""
+USER_ARG=""
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --user)
+      if [ "$#" -lt 2 ]; then echo "[deck] --user precisa de um nome de usuário."; exit 2; fi
+      USER_ARG="$2"; shift 2 ;;
+    --user=*) USER_ARG="${1#--user=}"; shift ;;
+    *) if [ -z "$CODE" ]; then CODE="$1"; fi; shift ;;
+  esac
+done
 if [ -z "$CODE" ]; then CODE="${DECK_PAIR_CODE:-}"; fi
+# OS user the agent runs as. "deck" stays the default; everything derived from it
+# (systemd unit, wrapper, messages) follows the chosen name.
+USER_EXPLICIT="${USER_ARG:-${DECK_USER:-}}"
+DECK_USER="${USER_EXPLICIT:-deck}"
+if ! [[ "$DECK_USER" =~ ^[a-z_][a-z0-9_-]{0,30}$ ]] || [ "$DECK_USER" = "root" ]; then
+  echo "[deck] usuário inválido: '$DECK_USER' (use minúsculas, dígitos, _ ou -; não pode ser root)."
+  exit 2
+fi
+if [ "$DECK_USER" = "deck" ]; then SERVICE_NAME="deck-agent"; else SERVICE_NAME="deck-agent-$DECK_USER"; fi
 RELAY="${DECK_RELAY_URL:-wss://deck-relay.devfellowship.com}"
 SRC_DIR="${DECK_SRC_DIR:-$HOME/.deck-src}"
 AGENT_DIR="${DECK_AGENT_DIR:-$HOME/.deck-agent}"
@@ -262,33 +284,56 @@ load_install_env() { # load_install_env <arquivo>
   return 0
 }
 
+# Detects an existing Deck install for <user> BEFORE anything is written. Sets
+# EXISTING_INSTALL=1 when this user already has the unit or a paired identity.
+# Refuses (exit 1) when the unit name is taken by a DIFFERENT OS user: writing it
+# would take over that user's agent.
+detect_existing_install() { # detect_existing_install <user> <agent-dir> <unit-path>
+  local user="$1" adir="$2" unit="$3" unit_user=""
+  EXISTING_INSTALL=0
+  if [ -f "$unit" ]; then
+    unit_user="$(sed -n 's/^User=//p' "$unit" 2>/dev/null | head -n 1 || true)"
+    if [ -n "$unit_user" ] && [ "$unit_user" != "$user" ]; then
+      echo "[deck] ERRO: $unit já existe e pertence ao usuário '$unit_user', não a '$user'."
+      echo "[deck] Nada foi alterado. Para instalar um segundo agente nesta máquina use outro usuário:"
+      echo "  DECK_ISOLATED=1 DECK_USER=OUTRO_NOME (ou --user OUTRO_NOME) — o serviço vira deck-agent-OUTRO_NOME."
+      exit 1
+    fi
+    EXISTING_INSTALL=1
+  fi
+  if [ -f "$adir/identity.json" ]; then EXISTING_INSTALL=1; fi
+  if [ "$EXISTING_INSTALL" = "1" ]; then
+    echo "[deck] instalação existente detectada para '$user' (${unit_user:+unit $unit, }${adir}). Atualizo no lugar: a identidade é preservada e a unit ganha backup .bak."
+  fi
+}
+
 # Roda um comando como o usuário deck (runuser; su como fallback).
 deck_exec() {
-  if command -v runuser >/dev/null 2>&1; then runuser -u deck -- "$@"
-  else su -s /bin/bash deck -c "$(printf '%q ' "$@")"; fi
+  if command -v runuser >/dev/null 2>&1; then runuser -u "$DECK_USER" -- "$@"
+  else su -s /bin/bash "$DECK_USER" -c "$(printf '%q ' "$@")"; fi
 }
 
 isolated_parent() {
-  local dhome="/home/deck" unit="/etc/systemd/system/deck-agent.service" exists=0 copy rc=0 groups_of_deck mode_o suser_home
+  local dhome="/home/$DECK_USER" unit="/etc/systemd/system/$SERVICE_NAME.service" exists=0 copy rc=0 groups_of_deck mode_o suser_home
   local deck_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
   SUDO=""
   if [ "$(id -u)" -ne 0 ]; then
     cat <<EOF
 [deck] DECK_ISOLATED=1 precisa de root (via sudo) pra criar o usuário 'deck' e o serviço.
 Rode como seu usuário normal, com sudo:
-  curl -fsSL $SETUP_URL | sudo DECK_ISOLATED=1 DECK_PAIR_CODE=CÓDIGO bash
+  curl -fsSL $SETUP_URL | sudo DECK_ISOLATED=1$([ "$DECK_USER" = deck ] || echo " DECK_USER=$DECK_USER") DECK_PAIR_CODE=CÓDIGO bash
 EOF
     exit 1
   fi
 
-  if id deck >/dev/null 2>&1; then
+  if id "$DECK_USER" >/dev/null 2>&1; then
     exists=1
-    dhome="$(getent passwd deck 2>/dev/null | cut -d: -f6 || true)"; dhome="${dhome:-/home/deck}"
-    groups_of_deck=" $(id -nG deck 2>/dev/null || true) "
+    dhome="$(getent passwd "$DECK_USER" 2>/dev/null | cut -d: -f6 || true)"; dhome="${dhome:-/home/$DECK_USER}"
+    groups_of_deck=" $(id -nG "$DECK_USER" 2>/dev/null || true) "
     case "$groups_of_deck" in
       *" sudo "*|*" wheel "*|*" admin "*)
-        echo "[deck] ERRO: o usuário 'deck' já existe e está no grupo sudo/wheel/admin."
-        echo "[deck] O modo isolado exige um 'deck' SEM privilégios. Remova-o do grupo (gpasswd -d deck sudo) ou use outro usuário, e rode de novo."
+        echo "[deck] ERRO: o usuário '$DECK_USER' já existe e está no grupo sudo/wheel/admin."
+        echo "[deck] O modo isolado exige um '$DECK_USER' SEM privilégios. Remova-o do grupo (gpasswd -d $DECK_USER sudo) ou use outro usuário, e rode de novo."
         exit 1 ;;
     esac
   fi
@@ -297,21 +342,23 @@ EOF
     suser_home="$(getent passwd "$SUDO_USER" 2>/dev/null | cut -d: -f6 || true)"; suser_home="${suser_home:-/home/$SUDO_USER}"
     mode_o="$(stat -c %a "$suser_home" 2>/dev/null || true)"; mode_o="${mode_o: -1}"
     if [ -n "$mode_o" ] && [ $((mode_o & 5)) -ne 0 ]; then
-      echo "[deck] AVISO: $suser_home é legível por outros usuários (inclusive o 'deck'). Não alterei nada; sugestão:"
+      echo "[deck] AVISO: $suser_home é legível por outros usuários (inclusive o '$DECK_USER'). Não alterei nada; sugestão:"
       echo "         sudo chmod 750 $suser_home"
     fi
   fi
 
+  detect_existing_install "$DECK_USER" "$dhome/.deck-agent" "$unit"
+
   if [ "${DECK_DRY_RUN:-}" = "1" ]; then
     echo "[deck] DECK_ISOLATED=1 DECK_DRY_RUN=1 — nada será alterado. Plano do processo root:"
-    if [ "$exists" = "1" ]; then echo "  usuário deck: já existe (reaproveita, home $dhome)"
-    else echo "  usuário deck: criaria (useradd -m -s /bin/bash deck), sem sudo/wheel"; fi
-    echo "  systemd unit: $unit (User=deck; único arquivo escrito como root)"
+    if [ "$exists" = "1" ]; then echo "  usuário $DECK_USER: já existe (reaproveita, home $dhome)"
+    else echo "  usuário $DECK_USER: criaria (useradd -m -s /bin/bash $DECK_USER), sem sudo/wheel"; fi
+    echo "  systemd unit: $unit (User=$DECK_USER; único arquivo escrito como root)"
     if have_build_tools; then echo "  build tools: presentes (reaproveita)"
-    elif build_tools_auto; then echo "  build tools: instalaria make/compilador/python3 (processo root, antes de passar pro deck)"
+    elif build_tools_auto; then echo "  build tools: instalaria make/compilador/python3 (processo root, antes de passar pro $DECK_USER)"
     else echo "  build tools: faltam e a instalação automática está desligada (DECK_INSTALL_BUILD_TOOLS=0)"; fi
     if [ "$exists" != "1" ]; then
-      echo "  o plano do instalador (rodando como deck) aparece depois que o usuário existir."
+      echo "  o plano do instalador (rodando como $DECK_USER) aparece depois que o usuário existir."
       exit 0
     fi
   fi
@@ -325,7 +372,7 @@ EOF
   fi
   chmod 644 "$copy"
 
-  local envs=(HOME="$dhome" USER=deck LOGNAME=deck PATH="$deck_path" SHELL=/bin/bash)
+  local envs=(DECK_USER="$DECK_USER" HOME="$dhome" USER="$DECK_USER" LOGNAME="$DECK_USER" PATH="$deck_path" SHELL=/bin/bash)
   [ -n "$CODE" ] && envs+=(DECK_PAIR_CODE="$CODE")
   [ -n "${DECK_DEVICE_CODE:-}" ] && envs+=(DECK_DEVICE_CODE="$DECK_DEVICE_CODE")
   [ -n "${DECK_RELAY_URL:-}" ] && envs+=(DECK_RELAY_URL="$DECK_RELAY_URL")
@@ -361,60 +408,60 @@ EOF
   fi
 
   if [ "$exists" != "1" ]; then
-    echo "[deck] criando o usuário 'deck' (sem sudo)…"
-    if command -v useradd >/dev/null 2>&1; then useradd -m -s /bin/bash deck
-    elif command -v adduser >/dev/null 2>&1; then adduser -D -s /bin/bash deck
-    else echo "[deck] sem useradd/adduser — crie o usuário 'deck' à mão e rode de novo."; exit 1; fi
-    dhome="$(getent passwd deck 2>/dev/null | cut -d: -f6 || true)"; dhome="${dhome:-/home/deck}"
-    envs[0]="HOME=$dhome"
+    echo "[deck] criando o usuário '$DECK_USER' (sem sudo)…"
+    if command -v useradd >/dev/null 2>&1; then useradd -m -s /bin/bash "$DECK_USER"
+    elif command -v adduser >/dev/null 2>&1; then adduser -D -s /bin/bash "$DECK_USER"
+    else echo "[deck] sem useradd/adduser — crie o usuário '$DECK_USER' à mão e rode de novo."; exit 1; fi
+    dhome="$(getent passwd "$DECK_USER" 2>/dev/null | cut -d: -f6 || true)"; dhome="${dhome:-/home/$DECK_USER}"
+    envs[1]="HOME=$dhome"
   fi
 
   rm -f "$dhome/.deck-agent/install.env"
   deck_exec env -i "${envs[@]}" DECK_NO_SERVICE=1 bash "$copy" || rc=$?
-  if [ "$rc" -ne 0 ]; then echo "[deck] o instalador (usuário deck) falhou com código $rc."; exit "$rc"; fi
+  if [ "$rc" -ne 0 ]; then echo "[deck] o instalador (usuário $DECK_USER) falhou com código $rc."; exit "$rc"; fi
   if [ ! -f "$dhome/.deck-agent/install.env" ]; then
     echo "[deck] nada a registrar: o instalador terminou sem preparar o serviço (veja a mensagem acima)."
     exit 0
   fi
   load_install_env "$dhome/.deck-agent/install.env" || exit 1
 
-  SERVICE="deck-agent"; RUN_USER="deck"; HOME="$dhome"
+  SERVICE="$SERVICE_NAME"; RUN_USER="$DECK_USER"; HOME="$dhome"
   FLOCK_BIN="$(command -v flock || true)"; LOCK="$AGENT_DIR/agent.lock"
   UNIT_PATH="$NODE_BIN:$CLAUDE_DIR:$deck_path"
   build_exec_start
   if can_systemd; then
-    echo "[deck] instalando serviço systemd ($SERVICE, User=deck)…"
+    echo "[deck] instalando serviço systemd ($SERVICE, User=$DECK_USER)…"
     render_unit | write_unit "$unit"
     systemctl daemon-reload
     systemctl enable "$SERVICE" >/dev/null 2>&1 || true
     systemctl restart "$SERVICE"
-    echo "[deck] agente instalado como serviço (usuário=deck, role=$ROLE)."
+    echo "[deck] agente instalado como serviço (usuário=$DECK_USER, role=$ROLE)."
     echo "[deck] logs: journalctl -u $SERVICE -f"
   else
-    echo "[deck] systemd indisponível — subindo com nohup como 'deck' (sobrevive ao SSH, NÃO a reboot)."
+    echo "[deck] systemd indisponível — subindo com nohup como '$DECK_USER' (sobrevive ao SSH, NÃO a reboot)."
     # shellcheck disable=SC2086
     deck_exec env -i HOME="$dhome" PATH="$UNIT_PATH" NPM_CONFIG_PREFIX="$dhome/.deck-npm" DECK_RELAY_URL="$RELAY" DECK_AGENT_ROLE="$ROLE" DECK_AGENT_DIR="$AGENT_DIR" DECK_SUPERVISED=1 \
       sh -c 'cd "$1" && shift && touch agent.log && chmod 600 agent.log && nohup sh -c "while :; do \"\$@\"; sleep 3; done" deck-agent-loop "$@" >>agent.log 2>&1 &' _ "$SRC_DIR" $EXEC_START
-    echo "[deck] agente rodando em segundo plano (log: $SRC_DIR/agent.log; parar: pkill -u deck -f deck-agent-loop)."
+    echo "[deck] agente rodando em segundo plano (log: $SRC_DIR/agent.log; parar: pkill -u $DECK_USER -f deck-agent-loop)."
   fi
   setup_wsl_keepalive || true
 
-  if write_deck_agent_wrapper /usr/local/bin/deck-agent; then
-    echo "[deck] cadastrar outro navegador nesta VPS: deck-agent enroll-device"
+  if write_deck_agent_wrapper "/usr/local/bin/$SERVICE_NAME"; then
+    echo "[deck] cadastrar outro navegador nesta VPS: $SERVICE_NAME enroll-device"
   else
-    echo "[deck] aviso: não consegui instalar /usr/local/bin/deck-agent; use $SRC_DIR/bin/deck-agent enroll-device"
+    echo "[deck] aviso: não consegui instalar /usr/local/bin/$SERVICE_NAME; use $SRC_DIR/bin/deck-agent enroll-device"
   fi
 
   if ! deck_exec env -i HOME="$dhome" PATH="$UNIT_PATH" bash -c "$(declare -f claude_logged_in); claude_logged_in"; then
-    echo "[deck] pronto, MAS o claude não está logado para o usuário deck."
+    echo "[deck] pronto, MAS o claude não está logado para o usuário $DECK_USER."
     echo "  Abra o Deck no navegador e clique em 'Conectar conta Claude' (ou rode na VPS:"
-    echo "  sudo -iu deck env PATH=$UNIT_PATH $CLAUDE_DIR/claude auth login)"
+    echo "  sudo -iu $DECK_USER env PATH=$UNIT_PATH $CLAUDE_DIR/claude auth login)"
     echo "  Se logou pela VPS, reinicie o serviço: sudo systemctl restart $SERVICE"
   else
     echo "[deck] pronto — a tela do Deck troca sozinha quando o agente conectar."
   fi
   echo "[deck] desinstalar:"
-  echo "  sudo systemctl disable --now deck-agent; sudo rm /etc/systemd/system/deck-agent.service; sudo pkill -u deck; sudo userdel -r deck"
+  echo "  sudo systemctl disable --now $SERVICE_NAME; sudo rm $unit; sudo pkill -u $DECK_USER; sudo userdel -r $DECK_USER"
   exit 0
 }
 
@@ -471,6 +518,15 @@ Crie um usuário normal com sudo (defina a senha: o sudo vai pedir) e rode de no
 Se você REALMENTE quer o agente como root, rode de novo com DECK_ALLOW_ROOT=1.
 EOF
   exit 1
+fi
+
+# Not isolated: the agent runs as the invoking user, so a different DECK_USER can't apply.
+if [ "${DECK_NO_SERVICE:-}" != "1" ] && [ -n "$USER_EXPLICIT" ] && [ "$DECK_USER" != "$(id -un)" ]; then
+  echo "[deck] --user '$DECK_USER' só vale com DECK_ISOLATED=1 (que cria o usuário). Rode como '$DECK_USER' ou use o modo isolado."
+  exit 1
+fi
+if [ "${DECK_NO_SERVICE:-}" != "1" ]; then
+  detect_existing_install "$(id -un)" "$AGENT_DIR" "/etc/systemd/system/$SERVICE_NAME.service"
 fi
 
 SUDO=""
@@ -576,8 +632,8 @@ if [ "$DRY" = "1" ]; then
   if [ "${DECK_NO_SERVICE:-}" = "1" ]; then
     echo "  systemd unit: não escrita aqui — o processo root registra a unit (User=deck)"
   elif command -v systemctl >/dev/null 2>&1; then
-    if [ -f "/etc/systemd/system/deck-agent.service" ]; then echo "  systemd unit: reaproveita o nome (atualiza /etc/systemd/system/deck-agent.service, backup .bak)"
-    else echo "  systemd unit: instalaria /etc/systemd/system/deck-agent.service (único uso de sudo)"; fi
+    if [ -f "/etc/systemd/system/$SERVICE_NAME.service" ]; then echo "  systemd unit: reaproveita o nome (atualiza /etc/systemd/system/$SERVICE_NAME.service, backup .bak)"
+    else echo "  systemd unit: instalaria /etc/systemd/system/$SERVICE_NAME.service (único uso de sudo)"; fi
   else
     echo "  systemd unit: systemd ausente — subiria com nohup"
   fi
@@ -704,7 +760,7 @@ if [ -n "$CODE" ]; then
   fi
 fi
 
-SERVICE="deck-agent"
+SERVICE="$SERVICE_NAME"
 RUN_USER="$(id -un)"
 NODE_BIN="$NODE_DIR"
 NPX_BIN="$(command -v npx)"
@@ -754,10 +810,10 @@ fi
 
 write_deck_agent_wrapper "$SRC_DIR/bin/deck-agent" || echo "[deck] aviso: não consegui gravar $SRC_DIR/bin/deck-agent"
 if [ "${DECK_NO_SERVICE:-}" != "1" ]; then
-  if { [ -n "$SUDO" ] || [ "$(id -u)" -eq 0 ]; } && write_deck_agent_wrapper /usr/local/bin/deck-agent "$SUDO"; then
-    WRAPPER=deck-agent
-  elif write_deck_agent_wrapper "$HOME/.local/bin/deck-agent"; then
-    WRAPPER="$HOME/.local/bin/deck-agent"
+  if { [ -n "$SUDO" ] || [ "$(id -u)" -eq 0 ]; } && write_deck_agent_wrapper "/usr/local/bin/$SERVICE_NAME" "$SUDO"; then
+    WRAPPER="$SERVICE_NAME"
+  elif write_deck_agent_wrapper "$HOME/.local/bin/$SERVICE_NAME"; then
+    WRAPPER="$HOME/.local/bin/$SERVICE_NAME"
   else
     WRAPPER="$SRC_DIR/bin/deck-agent"
   fi
