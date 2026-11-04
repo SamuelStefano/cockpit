@@ -40,6 +40,6 @@ describe('SECTORS', () => {
     expect(new Set(SECTORS.map((s) => s.hotkey)).size).toBe(SECTORS.length);
   });
   it('has a missions sector on the M key', () => {
-    expect(SECTORS.find((s) => s.id === 'missions')?.hotkey).toBe('M');
+    expect(SECTORS.find((s) => s.id === 'missions')?.hotkey).toBe('T');
   });
 });

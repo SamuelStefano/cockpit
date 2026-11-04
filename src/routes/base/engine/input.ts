@@ -109,7 +109,7 @@ export function attachInput(e: BaseEngine): () => void {
     if (sector) e.goSector(sector.id);
     if (k === '[') e.stepDesk(-1);
     if (k === ']') e.stepDesk(1);
-    if (k === 'n') e.cycleSound();
+    if (k === 'm') e.cycleSound();
     if (!practice) return;
     if (k === 'f') e.openFunnel();
     if (k === 'p') { ev.preventDefault(); e.setComposer(true); }
