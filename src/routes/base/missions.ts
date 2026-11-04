@@ -6,7 +6,7 @@ export type MissionSize = 'S' | 'M' | 'L';
 export interface Mission {
   id: string; // CanvasCard.id
   title: string;
-  summary: string; // plain-language "what" (or a placeholder until it is generated)
+  summary: string; // plain-language "what"; the first line of the prompt while none exists
   why: string; // plain-language "why it matters" ('' until generated)
   description: string; // raw technical card prompt
   size: MissionSize;
@@ -16,9 +16,20 @@ export interface Mission {
   reason: string; // why this one is suggested (empty when not suggested)
 }
 
-export const SUMMARY_PENDING = 'Gerando resumo…';
+const SUMMARY_MAX = 90;
 const XP: Record<MissionSize, number> = { S: 10, M: 25, L: 50 };
 const SIZE_RANK: Record<MissionSize, number> = { S: 0, M: 1, L: 2 };
+
+const clip = (t: string): string => (t.length <= SUMMARY_MAX ? t : `${t.slice(0, SUMMARY_MAX - 1).trimEnd()}…`);
+
+// Fallback while the generated plain summary is missing (generator off, no key, rejected answer).
+function summarize(prompt: string, title: string): string {
+  for (const raw of prompt.split('\n')) {
+    const line = raw.replace(/^[\s#>*\-\d.)]+/, '').trim();
+    if (line.length >= 3 && /[\p{L}\p{N}]/u.test(line)) return clip(line);
+  }
+  return clip(title.trim());
+}
 
 const sizeOf = (len: number): MissionSize => (len < 300 ? 'S' : len < 1200 ? 'M' : 'L');
 
@@ -43,7 +54,7 @@ export function buildMissions(cards: CanvasCard[], _now: number): Mission[] {
     list.push({
       id: c.id,
       title: c.plain?.title || c.title,
-      summary: c.plain?.what || SUMMARY_PENDING,
+      summary: c.plain?.what || summarize(c.prompt, c.title),
       why: c.plain?.why ?? '',
       description: c.prompt,
       size, status: c.status, xp: XP[size], suggested: false, reason: '',
