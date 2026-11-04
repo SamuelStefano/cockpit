@@ -8,6 +8,7 @@ export const SECTORS: SectorDef[] = [
   { id: 'ship', name: 'SHIP', hotkey: 'S', color: 0x3f6fa8, css: '#7cb0ec', x0: -46, x1: 66, z0: 3, z1: 15 },
   { id: 'ops', name: 'OPS', hotkey: 'O', color: 0x2f7f79, css: '#59c2ba', x0: 46, x1: 66, z0: -15, z1: 3 },
   { id: 'archive', name: 'ARCHIVE', hotkey: 'R', color: 0x7d5bbe, css: '#b79bff', x0: -66, x1: -46, z0: 3, z1: 15 },
+  { id: 'missions', name: 'MISSIONS', hotkey: 'M', color: 0xd9a441, css: '#e8b84f', x0: 66, x1: 110, z0: -15, z1: 15 },
 ];
 
 export const sectorCenter = (s: SectorDef): Point => ({ x: (s.x0 + s.x1) / 2, z: (s.z0 + s.z1) / 2 });

@@ -3,17 +3,18 @@ import type { Point, Wing } from '../types';
 import { sectorCenter, sectorById } from '../sectors';
 import type { SectorId } from '../types';
 
-// World is ~132 wide; the fleet shot backs off until it all fits the viewport's aspect.
+// World spans x -66..110 (176 wide, centered on FLEET_CX); the fleet shot backs off until it all fits the viewport's aspect.
+export const FLEET_CX = 22;
 export function fleetDistance(aspect: number): number {
-  return Math.max(100, 190 / Math.max(aspect, 0.5));
+  return Math.max(100, 255 / Math.max(aspect, 0.5));
 }
 
 export class Rig {
   readonly camera = new THREE.PerspectiveCamera(30, 1, 0.1, 500);
   private pos = new THREE.Vector3();
-  private look = new THREE.Vector3(0, 0, 1);
+  private look = new THREE.Vector3(FLEET_CX, 0, 1);
   readonly tPos = new THREE.Vector3();
-  readonly tLook = new THREE.Vector3(0, 0, 1);
+  readonly tLook = new THREE.Vector3(FLEET_CX, 0, 1);
   private shake = 0;
   private fleetD = 112;
 
@@ -21,8 +22,8 @@ export class Rig {
 
   private fleetTarget() {
     const d = this.fleetD;
-    this.tPos.set(0, d, d * 0.98);
-    this.tLook.set(0, 0, 1);
+    this.tPos.set(FLEET_CX, d, d * 0.98);
+    this.tLook.set(FLEET_CX, 0, 1);
   }
   resize(w: number, h: number) {
     const atFleet = this.tPos.distanceTo(this.tLook) >= this.fleetD * 1.3;
