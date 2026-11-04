@@ -123,6 +123,8 @@ export function pickMcpDefs(all: Record<string, unknown>, names: string[], role:
     const def = all[name];
     if (!def || typeof def !== 'object') continue;
     if (role !== 'admin' && 'command' in def) continue;
+    // A claude.ai connector acts as the box owner's account (Gmail, Drive...).
+    if (role !== 'admin' && (def as { type?: unknown }).type === 'claudeai-proxy') continue;
     picked[name] = def;
   }
   return picked;

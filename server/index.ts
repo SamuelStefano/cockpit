@@ -15,7 +15,8 @@ import { sweepAttachments } from './attachments';
 import { checkpointWal, sweepUsage } from './db';
 import { sweepMcpConfigs } from './engine/claude';
 import { sweepDrops } from './drop';
-import { loadManagedEnv } from './admin-ops';
+import { loadManagedEnv, mcpServerDefsSync } from './admin-ops';
+import { refreshClaudeAiConnectors } from './mcp/claudeai-connectors';
 import { handleMcpRequest, isMcpPath } from './mcp/serve';
 import { CONFIG } from './config';
 import { ensureBundledSkills } from './bundled-skills';
@@ -80,6 +81,10 @@ async function main() {
 
   server.listen(CONFIG.port, CONFIG.host, () => {
     console.log(`cockpit em http://${CONFIG.host}:${CONFIG.port} (ws /ws, permission=${CONFIG.permissionMode})`);
+  });
+
+  void refreshClaudeAiConnectors(fetch, true).then((changed) => {
+    if (changed) broadcast({ t: 'mcp-servers', servers: Object.keys(mcpServerDefsSync()) });
   });
 
   // Encerramento limpo: mata as árvores de run antes de sair, senão os `claude`
