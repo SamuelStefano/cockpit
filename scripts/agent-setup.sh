@@ -355,10 +355,10 @@ EOF
     else echo "  usuário $DECK_USER: criaria (useradd -m -s /bin/bash $DECK_USER), sem sudo/wheel"; fi
     echo "  systemd unit: $unit (User=$DECK_USER; único arquivo escrito como root)"
     if have_build_tools; then echo "  build tools: presentes (reaproveita)"
-    elif build_tools_auto; then echo "  build tools: instalaria make/compilador/python3 (processo root, antes de passar pro deck)"
+    elif build_tools_auto; then echo "  build tools: instalaria make/compilador/python3 (processo root, antes de passar pro $DECK_USER)"
     else echo "  build tools: faltam e a instalação automática está desligada (DECK_INSTALL_BUILD_TOOLS=0)"; fi
     if [ "$exists" != "1" ]; then
-      echo "  o plano do instalador (rodando como deck) aparece depois que o usuário existir."
+      echo "  o plano do instalador (rodando como $DECK_USER) aparece depois que o usuário existir."
       exit 0
     fi
   fi

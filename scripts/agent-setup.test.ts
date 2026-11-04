@@ -279,6 +279,63 @@ describe('agent-setup.sh', () => {
       expect(r.stdout).toContain('depois que o usuário existir');
     });
 
+    it('DECK_USER and --user rename the user, the unit and the wrapper consistently', () => {
+      for (const [env, args] of [[{ DECK_USER: 'tainan' }, []], [{}, ['--user', 'tainan']], [{}, ['--user=tainan']]] as const) {
+        const { home, bin } = caixaIsolada(`iso-user-${args.join('')}`, 0, 'echo "id: deck: no such user" >&2; exit 1');
+        const r = spawnSync('bash', [SCRIPT, ...args], { env: { HOME: home, PATH: `${bin}:/usr/bin:/bin`, DECK_ISOLATED: '1', DECK_DRY_RUN: '1', ...env }, encoding: 'utf8' });
+        expect(r.stderr).not.toContain('SENTINEL');
+        expect(r.status).toBe(0);
+        expect(r.stdout).toContain('usuário tainan: criaria (useradd -m -s /bin/bash tainan)');
+        expect(r.stdout).toContain('/etc/systemd/system/deck-agent-tainan.service');
+        expect(r.stdout).not.toContain('deck-agent.service');
+      }
+    });
+
+    it('rejects invalid or root user names before touching anything', () => {
+      for (const bad of ['root', 'Bad Name', '-x', 'a;b', '$(id)']) {
+        const { home, bin } = caixaIsolada(`iso-bad-${bad.length}`, 0, 'exit 1');
+        const r = spawnSync('bash', [SCRIPT], { env: { HOME: home, PATH: `${bin}:/usr/bin:/bin`, DECK_ISOLATED: '1', DECK_USER: bad }, encoding: 'utf8' });
+        expect(r.status).toBe(2);
+        expect(r.stdout).toContain('usuário inválido');
+      }
+    });
+
+    it('--user without a value fails; the pair code stays positional', () => {
+      const { home, bin } = caixaIsolada('iso-nouser', 0, 'exit 1');
+      const r = spawnSync('bash', [SCRIPT, '--user'], { env: { HOME: home, PATH: `${bin}:/usr/bin:/bin` }, encoding: 'utf8' });
+      expect(r.status).toBe(2);
+    });
+
+    describe('detect_existing_install', () => {
+      function detect(nome: string, unitBody: string | null, identity: boolean, user: string) {
+        const dir = join(raiz, nome);
+        mkdirSync(join(dir, 'agent'), { recursive: true });
+        const unit = join(dir, 'x.service');
+        if (unitBody !== null) writeFileSync(unit, unitBody);
+        if (identity) writeFileSync(join(dir, 'agent/identity.json'), '{}');
+        return spawnSync('bash', ['-c', `set -euo pipefail\n${extrairFuncao('detect_existing_install')}\ndetect_existing_install ${user} "${dir}/agent" "${unit}"\necho "EXISTING=$EXISTING_INSTALL"`], { encoding: 'utf8' });
+      }
+      it('fresh box: nothing detected, silent', () => {
+        const r = detect('det-fresh', null, false, 'deck');
+        expect(r.status).toBe(0);
+        expect(r.stdout.trim()).toBe('EXISTING=0');
+      });
+      it('same user with unit or identity: upgrade in place', () => {
+        expect(detect('det-unit', '[Service]\nUser=deck\n', false, 'deck').stdout).toContain('EXISTING=1');
+        const r = detect('det-id', null, true, 'deck');
+        expect(r.status).toBe(0);
+        expect(r.stdout).toContain('instalação existente detectada');
+        expect(r.stdout).toContain('EXISTING=1');
+      });
+      it('unit owned by another user: refuses and names the escape hatch', () => {
+        const r = detect('det-other', '[Service]\nUser=deck\n', false, 'tainan');
+        expect(r.status).toBe(1);
+        expect(r.stdout).toContain("pertence ao usuário 'deck'");
+        expect(r.stdout).toContain('DECK_USER');
+        expect(r.stdout).not.toContain('EXISTING=');
+      });
+    });
+
     it('recusa um usuário deck que já está no grupo sudo', () => {
       const { home, bin } = caixaIsolada('iso-sudo', 0, 'echo "uid=1001(deck)"');
       const idBin = readFileSync(join(bin, 'id'), 'utf8').replace('*) exec', '-nG) echo "deck sudo";; *) exec');
