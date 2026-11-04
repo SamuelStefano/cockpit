@@ -374,7 +374,7 @@ export function startHealthGuard(): void {
 export function runAgent(relayUrl: string): void {
   const id = loadIdentity();
   if (!id?.agentId) {
-    console.error('[agent] não pareado. Gere um código no Deck e rode o instalador:\n  curl -fsSL https://raw.githubusercontent.com/SamuelStefano/cockpit/main/scripts/agent-setup.sh | DECK_PAIR_CODE=CÓDIGO bash\n  (no Windows, copie o comando em Adicionar máquina)');
+    console.error('[agent] não pareado. Gere um código no Deck e rode o instalador:\n  curl -fsSL https://raw.githubusercontent.com/SamuelStefano/cockpit/main/scripts/agent-setup.sh | DECK_PAIR_CODE=CÓDIGO bash\n  (no Windows, copie o comando em Adicionar à Fleet)');
     process.exit(1);
   }
   if (!E2E_REQUIRED) console.error('[agent] DECK_E2E=off: serving PLAINTEXT relay frames — whoever controls the relay controls this box');

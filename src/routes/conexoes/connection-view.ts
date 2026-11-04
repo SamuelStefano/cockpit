@@ -8,7 +8,7 @@ export const TAB_KIND: Record<ConnTab, ConnectionKind> = {
 };
 
 export const TAB_LABEL: Record<ConnTab, string> = {
-  provedores: 'Provedores', ferramentas: 'Ferramentas', maquinas: 'Máquinas', aparelhos: 'Aparelhos', chaves: 'Chaves',
+  provedores: 'Provedores', ferramentas: 'Ferramentas', maquinas: 'Fleet', aparelhos: 'Aparelhos', chaves: 'Chaves',
 };
 
 export const TAB_HEAD: Record<ConnTab, [string, string, string, string]> = {

@@ -119,7 +119,7 @@ export function windowsSetupFile(command: string): string {
   return [
     '@echo off',
     'chcp 65001 >nul',
-    'title Instalando o Deck',
+    'title Installing Fleet',
     command,
     'if errorlevel 1 (',
     '  echo.',

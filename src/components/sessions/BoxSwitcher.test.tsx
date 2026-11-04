@@ -24,12 +24,12 @@ describe('BoxSwitcher', () => {
     expect(container.firstChild).toBeNull();
   });
 
-  it('shows compactly with one box and still offers Adicionar máquina', () => {
+  it('shows compactly with one box and still offers Adicionar à Fleet', () => {
     render(<BoxSwitcher />);
     push([info(A, 'VPS', true)]);
     expect(screen.getByText('VPS')).toBeTruthy();
     fireEvent.click(screen.getByLabelText('Trocar de máquina'));
-    expect(screen.getByText('Adicionar máquina')).toBeTruthy();
+    expect(screen.getByText('Adicionar à Fleet')).toBeTruthy();
   });
 
   it('labels an unnamed box with the short id', () => {
@@ -81,7 +81,7 @@ describe('BoxSwitcher', () => {
     render(<BoxSwitcher />);
     push([info(A, 'VPS', true)]);
     fireEvent.click(screen.getByLabelText('Trocar de máquina'));
-    fireEvent.click(screen.getByText('Adicionar máquina'));
+    fireEvent.click(screen.getByText('Adicionar à Fleet'));
     expect(screen.getByText('pairing')).toBeTruthy();
   });
 });
