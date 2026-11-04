@@ -115,3 +115,5 @@
 @keyframes missionOff{0%{filter:none;transform:scaleY(1)}60%{filter:brightness(2);transform:scaleY(.04) scaleX(1)}100%{filter:brightness(0);transform:scaleY(0) scaleX(0);opacity:0}}
 @keyframes missionPop{from{transform:translateY(0);opacity:1}to{transform:translateY(-34px);opacity:0}}
 @media (prefers-reduced-motion:reduce){.mission.hot,.mission.off,.mission .pop{animation:none}.mission.off{opacity:0}}
+.base-mission-detail .what{margin:0;font-size:14px}.base-mission-detail .why-matters{margin:0;opacity:.75;font-size:13px}
+.base-mission-detail .tech{overflow:auto;min-height:0}.base-mission-detail .tech summary{cursor:pointer;opacity:.7;font-size:12px}

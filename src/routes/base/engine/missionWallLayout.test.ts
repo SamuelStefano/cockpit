@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Mission } from '../missions';
 import { IDLE_KEY, layoutWall, MAX_SLOTS, MORE_KEY, pickVisible, slotCenter, wrapTitle } from './missionWallLayout';
 
-const mk = (i: number, suggested = false): Mission => ({ id: `m${i}`, title: `Mission ${i}`, summary: '', description: '', size: 'S', status: 'todo', xp: 10, suggested, reason: '' });
+const mk = (i: number, suggested = false): Mission => ({ id: `m${i}`, title: `Mission ${i}`, summary: '', why: '', description: '', size: 'S', status: 'todo', xp: 10, suggested, reason: '' });
 const list = (n: number, suggestedAt = -1) => Array.from({ length: n }, (_, i) => mk(i, i === suggestedAt));
 const measure = (s: string) => s.length * 10;
 

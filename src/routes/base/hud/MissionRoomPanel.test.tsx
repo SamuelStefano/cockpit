@@ -6,7 +6,7 @@ import { MissionRoomPanel } from './MissionRoomPanel';
 import { MISSION_XP_KEY } from './missionXp';
 
 const mk = (id: string, o: Partial<Mission> = {}): Mission => ({
-  id, title: `T-${id}`, summary: `sum ${id}`, description: `full ${id}`, size: 'S', status: 'todo', xp: 10, suggested: false, reason: '', ...o,
+  id, title: `T-${id}`, summary: `sum ${id}`, why: `why ${id}`, description: `full ${id}`, size: 'S', status: 'todo', xp: 10, suggested: false, reason: '', ...o,
 });
 
 beforeEach(() => localStorage.clear());
@@ -36,9 +36,16 @@ describe('MissionRoomPanel', () => {
     fireEvent.click(screen.getByText('T-b'));
     expect(props.onSelectMission).toHaveBeenCalledWith('b');
   });
+  it('detail shows the why and keeps the raw prompt behind a collapsed toggle', () => {
+    setup({ selectedId: 'a' });
+    expect(screen.getByText('why a')).toBeTruthy();
+    const toggle = screen.getByText('Ver prompt técnico');
+    const details = toggle.closest('details') as HTMLDetailsElement;
+    expect(details.open).toBe(false);
+    expect(details.contains(screen.getByText('full a'))).toBe(true);
+  });
   it('completing adds xp, persists it and plays the power-off ghost', () => {
     const { props } = setup({ selectedId: 'a' });
-    expect(screen.getByText('full a')).toBeTruthy();
     fireEvent.click(screen.getByText('Complete mission'));
     expect(props.onComplete).toHaveBeenCalledWith('a');
     expect(screen.getByTestId('mission-xp').textContent).toBe('10 XP');

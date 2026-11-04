@@ -6,8 +6,9 @@ export type MissionSize = 'S' | 'M' | 'L';
 export interface Mission {
   id: string; // CanvasCard.id
   title: string;
-  summary: string; // one line, <= 90 chars
-  description: string; // full card prompt
+  summary: string; // plain-language "what" (or a placeholder until it is generated)
+  why: string; // plain-language "why it matters" ('' until generated)
+  description: string; // raw technical card prompt
   size: MissionSize;
   status: 'todo' | 'doing';
   xp: number; // S=10, M=25, L=50
@@ -15,19 +16,9 @@ export interface Mission {
   reason: string; // why this one is suggested (empty when not suggested)
 }
 
-const SUMMARY_MAX = 90;
+export const SUMMARY_PENDING = 'Gerando resumo…';
 const XP: Record<MissionSize, number> = { S: 10, M: 25, L: 50 };
 const SIZE_RANK: Record<MissionSize, number> = { S: 0, M: 1, L: 2 };
-
-const clip = (t: string): string => (t.length <= SUMMARY_MAX ? t : `${t.slice(0, SUMMARY_MAX - 1).trimEnd()}…`);
-
-function summarize(prompt: string, title: string): string {
-  for (const raw of prompt.split('\n')) {
-    const line = raw.replace(/^[\s#>*\-\d.)]+/, '').trim();
-    if (line.length >= 3 && /[\p{L}\p{N}]/u.test(line)) return clip(line);
-  }
-  return clip(title.trim());
-}
 
 const sizeOf = (len: number): MissionSize => (len < 300 ? 'S' : len < 1200 ? 'M' : 'L');
 
@@ -50,7 +41,11 @@ export function buildMissions(cards: CanvasCard[], _now: number): Mission[] {
     const size = sizeOf(c.prompt.length);
     age.set(c.id, c.createdAt);
     list.push({
-      id: c.id, title: c.title, summary: summarize(c.prompt, c.title), description: c.prompt,
+      id: c.id,
+      title: c.plain?.title || c.title,
+      summary: c.plain?.what || SUMMARY_PENDING,
+      why: c.plain?.why ?? '',
+      description: c.prompt,
       size, status: c.status, xp: XP[size], suggested: false, reason: '',
     });
   }
