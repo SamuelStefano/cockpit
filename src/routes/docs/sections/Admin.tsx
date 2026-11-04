@@ -26,7 +26,7 @@ export function Admin() {
       </div>
       <InfoCard icon="terminal" title="Agente externo como worker">
         Turno roda sem TTY: <Pill>acceptEdits</Pill> nega Bash. Worker precisa de allow list em <Pill>~/.claude/settings.json</Pill> ou bypass.
-        MCP: o turno usa <Pill>--strict-mcp-config</Pill> e só carrega os escolhidos do <Pill>~/.claude.json</Pill>; <Pill>.mcp.json</Pill> do diretório é ignorado.
+        MCP: o turno usa <Pill>--strict-mcp-config</Pill> e só carrega os escolhidos do <Pill>~/.claude.json</Pill> (o seletor também lista os servers do projeto do workdir e os conectores claude.ai); <Pill>.mcp.json</Pill> do diretório é ignorado.
         Skills: selecionar qualquer uma bloqueia as demais. <Pill>imported-*</Pill> é do Deck; sync externo não deve tocar.
         Enviar e ler por script: <Pill>deckctl send</Pill>, <Pill>deckctl wait</Pill>, <Pill>deckctl read</Pill>.
       </InfoCard>

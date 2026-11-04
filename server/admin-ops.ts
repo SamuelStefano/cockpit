@@ -5,6 +5,8 @@ import { join, dirname } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { ENV_NAME_RE } from '../shared/env-name';
+import { CONFIG } from './config';
+import { claudeAiConnectorDefsSync } from './mcp/claudeai-connectors';
 
 const run = promisify(execFile);
 
@@ -80,11 +82,18 @@ export function managedEnvSync(): Record<string, string> {
 // Definições COMPLETAS dos MCP servers do ~/.claude.json (command/url/headers/env).
 // Síncrono pro spawn do claude (run() escreve um --mcp-config filtrado). Vazio se o
 // arquivo não existe/parseia. Os valores podem ter token — quem chama grava 0600.
-export function mcpServerDefsSync(): Record<string, unknown> {
+export function mcpServerDefsSync(cwd: string = CONFIG.workdir): Record<string, unknown> {
+  let user: Record<string, unknown> = {};
+  let project: Record<string, unknown> = {};
   try {
-    const j = JSON.parse(readFileSync(CLAUDE_JSON, 'utf8')) as { mcpServers?: Record<string, unknown> };
-    return j.mcpServers ?? {};
-  } catch { return {}; }
+    const j = JSON.parse(readFileSync(CLAUDE_JSON, 'utf8')) as {
+      mcpServers?: Record<string, unknown>;
+      projects?: Record<string, { mcpServers?: Record<string, unknown> } | undefined>;
+    };
+    user = j.mcpServers ?? {};
+    project = j.projects?.[cwd]?.mcpServers ?? {};
+  } catch { /* missing or unparseable file: only connectors remain */ }
+  return { ...claudeAiConnectorDefsSync(), ...user, ...project };
 }
 
 export async function loadManagedEnv(): Promise<void> {

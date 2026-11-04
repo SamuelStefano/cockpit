@@ -419,6 +419,11 @@ describe('pickMcpDefs', () => {
   it('ignora nome desconhecido e definição que não é objeto', () => {
     expect(pickMcpDefs(all, ['nada', 'lixo'], 'admin')).toEqual({});
   });
+  it('claude.ai connector loads for admin only', () => {
+    const withConnector = { ...all, 'claude.ai dfl': { type: 'claudeai-proxy', url: 'https://x.example/mcp', id: 'mcpsrv_1' } };
+    expect(Object.keys(pickMcpDefs(withConnector, ['claude.ai dfl'], 'admin'))).toEqual(['claude.ai dfl']);
+    expect(pickMcpDefs(withConnector, ['claude.ai dfl', 'remote'], 'student')).toEqual({ remote: all.remote });
+  });
 });
 
 // "Permitir todos os MCPs" manda o sentinel '*' e o servidor expande no envio —

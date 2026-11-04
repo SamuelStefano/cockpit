@@ -13,7 +13,7 @@ function isStdio(d: unknown): d is StdioDef {
   return !!d && typeof (d as StdioDef).command === 'string';
 }
 function isHttp(d: unknown): d is HttpDef {
-  return !!d && typeof (d as HttpDef).url === 'string';
+  return !!d && (d as { type?: unknown }).type !== 'claudeai-proxy' && typeof (d as HttpDef).url === 'string';
 }
 
 // O `claude -p` herda todo o ambiente ao subir um MCP stdio; aqui montamos um env
