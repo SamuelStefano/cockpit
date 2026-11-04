@@ -5,6 +5,7 @@ import {
 import type { DflPointsSnapshot, DflTaskNode } from '../../shared/protocol';
 import { CONFIG } from '../config';
 import { emitCanvasMsg } from '../ws/canvas-clients';
+import { withPlain } from '../mission-summary';
 import { runDflWrite } from '../dfl-write-runner';
 import { readDflSnapshot } from '../dfl-points';
 import { findTaskInSnapshot } from './dfl-link';
@@ -31,7 +32,7 @@ export async function applyDflSyncToBoard(snapshot: DflPointsSnapshot): Promise<
   // blindly letting it complete later would overwrite what DFL now has with
   // a stale local value (review point 5).
   for (const id of changedIds) cancelPendingPush(id);
-  emitCanvasMsg({ t: 'canvas-board', board, flowRuns: [] });
+  emitCanvasMsg({ t: 'canvas-board', board: withPlain(board), flowRuns: [] });
 }
 
 // DFL -> Deck direction: the periodic dfl-sync read (server/dfl-sync.ts's

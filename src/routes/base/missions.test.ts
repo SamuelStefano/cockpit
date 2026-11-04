@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CanvasCard } from '../../../shared/canvas';
-import { buildMissions, SUMMARY_PENDING } from './missions';
+import { buildMissions } from './missions';
 
 const card = (id: string, o: Partial<CanvasCard> = {}): CanvasCard => ({
   id, title: `Title ${id}`, prompt: 'Do the thing', status: 'todo', kind: 'task',
@@ -23,11 +23,17 @@ describe('buildMissions', () => {
     expect(m.why).toBe(plain.why);
     expect(m.description).toBe('Refactor useAuth redirect in src/x.ts');
   });
-  it('shows the card title and a placeholder (never the prompt) until plain exists', () => {
-    const [m] = buildMissions([card('a', { prompt: 'Refactor useAuth redirect' })], 0);
+  it('falls back to the first meaningful prompt line while plain is missing', () => {
+    const [m] = buildMissions([card('a', { prompt: '\n## Fix the login redirect\nmore detail' })], 0);
     expect(m.title).toBe('Title a');
-    expect(m.summary).toBe(SUMMARY_PENDING);
+    expect(m.summary).toBe('Fix the login redirect');
     expect(m.why).toBe('');
+  });
+  it('clips a long fallback and uses the title when the prompt has no text', () => {
+    const [long] = buildMissions([card('a', { prompt: 'x'.repeat(200) })], 0);
+    expect(long.summary.length).toBeLessThanOrEqual(90);
+    const [empty] = buildMissions([card('b', { prompt: '---' })], 0);
+    expect(empty.summary).toBe('Title b');
   });
   it('sizes by prompt length with matching xp', () => {
     const m = buildMissions([card('s', { prompt: 'a'.repeat(299) }), card('m', { prompt: 'a'.repeat(300) }), card('l', { prompt: 'a'.repeat(1200) })], 0);

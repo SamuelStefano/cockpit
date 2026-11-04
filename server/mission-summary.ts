@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { CanvasBoard, CanvasCard, CardPlain } from '../shared/canvas';
 import { CONFIG } from './config';
 import { apiKey } from './summary';
@@ -29,6 +30,13 @@ export function missionPlainPrompt(card: Pick<CanvasCard, 'title' | 'prompt'>): 
   return `${INSTRUCTION}\n\n---\n${body}`;
 }
 
+// The cache is keyed on what the model reads (title + prompt), not on updatedAt:
+// dragging a card or changing its status bumps updatedAt but must not re-call
+// the LLM. Stored in the `card_updated_at` column (a uint32 fits INTEGER).
+export function planHash(card: Pick<CanvasCard, 'title' | 'prompt'>): number {
+  return createHash('sha256').update(`${card.title}\u0000${card.prompt}`).digest().readUInt32BE(0);
+}
+
 const words = (t: string): number => t.split(/\s+/).filter(Boolean).length;
 
 // Pure: pulls the JSON object out of the model text (tolerates ``` fences and
@@ -55,7 +63,7 @@ export function parseMissionPlainResponse(json: unknown): CardPlain | null {
 }
 
 // Pure: cards that need a (re)generation — open cards whose cache is missing or
-// describes an older revision.
+// describes older content.
 export function needsPlain(
   cards: CanvasCard[],
   cache: Map<string, { cardUpdatedAt: number }>,
@@ -66,8 +74,9 @@ export function needsPlain(
     if (c.status !== 'todo' && c.status !== 'doing') return false;
     if (c.kind !== 'task' && c.kind !== 'content') return false;
     if (!c.prompt.trim() && !c.title.trim()) return false;
-    if (cache.get(c.id)?.cardUpdatedAt === c.updatedAt) return false;
-    const f = failedAt.get(`${c.id}:${c.updatedAt}`);
+    const hash = planHash(c);
+    if (cache.get(c.id)?.cardUpdatedAt === hash) return false;
+    const f = failedAt.get(`${c.id}:${hash}`);
     return f === undefined || now - f >= FAIL_RETRY_MS;
   });
 }
@@ -87,8 +96,55 @@ async function callAnthropic(key: string, card: CanvasCard): Promise<CardPlain |
   return parseMissionPlainResponse(await res.json());
 }
 
-const inFlight = new Set<string>();
 const failedAt = new Map<string, number>();
+
+export interface PlainRunnerDeps {
+  maxConcurrent: number;
+  generate: (card: CanvasCard) => Promise<CardPlain | null>;
+  isCached: (card: CanvasCard) => boolean;
+  save: (card: CanvasCard, plain: CardPlain) => void;
+  onFail: (tag: string) => void;
+}
+
+// One bounded queue for the whole process: every board frame may enqueue, but
+// at most `maxConcurrent` model calls run at any moment.
+export function createPlainRunner(deps: PlainRunnerDeps): { enqueue: (cards: CanvasCard[]) => void } {
+  const waiting = new Map<string, CanvasCard>();
+  const inFlight = new Set<string>();
+  let active = 0;
+  const pump = (): void => {
+    while (active < deps.maxConcurrent && waiting.size > 0) {
+      const [tag, card] = waiting.entries().next().value as [string, CanvasCard];
+      waiting.delete(tag);
+      if (deps.isCached(card)) { inFlight.delete(tag); continue; }
+      active++;
+      void (async () => {
+        try {
+          const plain = await deps.generate(card);
+          if (plain) deps.save(card, plain);
+          else deps.onFail(tag);
+        } catch {
+          deps.onFail(tag);
+        } finally {
+          inFlight.delete(tag);
+          active--;
+          pump();
+        }
+      })();
+    }
+  };
+  return {
+    enqueue(cards) {
+      for (const c of cards) {
+        const tag = `${c.id}:${planHash(c)}`;
+        if (inFlight.has(tag)) continue;
+        inFlight.add(tag);
+        waiting.set(tag, c);
+      }
+      pump();
+    },
+  };
+}
 
 // Attaches cached `plain` to the open cards of an outgoing board and lazily kicks
 // off generation for the missing/stale ones. Sync and cheap on the hot path.
@@ -98,7 +154,7 @@ export function withPlain(board: CanvasBoard): CanvasBoard {
     const cache = allMissionPlain();
     const cards = board.cards.map((c) => {
       const row = cache.get(c.id);
-      return row && row.cardUpdatedAt === c.updatedAt
+      return row && row.cardUpdatedAt === planHash(c)
         ? { ...c, plain: { title: row.title, what: row.what, why: row.why } }
         : c;
     });
@@ -109,28 +165,21 @@ export function withPlain(board: CanvasBoard): CanvasBoard {
   }
 }
 
+let runnerKey = '';
+const runner = createPlainRunner({
+  maxConcurrent: MAX_CONCURRENT,
+  generate: (c) => callAnthropic(runnerKey, c),
+  isCached: (c) => allMissionPlain().get(c.id)?.cardUpdatedAt === planHash(c),
+  save: (c, plain) => {
+    setMissionPlain({ cardId: c.id, cardUpdatedAt: planHash(c), ...plain });
+    emitCanvasMsg({ t: 'canvas-card-plain', cardId: c.id, cardUpdatedAt: c.updatedAt, plain });
+  },
+  onFail: (tag) => { failedAt.set(tag, Date.now()); },
+});
+
 function queueMissionPlain(cards: CanvasCard[], cache: ReturnType<typeof allMissionPlain>): void {
   const key = apiKey();
   if (!key) return;
-  const now = Date.now();
-  const todo = needsPlain(cards, cache, failedAt, now).filter((c) => !inFlight.has(`${c.id}:${c.updatedAt}`));
-  const queue = [...todo];
-  const worker = async (): Promise<void> => {
-    for (let c = queue.shift(); c; c = queue.shift()) {
-      const tag = `${c.id}:${c.updatedAt}`;
-      if (inFlight.has(tag)) continue;
-      inFlight.add(tag);
-      try {
-        const plain = await callAnthropic(key, c);
-        if (!plain) { failedAt.set(tag, Date.now()); continue; }
-        setMissionPlain({ cardId: c.id, cardUpdatedAt: c.updatedAt, ...plain });
-        emitCanvasMsg({ t: 'canvas-card-plain', cardId: c.id, cardUpdatedAt: c.updatedAt, plain });
-      } catch {
-        failedAt.set(tag, Date.now());
-      } finally {
-        inFlight.delete(tag);
-      }
-    }
-  };
-  for (let i = 0; i < Math.min(MAX_CONCURRENT, queue.length); i++) void worker();
+  runnerKey = key;
+  runner.enqueue(needsPlain(cards, cache, failedAt, Date.now()));
 }

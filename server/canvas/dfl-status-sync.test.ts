@@ -6,7 +6,8 @@ import { dflStatusIsBillableFinished, type CanvasBoard, type CanvasCard, type Ca
 import type { DflPointsSnapshot, DflTaskNode } from '../../shared/protocol';
 
 // --- mocks for pushCardDflStatus's impure deps -------------------------------
-const { runDflWriteMock, readDflSnapshotMock, emitCanvasMsgMock, config } = vi.hoisted(() => ({
+const { runDflWriteMock, readDflSnapshotMock, emitCanvasMsgMock, withPlainMock, config } = vi.hoisted(() => ({
+  withPlainMock: vi.fn((b: unknown) => b),
   runDflWriteMock: vi.fn(),
   readDflSnapshotMock: vi.fn(async () => null as DflPointsSnapshot | null),
   emitCanvasMsgMock: vi.fn(),
@@ -15,11 +16,12 @@ const { runDflWriteMock, readDflSnapshotMock, emitCanvasMsgMock, config } = vi.h
 vi.mock('../dfl-write-runner', () => ({ runDflWrite: (...a: unknown[]) => runDflWriteMock(...a) }));
 vi.mock('../dfl-points', () => ({ readDflSnapshot: () => readDflSnapshotMock() }));
 vi.mock('../ws/canvas-clients', () => ({ emitCanvasMsg: (m: unknown) => emitCanvasMsgMock(m) }));
+vi.mock('../mission-summary', () => ({ withPlain: (b: CanvasBoard) => withPlainMock(b) }));
 vi.mock('../config', () => ({ CONFIG: config }));
 
 import { readBoard, sanitizeCard, setCardDflLink, updateBoard, upsertCard } from './board';
 import {
-  cancelPendingPush, pushBackoffMs, pushCardDflStatus, resolveDflStatusForCard, syncBoardFromDflSnapshot,
+  applyDflSyncToBoard, cancelPendingPush, pushBackoffMs, pushCardDflStatus, resolveDflStatusForCard, syncBoardFromDflSnapshot,
 } from './dfl-status-sync';
 
 describe('resolveDflStatusForCard — status mapping + conflict resolution, DFL clock vs DFL clock', () => {
@@ -121,6 +123,8 @@ beforeEach(() => {
   readDflSnapshotMock.mockReset();
   readDflSnapshotMock.mockResolvedValue(null);
   emitCanvasMsgMock.mockClear();
+  withPlainMock.mockReset();
+  withPlainMock.mockImplementation((b) => b);
   config.localOnly = true;
 });
 
@@ -298,5 +302,24 @@ describe('pushCardDflStatus — never rejects (callers fire it with void)', () =
     writeFileSync(process.env.COCKPIT_CANVAS_BOARD!, '{ corrupt');
     await expect(pushCardDflStatus('card-1', 'doing', TASK)).resolves.toBeUndefined();
     expect(emitCanvasMsgMock).toHaveBeenCalledWith(expect.objectContaining({ t: 'canvas-dfl-sync-error', cardId: 'card-1' }));
+  });
+});
+
+describe('applyDflSyncToBoard — the pushed board carries the plain summaries', () => {
+  it('runs the outgoing board through withPlain so a DFL sync does not wipe summaries', async () => {
+    await linkedCard('card-1');
+    withPlainMock.mockImplementation((b) => ({ ...(b as CanvasBoard), cards: (b as CanvasBoard).cards.map((c) => ({ ...c, plain: { title: 'T', what: 'W', why: 'Y' } })) }));
+    await applyDflSyncToBoard(snapshotWithTask(baseTask({ id: TASK, rawStatus: 'done', updatedAt: 500 })));
+    expect(withPlainMock).toHaveBeenCalledTimes(1);
+    const frame = emitCanvasMsgMock.mock.calls.find(([m]) => (m as { t: string }).t === 'canvas-board')?.[0] as { board: CanvasBoard };
+    expect(frame.board.cards[0].status).toBe('done');
+    expect(frame.board.cards[0].plain).toEqual({ title: 'T', what: 'W', why: 'Y' });
+  });
+
+  it('pushes nothing when no card changed', async () => {
+    await linkedCard('card-1');
+    await applyDflSyncToBoard(snapshotWithTask(baseTask({ id: 'other', rawStatus: 'done', updatedAt: 500 })));
+    expect(withPlainMock).not.toHaveBeenCalled();
+    expect(emitCanvasMsgMock).not.toHaveBeenCalled();
   });
 });
