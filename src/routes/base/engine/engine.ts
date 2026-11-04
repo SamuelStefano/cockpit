@@ -18,6 +18,8 @@ import { Particles } from './particles';
 import { Rig } from './rig';
 import { lightingAt } from './lighting';
 import { World } from './world';
+import { MissionWall } from './missionWall';
+import type { Mission } from '../missions';
 import { orderDesks, stepDesk } from '../deskOrder';
 
 const KEY = { rules: 'deck-base-rules', xp: 'deck-base-xp', sound: 'deck-base-sound' };
@@ -36,6 +38,7 @@ export class BaseEngine {
   floor: Floor = EMPTY_FLOOR;
   selectedId: string | null = null;
   hoverId: string | null = null;
+  onMissionClick: ((id: string) => void) | null = null;
   viewWingId: string | null = null;
   readonly rig = new Rig();
   readonly renderer: THREE.WebGLRenderer;
@@ -44,6 +47,7 @@ export class BaseEngine {
   private sun = new THREE.DirectionalLight(0xffe2b8, 1.9);
   private world: World;
   private particles: Particles;
+  private missionWall: MissionWall;
   private labels: Labels;
   private audio = new Audio();
   private views = new Map<string, AgentView>();
@@ -93,6 +97,7 @@ export class BaseEngine {
     this.scene.add(this.sun);
     this.world = new World(this.scene);
     this.particles = new Particles(this.scene);
+    this.missionWall = new MissionWall(this.scene, (x, y, z, c, n, up) => this.particles.burst(x, y, z, c, n, up));
     this.scene.add(this.rugs, this.crateRoot, this.packetRoot, this.fxRoot);
     this.labels = new Labels(labelsEl, { agent: (id) => this.select(id), wing: (id) => this.goWing(id), sector: (id) => this.goSector(id) });
     this.audio.pack = readJson<SoundPack>(KEY.sound, 'off');
@@ -129,6 +134,8 @@ export class BaseEngine {
     this.publish();
   }
   setLive(l: LiveFloor) { this.live = l; }
+  setMissions(m: Mission[]): void { this.missionWall.set(m); }
+  setSelectedMission(id: string | null): void { this.missionWall.setSelected(id); }
   home() { this.selectedId = null; this.viewWingId = null; this.closePanels(); this.rig.home(); this.publish(); }
   goWing(id: string) {
     const w = this.floor.wings.find((x) => x.id === id);
@@ -255,6 +262,7 @@ export class BaseEngine {
   }
   toast(t: string) { this.toastText = t; this.toastUntil = performance.now() + 3200; this.publish(); }
   minimapClick(xWorld: number) {
+    if (xWorld > 66) { this.goSector('missions'); return; }
     const w = this.floor.wings.reduce<typeof this.floor.wings[number] | null>((b, o) => (!b || Math.abs(o.cx - xWorld) < Math.abs(b.cx - xWorld) ? o : b), null);
     if (w) this.goWing(w.id);
   }
@@ -406,6 +414,7 @@ export class BaseEngine {
     this.syncFloor();
     if (this.mode === 'practice') { this.fx(this.sim.fx); this.sim.fx = []; }
     this.particles.step(real);
+    this.missionWall.update(real, T);
     this.world.update(real, T, this.floor);
     for (const a of this.floor.agents) this.views.get(a.id)?.animate(a, T, real, this.selectedId === a.id);
     this.drawLinks(T, real);
@@ -487,6 +496,7 @@ export class BaseEngine {
     this.labels.dispose();
     this.audio.dispose();
     this.particles.dispose();
+    this.missionWall.dispose();
     for (const v of this.views.values()) v.dispose();
     this.views.clear();
     disposeTree(this.scene);

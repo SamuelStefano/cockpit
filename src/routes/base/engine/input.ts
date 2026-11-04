@@ -26,9 +26,10 @@ export function attachInput(e: BaseEngine): () => void {
   window.addEventListener('pointermove', (ev) => {
     if (!drag || !ev.buttons) {
       if (ev.target !== dom) { e.hoverId = null; return; }
-      const id = (hits(ev).find((h) => h.object.userData.agentId)?.object.userData.agentId as string | undefined) ?? null;
+      const all = hits(ev);
+      const id = (all.find((h) => h.object.userData.agentId)?.object.userData.agentId as string | undefined) ?? null;
       e.hoverId = id;
-      dom.style.cursor = id ? 'pointer' : '';
+      dom.style.cursor = id || (e.onMissionClick && all.some((h) => h.object.userData.missionId)) ? 'pointer' : '';
       return;
     }
     if (fingers.size >= 2) return;
@@ -74,6 +75,8 @@ export function attachInput(e: BaseEngine): () => void {
     const all = hits(ev);
     const crate = all.find((h) => h.object.userData.crateId);
     if (crate) { e.clickCrate(crate.object.userData.crateId as string); return; }
+    const mission = all.find((h) => h.object.userData.missionId);
+    if (mission && e.onMissionClick) { e.onMissionClick(mission.object.userData.missionId as string); return; }
     const agent = all.find((h) => h.object.userData.agentId);
     if (agent) {
       const id = agent.object.userData.agentId as string;
@@ -106,7 +109,7 @@ export function attachInput(e: BaseEngine): () => void {
     if (sector) e.goSector(sector.id);
     if (k === '[') e.stepDesk(-1);
     if (k === ']') e.stepDesk(1);
-    if (k === 'm') e.cycleSound();
+    if (k === 'n') e.cycleSound();
     if (!practice) return;
     if (k === 'f') e.openFunnel();
     if (k === 'p') { ev.preventDefault(); e.setComposer(true); }

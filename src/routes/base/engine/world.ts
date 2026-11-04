@@ -19,7 +19,7 @@ function plant(p: THREE.Object3D, x: number, z: number) {
 
 function floorTiles(p: THREE.Object3D) {
   const tiles: [number, number][] = [];
-  for (let x = -66; x < 66; x += 4) for (let z = -15; z < 15; z += 4) if ((Math.round((x + 66) / 4) + Math.round((z + 15) / 4)) % 2 === 0) tiles.push([x + 2, z + 2]);
+  for (let x = -66; x < 110; x += 4) for (let z = -15; z < 15; z += 4) if ((Math.round((x + 66) / 4) + Math.round((z + 15) / 4)) % 2 === 0) tiles.push([x + 2, z + 2]);
   const im = new THREE.InstancedMesh(new THREE.BoxGeometry(3.94, 0.02, 3.94), newMat(PAL.floor2), tiles.length);
   const o = new THREE.Object3D();
   tiles.forEach(([x, z], i) => { o.position.set(x, 0.01, z); o.updateMatrix(); im.setMatrixAt(i, o.matrix); });
@@ -50,9 +50,11 @@ export class World {
   constructor(scene: THREE.Scene) {
     const r = this.root;
     scene.add(r);
-    box(r, 132, 1, 30, PAL.floor, 0, -0.5, 0);
+    box(r, 176, 1, 30, PAL.floor, 22, -0.5, 0);
     floorTiles(r);
     box(r, 132, 6, 0.8, PAL.wall, 0, 3, -15);
+    box(r, 44, 6, 0.8, PAL.wall, 88, 3, -15);
+    box(r, 0.8, 6, 30, PAL.wall, 110, 3, 0);
     box(r, 0.8, 6, 30, PAL.wall, -66, 3, 0);
     for (let x = -60; x < 66; x += 7) {
       box(r, 3.6, 2.2, 0.15, 0x7ea7b0, x, 3.7, -14.5, { emissive: 0x9fc4c8, emissiveIntensity: 0.25 });
