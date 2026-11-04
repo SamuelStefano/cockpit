@@ -60,7 +60,7 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, draf
   const rows = useMemo(() => interleaveByTime(shown, botDecor?.extras ?? []), [shown, botDecor]);
   const lastUserIdx = shown.findLastIndex((m) => m.role === 'user');
   const topics = useChatTopics(c.scrollRef, messages);
-  const focus = useFocusMode(isMobile, keyboardOpen, draft);
+  const focus = useFocusMode(isMobile, keyboardOpen);
 
   const renderRow = (m: ShownMessage, i: number) => (
     <MessageRow key={m.id} msg={m} caretOnLast={c.streaming && i === shown.length - 1 && m.role === 'assistant'} modelLabel={botDecor ? botDecor.name : m.role === 'assistant' && m.model ? c.labelFor(m.model) : c.modelLabel} avatar={botDecor?.avatar} bit={i === shown.length - 1 && m.role === 'assistant' ? turnBit : undefined} showModelLabel={!!botDecor} thinking={phase !== 'idle' && !c.pendingQuestion && i === shown.length - 1 && m.role === 'assistant'} live={i === shown.length - 1 && m.role === 'assistant' && !c.pendingQuestion ? live : undefined} onEditUser={onEditUser} onQuote={onQuote} onMemorize={onMemorize} answerable={(phase === 'idle' || c.pendingQuestion) && i === shown.length - 1 && m.role === 'assistant'} onAnswer={onPrompt} reviewable={phase === 'idle' && i > lastUserIdx && m.role === 'assistant'} onApproveWorkflow={onApproveWorkflow} onRegenerate={phase === 'idle' && !c.pendingQuestion && i === shown.length - 1 && m.role === 'assistant' ? c.retryLast : undefined} onOpenAttachment={onAttOpen} attThumbs={attThumbs} onAttThumb={onAttThumb} />

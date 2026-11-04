@@ -18,7 +18,7 @@ export function DropButton({ api, bare = false }: { api: DropApi; bare?: boolean
       <Modal open={open} onClose={() => setOpen(false)} title="Drop privado" icon="shield" maxWidth="max-w-md">
         <p className="text-[13px] leading-relaxed text-neutral-400">
           Grava o arquivo direto na box do agente. O conteúdo não entra no chat, não vira anexo e não sobe pro S3 —
-          a resposta é só o caminho. Vale texto (env, chave, script), até 1 MB.
+          a resposta é só o caminho. Vale texto ou arquivo (env, chave, script, .p8, .p12), até 1 MB.
           Peça ao agente pra <span className="text-neutral-200">consumir sem imprimir</span>:
           se ele der Read, o segredo volta pro transcript.
         </p>

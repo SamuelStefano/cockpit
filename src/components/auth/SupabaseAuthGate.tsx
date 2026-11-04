@@ -4,6 +4,9 @@ import { AuthIntro } from './AuthIntro';
 import { AuthFeedback } from './AuthFeedback';
 import { AuthModeTabs } from './AuthModeTabs';
 import { useAuthGateForm, type AuthGateActions } from './useAuthGateForm';
+import { QrLoginPanel } from './QrLoginPanel';
+import { useQrTicketLogin } from './useQrTicketLogin';
+import { useState } from 'react';
 
 const CTA = {
   login: ['Entrar', 'Entrando…'],
@@ -18,6 +21,8 @@ const CTA = {
 export function SupabaseAuthGate({ auth }: { auth: AuthGateActions }) {
   const { mode, email, setEmail, password, setPassword, busy, info, canSubmit, submit, switchMode } = useAuthGateForm(auth);
   const [label, busyLabel] = CTA[mode];
+  const ticket = useQrTicketLogin();
+  const [qr, setQr] = useState(false);
 
   return (
     <div className="flex h-full flex-1 items-center justify-center gap-12 overflow-y-auto bg-neutral-950 px-4 max-lg:items-start max-lg:py-10">
@@ -26,6 +31,9 @@ export function SupabaseAuthGate({ auth }: { auth: AuthGateActions }) {
         <BrandMark title="deck" className="mb-3" />
         <p className="mb-5 text-[13px] leading-relaxed text-neutral-400 lg:hidden">O cérebro roda na sua VPS; o Deck é só a tela.</p>
 
+        {ticket === 'busy' && <p className="mb-4 text-[13px] text-neutral-300">Entrando pelo QR…</p>}
+        {ticket === 'failed' && <p className="mb-4 text-[12.5px] text-neutral-400">O QR expirou ou já foi usado. Entre abaixo ou gere outro no aparelho conectado.</p>}
+        {qr ? <QrLoginPanel onBack={() => setQr(false)} /> : (<>
         {mode === 'forgot' ? (
           <p className="mb-4 text-[12px] leading-relaxed text-neutral-500">
             Informe o e-mail da conta. Mandamos um link pra você definir uma senha nova.
@@ -59,9 +67,14 @@ export function SupabaseAuthGate({ auth }: { auth: AuthGateActions }) {
         </Button>
 
         {mode === 'login' && (
-          <Button type="button" variant="ghost" size="sm" className="mt-3 w-full" onClick={() => switchMode('forgot')}>
-            Esqueci a senha
-          </Button>
+          <>
+            <Button type="button" variant="secondary" size="sm" icon="smartphone" className="mt-3 w-full" onClick={() => setQr(true)}>
+              Entrar com QR code
+            </Button>
+            <Button type="button" variant="ghost" size="sm" className="mt-2 w-full" onClick={() => switchMode('forgot')}>
+              Esqueci a senha
+            </Button>
+          </>
         )}
         {mode === 'forgot' && (
           <Button type="button" variant="ghost" size="sm" icon="chevronLeft" className="mt-3 w-full" onClick={() => switchMode('login')}>
@@ -70,9 +83,15 @@ export function SupabaseAuthGate({ auth }: { auth: AuthGateActions }) {
         )}
         {mode !== 'forgot' && (
           <p className="mt-3 text-[12px] leading-relaxed text-neutral-600">
-            Depois de entrar, conecte sua VPS pra começar a usar o Deck na sua máquina.
+            O Deck precisa do seu próprio servidor. Depois de entrar, conecte-o para começar a usar o Deck na sua máquina.
           </p>
         )}
+        </>)}
+        <p className="mt-4 flex justify-center gap-3 text-[11.5px] text-neutral-600">
+          <a href="/privacy/" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-neutral-400">Privacidade</a>
+          <a href="/terms/" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-neutral-400">Termos</a>
+          <a href="/support/" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-neutral-400">Suporte</a>
+        </p>
       </form>
     </div>
   );

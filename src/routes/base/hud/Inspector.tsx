@@ -3,15 +3,16 @@ import { STATE_LOOK } from '../engine/monitor';
 import type { BaseEngine } from '../engine/engine';
 import type { InspectView } from '../hudState';
 import type { MonitorTab } from '../types';
-import type { LiveActions } from '../useLiveFeed';
+import type { LiveActions, LiveSource } from '../useLiveFeed';
+import { LiveDetail } from './LiveDetail';
 import { useInspector } from './useInspector';
 
 const TABS: [MonitorTab, string][] = [['split', 'Live'], ['preview', 'Localhost'], ['diff', 'Diff'], ['terminal', 'Terminal'], ['trace', 'Trace']];
 
-export function Inspector({ view, engine, live }: { view: InspectView; engine: BaseEngine; live: LiveActions }) {
+export function Inspector({ view, engine, live, source }: { view: InspectView; engine: BaseEngine; live: LiveActions; source: LiveSource }) {
   const c = useInspector(view, engine, live), st = STATE_LOOK[view.state] ?? STATE_LOOK.waiting, isLive = !!view.sessionId;
   return (
-    <div className="base-inspect base-plate">
+    <div className={`base-inspect base-plate${isLive ? ' live' : ''}`}>
       <div className="who">
         <b>{view.name}</b>
         <span>{view.modelLabel}</span>
@@ -23,6 +24,7 @@ export function Inspector({ view, engine, live }: { view: InspectView; engine: B
           </span>
         )}
       </div>
+      {isLive && <LiveDetail sessionId={view.sessionId!} running={!!view.running} source={source} onStep={(dir) => engine.stepDesk(dir)} />}
       <div className="acts">
         {isLive ? (
           <>

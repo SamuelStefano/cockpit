@@ -1,4 +1,5 @@
 import { Button, Input } from '../primitives';
+import { fmtDropBytes } from './drop-format';
 import { DropRefCard } from './DropRefCard';
 import { TTL_OPCOES, useDropForm } from './useDropForm';
 import type { DropApi } from '../../cockpit/useDrops';
@@ -12,10 +13,11 @@ export function DropForm({ api, open }: { api: DropApi; open: boolean }) {
     <div>
       <textarea
         value={f.content}
+        disabled={!!f.file}
         onChange={(e) => f.setContent(e.target.value)}
         rows={5}
         spellCheck={false}
-        placeholder={'TOKEN=...\nou cole o script inteiro'}
+        placeholder={f.file ? 'Arquivo escolhido — o conteúdo não é exibido' : 'TOKEN=...\nou cole o script inteiro'}
         aria-label="Conteúdo do drop"
         className="w-full resize-y rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 font-mono text-[13px] text-neutral-200 placeholder:text-neutral-700 outline-hidden transition focus-within:border-orange-500/40"
       />
@@ -23,8 +25,15 @@ export function DropForm({ api, open }: { api: DropApi; open: boolean }) {
         <Button variant="outline" size="sm" icon="paperclip" className="grow" onClick={() => f.fileRef.current?.click()}>
           Escolher arquivo
         </Button>
+        {/* No `accept`: iOS Safari greys out any type it does not know (.p8, .pem). */}
         <input ref={f.fileRef} type="file" onChange={f.onFile} className="hidden" />
       </div>
+      {f.file && (
+        <div className="mt-2 flex items-center justify-between gap-2 text-[12px] text-neutral-400">
+          <span className="truncate font-mono">{f.file.name} · {fmtDropBytes(f.file.bytes)}{f.file.binary ? ' · binário' : ''}</span>
+          <button type="button" onClick={f.clearFile} className="shrink-0 text-neutral-500 hover:text-neutral-300">remover</button>
+        </div>
+      )}
       <label htmlFor="drop-slug" className="mt-3 block text-[12px] font-medium text-neutral-500">Nome do arquivo</label>
       <Input
         id="drop-slug"

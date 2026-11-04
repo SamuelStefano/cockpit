@@ -54,6 +54,10 @@ export function deterministicDiagnosis(f: Findings): Diagnosis {
     actions.push('restart_relay', 'reload_caddy');
     return out(`/status responde mas o upgrade WebSocket em /ws falha (${c.get('ws_upgrade')?.detail}).`);
   }
+  if (st('login_path') === 'fail' || st('auth_flow') === 'fail') {
+    actions.push('restart_relay');
+    return out(`Relay e Caddy no ar, mas o login do navegador está travado (${c.get('login_path')?.detail}; ${c.get('auth_flow')?.detail}). Provável verificação de JWT presa.`);
+  }
   if (actions.includes('redeploy_web')) return out(`Front do Deck com problema: ${c.get('dokploy_web')?.detail}; ${c.get('spa_bundle')?.detail}.`);
   if (st('local_agent_service') === 'fail' || st('local_agent_owner') === 'fail') actions.push('restart_local_agent');
   if (actions.length) return out(`Falha fora do relay: ${f.checks.filter((x) => x.status === 'fail').map((x) => CHECK_LABELS[x.id]).join(', ')}.`);

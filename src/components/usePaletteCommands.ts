@@ -9,6 +9,7 @@ import { navFor, type NavRole } from './chrome/nav-routes';
 import { gameEnabled } from '../game/game-bus';
 import { foundEgg } from '../game/found-egg';
 import { triggerEgg, type EggTrigger } from '../game/egg-bus';
+import { appOrigin } from '../lib/origin';
 
 const SUDO_QUERY = 'sudo make me a sandwich';
 const HIDDEN_EGGS: EggTrigger[] = ['iddqd', 'matrix', 'konami'];
@@ -72,7 +73,7 @@ export function usePaletteCommands(args: PaletteCommandsArgs): Cmd[] {
       actions.push({
         id: 'copy-prompt-link', label: 'Copiar link de prompt', icon: 'copy', group: 'Ações',
         run: () => {
-          navigator.clipboard.writeText(buildPromptLink(location.origin, draft))
+          navigator.clipboard.writeText(buildPromptLink(appOrigin(), draft))
             .then(() => toast('Link copiado'), () => toast('Não foi possível copiar o link.', { tone: 'error' }));
           onClose();
         },

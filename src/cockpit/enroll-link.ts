@@ -17,8 +17,9 @@ interface KV { getItem(k: string): string | null; setItem(k: string, v: string):
 interface Loc { pathname: string; search: string; hash: string }
 interface Hist { replaceState(data: unknown, unused: string, url: string): void }
 
-export function enrollLinkUrl(origin: string, link: EnrollLink): string {
+export function enrollLinkUrl(origin: string, link: EnrollLink, loginTicket?: string): string {
   const p = new URLSearchParams({ enroll: link.code, box: link.box, exp: String(link.expiresAt) });
+  if (loginTicket) p.set('login', loginTicket);
   return `${origin}/#${p.toString()}`;
 }
 

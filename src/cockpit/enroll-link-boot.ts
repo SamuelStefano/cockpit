@@ -1,5 +1,6 @@
 import { captureEnrollLink } from './enroll-link';
 import { boxStore } from './boxes-store';
+import { captureQrLogin } from './qr-login';
 
 // Imported first in main.tsx: the fragment leaves the address bar before the
 // router, the auth client or anything else reads location. The link's box
@@ -18,6 +19,7 @@ export function linkStore() {
 }
 
 if (typeof window !== 'undefined') {
+  captureQrLogin(window.location, window.history, linkStore());
   const link = captureEnrollLink(window.location, window.history, linkStore());
   if (link) boxStore.setPref(link.box);
 }

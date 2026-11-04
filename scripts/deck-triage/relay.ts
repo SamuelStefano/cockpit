@@ -32,11 +32,12 @@ export function probeScript(accountId: string | null): string {
     `ACC='${acc}'`,
     'if [ -n "$ACC" ] && [ -n "${DECK_LOG_SALT:-}" ]; then',
     '  H=$(node -e \'process.stdout.write(require("crypto").createHmac("sha256",process.env.DECK_LOG_SALT).update(process.argv[1]).digest("hex").slice(0,10))\' "$ACC")',
-    '  echo "@@log"; journalctl -u deck-relay -n 5000 -o cat --no-pager 2>/dev/null | grep -F "\\"acct\\":\\"$H\\"" | tail -n 50',
+    '  echo "@@log"; timeout 8 journalctl -u deck-relay -n 5000 -o cat --no-pager 2>/dev/null | grep -F "\\"acct\\":\\"$H\\"" | tail -n 50',
     `  echo "@@agents"; ${AUTH_CURL} "$SUPABASE_URL/rest/v1/agent?select=id,label,kind,last_seen,revoked_at&account_id=eq.$ACC&order=last_seen.desc.nullslast&limit=10" || echo "[]"; echo`,
     'else',
-    '  echo "@@log"; journalctl -u deck-relay -n 50 -o cat --no-pager 2>/dev/null',
+    '  echo "@@log"; timeout 8 journalctl -u deck-relay -n 50 -o cat --no-pager 2>/dev/null',
     'fi',
+    'echo "@@auth"; if A=$(timeout 8 journalctl -u deck-relay --since "10 minutes ago" -o cat --no-pager 2>/dev/null); then printf "%s\\n" "$A" | awk \'/"ev":"relay_start"/{ok=0;c=0;s=0} /"ev":"browser_auth_ok"/{ok++} /"ev":"browser_close"/&&/"code":4408/{c++} /"ev":"browser_auth_stall"/{s++} END{printf "ok=%d c4408=%d stall=%d\\n",ok,c,s}\'; else echo journal-timeout; fi',
     'echo "@@end"',
   ].join('\n');
 }

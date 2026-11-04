@@ -1,5 +1,6 @@
 import { boxLabel } from '../../cockpit/boxes-store';
 import { useBoxes } from '../../cockpit/useBoxes';
+import { desktopVersion } from '../../lib/desktop';
 import { Icon } from '../primitives';
 import { BoxDot } from '../sessions/BoxDot';
 
@@ -8,6 +9,7 @@ import { BoxDot } from '../sessions/BoxDot';
 export function AccountDevices({ onDone, onManage }: { onDone: () => void; onManage?: () => void }) {
   const { known, boxes, active, switchBox } = useBoxes();
   if (!known || boxes.length === 0) return null;
+  const appVersion = desktopVersion();
   return (
     <div className="mt-3 border-t border-neutral-800 pt-3">
       <p className="text-[12px] font-medium text-neutral-500">Fleet</p>
@@ -26,6 +28,7 @@ export function AccountDevices({ onDone, onManage }: { onDone: () => void; onMan
           </li>
         ))}
       </ul>
+      {appVersion && <p className="mt-1 px-1.5 text-[11px] text-neutral-600">Deck Desktop {appVersion}</p>}
       {onManage && (
         <button type="button" onClick={() => { onManage(); onDone(); }} className="mt-1 flex w-full items-center gap-2 rounded-md px-1.5 py-1.5 text-left text-[12.5px] text-neutral-300 hover:bg-neutral-800/60">
           <Icon name="smartphone" size={13} />

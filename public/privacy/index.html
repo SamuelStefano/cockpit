@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Política de privacidade · Deck</title>
+<meta name="robots" content="index,follow">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<style>
+:root{color-scheme:dark}
+body{margin:0;background:#0a0a0a;color:#d4d4d4;font:16px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:46rem;margin:0 auto;padding:2rem 1.25rem 4rem}
+h1{font-size:1.6rem;color:#fff;margin:.2rem 0 .4rem}
+h2{font-size:1.15rem;color:#f97316;margin:2rem 0 .4rem}
+a{color:#fb923c}
+nav{display:flex;gap:1rem;flex-wrap:wrap;font-size:.9rem;margin-bottom:1.5rem}
+.meta{color:#737373;font-size:.85rem}
+hr{border:0;border-top:1px solid #262626;margin:3rem 0}
+li{margin:.3rem 0}
+</style>
+</head>
+<body>
+<main>
+<nav><a href="/">Deck</a><a href="/privacy/">Privacidade / Privacy</a><a href="/terms/">Termos / Terms</a><a href="/support/">Suporte / Support</a></nav>
+<article lang="pt-BR" id="pt">
+<h1>Política de privacidade</h1>
+<p class="meta">Última atualização: 1 de novembro de 2026 · <a href="#en">English version below</a></p>
+
+<p>O Deck é um cliente de chat para o agente de IA que roda no <strong>seu próprio servidor</strong>. Esta página diz o que passa pelos nossos sistemas, o que não passa e como apagar sua conta.</p>
+
+<h2>Conta e login</h2>
+<p>Você entra com e-mail e senha, gerenciados pelo Supabase Auth. Guardamos seu e-mail, a senha em forma de hash (nunca em texto) e os dados da conta: nome de exibição e avatar (se você definir), preferências do app (como sessões fixadas e etiquetas), as caixas (servidores) que você pareou (rótulo, chave pública e último acesso) e o vínculo com a instalação do GitHub, se você conectar uma.</p>
+
+<h2>Suas conversas ficam no seu servidor</h2>
+<p>O histórico de sessões, os arquivos, o código e as memórias do agente ficam <strong>na sua máquina</strong> (o servidor que você pareou), não no banco da DevFellowship. Se você apagar sua conta, o que está no seu servidor continua lá; para remover, apague no próprio servidor.</p>
+
+<h2>O que o relay vê</h2>
+<p>As mensagens do app passam por um relay operado pela DevFellowship (deck-relay.devfellowship.com), que as encaminha ao seu servidor. O relay não guarda o conteúdo das conversas. Quando o seu aparelho está cadastrado na caixa e o servidor roda com o canal selado (padrão), o conteúdo vai cifrado de ponta a ponta entre o app e o seu servidor: o relay vê apenas metadados, como a conta, o horário e o tamanho dos pacotes, e pode derrubar a conexão. Se o seu servidor for configurado com o canal selado desligado, o relay passa a ver o tráfego em claro. Alguns comandos são tratados pelo próprio relay (renomear ou revogar uma caixa, listar contas para administradores) e, por isso, ele os lê.</p>
+
+<h2>Seus prompts vão para o provedor de IA</h2>
+<p>O agente no seu servidor envia seus prompts, e o contexto que ele montar, ao provedor de IA que ele usa (por exemplo, a Anthropic). O Deck pede seu consentimento antes do primeiro envio. O tratamento nesse provedor segue os termos e a política de privacidade dele, escolhidos por quem configura o servidor.</p>
+
+<h2>Entrada por voz</h2>
+<p>O ditado usa o reconhecimento de voz do navegador ou do sistema; em alguns aparelhos o sistema operacional envia o áudio ao fabricante. Na chamada de voz, se o servidor tiver uma chave do ElevenLabs configurada, o áudio do microfone é enviado ao ElevenLabs para transcrição, e a resposta falada é gerada pelo servidor (ElevenLabs ou Microsoft Edge TTS). O microfone só abre quando você toca para falar.</p>
+
+<h2>Compartilhamento</h2>
+<p>Se você criar um link de compartilhamento na web, uma cópia da conversa sem a saída de ferramentas é guardada num armazenamento público do Supabase, acessível a quem tiver o link. Você pode revogar o link; excluir a conta apaga todos os seus compartilhamentos.</p>
+
+<h2>Diagnóstico</h2>
+<p>O app e o agente podem enviar relatórios curtos de falha ou de atualização (tipo, versão, navegador) vinculados à sua conta, e sinais anônimos de conexão sem identificador pessoal. O relay registra eventos de operação com identificadores embaralhados e não grava endereços IP nesses eventos.</p>
+
+<h2>Com quem compartilhamos</h2>
+<p>Supabase (autenticação e banco de dados) e a infraestrutura do relay. Não vendemos dados nem usamos anúncios ou rastreadores de terceiros.</p>
+
+<h2>Excluir sua conta</h2>
+<p>No app: menu do perfil, <em>Excluir conta</em>, e confirme digitando seu e-mail. Também aparece na tela inicial e na de cadastro de aparelho. A exclusão apaga seu login, os dados da conta, as caixas pareadas e os links de compartilhamento, e encerra suas conexões. Sem acesso ao app, escreva para o contato abaixo.</p>
+
+<h2>Contato</h2>
+<p><a href="mailto:tainan@devfellowship.com">tainan@devfellowship.com</a></p>
+
+</article>
+<hr>
+<article lang="en" id="en">
+<h1>Privacy policy</h1>
+<p class="meta">Last updated: November 1, 2026 · <a href="#pt">Versão em português acima</a></p>
+
+<p>Deck is a chat client for the AI agent that runs on <strong>your own server</strong>. This page says what passes through our systems, what does not, and how to delete your account.</p>
+
+<h2>Account and sign-in</h2>
+<p>You sign in with email and password, handled by Supabase Auth. We store your email, your password as a hash (never plain text), and account data: display name and avatar (if you set them), app preferences (such as pinned sessions and tags), the boxes (servers) you paired (label, public key, last seen) and the link to a GitHub installation, if you connect one.</p>
+
+<h2>Your conversations stay on your server</h2>
+<p>Session history, files, code and the agent's memories live <strong>on your machine</strong> (the server you paired), not in DevFellowship's database. If you delete your account, what is on your server stays there; remove it on that server.</p>
+
+<h2>What the relay can see</h2>
+<p>App messages pass through a relay operated by DevFellowship (deck-relay.devfellowship.com), which forwards them to your server. The relay does not store conversation content. When your device is enrolled on the box and the server runs with the sealed channel (the default), content is end-to-end encrypted between the app and your server: the relay sees only metadata such as the account, timing and packet sizes, and it can drop the connection. If your server is configured with the sealed channel turned off, the relay can see the traffic in clear. A few commands are handled by the relay itself (renaming or revoking a box, listing accounts for administrators), so it reads those.</p>
+
+<h2>Your prompts go to the AI provider</h2>
+<p>The agent on your server sends your prompts, and the context it builds, to the AI provider it uses (for example Anthropic). Deck asks for your consent before the first send. Handling there follows that provider's terms and privacy policy, chosen by whoever configures the server.</p>
+
+<h2>Voice input</h2>
+<p>Dictation uses the browser or system speech recognition; on some devices the operating system sends the audio to its maker. In voice calls, if the server has an ElevenLabs key configured, microphone audio is sent to ElevenLabs for transcription, and the spoken reply is generated by the server (ElevenLabs or Microsoft Edge TTS). The microphone opens only when you tap to speak.</p>
+
+<h2>Sharing</h2>
+<p>If you create a share link on the web, a copy of the conversation without tool output is stored in public Supabase storage, reachable by anyone with the link. You can revoke the link; deleting your account removes all your shares.</p>
+
+<h2>Diagnostics</h2>
+<p>The app and the agent may send short crash or update reports (type, version, browser) tied to your account, plus anonymous connection signals with no personal identifier. The relay logs operational events with scrambled identifiers and does not record IP addresses in those events.</p>
+
+<h2>Who we share with</h2>
+<p>Supabase (authentication and database) and the relay infrastructure. We do not sell data or use ads or third-party trackers.</p>
+
+<h2>Delete your account</h2>
+<p>In the app: profile menu, <em>Excluir conta</em> (delete account), then confirm by typing your email. It also appears on the home screen and on the device enrollment screen. Deletion removes your login, account data, paired boxes and share links, and closes your connections. Without access to the app, write to the contact below.</p>
+
+<h2>Contact</h2>
+<p><a href="mailto:tainan@devfellowship.com">tainan@devfellowship.com</a></p>
+
+</article>
+</main>
+</body>
+</html>

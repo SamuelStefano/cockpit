@@ -386,7 +386,9 @@ export function runAgent(relayUrl: string): void {
   // pro relay (activeWs). broadcast já sai por ele via setClientSource. Sem isto a
   // UI nunca recebe stats/plan-usage atualizados (barra de usage e telemetria
   // travadas em "carregando") nem as versões concretas dos modelos.
-  const hasClients = () => activeWs !== null && (E2E_REQUIRED ? (hub?.peers.size ?? 0) > 0 : browsersPresent);
+  const hasClients = () => activeWs !== null && (E2E_REQUIRED ? (hub?.hasFullPeers() ?? false) : browsersPresent);
+  // Peeks live on the session list, so the watcher must keep pushing for them alone.
+  const hasPeers = () => activeWs !== null && (E2E_REQUIRED ? (hub?.peers.size ?? 0) > 0 : browsersPresent);
   startStatsLoop(hasClients);
   // Without this, this process never learns about a turn started on the
   // OTHER Deck backend (server/index.ts, the one deckctl talks to) — the
@@ -403,7 +405,7 @@ export function runAgent(relayUrl: string): void {
   startModelsLoop(hasClients);
   startHealthLoop(hasClients, broadcast);
   startAuthKeepAlive();
-  startSessionsWatch(hasClients);
+  startSessionsWatch(hasPeers);
   startPointsWatch(hasClients);
   startDflPointsWatch();
   startDflDraftsWatch();

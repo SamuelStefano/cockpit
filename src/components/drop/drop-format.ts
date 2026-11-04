@@ -20,3 +20,28 @@ export function slugFromName(name: string): string {
   const s = (name.split(/[/\\]/).pop() ?? '').replace(/[^a-zA-Z0-9._-]/g, '-').replace(/^[.]+/, '').slice(0, 64);
   return s || 'drop';
 }
+
+export interface DropPayload {
+  content: string;
+  // Absent = UTF-8 text through the original frame (works with agents that predate
+  // binary drops); 'base64' = binary file.
+  encoding?: 'base64';
+  bytes: number;
+}
+
+// Bytes → base64 in chunks: String.fromCharCode(...bigArray) overflows the stack.
+export function bytesToBase64(bytes: Uint8Array): string {
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+
+// Valid UTF-8 without NUL is text; anything else (.p8/.p12 DER, images) is binary.
+export function classifyBytes(bytes: Uint8Array): DropPayload {
+  if (!bytes.includes(0)) {
+    try {
+      return { content: new TextDecoder('utf-8', { fatal: true }).decode(bytes), bytes: bytes.length };
+    } catch { /* not UTF-8 → binary */ }
+  }
+  return { content: bytesToBase64(bytes), encoding: 'base64', bytes: bytes.length };
+}

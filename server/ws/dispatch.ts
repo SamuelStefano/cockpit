@@ -28,7 +28,7 @@ import { getMemories, saveMemory, deleteMemory, validateMemoryInput, readMemorie
 import { botTurnFor, botDenyRules } from '../team-prompt';
 import { agentBuilderTurn } from '../engine/triage';
 import { cleanBuildRequest } from './agent-build';
-import { parseTtsText, synthesize } from '../tts';
+import { parseTtsText, synthesize, mintSttToken } from '../tts';
 import { sendTeamMessages, sendTeamPaused, setTeamPause } from './team-frames';
 import { clearBotQuestion, sendTeamPending } from './team-pending-frames';
 import { sendBotComputer, sendBotFile, sendBotFiles } from './team-files-frames';
@@ -73,6 +73,7 @@ import { requestGrokUsageRefresh, grokUsageFrame } from './usage-grok';
 import { listGraphs, readGraph, buildGraph, deleteGraph, queryGraph, nodeOp } from '../graph';
 import { buildBench } from '../bench';
 import { buildCanvas } from '../canvas/index';
+import { withPlain } from '../mission-summary';
 import { readOrchestrator } from '../canvas/orchestrator';
 import { readOrchestratorActivity } from '../canvas/orchestrator-activity';
 import { readBusyElsewhereSessionIds, readBusyHeadlessElsewhereSessionIds, refreshLivenessSnapshot } from '../canvas/cv-liveness';
@@ -105,7 +106,7 @@ startCanvasFlows();
 // (F5, a second tab, /canvas opened after the flow already fired) needs this
 // on the SAME frame as the board, not just the one-shot canvas-flow-run
 // broadcast it may have missed entirely.
-const boardFrame = (board: CanvasBoard) => ({ t: 'canvas-board' as const, board, flowRuns: activeFlowRuns() });
+const boardFrame = (board: CanvasBoard) => ({ t: 'canvas-board' as const, board: withPlain(board), flowRuns: activeFlowRuns() });
 
 // CPU samples for the canvas-term-stats POLL, keyed per SOCKET — not one
 // shared map. cpuPercent is a delta against the previous sample per key
@@ -669,7 +670,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     // e o traria pro transcript pela porta dos fundos. Unicast (send), sem
     // broadcast — segredo não faz fan-out cego pros outros aparelhos.
     case 'drop-put': {
-      const r = await putDrop(msg.slug, msg.content, msg.ttlMs);
+      const r = await putDrop(msg.slug, msg.content, msg.ttlMs, msg.encoding);
       if ('error' in r) { send(ws, { t: 'error', message: r.error }); return; }
       send(ws, { t: 'drop', ref: r });
       send(ws, { t: 'drops', items: await listDrops() });
@@ -908,6 +909,12 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
         const audio = await synthesize(parseTtsText(typeof msg.text === 'string' ? msg.text : ''));
         send(ws, { t: 'tts-audio', reqId, audio: audio.toString('base64') });
       } catch { fail(); } finally { ttsInFlight.set(ws, (ttsInFlight.get(ws) ?? 1) - 1); }
+      return;
+    }
+    case 'stt-token': {
+      const reqId = typeof msg.reqId === 'string' ? msg.reqId.slice(0, 64) : '';
+      if (!reqId) return;
+      send(ws, { t: 'stt-token-result', reqId, token: (await mintSttToken().catch(() => null)) ?? undefined });
       return;
     }
     case 'agent-build': {

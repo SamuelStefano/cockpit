@@ -18,6 +18,9 @@ export interface StoreConfig {
 // que espera por ele (a aba no meio da auth, o agente no meio do handshake) até o
 // TCP desistir — minutos, com o pré-auth ocupando slot o tempo todo.
 const REQ_TIMEOUT_MS = 10_000;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const SHARE_PURGE_PAGE = 100;
+const SHARE_PURGE_ROUNDS = 50;
 
 export function supabaseStore(cfg: StoreConfig): RelayStore {
   const f = cfg.fetchImpl ?? fetch;
@@ -154,6 +157,73 @@ export function supabaseStore(cfg: StoreConfig): RelayStore {
       if (!res.ok) return null;
       const rows = (await res.json()) as { account_id: string }[];
       return Array.isArray(rows) && rows.length === 1 ? rows[0].account_id : null;
+    },
+
+    // Account deletion (store review 5.1.1(v)). Share snapshots first: they live in
+    // a public bucket and no FK ties them to the user, so they must go while the id
+    // is still ours to name. Then the auth user; account/agent/pairing rows cascade
+    // from it (migration 0001). A user already gone (404) counts as done, so a retry
+    // after a lost response succeeds. Any other failure throws: nothing is half-deleted
+    // silently and the caller can retry.
+    // A signature-valid JWT may belong to a session already signed out; GoTrue's
+    // /user refuses those, so QR minting never outlives a sign-out.
+    async sessionAlive(accessToken) {
+      const root = cfg.url.replace(/\/$/, '');
+      try {
+        const r = await f(`${root}/auth/v1/user`, { headers: { apikey: cfg.serviceKey, authorization: `Bearer ${accessToken}` }, signal: AbortSignal.timeout(REQ_TIMEOUT_MS) });
+        return r.ok;
+      } catch { return false; }
+    },
+
+    // QR sign-in: a magic-link token hash for this exact user, never emailed.
+    // The address is read from the user row (not the caller's JWT) and the link
+    // must come back for the same id, or nothing is handed out.
+    async mintLoginToken(accountId) {
+      if (!UUID.test(accountId)) throw new Error('mintLoginToken: bad id');
+      const root = cfg.url.replace(/\/$/, '');
+      const authz = { apikey: cfg.serviceKey, authorization: `Bearer ${cfg.serviceKey}`, 'content-type': 'application/json' };
+      const u = await f(`${root}/auth/v1/admin/users/${accountId}`, { headers: authz, signal: AbortSignal.timeout(REQ_TIMEOUT_MS) });
+      if (!u.ok) throw new Error(`user read failed: ${u.status}`);
+      const user = (await u.json()) as { id?: string; email?: string; banned_until?: string | null };
+      if (user.id !== accountId || !user.email) throw new Error('user mismatch');
+      if (user.banned_until && Date.parse(user.banned_until) > Date.now()) throw new Error('user banned');
+      const g = await f(`${root}/auth/v1/admin/generate_link`, {
+        method: 'POST', headers: authz, signal: AbortSignal.timeout(REQ_TIMEOUT_MS),
+        body: JSON.stringify({ type: 'magiclink', email: user.email }),
+      });
+      if (!g.ok) throw new Error(`generate_link failed: ${g.status}`);
+      const j = (await g.json()) as { id?: string; hashed_token?: string; user?: { id?: string }; properties?: { hashed_token?: string } };
+      const hash = j.properties?.hashed_token ?? j.hashed_token;
+      if ((j.user?.id ?? j.id) !== accountId || typeof hash !== 'string' || !hash) throw new Error('generate_link mismatch');
+      return hash;
+    },
+
+    async deleteAccount(accountId) {
+      if (!UUID.test(accountId)) throw new Error('deleteAccount: bad id');
+      const root = cfg.url.replace(/\/$/, '');
+      const authz = { apikey: cfg.serviceKey, authorization: `Bearer ${cfg.serviceKey}`, 'content-type': 'application/json' };
+      for (let round = 0; round < SHARE_PURGE_ROUNDS; round++) {
+        const list = await f(`${root}/storage/v1/object/list/shares`, {
+          method: 'POST', headers: authz, signal: AbortSignal.timeout(REQ_TIMEOUT_MS),
+          body: JSON.stringify({ prefix: `${accountId}/`, limit: SHARE_PURGE_PAGE, offset: 0 }),
+        });
+        if (!list.ok) throw new Error(`share list failed: ${list.status}`);
+        const items = (await list.json()) as { name?: string; id?: string | null }[];
+        const names = (Array.isArray(items) ? items : []).filter((o) => o.id && typeof o.name === 'string' && o.name).map((o) => `${accountId}/${o.name}`);
+        if (names.length === 0) break;
+        const del = await f(`${root}/storage/v1/object/shares`, {
+          method: 'DELETE', headers: authz, signal: AbortSignal.timeout(REQ_TIMEOUT_MS),
+          body: JSON.stringify({ prefixes: names }),
+        });
+        if (!del.ok) throw new Error(`share delete failed: ${del.status}`);
+        if (names.length < SHARE_PURGE_PAGE) break;
+      }
+      const res = await f(`${root}/auth/v1/admin/users/${accountId}`, {
+        method: 'DELETE', headers: authz, signal: AbortSignal.timeout(REQ_TIMEOUT_MS),
+      });
+      if (res.status === 404) return true;
+      if (!res.ok) throw new Error(`auth delete failed: ${res.status}`);
+      return true;
     },
 
     async insertDiagReport(row: DiagReportRow) {

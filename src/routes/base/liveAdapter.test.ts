@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Message } from '../../data/types';
 import type { CanvasCard } from '../../../shared/canvas';
-import { pickSessions, adaptLive, emptyPlacement, familyOf, LIVE_AGENT_CAP, nextCronRun, placeSessions, projectOf, type LiveInput } from './liveAdapter';
+import { pickSessions, adaptLive, quietLabel, silentFor, SILENT_MS, emptyPlacement, familyOf, LIVE_AGENT_CAP, nextCronRun, placeSessions, projectOf, type LiveInput } from './liveAdapter';
 
 const NOW = 1_800_000_000_000;
 const input = (over: Partial<LiveInput> = {}): LiveInput => ({ sessions: [], running: new Set(), termStats: {}, threads: {}, tails: {}, teamQuestions: [], areas: {}, cards: null, stats: null, crons: null, mcpServers: null, answered: {}, now: NOW, ...over });
@@ -40,6 +40,31 @@ describe('adaptLive', () => {
     const r = adaptLive(input({ sessions: [sess('run'), sess('idle'), sess('ask', { waiting: true })], running: new Set(['run']) }), emptyPlacement());
     const by = Object.fromEntries(r.floor.agents.map((a) => [a.sessionId, a.state]));
     expect(by).toEqual({ run: 'working', idle: 'finished', ask: 'blocked' });
+  });
+
+  it('turns a running session silent after 5 minutes without transcript activity', () => {
+    const ids = ['quiet', 'fresh', 'unknown', 'bg', 'idle'];
+    const r = adaptLive(input({
+      sessions: ids.map((id) => sess(id)), running: new Set(ids.filter((i) => i !== 'idle')),
+      termStats: { quiet: { lastAt: NOW - 7 * 60000 }, fresh: { lastAt: NOW - 60000 }, bg: { lastAt: NOW - 9 * 60000 }, idle: { lastAt: NOW - 9 * 60000 } },
+      bgRunning: { bg: 1 },
+    }), emptyPlacement());
+    const by = Object.fromEntries(r.floor.agents.map((a) => [a.sessionId, a]));
+    expect(by.quiet.state).toBe('silent');
+    expect(by.quiet.line).toBe('No new activity for 7m');
+    expect(by.quiet.monitor).toMatchObject({ now: 'No new activity for 7m' });
+    expect(by.fresh.state).toBe('working');
+    expect(by.unknown.state).toBe('working');
+    expect(by.bg.state).toBe('working');
+    expect(by.idle.state).toBe('finished');
+  });
+
+  it('silentFor and quietLabel never say stuck', () => {
+    expect(silentFor(NOW - SILENT_MS, NOW)).toBeNull();
+    expect(silentFor(NOW - SILENT_MS - 1, NOW)).toBe(SILENT_MS + 1);
+    expect(silentFor(undefined, NOW)).toBeNull();
+    expect(quietLabel(65 * 60000)).toBe('No new activity for 1h 5m');
+    expect(quietLabel(1000)).not.toMatch(/stuck/i);
   });
 
   it('caps the floor and reports the rest as elsewhere', () => {
@@ -122,5 +147,25 @@ describe('live floor grouping from the real test', () => {
     const { shown } = pickSessions({ sessions: [...sessions, old], running: new Set(['r']), now });
     expect(shown[0].id).toBe('r');
     expect(shown).toHaveLength(7);
+  });
+});
+
+describe('box link', () => {
+  const written = [{ id: 'a', role: 'assistant', blocks: [{ type: 'tool', tool: { id: 't', name: 'Write', label: 'Write', command: '/x.ts', status: 'done', output: [], diff: { path: '/x.ts', old: '', new: 'y' } } }] }] as unknown as Message[];
+  const s = sess('one');
+  const crates = (over: Partial<LiveInput>) => adaptLive(input({ sessions: [s], ...over }), emptyPlacement()).floor.crates;
+  it('gives a session no box until it has real output', () => {
+    expect(crates({})).toEqual([]);
+  });
+  it('parks a box by the desk once a file or PR exists', () => {
+    expect(crates({ threads: { one: written } })[0]).toMatchObject({ id: 'out-one', agentIds: ['s-one'] });
+    expect(crates({ prs: { one: 1 } })[0]).toMatchObject({ id: 'out-one', band: true });
+  });
+  it('prefers the real card link over a desk box, and keeps it past the status cap', () => {
+    const others = Array.from({ length: 9 }, (_, i) => ({ ...card(`c${i}`, 'todo'), updatedAt: 100 + i }));
+    const mine = { ...card('mine', 'todo'), sessionIds: ['one'] };
+    const out = crates({ cards: [...others, mine], prs: { one: 1 } });
+    expect(out.find((c) => c.id === 'card-mine')?.agentIds).toEqual(['s-one']);
+    expect(out.some((c) => c.id === 'out-one')).toBe(false);
   });
 });

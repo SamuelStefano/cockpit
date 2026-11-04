@@ -4,6 +4,8 @@
 
 import { loadPref } from './persist';
 import { NOTIFY_SOUND_KEY, NOTIFY_SOUND_DEFAULT } from './prefs';
+import { flashDesktopWindow, focusDesktopWindow, inDesktopApp, setDesktopBadge } from './desktop';
+import { inShell, postToShell } from './shell';
 
 let baseTitle = typeof document !== 'undefined' ? document.title : 'Deck';
 let flashing = false;
@@ -26,6 +28,7 @@ function nav(): BadgeNavigator | undefined {
 // Contador no ícone do app: só existe em PWA instalado (é o único lugar onde o
 // aviso sobrevive à aba fechada). Fora disso a API não existe e isto é no-op.
 export function setBadge(count: number): void {
+  if (setDesktopBadge(count)) return;
   const n = nav();
   if (!n) return;
   try {
@@ -87,28 +90,45 @@ export function setTitleBase(t: string): void {
 }
 
 export function requestNotifyPermission(): void {
-  if (typeof Notification === 'undefined') return;
+  if (inShell() || typeof Notification === 'undefined') return;
   if (Notification.permission === 'default') {
     Notification.requestPermission().catch(() => {});
   }
 }
 
-export function notifyTurnDone(sessionTitle: string, onActivate?: () => void): void {
+// A desktop window behind others still counts as visible, so focus decides there.
+function userIsLooking(): boolean {
+  return inDesktopApp() ? document.hasFocus() : document.visibilityState !== 'hidden';
+}
+
+function activate(onActivate?: () => void): void {
+  if (!focusDesktopWindow()) window.focus();
+  onActivate?.();
+}
+
+export function notifyTurnDone(sessionTitle: string, onActivate?: () => void, sessionKey?: string): void {
   if (typeof document === 'undefined') return;
-  if (document.visibilityState !== 'hidden') return; // só avisa fora da aba
+  if (userIsLooking()) return;
+  // The native shell owns the local notification; the Notification API is absent in a WKWebView.
+  if (inShell()) {
+    postToShell({ type: 'haptic', style: 'success' });
+    postToShell({ type: 'notify', kind: 'turn-done', title: 'Deck — resposta pronta', body: sessionTitle || 'A sessão terminou de responder.', tag: sessionKey ? `cockpit-done:${sessionKey}` : 'cockpit-done' });
+    return;
+  }
   flashTitle();
   vibrate([30]);
   beep(660);
+  if (flashDesktopWindow()) return;
   if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
     try {
       const n = new Notification('Deck — resposta pronta', {
         body: sessionTitle || 'A sessão terminou de responder.',
-        tag: 'cockpit-done',
+        tag: sessionKey ? `cockpit-done:${sessionKey}` : 'cockpit-done',
         icon: ICON,
         badge: BADGE,
       });
       // Clicar não só foca a janela: pula direto pra sessão que terminou.
-      n.onclick = () => { window.focus(); onActivate?.(); n.close(); };
+      n.onclick = () => { activate(onActivate); n.close(); };
     } catch {
       /* best-effort */
     }
@@ -118,21 +138,27 @@ export function notifyTurnDone(sessionTitle: string, onActivate?: () => void): v
 // Espelha notifyTurnDone pro caso de falha: rodar a noite toda e voltar sem
 // saber que o turno quebrou (overload, exit não-zero, claude fora do PATH) é o
 // pior cenário — aqui o erro avisa igual ao sucesso, fora da aba.
-export function notifyTurnError(sessionTitle: string, message: string, onActivate?: () => void): void {
+export function notifyTurnError(sessionTitle: string, message: string, onActivate?: () => void, sessionKey?: string): void {
   if (typeof document === 'undefined') return;
-  if (document.visibilityState !== 'hidden') return;
+  if (userIsLooking()) return;
+  if (inShell()) {
+    postToShell({ type: 'haptic', style: 'error' });
+    postToShell({ type: 'notify', kind: 'turn-error', title: 'Deck — turno falhou', body: (sessionTitle ? `${sessionTitle} — ` : '') + (message || 'A sessão terminou com erro.'), tag: sessionKey ? `cockpit-error:${sessionKey}` : 'cockpit-error' });
+    return;
+  }
   flashTitle();
   vibrate([60, 40, 60]);
   beep(220);
+  if (flashDesktopWindow()) return;
   if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
     try {
       const n = new Notification('Deck — turno falhou', {
         body: (sessionTitle ? `${sessionTitle} — ` : '') + (message || 'A sessão terminou com erro.'),
-        tag: 'cockpit-error',
+        tag: sessionKey ? `cockpit-error:${sessionKey}` : 'cockpit-error',
         icon: ICON,
         badge: BADGE,
       });
-      n.onclick = () => { window.focus(); onActivate?.(); n.close(); };
+      n.onclick = () => { activate(onActivate); n.close(); };
     } catch {
       /* best-effort */
     }
@@ -148,6 +174,9 @@ function flashTitle(): void {
     document.title = baseTitle;
     flashing = false;
     document.removeEventListener('visibilitychange', restore);
+    window.removeEventListener('focus', restore);
   };
   document.addEventListener('visibilitychange', restore);
+  // A desktop window behind others stays visible, so only focus ends the flash there.
+  window.addEventListener('focus', restore);
 }

@@ -10,7 +10,8 @@ export interface TgUpdate { update_id: number; message?: TgMessage; callback_que
 
 export type Inbound =
   | { type: 'action'; action: ActionId; ref: string; callbackId: string; messageId: number | null }
-  | { type: 'command'; command: 'status' | 'help' }
+  | { type: 'command'; command: 'status' | 'help' | 'metricas' }
+  | { type: 'investigar'; request: string }
   | { type: 'ignored'; reason: string };
 
 // Both the chat and the sender must be the owner: a private chat id equals the user id,
@@ -27,8 +28,11 @@ export function classifyUpdate(u: TgUpdate, ownerId: number): Inbound {
   const msg = u.message;
   if (msg) {
     if (msg.chat?.id !== ownerId || msg.from?.id !== ownerId) return { type: 'ignored', reason: `mensagem de ${msg.from?.id}/${msg.chat?.id}` };
-    const cmd = (msg.text ?? '').trim().split(/[\s@]/)[0];
+    const text = (msg.text ?? '').trim();
+    const cmd = text.split(/[\s@]/)[0];
     if (cmd === '/status') return { type: 'command', command: 'status' };
+    if (cmd === '/investigar') return { type: 'investigar', request: text.replace(/^\S+\s*/, '') };
+    if (cmd === '/metricas') return { type: 'command', command: 'metricas' };
     return { type: 'command', command: 'help' };
   }
   return { type: 'ignored', reason: 'update sem mensagem' };

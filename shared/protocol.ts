@@ -2,7 +2,7 @@
 // REGRA (squad L3): types-only — zero import de node:*/fs. O bundle do browser
 // importa este arquivo.
 
-import type { AreaBudget, AreaId, CanvasBoard, CanvasCard, CanvasFlow, CanvasFlowRun, CanvasGraph, CanvasPos, CardStatus, OrchestratorActivity, OrchestratorInfo, SessionPeek, TermStats } from './canvas';
+import type { AreaBudget, AreaId, CanvasBoard, CanvasCard, CanvasFlow, CanvasFlowRun, CanvasGraph, CanvasPos, CardPlain, CardStatus, OrchestratorActivity, OrchestratorInfo, SessionPeek, TermStats } from './canvas';
 import type { AreaUsage } from './canvas-budget';
 import type { DflDraft, DraftOp } from './dfl-drafts';
 import type { McpsState } from './mcps';
@@ -722,6 +722,7 @@ export type ClientMsg =
   // (relay/NAT dropou sem FIN, laptop dormiu) segue "OPEN" pro browser sem disparar
   // onclose — o pong é o único sinal de que o ida-e-volta ainda vive.
   | { t: 'ping' }
+  | { t: 'client-visibility'; hidden: boolean }
   // The relay's box list, forwarded by the tab so the box can describe its siblings
   // in the Deck context of the sessions it spawns (boxes never get it from the relay).
   | { t: 'box-roster'; boxes: RosterBox[] }
@@ -763,7 +764,9 @@ export type ClientMsg =
   // box do agente sem passar pelo chat. `drop-put` responde SÓ a referência — o
   // conteúdo nunca volta, senão ele entraria no estado do cliente e derrotaria o
   // propósito. `drop-open` é o último recurso, explícito.
-  | { t: 'drop-put'; slug: string; content: string; ttlMs?: number }
+  // `encoding: 'base64'` = binary file (.p8, .p12, images). Absent = UTF-8 text, the
+  // original frame, so text drops keep working against agents that predate it.
+  | { t: 'drop-put'; slug: string; content: string; ttlMs?: number; encoding?: 'base64' }
   | { t: 'drop-list' }
   | { t: 'drop-open'; slug: string }
   | { t: 'drop-rm'; slug: string }
@@ -831,6 +834,7 @@ export type ClientMsg =
   | { t: 'team-delete'; id: string }
   // One chunk (<=600 chars) rendered to mp3 by the box; answered by tts-audio or tts-error with the same reqId.
   | { t: 'tts'; reqId: string; text: string }
+  | { t: 'stt-token'; reqId: string }
   | { t: 'agent-build'; reqId: string; history: { role: 'user' | 'assistant'; text: string }[]; draft: { name: string; label: string; instructions: string; skills: string[] } }
   | { t: 'team-messages-get'; botId?: string; peer?: string; before?: number }
   | { t: 'team-pause-set'; paused: boolean }
@@ -986,7 +990,9 @@ export type ClientMsg =
 // bypass (env opt-in + admin + loopback). A UI só mostra o switch quando true.
 // role: engine Role no loopback ('admin'|'student'); AccountRole no T3
 // ('root'|'admin'|'fellow'). Privilegiado = 'admin'|'root'.
-export type Caps = { role: 'root' | 'admin' | 'fellow' | 'student'; canBypass: boolean };
+// clientVisibility: this agent understands client-visibility. An older student agent answers
+// any unknown frame with "sem permissão", so the client only sends it when this is true.
+export type Caps = { role: 'root' | 'admin' | 'fellow' | 'student'; canBypass: boolean; clientVisibility?: boolean };
 
 export type ServerMsg =
   | { t: 'caps'; caps: Caps }
@@ -1004,6 +1010,8 @@ export type ServerMsg =
   // pra mostrar o dashboard de pareamento quando não há agente atendendo.
   | { t: 'agent-online' }
   | { t: 'agent-offline' }
+  // Lean turn-end signal for peeks: no text, read only by other-box watchers.
+  | { t: 'turn-summary'; sessionKey: string; sessionId: string; ok: boolean }
   | { t: 'pong' }  // resposta ao ping do cliente — prova que o socket ainda faz ida-e-volta
   | { t: 'sessions'; items: SessionMeta[] }
   | { t: 'archived'; items: SessionMeta[] }
@@ -1088,6 +1096,7 @@ export type ServerMsg =
   | { t: 'triage'; sessionKey: string; msgId?: string; action: TriageAction; reason: string }
   | { t: 'tts-audio'; reqId: string; audio: string }
   | { t: 'tts-error'; reqId: string }
+  | { t: 'stt-token-result'; reqId: string; token?: string }
   | { t: 'agent-build-result'; reqId: string; ok: boolean; text?: string; error?: string }
   | { t: 'quick-answer'; sessionKey: string; id: string; text: string; ts: number }
   // model = modelo PEDIDO no turno (alias/id); carimba a bolha na hora pra o label
@@ -1154,6 +1163,9 @@ export type ServerMsg =
   // board, so it doesn't have to have caught the one-shot canvas-flow-run
   // broadcast to know the card is running.
   | { t: 'canvas-board'; board: CanvasBoard; flowRuns: CanvasFlowRun[] }
+  // Plain-language summary of one card became ready (server/mission-summary.ts);
+  // patches just that card's `plain`, never the whole board.
+  | { t: 'canvas-card-plain'; cardId: string; cardUpdatedAt: number; plain: CardPlain }
   // A flow just delivered its result to its target — the UI pulses that arrow
   // and patches just this flow's counters, never the whole board (which would
   // leak every card's prompt and every other flow's template to every socket).

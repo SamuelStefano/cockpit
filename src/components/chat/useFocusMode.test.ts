@@ -1,30 +1,33 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach } from 'vitest';
-import { renderHook } from '@testing-library/react';
+import { act, renderHook } from '@testing-library/react';
 import { isFocusMode, useFocusMode, blurActiveEditable } from './useFocusMode';
 
 afterEach(() => { document.body.innerHTML = ''; });
 
 describe('isFocusMode', () => {
-  it('needs phone, keyboard and a non-empty draft', () => {
-    expect(isFocusMode(true, true, 'oi')).toBe(true);
-    expect(isFocusMode(false, true, 'oi')).toBe(false);
-    expect(isFocusMode(true, false, 'oi')).toBe(false);
-    expect(isFocusMode(true, true, '')).toBe(false);
-  });
-
-  it('ignores whitespace-only drafts', () => {
-    expect(isFocusMode(true, true, ' \n ')).toBe(false);
+  it('needs phone, keyboard and the composer focused', () => {
+    expect(isFocusMode(true, true, true)).toBe(true);
+    expect(isFocusMode(false, true, true)).toBe(false);
+    expect(isFocusMode(true, false, true)).toBe(false);
+    expect(isFocusMode(true, true, false)).toBe(false);
   });
 });
 
 describe('useFocusMode', () => {
-  it('exits when the draft empties or the keyboard closes', () => {
-    const { result, rerender } = renderHook(({ k, d }) => useFocusMode(true, k, d), { initialProps: { k: true, d: 'a' } });
-    expect(result.current).toBe(true);
-    rerender({ k: true, d: '' });
+  it('follows composer focus, not the draft, and ignores other fields', () => {
+    const composer = document.createElement('textarea');
+    composer.setAttribute('aria-label', 'Escrever mensagem');
+    const other = document.createElement('input');
+    document.body.append(composer, other);
+    const { result, rerender } = renderHook(({ k }) => useFocusMode(true, k), { initialProps: { k: true } });
     expect(result.current).toBe(false);
-    rerender({ k: false, d: 'a' });
+    act(() => composer.focus());
+    expect(result.current).toBe(true);
+    act(() => other.focus());
+    expect(result.current).toBe(false);
+    act(() => composer.focus());
+    rerender({ k: false });
     expect(result.current).toBe(false);
   });
 });

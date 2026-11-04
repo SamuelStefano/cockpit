@@ -18,6 +18,9 @@ import { Particles } from './particles';
 import { Rig } from './rig';
 import { lightingAt } from './lighting';
 import { World } from './world';
+import { MissionWall } from './missionWall';
+import type { Mission } from '../missions';
+import { orderDesks, stepDesk } from '../deskOrder';
 
 const KEY = { rules: 'deck-base-rules', xp: 'deck-base-xp', sound: 'deck-base-sound' };
 const readJson = <T,>(k: string, d: T): T => { try { const v = localStorage.getItem(k); return v ? (JSON.parse(v) as T) : d; } catch { return d; } };
@@ -35,6 +38,7 @@ export class BaseEngine {
   floor: Floor = EMPTY_FLOOR;
   selectedId: string | null = null;
   hoverId: string | null = null;
+  onMissionClick: ((id: string) => void) | null = null;
   viewWingId: string | null = null;
   readonly rig = new Rig();
   readonly renderer: THREE.WebGLRenderer;
@@ -43,6 +47,7 @@ export class BaseEngine {
   private sun = new THREE.DirectionalLight(0xffe2b8, 1.9);
   private world: World;
   private particles: Particles;
+  private missionWall: MissionWall;
   private labels: Labels;
   private audio = new Audio();
   private views = new Map<string, AgentView>();
@@ -92,6 +97,7 @@ export class BaseEngine {
     this.scene.add(this.sun);
     this.world = new World(this.scene);
     this.particles = new Particles(this.scene);
+    this.missionWall = new MissionWall(this.scene, (x, y, z, c, n, up) => this.particles.burst(x, y, z, c, n, up));
     this.scene.add(this.rugs, this.crateRoot, this.packetRoot, this.fxRoot);
     this.labels = new Labels(labelsEl, { agent: (id) => this.select(id), wing: (id) => this.goWing(id), sector: (id) => this.goSector(id) });
     this.audio.pack = readJson<SoundPack>(KEY.sound, 'off');
@@ -128,6 +134,8 @@ export class BaseEngine {
     this.publish();
   }
   setLive(l: LiveFloor) { this.live = l; }
+  setMissions(m: Mission[]): void { this.missionWall.set(m); }
+  setSelectedMission(id: string | null): void { this.missionWall.setSelected(id); }
   home() { this.selectedId = null; this.viewWingId = null; this.closePanels(); this.rig.home(); this.publish(); }
   goWing(id: string) {
     const w = this.floor.wings.find((x) => x.id === id);
@@ -142,8 +150,13 @@ export class BaseEngine {
     if (!a) return;
     this.closePanels();
     this.selectedId = id; this.viewWingId = a.wingId;
-    this.rig.desk(a);
+    if (this.mode === 'live') this.rig.inspect(a, this.floor.crates.find((c) => c.agentIds?.includes(id)));
+    else this.rig.desk(a);
     this.publish();
+  }
+  stepDesk(dir: 1 | -1) {
+    const next = stepDesk(orderDesks(this.floor.agents, this.floor.wings), this.selectedId, dir);
+    if (next) this.select(next);
   }
   back() {
     const wing = this.floor.agents.find((a) => a.id === this.selectedId)?.wingId;
@@ -212,8 +225,9 @@ export class BaseEngine {
       if (c) this.showJourney(c);
       return;
     }
-    const title = this.floor.crates.find((c) => c.id === id)?.title;
-    if (title) this.toast(`Card: ${title}`);
+    const crate = this.floor.crates.find((c) => c.id === id);
+    if (crate?.agentIds?.[0]) this.select(crate.agentIds[0]);
+    else if (crate) this.toast(`No session linked: ${crate.title}`);
   }
   closePanels() { this.funnelPrompt = null; this.journeyCrate = null; this.publish(); }
   setTab(t: MonitorTab) { const a = this.selectedSim(); if (a) { a.tab = t; this.publish(); } }
@@ -248,6 +262,7 @@ export class BaseEngine {
   }
   toast(t: string) { this.toastText = t; this.toastUntil = performance.now() + 3200; this.publish(); }
   minimapClick(xWorld: number) {
+    if (xWorld > 66) { this.goSector('missions'); return; }
     const w = this.floor.wings.reduce<typeof this.floor.wings[number] | null>((b, o) => (!b || Math.abs(o.cx - xWorld) < Math.abs(b.cx - xWorld) ? o : b), null);
     if (w) this.goWing(w.id);
   }
@@ -337,11 +352,12 @@ export class BaseEngine {
   private drawLinks(T: number, real: number) {
     disposeTree(this.fxRoot);
     this.fxRoot.clear();
-    if (this.selectedId) return;
     const tube = (a: THREE.Vector3, mid: THREE.Vector3, b: THREE.Vector3, color: number) => {
       const curve = new THREE.QuadraticBezierCurve3(a, mid, b);
       this.fxRoot.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 20, 0.09, 5), new THREE.MeshBasicMaterial({ color, toneMapped: false })));
     };
+    this.drawBoxLink(T, tube);
+    if (this.selectedId) return;
     for (const c of this.floor.arcs) {
       tube(new THREE.Vector3(c.from.x, 4.4, c.from.z), new THREE.Vector3((c.from.x + c.to.x) / 2, 11, (c.from.z + c.to.z) / 2), new THREE.Vector3(c.to.x, 4.4, c.to.z), Math.sin(T * 6) > 0 ? 0xff5a44 : 0xffb0a2);
     }
@@ -363,6 +379,24 @@ export class BaseEngine {
     });
   }
 
+  // The desk in focus and every box it owns: a tube, a dot running along it, and the box pulsing.
+  private drawBoxLink(T: number, tube: (a: THREE.Vector3, mid: THREE.Vector3, b: THREE.Vector3, color: number) => void) {
+    const ownerId = this.selectedId ?? (this.journeyCrate ? this.journeyCrate.a.id : null);
+    const owner = this.floor.agents.find((a) => a.id === ownerId);
+    for (const c of this.floor.crates) {
+      const on = !!owner && !!c.agentIds?.includes(owner.id) && (!this.journeyCrate || c.id === `crate-${this.journeyCrate.id}`);
+      this.crates.get(c.id)?.g.scale.setScalar(on ? 1.3 + Math.sin(T * 5) * 0.1 : 1);
+      if (!on || !owner) continue;
+      const from = new THREE.Vector3(owner.x, 3.2, owner.z), to = new THREE.Vector3(c.x, c.y + 1, c.z);
+      const mid = from.clone().lerp(to, 0.5);
+      mid.y += 3 + from.distanceTo(to) * 0.12;
+      tube(from, mid, to, 0xffc23d);
+      const dot = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 8), new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false }));
+      dot.position.copy(new THREE.QuadraticBezierCurve3(from, mid, to).getPoint((T * 0.6) % 1));
+      this.fxRoot.add(dot);
+    }
+  }
+
   private frame() {
     this.raf = requestAnimationFrame(this.frame);
     try { this.tick(); } catch (e) {
@@ -380,6 +414,7 @@ export class BaseEngine {
     this.syncFloor();
     if (this.mode === 'practice') { this.fx(this.sim.fx); this.sim.fx = []; }
     this.particles.step(real);
+    this.missionWall.update(real, T);
     this.world.update(real, T, this.floor);
     for (const a of this.floor.agents) this.views.get(a.id)?.animate(a, T, real, this.selectedId === a.id);
     this.drawLinks(T, real);
@@ -416,7 +451,7 @@ export class BaseEngine {
     const a = this.floor.agents.find((x) => x.id === this.selectedId);
     if (!a) return null;
     const base = { id: a.id, name: a.name, modelLabel: a.modelLabel, family: a.family, state: a.state, ctx: a.ctx };
-    if (a.monitor.kind === 'live') return { ...base, sessionId: a.sessionId, running: a.state === 'working', tail: a.monitor.tail };
+    if (a.monitor.kind === 'live') return { ...base, sessionId: a.sessionId, running: a.state === 'working' || a.state === 'silent', tail: a.monitor.tail };
     const s = this.sim.agents.find((x) => x.id === a.id);
     return { ...base, tab: a.monitor.tab, paused: s?.paused, supervised: s?.supervised };
   }
@@ -461,6 +496,7 @@ export class BaseEngine {
     this.labels.dispose();
     this.audio.dispose();
     this.particles.dispose();
+    this.missionWall.dispose();
     for (const v of this.views.values()) v.dispose();
     this.views.clear();
     disposeTree(this.scene);

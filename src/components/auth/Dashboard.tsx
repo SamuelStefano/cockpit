@@ -9,6 +9,7 @@ import { PairStep } from './PairStep';
 import { InstallExplainer } from './InstallExplainer';
 import { RelayVisibility } from './RelayVisibility';
 import { BetaNote } from './BetaNote';
+import { DeleteAccount } from './DeleteAccount';
 import { usePasskeySetup } from './usePasskeySetup';
 import { SetupChecklistView } from '../health/SetupChecklistView';
 import { startSetupWatch, useSetupChecklist } from '../health/useSetupChecklist';
@@ -29,6 +30,9 @@ export function Dashboard({ token, userId, onSignOut }: { token: string; userId?
         <BrandMark title="conectar sua VPS" bitState="connecting" />
         <p className="mb-6 mt-4 text-[13px] leading-relaxed text-neutral-400">
           O Deck é a tela; o cérebro roda na sua VPS. Escolha como instalar, cole o comando e a tela troca sozinha quando conectar.
+        </p>
+        <p className="-mt-3 mb-6 rounded-lg border border-neutral-800 bg-neutral-950/60 p-3 text-[12.5px] leading-relaxed text-neutral-300">
+          <strong className="text-neutral-100">O Deck precisa do seu próprio servidor.</strong> Ele não hospeda agentes: é o chat do agente que roda numa máquina sua (uma VPS ou um computador Linux). Sem um servidor, ainda não há o que usar aqui; você pode sair ou excluir a conta abaixo.
         </p>
 
         <div className="space-y-6">
@@ -54,7 +58,10 @@ export function Dashboard({ token, userId, onSignOut }: { token: string; userId?
           <Button variant="ghost" size="sm" onClick={p.fetchCode} disabled={p.busy} loading={p.busy}>
             {p.busy ? 'gerando…' : 'gerar novo código'}
           </Button>
-          <Button variant="ghost" size="sm" onClick={onSignOut}>sair</Button>
+          <div className="flex items-center gap-1">
+            <DeleteAccount onSignOut={onSignOut} />
+            <Button variant="ghost" size="sm" onClick={onSignOut}>sair</Button>
+          </div>
         </div>
       </div>
     </div>

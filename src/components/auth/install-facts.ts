@@ -15,10 +15,10 @@ export const COMMAND_DOES_NOT = [
 ] as const;
 
 export const RELAY_SEES = [
-  'O texto do chat e os bytes dos anexos passam pelo relay sem criptografia ponta a ponta.',
-  'O relay é operado pela DevFellowship e, tecnicamente, poderia ler esse tráfego.',
-  'Ele guarda a chave pública do seu agente e a conta a que ele pertence; a chave privada nunca sai da sua VPS.',
-  'Cada conta só alcança o próprio agente.',
+  'Com o aparelho cadastrado e o canal selado ligado (o padrão do agente), o conteúdo do chat e dos anexos vai cifrado de ponta a ponta entre o app e a sua VPS; o relay não o lê.',
+  'O relay vê metadados: a conta, o horário e o tamanho das mensagens, e pode derrubar a conexão.',
+  'Se o agente roda com o canal selado desligado (DECK_E2E=off), o relay passa a ver o tráfego em claro.',
+  'O relay é operado pela DevFellowship. Ele guarda a chave pública do seu agente e a conta a que ele pertence; a chave privada nunca sai da sua VPS. Cada conta só alcança o próprio agente.',
 ] as const;
 
-export const RELAY_SOON = 'A verificação ponta a ponta dos comandos está em desenvolvimento (em breve).';
+export const RELAY_SOON = 'Seus prompts seguem da sua VPS para o provedor de IA do agente.';

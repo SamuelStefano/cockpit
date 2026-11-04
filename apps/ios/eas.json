@@ -1,0 +1,57 @@
+{
+  "cli": {
+    "version": ">= 24.10.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "base": {
+      "env": {
+        "EXPO_NO_TELEMETRY": "1"
+      }
+    },
+    "simulator": {
+      "extends": "base",
+      "distribution": "internal",
+      "ios": {
+        "simulator": true
+      }
+    },
+    "development": {
+      "extends": "base",
+      "developmentClient": true,
+      "distribution": "internal",
+      "ios": {
+        "simulator": false
+      },
+      "env": {
+        "APP_VARIANT": "development"
+      }
+    },
+    "production": {
+      "extends": "base",
+      "distribution": "store",
+      "autoIncrement": true,
+      "channel": "production"
+    },
+    "production-bundle": {
+      "extends": "production",
+      "env": {
+        "DECK_WEB_BUNDLE": "1",
+        "VITE_SUPABASE_URL": "https://ikxtdssxmcgipyfpwmar.supabase.co",
+        "VITE_SUPABASE_ANON_KEY": "sb_publishable_adszvBmAzerotXCIbzJolQ_4HUPgA3l",
+        "VITE_WS_URL": "wss://deck-relay.163-176-220-63.sslip.io/ws"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "ascAppId": "6829837396",
+        "appleTeamId": "P7WN2R8S4C",
+        "ascApiKeyPath": "./.secrets/asc-api-key.p8",
+        "ascApiKeyId": "X9XT75R57N",
+        "ascApiKeyIssuerId": "69a6de92-fea5-47e3-e053-5b8c7c11a4d1"
+      }
+    }
+  }
+}

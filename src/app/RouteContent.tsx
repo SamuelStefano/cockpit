@@ -7,7 +7,7 @@ import { RouteFallback } from './RouteFallback';
 import { ChunkErrorBoundary } from './ChunkErrorBoundary';
 import {
   Skills, Pontos,
-  Graph, Canvas, Sala, Conexoes, Configuracoes, Docs, DesignSystem, Onboarding, EquipePage, Agente, Base, Arcade,
+  Graph, Canvas, Conexoes, Configuracoes, Docs, DesignSystem, Onboarding, EquipePage, Agente, Base, Arcade,
 } from './lazyRoutes';
 import type { ChatPanelProps } from '../components/chat/chat-panel-props';
 import type { TerminalsPanelProps } from '../components/Terminals';
@@ -111,21 +111,13 @@ export function RouteContent({ route, agentRoute, skillRoute, isMobile, isAdmin,
           onGraphList={c.onGraphList} onGraphOpen={c.onGraphOpen} onGraphBuild={c.onGraphBuild} onClearBuildError={c.onClearBuildError} onGraphDelete={c.onGraphDelete} onGraphQuery={c.onGraphQuery} onGraphNodeOp={c.onGraphNodeOp} />
       );
     }
-    if (route === '/sala' && isAdmin) {
-      return (
-        <Sala
-          connected={connected} bots={c.bots} sessions={c.sessions} running={c.running} stats={c.stats}
-          computers={c.botComputers} peeks={c.sessionPeeks} onComputer={c.onBotComputerGet} onPeek={c.onSessionPeek}
-          onOpenSession={onOpenSession} />
-      );
-    }
     if (route === '/base' && isAdmin) {
       return (
         <Base source={{
-          connected, sessions: c.sessions, running: c.runningAnywhere, termStats: c.canvasTermStats, threads: c.threads, peeks: c.sessionPeeks,
+          connected, sessions: c.sessions, running: c.runningAnywhere, termStats: c.canvasTermStats, threads: c.threads, peeks: c.sessionPeeks, todos: c.allSessionTodos, bgAgents: c.allBgAgents,
           teamQuestions: c.pendingQuestions, graph: c.canvasGraph, board: c.canvasBoard, boardLoaded: c.canvasGraph !== null,
           stats: c.stats, crons: c.cronsLoaded ? c.crons : null, mcpServers: c.mcpServers.length ? c.mcpServers : null,
-          onCtxStats: c.onCanvasCtxStats, onPeek: c.onSessionPeek, onLoadThread: c.onLoadThread, onCanvasGet: c.onCanvasGet, onCronsGet: c.onCronsGet,
+          onCtxStats: c.onCanvasCtxStats, onPeek: c.onSessionPeek, onLoadThread: c.onLoadThread, onCanvasGet: c.onCanvasGet, onCanvasCardSave: c.onCanvasCardSave, onCronsGet: c.onCronsGet,
           onSendTo: c.onSendTo, onStop: c.onStop, onOpenSession,
         }} />
       );

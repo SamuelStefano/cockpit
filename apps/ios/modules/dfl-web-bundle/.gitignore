@@ -1,0 +1,2 @@
+# The bundled web build: `npm run bundle:web -w apps/ios` writes it. Never committed.
+ios/web/

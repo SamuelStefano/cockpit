@@ -6,6 +6,7 @@ import { pendingQuestionIdx } from '../../cockpit/pending-question';
 import { lastAssistantModel } from '../../cockpit/session-model';
 import { isFreeTextOption } from '../../components/chat/free-text-option';
 import { parseRecommended } from '../../components/chat/recommended';
+import { activityOf, latestAction, summaryOf } from './activity';
 import { ctxPct, shortModel } from '../canvas/term-stats-view';
 import { layoutWings, sectorRows, slotPosition } from './sectors';
 import type { AgentState, Decision, Floor, FloorAgent, FloorCrate, ModelFamily, SectorRow, Station, Wing } from './types';
@@ -15,7 +16,9 @@ export const RECENT_MS = 2 * 3600 * 1000;
 export const FINISHED_MS = 30 * 60 * 1000;
 const IDLE_CAP = 6;
 export const CONTEXT_ALERT = 80;
+export const SILENT_MS = 5 * 60 * 1000;
 const MAX_CRATES_PER_STATUS = 8;
+const OUTBOX = { x: 3, z: 3.4 };
 
 export interface LiveSession { id: string; title: string; mtime: number; waiting?: boolean }
 export interface LiveInput {
@@ -24,6 +27,7 @@ export interface LiveInput {
   termStats: Record<string, Partial<TermStats> | undefined>;
   threads: Record<string, Message[] | undefined>;
   tails: Record<string, string | null | undefined>;
+  prs?: Record<string, number | undefined>;
   teamQuestions: { sessionKey: string; questions: ToolQuestion[] }[];
   areas: Record<string, string | undefined>;
   cards: CanvasCard[] | null;
@@ -31,6 +35,8 @@ export interface LiveInput {
   crons: Cron[] | null;
   mcpServers: number | null;
   answered: Record<string, number>;
+  // Running background agents per session: a session waiting on them is working, not quiet.
+  bgRunning?: Record<string, number | undefined>;
   now: number;
 }
 
@@ -41,6 +47,18 @@ export type LiveAction = { kind: 'answer'; sessionId: string; text: string } | {
 export interface LiveDecision extends Decision { actions: LiveAction[] }
 
 export interface LiveFloor { floor: Floor; decisions: LiveDecision[]; elsewhere: number; awaiting: number; sectors: SectorRow[]; placement: Placement; missingThreads: string[]; shown: string[] }
+
+// A missing `lastAt` means unknown, never silent.
+export function silentFor(lastAt: number | undefined, now: number, bgRunning = 0): number | null {
+  if (lastAt === undefined || bgRunning > 0) return null;
+  const gap = now - lastAt;
+  return gap > SILENT_MS ? gap : null;
+}
+
+export function quietLabel(ms: number): string {
+  const m = Math.max(1, Math.floor(ms / 60000));
+  return m < 60 ? `No new activity for ${m}m` : `No new activity for ${Math.floor(m / 60)}h ${m % 60}m`;
+}
 
 export function familyOf(model: string | null | undefined): ModelFamily {
   const m = (model ?? '').toLowerCase();
@@ -130,12 +148,14 @@ const stationsLive: Station[] = [
 ];
 
 // Card crates sit parked at their real status. Nothing moves, because the client has no transition to show.
-function cardCrates(cards: CanvasCard[] | null): FloorCrate[] {
+function cardCrates(cards: CanvasCard[] | null, shown: ReadonlySet<string>): FloorCrate[] {
   if (!cards) return [];
   const out: FloorCrate[] = [];
+  // The cap must not push out the very box a desk on the floor points at.
+  const linked = (c: CanvasCard) => c.sessionIds.some((id) => shown.has(id));
   for (const st of stationsLive) {
-    const mine = cards.filter((c) => c.status === (st.id as CardStatus)).sort((a, b) => b.updatedAt - a.updatedAt).slice(0, MAX_CRATES_PER_STATUS);
-    mine.forEach((c, i) => out.push({ id: `card-${c.id}`, title: c.title, x: st.x - 2.2 - (i % 4) * 1.5, y: 0.75, z: 8 + Math.floor(i / 4) * 1.9, star: st.id === 'done' }));
+    const mine = cards.filter((c) => c.status === (st.id as CardStatus)).sort((a, b) => Number(linked(b)) - Number(linked(a)) || b.updatedAt - a.updatedAt).slice(0, MAX_CRATES_PER_STATUS);
+    mine.forEach((c, i) => out.push({ id: `card-${c.id}`, title: c.title, x: st.x - 2.2 - (i % 4) * 1.5, y: 0.75, z: 8 + Math.floor(i / 4) * 1.9, star: st.id === 'done', agentIds: c.sessionIds.filter((id) => shown.has(id)).map((id) => `s-${id}`) }));
   }
   return out;
 }
@@ -185,7 +205,8 @@ export function adaptLive(input: LiveInput, prev: Placement): LiveFloor {
     const isRunning = input.running.has(s.id);
     const asking = !!s.waiting && input.answered[s.id] !== s.mtime;
     const finished = !asking && !isRunning && input.now - s.mtime < FINISHED_MS;
-    const state: AgentState = asking ? 'blocked' : isRunning ? 'working' : finished ? 'finished' : 'waiting';
+    const quiet = isRunning && !asking ? silentFor(stat?.lastAt, input.now, input.bgRunning?.[s.id]) : null;
+    const state: AgentState = asking ? 'blocked' : quiet !== null ? 'silent' : isRunning ? 'working' : finished ? 'finished' : 'waiting';
     const id = `s-${s.id}`;
     if (asking) {
       decisions.push(questionDecision(s, input, pos, id));
@@ -193,7 +214,7 @@ export function adaptLive(input: LiveInput, prev: Placement): LiveFloor {
     } else if (pct !== null && pct >= CONTEXT_ALERT) {
       decisions.push({ id: `ctx-${s.id}`, type: 'context', title: s.title || 'Untitled session', what: `Context at ${pct}%`, why: 'Hand off from the chat', born: stat?.lastAt ?? s.mtime, pos, focusAgentId: id, opts: [{ label: 'Open chat', hint: 'hand off there', rec: true }], actions: [{ kind: 'open', sessionId: s.id }] });
     }
-    const now = asking ? 'Waiting for your answer' : isRunning ? 'Running a turn' : finished ? `Finished ${Math.max(1, Math.round((input.now - s.mtime) / 60000))}m ago, read it` : 'Idle';
+    const now = asking ? 'Waiting for your answer' : quiet !== null ? quietLabel(quiet) : isRunning ? (latestAction(activityOf(thread)) ?? 'Running a turn') : finished ? `Finished ${Math.max(1, Math.round((input.now - s.mtime) / 60000))}m ago, read it` : 'Idle';
     return {
       id, name: s.title || 'Untitled session', family: familyOf(model), modelLabel: model ? shortModel(model) : 'unknown', wingId: wing.id, sector: 'build', x: pos.x, z: pos.z, state,
       line: now, sessionId: s.id, ctx: pct === null ? null : pct / 100, phase: idx * 1.7,
@@ -201,11 +222,21 @@ export function adaptLive(input: LiveInput, prev: Placement): LiveFloor {
     };
   });
 
+  const shownIds = new Set(shown.map((s) => s.id));
+  const crates = cardCrates(input.cards, shownIds);
+  // Most sessions have no card, so what a session actually produced is its own box, parked by its desk.
+  for (const a of agents) {
+    const sid = a.sessionId!;
+    if (crates.some((c) => c.agentIds?.includes(a.id))) continue;
+    const sum = summaryOf(activityOf(input.threads[sid])), prs = input.prs?.[sid] ?? 0;
+    if (!prs && !sum.written.length && !sum.edited.length) continue;
+    crates.push({ id: `out-${sid}`, title: a.name, x: a.x + OUTBOX.x, y: 0.05, z: a.z + OUTBOX.z, band: prs > 0, agentIds: [a.id] });
+  }
   const count = (st: CardStatus) => input.cards?.filter((c) => c.status === st).length ?? 0;
   const review = count('review'), done = count('done');
   const disk = input.stats?.disk.total ? input.stats.disk.used / input.stats.disk.total : null;
   const floor: Floor = {
-    agents, wings, packets: [], arcs: [], crates: cardCrates(input.cards),
+    agents, wings, packets: [], arcs: [], crates,
     stations: stationsLive.map((st) => ({ ...st, label: input.cards ? `${st.label} ${count(st.id as CardStatus)}` : st.label })),
     mountainCount: review,
     mountainLabel: input.cards ? `${review} CARDS IN REVIEW · ${done} DONE` : 'BOARD NOT LOADED',

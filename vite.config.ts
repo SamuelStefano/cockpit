@@ -4,6 +4,7 @@ import { configDefaults } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 import { vendorChunk } from './vendor-chunks.ts';
+import { buildManifestPlugin } from './vite-build-manifest.ts';
 
 const BG = '#101013'; // --bg de src/index.css: a splash do iOS tem que casar com o app
 
@@ -12,6 +13,7 @@ const BG = '#101013'; // --bg de src/index.css: a splash do iOS tem que casar co
 export default defineConfig({
   plugins: [
     react(),
+    buildManifestPlugin(),
     // O SW existe SÓ pra tornar o Deck instalável (na home screen o iOS libera a
     // Notification API, que no Safari em aba não existe). Nada de precache: o Deck
     // é ao vivo (WebSocket + estado do servidor) e um bundle servido do cache viraria
@@ -59,7 +61,8 @@ export default defineConfig({
     maxWorkers: 2,
     // Worktree de agente é uma cópia do repo em commit antigo: a suite dele
     // roda junto e falha por código que a main já corrigiu.
-    exclude: [...configDefaults.exclude, '.claude/worktrees/**'],
+    // apps/** is the iOS shell: its own lockfile and React, its tests run in apps/ios.
+    exclude: [...configDefaults.exclude, '.claude/worktrees/**', 'desktop/**', 'apps/**'],
   },
   server: {
     host: '127.0.0.1',

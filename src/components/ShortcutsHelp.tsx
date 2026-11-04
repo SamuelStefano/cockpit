@@ -15,6 +15,7 @@ const GROUPS: { title: string; items: { keys: string[]; label: string }[] }[] = 
       { keys: ['⌥', '↓'], label: 'Próxima sessão' },
       { keys: ['⌥', '↑'], label: 'Sessão anterior' },
       { keys: ['n'], label: 'Próxima sessão com output novo' },
+      { keys: ['⌥', '⇧', '↓'], label: 'Próxima não lida, em qualquer máquina' },
       { keys: ['mod', '1…9'], label: 'Ir pra n-ésima sessão da barra' },
       { keys: ['mod', '⇧', 'O'], label: 'Nova conversa' },
       { keys: ['mod', 'B'], label: 'Recolher / expandir a barra lateral' },

@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { SPEECH_LANG } from '../speech';
 import { isFatalSpeechError, speechErrorMessage } from '../speech-errors';
 import { speechCtor, type SpeechRecognition } from '../useSpeechInput';
+import { scribeSupported, startScribe, type ScribeSession } from './scribe-capture';
 
 const MAX_FAST_FAILS = 3;
 const FAST_FAIL_MS = 800;
@@ -27,19 +28,21 @@ export function useCallRecognizer({ active, onHeard, onFatal }: Args) {
   const lengthRef = useRef(0);
   const heardRef = useRef(onHeard);
   const fatalRef = useRef(onFatal);
+  const resetRef = useRef<(() => void) | null>(null);
   heardRef.current = onHeard;
   fatalRef.current = onFatal;
 
   useEffect(() => {
+    if (!active) return;
     const Ctor = speechCtor();
-    if (!active || !Ctor) return;
     let alive = true;
+    let scribe: ScribeSession | null = null;
     let rec: SpeechRecognition | null = null;
     let fastFails = 0;
     let lastError: string | null = null;
 
     const begin = () => {
-      if (!alive) return;
+      if (!alive || !Ctor) return;
       const next = new Ctor();
       rec = next;
       next.lang = SPEECH_LANG;
@@ -78,15 +81,33 @@ export function useCallRecognizer({ active, onHeard, onFatal }: Args) {
       }
     };
 
-    begin();
+    // Web Speech never captures in an iOS home-screen app and is flaky on Android, so
+    // the server engine comes first and the browser one only covers a box without a key.
+    if (scribeSupported()) {
+      scribe = startScribe({
+        onHeard: (heard) => heardRef.current(heard),
+        onFatal: (message) => fatalRef.current(message),
+        onUnavailable: () => {
+          scribe = null;
+          if (!alive) return;
+          if (Ctor) begin();
+          else fatalRef.current('Voz indisponível: configure a chave de voz nesta máquina.');
+        },
+      });
+      resetRef.current = () => scribe?.reset();
+    } else {
+      begin();
+    }
     return () => {
       alive = false;
+      resetRef.current = null;
+      scribe?.stop();
       if (!rec) return;
       rec.onresult = null; rec.onend = null; rec.onerror = null;
       try { rec.abort ? rec.abort() : rec.stop(); } catch { /* already stopped */ }
     };
   }, [active]);
 
-  const reset = () => { baseRef.current = lengthRef.current; };
+  const reset = () => { resetRef.current?.(); baseRef.current = lengthRef.current; };
   return { reset };
 }

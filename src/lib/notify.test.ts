@@ -281,3 +281,59 @@ describe('som', () => {
     expect(ctor).not.toHaveBeenCalled();
   });
 });
+
+describe('desktop shell', () => {
+  afterEach(() => { delete (globalThis as { deckDesktop?: unknown }).deckDesktop; vi.unstubAllGlobals(); });
+
+  it('notifies an unfocused visible window, tags by session, and restores it on click', () => {
+    const focusWindow = vi.fn();
+    (globalThis as { deckDesktop?: unknown }).deckDesktop = { focusWindow };
+    const instances: { tag?: string; onclick?: () => void; close: () => void }[] = [];
+    class FakeNotification {
+      static permission = 'granted';
+      tag?: string;
+      onclick?: () => void;
+      close = () => {};
+      constructor(_title: string, opts: { tag?: string }) { this.tag = opts.tag; instances.push(this); }
+    }
+    vi.stubGlobal('Notification', FakeNotification);
+    vi.spyOn(document, 'hasFocus').mockReturnValue(false);
+    const open = vi.fn();
+    notifyTurnDone('s', open, 'abc');
+    expect(instances[0].tag).toBe('cockpit-done:abc');
+    instances[0].onclick?.();
+    expect(focusWindow).toHaveBeenCalled();
+    expect(open).toHaveBeenCalled();
+  });
+});
+
+describe('desktop shell flash', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    delete (globalThis as { deckDesktop?: unknown }).deckDesktop;
+  });
+
+  it('flashes the taskbar instead of showing a notification', () => {
+    setVisibility('hidden');
+    const flashWindow = vi.fn();
+    const Ctor = vi.fn();
+    vi.stubGlobal('Notification', Object.assign(Ctor, { permission: 'granted' }));
+    (globalThis as { deckDesktop?: unknown }).deckDesktop = { flashWindow };
+    vi.spyOn(document, 'hasFocus').mockReturnValue(false);
+    notifyTurnDone('Sessão', undefined, 'k1');
+    expect(flashWindow).toHaveBeenCalledOnce();
+    expect(Ctor).not.toHaveBeenCalled();
+    resetState();
+  });
+
+  it('keeps the web notification on a shell without flashWindow', () => {
+    setVisibility('hidden');
+    const Ctor = vi.fn(() => ({}));
+    vi.stubGlobal('Notification', Object.assign(Ctor, { permission: 'granted' }));
+    (globalThis as { deckDesktop?: unknown }).deckDesktop = {};
+    vi.spyOn(document, 'hasFocus').mockReturnValue(false);
+    notifyTurnDone('Sessão', undefined, 'k2');
+    expect(Ctor).toHaveBeenCalledOnce();
+    resetState();
+  });
+});

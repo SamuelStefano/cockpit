@@ -71,7 +71,7 @@ html, body { overscroll-behavior-y: none; }
 /* Mobile: 100% resolve contra o viewport de layout, que NÃO encolhe com a url bar /
    teclado no Safari/Chrome → o rodapé (compositor/StatusBar) era cortado sob a chrome
    do navegador (a "scroll-y que não deveria"). dvh acompanha o viewport visível. */
-#root { height: 100dvh; }
+#root { height: var(--app-height, 100dvh); }
 
 body {
   background: var(--bg-deep);

@@ -4,7 +4,7 @@ const GREEN: [CheckId, string][] = [
   ['dns_cf', 'A 163.176.220.63'], ['dns_google', 'A 163.176.220.63'], ['dns_web', 'A 178.105.2.230'], ['public_status', 'HTTP 200'],
   ['fallback_status', 'HTTP 200'], ['ws_upgrade', 'HTTP 101'], ['ssh', 'conectado'], ['relay_local', 'HTTP 200'], ['relay_active', 'active'],
   ['caddy_active', 'active'], ['dokploy_web', 'app done'], ['dokploy_ops', 'app done'], ['spa_bundle', 'ok'],
-  ['local_agent_service', 'active'], ['local_agent_owner', 'pid 1'],
+  ['local_agent_service', 'active'], ['local_agent_owner', 'pid 1'], ['login_path', '4401 em 120 ms'], ['auth_flow', '10 min: 3 login(s) ok'],
 ];
 
 export function findings(over: Partial<Record<CheckId, [CheckStatus, string]>> = {}): Findings {

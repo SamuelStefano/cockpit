@@ -47,6 +47,8 @@ export interface SessionsPanelProps {
 function SessionsPanelImpl({ sessions, loading, activeId, onSelect, onNew, marathon, onToggleMarathon, onRename, onDescribe, onClose, onDelete, onStop, archived = [], onUnhide, onCloseMobile, running, stalled, updated, runStart = {}, userId, searchResults = NO_RESULTS, onSearch, embedded = false }: SessionsPanelProps) {
   const { query, setQuery, searchRef, archive, deleteId, setDeleteId, pinned, togglePin, dismissedWaiting, dismissWaiting, filtered } = useSessionsPanel({ sessions, archived, searchResults, onSearch, userId, activeId, onClose, onUnhide, onSelect });
   const boxes = useBoxGroups({ onNew });
+  // Desktop switches machines on the rail; only the phone drawer lists them here.
+  const railShown = embedded && !onCloseMobile;
 
   const renderRow = (s: Session) => (
     <SessionRow key={s.id} s={s} active={s.id === activeId}
@@ -92,7 +94,7 @@ function SessionsPanelImpl({ sessions, loading, activeId, onSelect, onNew, marat
       )}
 
       <div className="scroll-thin mt-1.5 flex-1 space-y-2 overflow-y-auto overscroll-contain px-2 pb-3">
-        <BoxGroups {...boxes} count={sessions.length} openOn={(box, id) => { boxes.openOn(box, id); onCloseMobile?.(); }}>
+        <BoxGroups {...boxes} grouped={boxes.grouped && !railShown} count={sessions.length} openOn={(box, id) => { boxes.openOn(box, id); onCloseMobile?.(); }}>
         {loading && sessions.length === 0 ? (
           <div className="space-y-1.5" role="status" aria-label="Carregando sessões">
             <SessionsLoadingNote />

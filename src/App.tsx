@@ -23,6 +23,7 @@ import { EggsHost } from './components/game/EggsHost';
 import { useGameSignals } from './game/useGameSignals';
 import { BoxHealthHost } from './components/health/BoxHealthHost';
 import { bitStateFor } from './components/bit/bit-state';
+import { BoxRail } from './components/chrome/rail/BoxRail';
 import { RailChats } from './components/chrome/sidebar/RailChats';
 import { useJustDone } from './components/bit/useJustDone';
 import type { LinkState } from './components/bit/turn-bit-state';
@@ -30,6 +31,11 @@ import { RouteContent } from './app/RouteContent';
 import { useAgentNav } from './app/useAgentNav';
 import { useCockpit } from './useCockpit';
 import { useBoxes } from './cockpit/useBoxes';
+import { useOtherBoxToasts } from './app/useOtherBoxToasts';
+import { DesktopTitleBar } from './app/DesktopTitleBar';
+import { useDesktopLinks } from './app/useDesktopLinks';
+import { useActiveBoxUnread } from './app/useActiveBoxUnread';
+import { totalRed, useBoxUnread } from './cockpit/box-unread';
 import { boxStore } from './cockpit/boxes-store';
 import { takePendingPrompt, PROMPT_LINK_MAX } from './cockpit/prompt-link';
 import { toast } from './components/primitives/toast-bus';
@@ -41,6 +47,7 @@ import { useSupabaseAuth } from './lib/useSupabaseAuth';
 import { useProfileHydration } from './lib/profile';
 import { useSessionPrefsHydration } from './lib/session-prefs';
 import { resolveAuthGate, useSealState } from './app/AuthGateView';
+import { QrApproveModal } from './components/auth/QrApproveModal';
 import { relReset } from './lib/time';
 import { useTerminalTabs } from './app/useTerminalTabs';
 import { useGlobalShortcuts } from './app/useGlobalShortcuts';
@@ -48,6 +55,8 @@ import { navRole, navLabel } from './components/chrome/nav-routes';
 import { useRoleLanding } from './app/useRoleLanding';
 import { useIsMobile } from './app/useIsMobile';
 import { useKeyboardOpen } from './app/useKeyboardOpen';
+import { useKeyboardViewport } from './app/useKeyboardViewport';
+import { entryOpensNewChat } from './app/entry-landing';
 import { useTabTitle } from './app/useTabTitle';
 import { useOfflineLatch } from './app/useOfflineLatch';
 import { useReconnectAction } from './app/useReconnectAction';
@@ -61,6 +70,9 @@ import { useChatUrl } from './app/useChatUrl';
 import { claudeQuotaApplies, usageAgentOf } from './components/chrome/usage-agent';
 import { withoutBotThreads } from './components/sessions/bot-threads';
 import { useCall } from './components/chat/call/useCall';
+import { useAiConsent } from './components/chat/useAiConsent';
+import { AiConsentSheet } from './components/chat/AiConsentSheet';
+import { SessionLinkContext } from './components/primitives/markdown/session-link-context';
 import { ConnectionsContext } from './cockpit/ConnectionsContext';
 
 function CockpitBody() {
@@ -71,7 +83,7 @@ function CockpitBody() {
     archived, onUnhide: handleUnhide, contextTokens, contextModel, sendCost, liveTurnTokens, turnStartedAt, bgAgents, usage, truncated, lastTurn, lastEnd, searchResults, onSearch,
     skills,
     attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb,
-    onSend: handleSend, onApproveWorkflow, onEditUser: editUser, onStop: handleStop, onNew: cockpitNew, onNewWithDraft, marathon, onToggleMarathon, onRename: handleRename, onDescribe: handleDescribe, onClose: handleCloseSession, onDelete: handleDeleteSession,
+    onSend: rawSend, onApproveWorkflow, onEditUser: editUser, onStop: handleStop, onNew: cockpitNew, onNewWithDraft, marathon, onToggleMarathon, onRename: handleRename, onDescribe: handleDescribe, onClose: handleCloseSession, onDelete: handleDeleteSession,
     onOpenFull, onLoadOlder, onOpenSummary, onHandoff, handoffBusy,
     queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueReleaseAt, queueSetPaused, queueRetry, queueRetarget, queueRunBg, queueRunNow, queueForce, resumeOffer, resumeRun,
     drops, dropsLoaded, lastDrop, onDropList, onDropPut, onDropRm,
@@ -86,6 +98,7 @@ function CockpitBody() {
     else navChat(id);
   }, [setActiveSessionId, nav, navChat]);
   useChatUrl({ route, chatId, navChat, activeId: activeSessionId, setActiveId: setActiveSessionId, sessions, archived });
+  const sessionLinks = useMemo(() => ({ ids: [...sessions, ...archived].map((x) => x.id), open: selectSession }), [sessions, archived, selectSession]);
   // Default-deny: sem caps (ainda não chegou) = não-admin. No T3 o caps vem do
   // relay (papel da conta no JWT); no loopback, do token/role local.
   const role = navRole(caps?.role);
@@ -102,6 +115,8 @@ function CockpitBody() {
   // a sessão vem do login e o access_token alimenta o WS. No loopback (Supabase
   // desligado) este hook fica inerte e o gate de token de sempre vale.
   const sbAuth = useSupabaseAuth((token) => submitToken(token ?? ''));
+  const consent = useAiConsent(sbAuth.session?.user.id, rawSend, setDraft);
+  const handleSend = consent.send;
   useProfileHydration(sbAuth.session?.user.id);
   useSessionPrefsHydration(sbAuth.session?.user.id);
 
@@ -135,7 +150,9 @@ function CockpitBody() {
   // Só o celular tem teclado por cima da tela; num desktop de janela baixa a
   // heurística acertaria pelo motivo errado e mutilaria o chat à toa.
   const keyboardOpen = useKeyboardOpen() && isMobile;
-  useTabTitle(running, updated);
+  useKeyboardViewport();
+  useOtherBoxToasts(!isMobile);
+  useDesktopLinks();
   const link: LinkState = conn.ws === 'connected' ? 'open' : conn.ws === 'reconnecting' ? 'connecting' : 'closed';
   const anyRunning = runningAnywhere.size > 0;
   const justDone = useJustDone(anyRunning);
@@ -179,7 +196,7 @@ function CockpitBody() {
 
   // Between a reload and the first session list there is no active session yet: without
   // this the chat flashed the empty "new chat" screen before jumping back to the open one.
-  const restoring = !activeSessionId && (loading || sessions.length > 0) && (!!chatId || !!loadPref('activeId', ''));
+  const restoring = !entryOpensNewChat && !activeSessionId && (loading || sessions.length > 0) && (!!chatId || !!loadPref('activeId', ''));
 
   const activeSession = sessions.find((s) => s.id === activeSessionId) || archived.find((s) => s.id === activeSessionId) || null;
 
@@ -189,10 +206,18 @@ function CockpitBody() {
     nav('/');
   }, [cockpitNew, setDrawer, nav]);
   useEffect(() => { if (takeNewIntent(boxStore.get().pref)) handleNew(); }, [handleNew]);
+  const enteredNew = useRef(false);
+  useEffect(() => {
+    if (!entryOpensNewChat || enteredNew.current) return;
+    enteredNew.current = true;
+    handleNew();
+  }, [handleNew]);
 
   const call = useCall({ messages, phase, onSend: handleSend, sessionKey: activeSessionId, pendingIds: cockpit.pendingSessionIds });
 
   const sidebarSessions = useMemo(() => withoutBotThreads(sessions, cockpit.bots), [sessions, cockpit.bots]);
+  useActiveBoxUnread(sidebarSessions, cockpit.seen, activeSessionId, runningAnywhere);
+  useTabTitle(running, updated, totalRed(useBoxUnread()));
   const sessionsProps = { sessions: sidebarSessions, loading, activeId: activeSessionId, onSelect: selectSession, onNew: handleNew, marathon, onToggleMarathon, onRename: handleRename, onDescribe: handleDescribe, onClose: handleCloseSession, onDelete: handleDeleteSession, onStop: handleStop, archived, onUnhide: handleUnhide, running: runningAnywhere, stalled, updated, runStart, searchResults, onSearch, userId: sbAuth.session?.user.id };
   useGlobalShortcuts({ sessions: sidebarSessions, running: runningAnywhere, activeSessionId, setActiveSessionId: selectSession, updated, nav, onNew: handleNew, setPalette, setHelp });
   const navCounts = useMemo(() => ({ '/canvas': sidebarSessions.filter((s) => s.waiting).length }), [sidebarSessions]);
@@ -209,7 +234,7 @@ function CockpitBody() {
     onOpen: agent.open, canManage: isAdmin, paused: cockpit.teamPaused, onPauseSet: cockpit.onTeamPauseSet,
   };
   const quotaNotice = claudeQuota && quotaGate.warn && !quotaClosed && rate ? <QuotaBanner reset={relReset(rate.resetsAt)} onClose={() => setQuotaClosed(true)} /> : null;
-  const bodyFooter = isMobile ? null : <BodyFooter userId={sbAuth.session?.user.id} end={quotaNotice} />;
+  const bodyFooter = isMobile ? null : <BodyFooter end={quotaNotice} />;
   const chatWithTeam = { ...chatProps, teamSlot: <TeamStack {...teamProps} />, footer: bodyFooter };
   const openPalette = () => { setDrawer(false); setPalette(true); };
   const account = { userId: sbAuth.session?.user.id, onSignOut: SUPABASE_ENABLED ? sbAuth.signOut : undefined, onChangePassword: SUPABASE_ENABLED ? sbAuth.changePassword : undefined, drops: dropApi };
@@ -251,6 +276,9 @@ function CockpitBody() {
 
   return (
     <ConnectionsContext.Provider value={connectionsCtx}>
+    <SessionLinkContext.Provider value={sessionLinks}>
+      {SUPABASE_ENABLED && <QrApproveModal signedIn={!!sbAuth.session} />}
+      <AiConsentSheet open={consent.open} onAgree={consent.agree} onDecline={consent.decline} />
     <TopBarSlotContext.Provider value={topBarSlot}>
     {/* Safe-area nos quatro lados: com `viewport-fit=cover` o notch em landscape
         come a lateral, e sem left/right o header e o composer ficam sob o entalhe. */}
@@ -274,7 +302,9 @@ function CockpitBody() {
         role={role}
       />
       <ShortcutsHelp open={help} onClose={() => setHelp(false)} />
+      <DesktopTitleBar />
       <div className="flex min-h-0 flex-1">
+        {!isMobile && <BoxRail activeSessionId={activeSessionId} userId={sbAuth.session?.user.id} />}
         {!isMobile && (
           <Sidebar
             route={route} nav={nav} role={role} navCounts={navCounts} onNew={handleNew} onPalette={() => setPalette(true)}
@@ -293,7 +323,7 @@ function CockpitBody() {
             {/* Um de cada vez na mesma âncora, e offline ganha: sem servidor não há
                 versão nova pra buscar, e recarregar ali só daria página em branco. */}
             <RestartNotice show={restarting && !showOffline} />
-            <UpdateNotice show={updateReady && !updateClosed && !showOffline && !restarting} onApply={applyUpdate} onDismiss={() => setUpdateClosed(true)} />
+            <UpdateNotice show={updateReady && !updateClosed && !showOffline && !restarting && !anyRunning} onApply={applyUpdate} onDismiss={() => setUpdateClosed(true)} />
           </div>
 
           <RouteContent
@@ -318,6 +348,7 @@ function CockpitBody() {
       <EggsHost />
     </div>
     </TopBarSlotContext.Provider>
+    </SessionLinkContext.Provider>
     </ConnectionsContext.Provider>
   );
 }

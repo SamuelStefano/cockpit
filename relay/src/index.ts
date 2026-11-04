@@ -7,6 +7,7 @@ import {
   type JwksFn, type Identity,
 } from './verify';
 import { slidingWindow } from './throttle';
+import { createQrLogin, isQrKey } from './qrLogin';
 import { createObs } from './obs';
 import { OPS_PAGE } from './opsPage';
 import { parseCsvSet, clientIp, originAllowed, tokenFromSubprotocol, pickSubprotocol, rawLength, makeLimiter } from './guards';
@@ -51,6 +52,15 @@ export interface RelayStore {
   // Service-role insert into diag_reports (migration 0008). Optional so a store
   // without the table keeps working: the frame is then dropped.
   insertDiagReport?(row: DiagReportRow): Promise<boolean>;
+  // Hard-deletes the account: its public share snapshots, then the auth user (the
+  // account/agent/pairing rows cascade). Idempotent: an already-deleted user is true.
+  // Throws on any other failure so nothing is half-deleted silently. Optional so a
+  // store without the admin API answers 501.
+  deleteAccount?(accountId: string): Promise<boolean>;
+  // QR sign-in: a one-time magic-link token hash for this user (never emailed).
+  mintLoginToken?(accountId: string): Promise<string>;
+  // False when the access token's session was signed out (signature alone can't tell).
+  sessionAlive?(accessToken: string): Promise<boolean>;
 }
 
 export interface DiagReportRow {
@@ -85,6 +95,9 @@ export interface RelayConfig {
   // Override da resolução de identidade do browser (default: JWT via JWKS). Existe
   // só pra TESTE de integração local (stub) — em prod fica undefined = JWKS real.
   resolveIdentity?: (token: string | null) => Promise<Identity | null>;
+  // Test seams only; prod uses the real JWKS factory and the 8 s browser deadline.
+  jwksFactory?: (url: string) => JwksFn;
+  browserAuthStallMs?: number;
 }
 
 const tokenFromUrl = (url: string | undefined): string | null => {
@@ -134,8 +147,33 @@ export function createRelay(cfg: RelayConfig) {
   // Agents send no Origin and the sealed channel is opaque: 16KB is far above any
   // legitimate handshake frame (hello/auth/pair) and bounds what an unauthed peer can push.
   const AGENT_PREAUTH_MAX = 16 * 1024;
-  const jwks: JwksFn = makeJwks(cfg.jwksUrl);
+  const newJwks = () => (cfg.jwksFactory ?? makeJwks)(cfg.jwksUrl);
+  // Swapped after a stalled verification: a fetch stuck inside the old instance must not wedge later logins.
+  let jwks: JwksFn = newJwks();
+  const STALLED = Symbol('auth-stalled');
+  const authStallMs = cfg.browserAuthStallMs ?? 8_000;
+  async function identityWithDeadline(token: string | null): Promise<Identity | null | typeof STALLED> {
+    let timer: NodeJS.Timeout | undefined;
+    try {
+      return await Promise.race([
+        identityFrom(token),
+        new Promise<typeof STALLED>((resolve) => { timer = setTimeout(() => resolve(STALLED), authStallMs); }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
   const pairThrottle = slidingWindow(5, 60_000);
+  // Deleting calls the Supabase admin API with the service key: bounded per account.
+  const deleteThrottle = slidingWindow(3, 60_000);
+  // Deleted accounts keep a valid JWT until it expires; refuse them on the WS until then.
+  const deletedUntil = new Map<string, number>();
+  const isDeleted = (accountId: string): boolean => {
+    const until = deletedUntil.get(accountId);
+    if (until === undefined) return false;
+    if (until <= nowMs()) { deletedUntil.delete(accountId); return false; }
+    return true;
+  };
   // Agent diag reports write the DB with the service role: a crash-looping box
   // must not turn into an insert storm.
   const diagPerBox = slidingWindow(6, 3600_000);
@@ -257,6 +295,113 @@ export function createRelay(cfg: RelayConfig) {
     req.on('error', () => end(400));
   };
 
+  // QR sign-in. Anonymous routes are origin-gated and throttled per IP; the
+  // token hash is minted only at collection time, for the account that the
+  // ticket or the approval is bound to.
+  const qr = createQrLogin(nowMs);
+  const qrMintThrottle = slidingWindow(10, 60_000);
+  const qrAnonThrottle = slidingWindow(20, 60_000);
+  const qrPollThrottle = slidingWindow(90, 60_000);
+  const qrGlobal = slidingWindow(3_000, 60_000);
+  const qrPollGlobal = slidingWindow(20_000, 60_000);
+  const readJson = (req: IncomingMessage, max = 1024): Promise<Record<string, unknown> | null> => new Promise((resolve) => {
+    const declared = Number(req.headers['content-length']);
+    if (Number.isFinite(declared) && declared > max) { req.resume(); resolve(null); return; }
+    const chunks: Buffer[] = [];
+    let size = 0;
+    let done = false;
+    const finish = (v: Record<string, unknown> | null) => { if (!done) { done = true; resolve(v); } };
+    req.on('data', (c: Buffer) => {
+      size += c.length;
+      if (size > max) { chunks.length = 0; finish(null); return; }
+      if (!done) chunks.push(c);
+    });
+    req.on('end', () => {
+      if (done) return;
+      if (size === 0) { finish({}); return; }
+      try {
+        const v = JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown;
+        finish(v && typeof v === 'object' && !Array.isArray(v) ? v as Record<string, unknown> : null);
+      } catch { finish(null); }
+    });
+    req.on('error', () => finish(null));
+  });
+  const sendJson = (res: import('node:http').ServerResponse, code: number, body: unknown) => {
+    res.writeHead(code, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+    res.end(JSON.stringify(body));
+  };
+  const bearer = async (req: IncomingMessage): Promise<Identity | null> => {
+    const auth = req.headers.authorization ?? '';
+    const id = auth.startsWith('Bearer ') ? await identityFrom(auth.slice(7)) : null;
+    if (!id || isDeleted(id.accountId)) return null;
+    if (cfg.store.sessionAlive && !(await cfg.store.sessionAlive(auth.slice(7)))) return null;
+    return id;
+  };
+  const loginToken = async (accountId: string): Promise<string | null> => {
+    if (!cfg.store.mintLoginToken || isDeleted(accountId)) return null;
+    try { return await cfg.store.mintLoginToken(accountId); } catch (e) { console.error('[relay] mintLoginToken:', (e as Error).message); return null; }
+  };
+  const handleQr = async (req: IncomingMessage, res: import('node:http').ServerResponse, route: string) => {
+    if (!originAllowed(origins, req.headers.origin)) { res.writeHead(403); res.end(); return; }
+    const ip = clientIp(req);
+    if (!(route === 'poll' ? qrPollGlobal('all') : qrGlobal('all'))) { res.writeHead(429); res.end('slow down'); return; }
+    if (route === 'ticket' || route === 'peek' || route === 'answer') {
+      const id = await bearer(req);
+      if (!id) { res.writeHead(401); res.end('auth'); return; }
+      if (!qrMintThrottle(id.accountId)) { res.writeHead(429); res.end('slow down'); return; }
+      if (route === 'ticket') {
+        if (!cfg.store.mintLoginToken) { res.writeHead(501); res.end('unsupported'); return; }
+        const t = qr.mintTicket(id.accountId);
+        if (!t) { res.writeHead(503); res.end('busy'); return; }
+        obs.event('qr_ticket', { ok: true });
+        sendJson(res, 200, { ...t, ttlMs: t.expiresAt - nowMs() }); return;
+      }
+      const body = await readJson(req);
+      if (!body || !isQrKey(body.id)) { res.writeHead(400); res.end('bad request'); return; }
+      if (route === 'peek') {
+        const p = qr.peekRequest(body.id);
+        if (!p) { res.writeHead(410); res.end('gone'); return; }
+        sendJson(res, 200, p); return;
+      }
+      if (typeof body.approve !== 'boolean') { res.writeHead(400); res.end('bad request'); return; }
+      const out = qr.answerRequest(body.id, id.accountId, body.approve, body.code);
+      obs.event('qr_answer', { out, approve: body.approve });
+      if (out === 'bad-code') { res.writeHead(422); res.end('bad code'); return; }
+      if (out === 'gone') { res.writeHead(410); res.end('gone'); return; }
+      sendJson(res, 200, { ok: true }); return;
+    }
+    if (route === 'poll') {
+      if (!qrPollThrottle(ip)) { res.writeHead(429); res.end('slow down'); return; }
+      const body = await readJson(req);
+      if (!body) { res.writeHead(400); res.end('bad request'); return; }
+      const r = qr.poll(String(body.id ?? ''), String(body.secret ?? ''));
+      if (r.status === 'pending') { sendJson(res, 200, { status: 'pending' }); return; }
+      if (r.status === 'gone') { res.writeHead(410); res.end('gone'); return; }
+      const tokenHash = await loginToken(r.accountId);
+      obs.event('qr_login', { ok: !!tokenHash, via: 'request' });
+      if (!tokenHash) { res.writeHead(502); res.end('error'); return; }
+      sendJson(res, 200, { status: 'approved', tokenHash }); return;
+    }
+    if (!qrAnonThrottle(ip)) { res.writeHead(429); res.end('slow down'); return; }
+    if (route === 'request') {
+      if (!cfg.store.mintLoginToken) { res.writeHead(501); res.end('unsupported'); return; }
+      const r = qr.openRequest(req.headers['user-agent']);
+      if (!r) { res.writeHead(503); res.end('busy'); return; }
+      sendJson(res, 200, { ...r, ttlMs: r.expiresAt - nowMs() }); return;
+    }
+    if (route === 'redeem') {
+      const body = await readJson(req);
+      if (!body) { res.writeHead(400); res.end('bad request'); return; }
+      const accountId = qr.takeTicket(String(body.ticket ?? ''));
+      if (!accountId) { res.writeHead(410); res.end('gone'); return; }
+      const tokenHash = await loginToken(accountId);
+      obs.event('qr_login', { ok: !!tokenHash, via: 'ticket' });
+      if (!tokenHash) { res.writeHead(502); res.end('error'); return; }
+      sendJson(res, 200, { tokenHash }); return;
+    }
+    res.writeHead(404); res.end();
+  };
+
   const server = createServer(async (req, res) => {
     setCors(req, res);
     if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
@@ -312,6 +457,33 @@ export function createRelay(cfg: RelayConfig) {
         res.writeHead(200, { 'content-type': 'application/json' });
         res.end(JSON.stringify({ code, expiresAt }));
       } catch { res.writeHead(500); res.end('error'); }
+      return;
+    }
+    const qrRoute = /^\/auth\/qr\/(ticket|redeem|request|peek|answer|poll)$/.exec(urlPath);
+    if (req.method === 'POST' && qrRoute) { await handleQr(req, res, qrRoute[1]); return; }
+    // POST /account/delete — the signed-in user deletes their own account (JWT in the
+    // header only). Root accounts are refused: they own the deployment. Idempotent.
+    if (req.method === 'POST' && urlPath === '/account/delete') {
+      const auth = req.headers.authorization ?? '';
+      const id = auth.startsWith('Bearer ') ? await identityFrom(auth.slice(7)) : null;
+      if (!id) { res.writeHead(401); res.end('auth'); return; }
+      if (id.role === 'root') { res.writeHead(403); res.end('root account'); return; }
+      if (!deleteThrottle(id.accountId)) { res.writeHead(429); res.end('slow down'); return; }
+      if (!cfg.store.deleteAccount) { res.writeHead(501); res.end('unsupported'); return; }
+      try {
+        await cfg.store.deleteAccount(id.accountId);
+      } catch (e) {
+        console.error('[relay] deleteAccount:', e);
+        obs.event('account_delete', { ok: false });
+        res.writeHead(502); res.end('error'); return;
+      }
+      deletedUntil.set(id.accountId, id.expMs ?? nowMs() + 3600_000);
+      boxRows.delete(id.accountId);
+      for (const box of registry.agentIds(id.accountId)) registry.agentSocket(id.accountId, box)?.terminate?.();
+      registry.eachBrowser(id.accountId, (s) => { try { (s as WebSocket).close(4403, 'account deleted'); } catch { /* indo */ } });
+      obs.event('account_delete', { ok: true });
+      res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+      res.end(JSON.stringify({ ok: true }));
       return;
     }
     // GET /status — sonda do monitor externo. O corpo PÚBLICO é deliberadamente
@@ -378,14 +550,20 @@ export function createRelay(cfg: RelayConfig) {
     if ((rawBox !== null && !isBoxId(rawBox)) || (peek && rawBox === null)) { obs.event('browser_open', { peek, box: rawBox !== null, bad: true }); clearTimeout(authTimer); ws.close(4400, 'bad box'); return; }
     const box = rawBox ? rawBox.toLowerCase() : '';
     obs.event('browser_open', { peek, box: box !== '' });
-    const id = await identityFrom(tokenFromSubprotocol(req.headers['sec-websocket-protocol']) ?? tokenFromUrl(req.url));
+    const id = await identityWithDeadline(tokenFromSubprotocol(req.headers['sec-websocket-protocol']) ?? tokenFromUrl(req.url));
     clearTimeout(authTimer);
+    if (id === STALLED) {
+      obs.event('browser_auth_stall', {});
+      jwks = newJwks();
+      if (ws.readyState === WebSocket.OPEN) { try { ws.close(4408, 'auth timeout'); } catch { /* indo */ } }
+      return;
+    }
     // The socket may have closed during the await (F5, pre-auth flood, auth
     // timeout). Its 'close' already fired with no listener, so registering it now
     // would leave a dead tab in the registry forever and the agent would never get
     // `no-browsers`.
     if (ws.readyState !== WebSocket.OPEN) return;
-    if (!id) { ws.close(4401, 'auth'); return; }            // default-deny (red line #10)
+    if (!id || isDeleted(id.accountId)) { ws.close(4401, 'auth'); return; }            // default-deny (red line #10)
     const accountId = id.accountId;
     acctHid = obs.hid(accountId);
     // Checked and registered with no await in between, so concurrent opens can't overshoot.

@@ -4,6 +4,9 @@ import type { BaseEngine } from './engine';
 
 const QWE = ['q', 'w', 'e'];
 
+// Pinch wheel deltas are small and arrive many times a second, so zoom follows their size.
+export const pinchWheelFactor = (deltaY: number) => Math.exp(Math.max(-30, Math.min(30, deltaY)) * 0.01);
+
 // Everything hangs off one AbortController, so unmount cannot leave a listener behind.
 export function attachInput(e: BaseEngine): () => void {
   const ctl = new AbortController(), { signal } = ctl;
@@ -23,11 +26,13 @@ export function attachInput(e: BaseEngine): () => void {
   window.addEventListener('pointermove', (ev) => {
     if (!drag || !ev.buttons) {
       if (ev.target !== dom) { e.hoverId = null; return; }
-      const id = (hits(ev).find((h) => h.object.userData.agentId)?.object.userData.agentId as string | undefined) ?? null;
+      const all = hits(ev);
+      const id = (all.find((h) => h.object.userData.agentId)?.object.userData.agentId as string | undefined) ?? null;
       e.hoverId = id;
-      dom.style.cursor = id ? 'pointer' : '';
+      dom.style.cursor = id || (e.onMissionClick && all.some((h) => h.object.userData.missionId)) ? 'pointer' : '';
       return;
     }
+    if (fingers.size >= 2) return;
     const dx = ev.clientX - drag.x, dy = ev.clientY - drag.y;
     if (Math.abs(dx) + Math.abs(dy) <= 4) return;
     drag.moved = true;
@@ -35,18 +40,48 @@ export function attachInput(e: BaseEngine): () => void {
     e.rig.pan(-dx * k, -dy * k);
     drag.x = ev.clientX; drag.y = ev.clientY;
   }, { signal });
-  dom.addEventListener('wheel', (ev) => { ev.preventDefault(); e.rig.zoom(ev.deltaY > 0 ? 1.1 : 0.9); }, { passive: false, signal });
+  // Trackpad and touchscreen pinches reach the page as ctrl+wheel: while the Base is open they zoom the floor, never the Deck.
+  window.addEventListener('wheel', (ev) => {
+    const t = ev.target as Element | null;
+    if (ev.ctrlKey) {
+      ev.preventDefault();
+      if (t?.closest('.base-root')) e.rig.zoom(pinchWheelFactor(ev.deltaY));
+    } else if (t === dom || t?.closest('.base-labels')) {
+      ev.preventDefault();
+      e.rig.zoom(ev.deltaY > 0 ? 1.1 : 0.9);
+    }
+  }, { passive: false, signal });
+  // Safari reports pinches as gesture events instead.
+  for (const name of ['gesturestart', 'gesturechange', 'gestureend']) window.addEventListener(name, (ev) => ev.preventDefault(), { passive: false, signal });
+  const fingers = new Map<number, { x: number; y: number }>();
+  let pinchGap = 0;
+  const gap = () => { const [a, b] = [...fingers.values()]; return Math.hypot(a.x - b.x, a.y - b.y); };
+  dom.addEventListener('pointerdown', (ev) => {
+    if (ev.pointerType !== 'touch') return;
+    fingers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+    if (fingers.size === 2) { pinchGap = gap(); if (drag) drag.moved = true; }
+  }, { signal });
+  window.addEventListener('pointermove', (ev) => {
+    if (!fingers.has(ev.pointerId)) return;
+    fingers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+    if (fingers.size !== 2) return;
+    const now = gap();
+    if (pinchGap > 0 && now > 0) e.rig.zoom(pinchGap / now);
+    pinchGap = now;
+  }, { signal });
+  for (const name of ['pointerup', 'pointercancel'] as const) window.addEventListener(name, (ev) => { fingers.delete(ev.pointerId); }, { signal });
   dom.addEventListener('click', (ev) => {
     if (drag?.moved) return;
     const all = hits(ev);
     const crate = all.find((h) => h.object.userData.crateId);
     if (crate) { e.clickCrate(crate.object.userData.crateId as string); return; }
+    const mission = all.find((h) => h.object.userData.missionId);
+    if (mission && e.onMissionClick) { e.onMissionClick(mission.object.userData.missionId as string); return; }
     const agent = all.find((h) => h.object.userData.agentId);
     if (agent) {
       const id = agent.object.userData.agentId as string;
-      const a = e.floor.agents.find((x) => x.id === id);
-      if (a && (e.selectedId || e.viewWingId === a.wingId || !e.floor.wings.some((w) => w.id === a.wingId))) e.select(id);
-      else if (a) e.goWing(a.wingId);
+      // One click always opens the desk and draws its link to the box.
+      e.select(id);
       return;
     }
     if (e.selectedId) e.back();
@@ -72,6 +107,8 @@ export function attachInput(e: BaseEngine): () => void {
     if (wing) e.goWing(wing.id);
     const sector = SECTORS.find((s) => s.hotkey.toLowerCase() === k);
     if (sector) e.goSector(sector.id);
+    if (k === '[') e.stepDesk(-1);
+    if (k === ']') e.stepDesk(1);
     if (k === 'm') e.cycleSound();
     if (!practice) return;
     if (k === 'f') e.openFunnel();

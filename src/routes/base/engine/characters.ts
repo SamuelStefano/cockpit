@@ -2,10 +2,14 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import type { FloorAgent, ModelFamily, Point } from '../types';
 import { box, cyl, disposeTree, ink, inkMat, newMat, PAL } from './kit';
+import { BIT_LIMB, buildBit, buildMascot, type BodyForm } from './bodyForm';
+import { eyesFor, paintFace } from './face';
 import { drawMonitor, H, STATE_LOOK, W } from './monitor';
+import { Stroller, type StrollPose } from './stroll';
 
 const FAMILY_COLOR: Record<ModelFamily, number> = { opus: PAL.terra, sonnet: PAL.blue, grok: PAL.char, haiku: 0x58a89a, codex: PAL.violet, unknown: 0x8d9299 };
-const FACES: Record<string, string> = { working: '•_•', thinking: '-_o', blocked: '>_<', silent: 'x_x', paused: 'u_u', waiting: '-_-', finished: '^_-', reviewing: 'o_o', cheer: '^o^', asleep: 'z_z', walking: '•‿•' };
+const ROAMS: ReadonlySet<string> = new Set(['waiting', 'finished', 'working', 'reviewing']);
+const angleTo = (from: number, to: number) => Math.atan2(Math.sin(to - from), Math.cos(to - from));
 
 function limb(body: THREE.Object3D, x: number, y: number, z: number, l: number, m: THREE.Material): THREE.Group {
   const p = new THREE.Group();
@@ -18,7 +22,18 @@ function limb(body: THREE.Object3D, x: number, y: number, z: number, l: number, 
   return p;
 }
 
-// Clay critter at a desk: a rounded cube, stubs and a swapped 2D face. Cheap body, expensive acting.
+function strollPose(p: StrollPose, T: number, ph: number) {
+  const o = { by: 0.2, al: 0, ar: 0, ll: 0, lr: 0, rx: 0, hx: 0, hz: 0, ry: 0 };
+  if (p === 'look') { o.ry = Math.sin(T * 0.8 + ph) * 1.1; o.hz = Math.sin(T * 1.3) * 0.12; }
+  if (p === 'wave') { o.ar = -2.9 + Math.sin(T * 11) * 0.4; o.hz = 0.12; }
+  if (p === 'stretch') { const k = (Math.sin(T * 1.6) + 1) / 2; o.al = o.ar = -3 * k; o.by = 0.2 + k * 0.18; o.rx = -0.12 * k; }
+  if (p === 'dance') { o.by = 0.2 + Math.abs(Math.sin(T * 7)) * 0.42; o.ll = Math.sin(T * 7) * 0.5; o.lr = -o.ll; o.al = -2.7 + Math.sin(T * 7) * 0.5; o.ar = -2.7 - Math.sin(T * 7) * 0.5; o.ry = T * 2.4; }
+  if (p === 'nap') { o.rx = -1.5; o.by = 0.75 + Math.sin(T * 1.5) * 0.04; o.ry = 0.5; }
+  if (p === 'sip') { const k = Math.max(0, Math.sin(T * 1.2)); o.ar = -0.4 - k * 2; o.hx = -0.25 * k; }
+  return o;
+}
+
+// A clay Bit, or a Grok mascot, at a desk: stubs and a repainted face. Cheap body, expensive acting.
 export class AgentView {
   readonly g = new THREE.Group();
   readonly cv = document.createElement('canvas');
@@ -27,7 +42,13 @@ export class AgentView {
   private mon = new THREE.Group();
   private body = new THREE.Group();
   private head = new THREE.Group();
-  private hat = new THREE.Group();
+  private form = new THREE.Group();
+  private formInfo: BodyForm | null = null;
+  private torsoMesh: THREE.Mesh;
+  private limbMat: THREE.MeshStandardMaterial;
+  private faces: THREE.Mesh[] = [];
+  private stroll = new Stroller();
+  private blinkAt = 2 + Math.random() * 4;
   private armL: THREE.Group; private armR: THREE.Group; private legL: THREE.Group; private legR: THREE.Group;
   private torso: THREE.MeshStandardMaterial;
   private lamp: THREE.MeshStandardMaterial;
@@ -68,32 +89,36 @@ export class AgentView {
     cyl(g, 0.1, 0.1, 1, PAL.char, 0, 0.5, 1.75);
 
     this.torso = newMat(FAMILY_COLOR[a.family]);
+    this.limbMat = newMat(BIT_LIMB);
     const line = inkMat();
     const torso = new THREE.Mesh(new RoundedBoxGeometry(1.25, 1.3, 1.05, 3, 0.3), this.torso);
     torso.position.y = 0.72; torso.castShadow = true;
     ink(torso, line, 1.07);
     g.add(this.body);
     this.body.add(torso);
-    this.head.position.y = 1.72;
+    this.torsoMesh = torso;
+    this.head.position.y = 1.9;
     this.body.add(this.head);
-    const skull = new THREE.Mesh(new RoundedBoxGeometry(1.1, 0.95, 1, 3, 0.3), this.torso);
-    skull.castShadow = true;
-    ink(skull, line, 1.07);
-    this.head.add(skull);
+    this.head.add(this.form);
     this.faceCv.width = this.faceCv.height = 128;
     this.faceTex = new THREE.CanvasTexture(this.faceCv);
     this.faceTex.colorSpace = THREE.SRGBColorSpace;
     const fm = new THREE.MeshBasicMaterial({ map: this.faceTex, transparent: true });
-    const front = new THREE.Mesh(new THREE.PlaneGeometry(0.92, 0.92), fm); front.position.z = 0.51; this.head.add(front);
-    const back = new THREE.Mesh(new THREE.PlaneGeometry(0.92, 0.92), fm); back.position.z = -0.51; back.rotation.y = Math.PI; this.head.add(back);
-    this.head.add(this.hat);
-    this.armL = limb(this.body, -0.72, 1.15, 0, 0.8, this.torso); this.armR = limb(this.body, 0.72, 1.15, 0, 0.8, this.torso);
-    this.legL = limb(this.body, -0.3, 0.2, 0, 0.45, this.torso); this.legR = limb(this.body, 0.3, 0.2, 0, 0.45, this.torso);
+    const front = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), fm);
+    const back = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), fm); back.rotation.y = Math.PI;
+    this.faces = [front, back];
+    this.head.add(front, back);
+    this.armL = limb(this.body, -0.72, 1.15, 0, 0.8, this.limbMat); this.armR = limb(this.body, 0.72, 1.15, 0, 0.8, this.limbMat);
+    this.legL = limb(this.body, -0.3, 0.2, 0, 0.45, this.limbMat); this.legR = limb(this.body, 0.3, 0.2, 0, 0.45, this.limbMat);
     this.body.position.copy(this.home);
     this.body.rotation.y = Math.PI;
     this.hit = box(g, 6, 4.6, 5, new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }), 0, 2.2, 0.6);
     this.hit.castShadow = false;
     this.hit.userData.agentId = id;
+    // A roaming character stays clickable away from its desk.
+    const bodyHit = box(this.body, 2, 3.4, 2, new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }), 0, 1.4, 0);
+    bodyHit.castShadow = false;
+    bodyHit.userData.agentId = id;
     this.setFamily(a.family);
   }
 
@@ -101,24 +126,29 @@ export class AgentView {
     if (f === this.family) return;
     this.family = f;
     this.torso.color.setHex(FAMILY_COLOR[f]);
-    disposeTree(this.hat);
-    this.hat.clear();
-    if (f === 'grok') box(this.hat, 1.14, 0.1, 1.04, 0xff7a3d, 0, 0.4, 0, { emissive: 0xff5a1d, emissiveIntensity: 0.8 });
-    else if (f === 'opus') box(this.hat, 0.9, 0.3, 0.8, PAL.woodDark, 0, 0.6, 0);
-    else if (f === 'sonnet') box(this.hat, 0.8, 0.14, 0.7, PAL.gold, 0, 0.54, 0);
-    else if (f === 'codex') cyl(this.hat, 0.05, 0.05, 0.6, PAL.ink, 0, 0.75, 0);
+    disposeTree(this.form);
+    this.form.clear();
+    const info = f === 'grok' ? buildMascot(this.form, this.id) : buildBit(this.form, FAMILY_COLOR[f]);
+    this.formInfo = info;
+    this.limbMat.color.setHex(info.limb);
+    this.torsoMesh.visible = !info.hideTorso;
+    const [front, back] = this.faces;
+    for (const [m, z] of [[front, info.face.z], [back, -info.face.z]] as const) { m.position.set(info.face.x, info.face.y, z); m.scale.setScalar(info.face.size); }
+    back.position.x = info.face.x;
     this.faceNow = '';
   }
 
-  private drawFace(f: string) {
-    if (this.faceNow === f) return;
-    this.faceNow = f;
+  private drawFace(f: string, T: number, typing: boolean) {
+    if (T > this.blinkAt + 0.13) this.blinkAt = T + 2 + Math.random() * 4;
+    const blink = T > this.blinkAt && eyesFor(f) === 'open';
+    const look = eyesFor(f) === 'open' ? Math.round(Math.sin(T * 0.7 + this.blinkAt) * 2) * 3 : 0;
+    const eyes = blink ? 'closed' : eyesFor(f), cursor = typing && Math.sin(T * 7) > 0;
+    const key = `${eyes}:${look}:${cursor}`;
+    if (this.faceNow === key) return;
+    this.faceNow = key;
     const g = this.faceCv.getContext('2d');
     if (!g) return;
-    g.clearRect(0, 0, 128, 128);
-    g.fillStyle = this.family === 'grok' ? '#ff8a4d' : '#201e25';
-    g.font = '900 56px monospace'; g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.fillText(f, 64, 66);
+    paintFace(g, eyes, this.family !== 'grok', look, cursor);
     this.faceTex.needsUpdate = true;
   }
 
@@ -152,7 +182,18 @@ export class AgentView {
     if (s === 'finished') { rx = -0.22; hx = -0.2; al = -0.1; ar = -2.6 + Math.sin(T * 3 + ph) * 0.2; hz = Math.sin(T * 0.8 + ph) * 0.15; }
     if (s === 'waiting') { hz = Math.sin(T * 0.5 + ph) * 0.22; al = -0.25; ar = -0.25; rx = -0.1; by += Math.sin(T * 1.6 + ph) * 0.025; }
     if (s === 'cheer') { by = 0.2 + Math.abs(Math.sin(T * 8)); tz = 2.7; ll = Math.sin(T * 9) * 0.5; lr = -ll; al = -2.9 + Math.sin(T * 14) * 0.3; ar = -2.9 - Math.sin(T * 14) * 0.3; hx = -0.3; }
-    let face = s;
+    let face: string = s;
+    const fr = this.stroll.update(real, { worldX: a.x, worldZ: a.z, may: !focused && !this.walk && ROAMS.has(s), restless: s !== 'working' && s !== 'reviewing' });
+    let strolling = false;
+    if (fr.phase !== 'seated' && !this.walk) {
+      strolling = true;
+      tx = fr.x; tz = fr.z; rx = 0; hx = 0; hz = 0;
+      if (fr.pose) { ({ by, al, ar, ll, lr, rx, hx, hz, ry } = strollPose(fr.pose, T, ph)); face = fr.pose; }
+      else {
+        const pace = T * 10 + ph;
+        by = 0.2 + Math.abs(Math.sin(pace)) * 0.14; ll = Math.sin(pace) * 0.7; lr = -ll; al = -ll * 0.7; ar = ll * 0.7; ry = fr.heading; face = 'walking';
+      }
+    }
     if (this.walk) {
       const w = this.walk;
       w.t += real / 3.6;
@@ -168,16 +209,18 @@ export class AgentView {
     head.rotation.x += (hx - head.rotation.x) * L; head.rotation.z += (hz - head.rotation.z) * L;
     armL.rotation.x += (al - armL.rotation.x) * L * 1.6; armR.rotation.x += (ar - armR.rotation.x) * L * 1.6;
     legL.rotation.x += (ll - legL.rotation.x) * L; legR.rotation.x += (lr - legR.rotation.x) * L;
-    body.position.x = this.walk ? tx : body.position.x + (tx - body.position.x) * L;
-    body.position.y += (by - body.position.y) * L; body.position.z = this.walk ? tz : body.position.z + (tz - body.position.z) * L;
+    const direct = !!this.walk || strolling;
+    body.position.x = direct ? tx : body.position.x + (tx - body.position.x) * L;
+    body.position.y += (by - body.position.y) * L; body.position.z = direct ? tz : body.position.z + (tz - body.position.z) * L;
     body.rotation.x += (rx - body.rotation.x) * L;
-    body.rotation.y += (ry - body.rotation.y) * L;
+    body.rotation.y += angleTo(body.rotation.y, ry) * L;
     // Spring squash: overshoot, return to rest. Volume stays constant so it reads as clay.
     this.squashV += (-this.squash * 120 - this.squashV * 12) * real;
     this.squash += this.squashV * real;
     const q = THREE.MathUtils.clamp(this.squash * 0.05, -0.35, 0.35);
     body.scale.set(1 - q / 2, 1 + q, 1 - q / 2);
-    this.drawFace(FACES[face] ?? FACES.waiting);
+    this.drawFace(face, T, s === 'working' && !strolling);
+    if (this.formInfo?.tip) this.formInfo.tip.emissiveIntensity = s === 'blocked' ? 1.2 + Math.sin(T * 9) : 1 + Math.sin(T * 2 + ph) * 0.4;
     const st = STATE_LOOK[a.state] ?? STATE_LOOK.waiting;
     this.lamp.color.setHex(st.c); this.lamp.emissive.setHex(st.c);
     this.lamp.emissiveIntensity = a.state === 'blocked' || a.state === 'silent' ? 1 + Math.sin(T * 7) : 1;

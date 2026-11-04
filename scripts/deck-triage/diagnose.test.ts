@@ -16,6 +16,13 @@ describe('deterministicDiagnosis', () => {
     expect(d.actions).toEqual(['restart_relay']);
   });
 
+  it('login path failing with infra green proposes the relay restart', () => {
+    const d = deterministicDiagnosis(findings({ login_path: ['fail', 'fechou com 4408 em 8100 ms, esperado 4401'] }));
+    expect(d.actions).toEqual(['restart_relay']);
+    expect(d.cause).toMatch(/login/);
+    expect(deterministicDiagnosis(findings({ auth_flow: ['fail', '10 min: 0 login(s) ok, 5 fechamento(s) 4408'] })).actions).toEqual(['restart_relay']);
+  });
+
   it('caddy down offers the caddy reload', () => {
     const d = deterministicDiagnosis(findings({ caddy_active: ['fail', 'failed'], fallback_status: ['fail', 'ECONNREFUSED'] }));
     expect(d.actions).toEqual(['reload_caddy']);

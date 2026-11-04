@@ -3,6 +3,7 @@ import { useEnrollDevice } from './useEnrollDevice';
 import { usePasskeySetup } from './usePasskeySetup';
 import { EnrollCodeForm } from './EnrollCodeForm';
 import { EnrollLinkStatus } from './EnrollLinkStatus';
+import { DeleteAccount } from './DeleteAccount';
 
 // Shown when the agent does not know this device yet (or refused its key). The
 // normal way in is a QR shown by an enrolled device (this browser then enrolls
@@ -40,7 +41,8 @@ export function EnrollDevice({ onSignOut }: { onSignOut: () => void }) {
           </>
         )}
         {e.showCode && <EnrollCodeForm e={e} />}
-        <div className="mt-6 flex justify-end border-t border-neutral-800 pt-4">
+        <div className="mt-6 flex justify-end gap-1 border-t border-neutral-800 pt-4">
+          <DeleteAccount onSignOut={onSignOut} />
           <Button variant="ghost" size="sm" onClick={onSignOut}>Sair</Button>
         </div>
       </div>

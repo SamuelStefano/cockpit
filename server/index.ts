@@ -48,7 +48,7 @@ async function main() {
     // ela própria carregou e oferece recarregar quando um deploy troca o hash.
     // Sem auth de propósito — é o mesmo dado que qualquer um que carrega o app já
     // recebe no index.html, e a PWA precisa dele antes de ter sessão.
-    if (path === '/api/build') {
+    if (path === '/api/build' || path === '/build.json') {
       const manifest = buildManifest(distDir);
       res.writeHead(manifest ? 200 : 503, { 'content-type': 'application/json', 'cache-control': 'no-store' });
       res.end(JSON.stringify(manifest ?? { error: 'sem build' }));

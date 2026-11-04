@@ -26,6 +26,12 @@ export function Drop() {
           entrada de um comando; o conteúdo nunca precisa aparecer na resposta.
         </InfoCard>
       </div>
+      <Callout icon="paperclip" tone="sky">
+        <span className="font-medium">Arquivo, inclusive binário ·</span> o botão <Pill>Escolher arquivo</Pill> aceita
+        qualquer tipo (.env, .pem, .p8, .p12), até 1 MB. Texto UTF-8 segue o frame original; binário viaja em base64
+        e é gravado como bytes. O formulário mostra só nome e tamanho, nunca o conteúdo. Se o agente da box for antigo
+        demais pra receber binário, o Deck detecta o tamanho errado, remove o arquivo e avisa.
+      </Callout>
       <Callout icon="shield" tone="amber">
         <span className="font-medium">O drop tira o segredo do transcript, não do contexto ·</span> se o agente
         der <Pill>Read</Pill> no arquivo, o conteúdo entra na janela e volta pro JSONL como qualquer outro texto.
