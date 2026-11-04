@@ -6,7 +6,7 @@ import type { AgentNav } from './useAgentNav';
 import { RouteFallback } from './RouteFallback';
 import { ChunkErrorBoundary } from './ChunkErrorBoundary';
 import {
-  Skills, Pontos, Placar,
+  Skills, Pontos,
   Graph, Canvas, Conexoes, Configuracoes, Docs, DesignSystem, Onboarding, EquipePage, Agente, Base, Arcade,
 } from './lazyRoutes';
 import type { ChatPanelProps } from '../components/chat/chat-panel-props';
@@ -86,7 +86,6 @@ export function RouteContent({ route, agentRoute, skillRoute, isMobile, isAdmin,
       );
     }
     if (route === '/arcade') return <Arcade />;
-    if (route === '/placar' && isRoot) return <Placar />;
     if (route === '/pontos' && isRoot) {
       return (
         <Pontos connected={connected} points={c.points} total={c.pointsTotal} loaded={c.pointsLoaded}
