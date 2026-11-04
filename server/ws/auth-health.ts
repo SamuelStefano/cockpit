@@ -39,7 +39,7 @@ export function refreshDue(expiresAt: number, now: number): boolean {
 
 let brokenAt = 0;
 
-function credMtime(): number {
+export function credMtime(): number {
   try { return statSync(CRED_PATH).mtimeMs; } catch { return 0; }
 }
 
