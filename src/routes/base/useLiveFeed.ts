@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Message, ToolQuestion, ToolTodo } from '../../data/types';
-import type { CanvasBoard, CanvasGraph, SessionPeek, TermStats } from '../../../shared/canvas';
+import type { CanvasBoard, CanvasCard, CanvasGraph, SessionPeek, TermStats } from '../../../shared/canvas';
 import type { BgAgent, Cron, SysStats } from '../../../shared/protocol';
 import type { Session } from '../../data/types';
 import { adaptLive, emptyPlacement, type LiveAction, type LiveFloor, type Placement } from './liveAdapter';
@@ -26,6 +26,7 @@ export interface LiveSource {
   onLoadThread: (id: string) => void;
   onCanvasGet: () => void;
   onCronsGet: () => void;
+  onCanvasCardSave?: (card: CanvasCard) => void;
   onSendTo: (id: string, text: string) => boolean;
   onStop: (id: string) => void;
   onOpenSession: (id: string) => void;
