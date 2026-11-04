@@ -118,7 +118,7 @@ export function RouteContent({ route, agentRoute, skillRoute, isMobile, isAdmin,
           connected, sessions: c.sessions, running: c.runningAnywhere, termStats: c.canvasTermStats, threads: c.threads, peeks: c.sessionPeeks, todos: c.allSessionTodos, bgAgents: c.allBgAgents,
           teamQuestions: c.pendingQuestions, graph: c.canvasGraph, board: c.canvasBoard, boardLoaded: c.canvasGraph !== null,
           stats: c.stats, crons: c.cronsLoaded ? c.crons : null, mcpServers: c.mcpServers.length ? c.mcpServers : null,
-          onCtxStats: c.onCanvasCtxStats, onPeek: c.onSessionPeek, onLoadThread: c.onLoadThread, onCanvasGet: c.onCanvasGet, onCronsGet: c.onCronsGet,
+          onCtxStats: c.onCanvasCtxStats, onPeek: c.onSessionPeek, onLoadThread: c.onLoadThread, onCanvasGet: c.onCanvasGet, onCanvasCardSave: c.onCanvasCardSave, onCronsGet: c.onCronsGet,
           onSendTo: c.onSendTo, onStop: c.onStop, onOpenSession,
         }} />
       );

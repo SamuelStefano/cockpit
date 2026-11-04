@@ -1,7 +1,7 @@
 export type BaseMode = 'live' | 'practice';
 export type AgentState = 'working' | 'thinking' | 'blocked' | 'silent' | 'paused' | 'waiting' | 'reviewing' | 'asleep' | 'finished';
 export type ModelFamily = 'opus' | 'sonnet' | 'haiku' | 'grok' | 'codex' | 'unknown';
-export type SectorId = 'intake' | 'build' | 'ship' | 'ops' | 'archive';
+export type SectorId = 'intake' | 'build' | 'ship' | 'ops' | 'archive' | 'missions';
 export type MonitorTab = 'split' | 'preview' | 'diff' | 'terminal' | 'trace';
 
 export interface Point { x: number; z: number }

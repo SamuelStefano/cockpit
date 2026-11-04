@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { layoutWings, MAX_COLS, OTHER_WING_ID, sectorRows, slotPosition } from './sectors';
+import { layoutWings, MAX_COLS, OTHER_WING_ID, SECTORS, sectorRows, slotPosition } from './sectors';
 
 describe('layoutWings', () => {
   it('keeps the given order and packs columns', () => {
@@ -28,5 +28,18 @@ describe('sectorRows', () => {
     expect(rows.find((r) => r.id === 'build')).toMatchObject({ busy: 1, stuck: 1, waiting: 0 });
     expect(rows.find((r) => r.id === 'intake')).toMatchObject({ waiting: 1 });
     expect(rows.find((r) => r.id === 'ship')).toMatchObject({ busy: 2 });
+  });
+});
+
+describe('SECTORS', () => {
+  it('never overlaps two sectors and keeps hotkeys unique', () => {
+    for (const a of SECTORS) for (const b of SECTORS) {
+      if (a === b) continue;
+      expect(a.x0 < b.x1 && b.x0 < a.x1 && a.z0 < b.z1 && b.z0 < a.z1).toBe(false);
+    }
+    expect(new Set(SECTORS.map((s) => s.hotkey)).size).toBe(SECTORS.length);
+  });
+  it('has a missions sector on the M key', () => {
+    expect(SECTORS.find((s) => s.id === 'missions')?.hotkey).toBe('T');
   });
 });
