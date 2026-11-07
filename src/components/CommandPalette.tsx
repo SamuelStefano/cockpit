@@ -6,6 +6,9 @@ import { useBackClose } from './primitives/useBackClose';
 import { filterCommands, capSessions } from './command-palette-filter';
 import { usePaletteCommands } from './usePaletteCommands';
 import { otherBoxCommands } from './palette-other-boxes';
+import { boxSwitchCommands } from './palette-boxes';
+import { openBox } from '../cockpit/box-open';
+import { requestNewOn } from '../cockpit/box-intent';
 import { useBoxSessions } from '../cockpit/box-sessions';
 import { useBoxes } from '../cockpit/useBoxes';
 import { chatPath } from '../useRoute';
@@ -47,7 +50,12 @@ export function CommandPalette({ open, onClose, nav, onNew, mode, setMode, sessi
     switchBox(box);
     onClose();
   }), [q, boxes, active, byBox, switchBox, onClose]);
-  const filtered = useMemo(() => capSessions(filterCommands([...commands, ...others], q), q), [q, commands, others]);
+  const machines = useMemo(() => boxSwitchCommands(
+    boxes, active,
+    (box) => { openBox(box, active, switchBox); onClose(); },
+    (box) => { requestNewOn(box); switchBox(box); onClose(); },
+  ), [boxes, active, switchBox, onClose]);
+  const filtered = useMemo(() => capSessions(filterCommands([...commands, ...machines, ...others], q), q), [q, commands, machines, others]);
 
   useEscapeLayer(open, onClose);
   useEffect(() => { setSel(0); }, [q, open]);
