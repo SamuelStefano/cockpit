@@ -23,7 +23,7 @@ import { EggsHost } from './components/game/EggsHost';
 import { useGameSignals } from './game/useGameSignals';
 import { BoxHealthHost } from './components/health/BoxHealthHost';
 import { bitStateFor } from './components/bit/bit-state';
-import { BoxRail } from './components/chrome/rail/BoxRail';
+import { useRememberLastSession } from './cockpit/box-open';
 import { RailChats } from './components/chrome/sidebar/RailChats';
 import { useJustDone } from './components/bit/useJustDone';
 import type { LinkState } from './components/bit/turn-bit-state';
@@ -219,6 +219,7 @@ function CockpitBody() {
   useActiveBoxUnread(sidebarSessions, cockpit.seen, activeSessionId, runningAnywhere);
   useTabTitle(running, updated, totalRed(useBoxUnread()));
   const sessionsProps = { sessions: sidebarSessions, loading, activeId: activeSessionId, onSelect: selectSession, onNew: handleNew, marathon, onToggleMarathon, onRename: handleRename, onDescribe: handleDescribe, onClose: handleCloseSession, onDelete: handleDeleteSession, onStop: handleStop, archived, onUnhide: handleUnhide, running: runningAnywhere, stalled, updated, runStart, searchResults, onSearch, userId: sbAuth.session?.user.id };
+  useRememberLastSession(activeSessionId);
   useGlobalShortcuts({ sessions: sidebarSessions, running: runningAnywhere, activeSessionId, setActiveSessionId: selectSession, updated, nav, onNew: handleNew, setPalette, setHelp });
   const navCounts = useMemo(() => ({ '/canvas': sidebarSessions.filter((s) => s.waiting).length }), [sidebarSessions]);
   const usageDock = { usageAgent, planUsage, planBlockedUntil, planReadAt, planNextReadAt, onRefreshPlanUsage, grokUsage: cockpit.grokUsage, onRefreshGrokUsage: cockpit.onRefreshGrokUsage, quotaWarn: quotaGate.warn, quotaPaused: quotaGate.paused, quotaResetsAt: quotaGate.resetsAt, stats };
@@ -233,6 +234,7 @@ function CockpitBody() {
     views: agent.views, activeId: agent.active?.bot.id ?? null, onNew: agent.openNew, onGo: nav,
     onOpen: agent.open, canManage: isAdmin, paused: cockpit.teamPaused, onPauseSet: cockpit.onTeamPauseSet,
   };
+  const sidebarProps = { ...sessionsProps, agents: agent.views, activeAgentId: agent.active?.bot.id ?? null, onOpenAgent: agent.open, onNewAgent: isAdmin ? agent.openNew : undefined };
   const quotaNotice = claudeQuota && quotaGate.warn && !quotaClosed && rate ? <QuotaBanner reset={relReset(rate.resetsAt)} onClose={() => setQuotaClosed(true)} /> : null;
   const bodyFooter = isMobile ? null : <BodyFooter end={quotaNotice} />;
   const chatWithTeam = { ...chatProps, teamSlot: <TeamStack {...teamProps} />, footer: bodyFooter };
@@ -244,7 +246,7 @@ function CockpitBody() {
       route={route} nav={(to) => { setDrawer(false); nav(to); }} role={role}
       onNew={handleNew} onPalette={openPalette}
       bitState={bitState} conn={conn.ws} account={account}
-      sessions={<SessionsPanel {...sessionsProps} embedded onCloseMobile={() => setDrawer(false)} />}
+      sessions={<SessionsPanel {...sidebarProps} embedded onCloseMobile={() => setDrawer(false)} />}
       drawer={{ onClose: () => setDrawer(false) }}
     />
   ) : null;
@@ -304,12 +306,11 @@ function CockpitBody() {
       <ShortcutsHelp open={help} onClose={() => setHelp(false)} />
       <DesktopTitleBar />
       <div className="flex min-h-0 flex-1">
-        {!isMobile && <BoxRail activeSessionId={activeSessionId} userId={sbAuth.session?.user.id} />}
         {!isMobile && (
           <Sidebar
             route={route} nav={nav} role={role} navCounts={navCounts} onNew={handleNew} onPalette={() => setPalette(true)}
             bitState={bitState} conn={conn.ws} account={account}
-            sessions={<SessionsPanel {...sessionsProps} embedded />}
+            sessions={<SessionsPanel {...sidebarProps} embedded />}
             rail={<RailChats sessions={sidebarSessions} running={runningAnywhere} activeId={activeSessionId} onSelect={selectSession} />}
           />
         )}

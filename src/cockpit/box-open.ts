@@ -1,8 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
-import { loadPref, savePref } from '../../../lib/persist';
-import { useBoxUnread } from '../../../cockpit/box-unread';
-import { useBoxSwitcher } from '../../sessions/useBoxSwitcher';
-import { chatPath } from '../../../useRoute';
+import { useEffect } from 'react';
+import { loadPref, savePref } from '../lib/persist';
+import { chatPath } from '../useRoute';
+import { useBoxes } from './useBoxes';
 
 export const LAST_SESSION_PREF = 'box.last-session';
 const isChatPath = (p: string) => p === '/' || p.startsWith('/c/');
@@ -25,20 +24,11 @@ export function openBox(id: string, active: string | null, switchBox: (id: strin
   switchBox(id);
 }
 
-export interface RailMenu { boxId: string; x: number; y: number }
-
-export function useBoxRail(activeSessionId: string) {
-  const s = useBoxSwitcher();
-  const [menu, setMenu] = useState<RailMenu | null>(null);
-  const unread = useBoxUnread();
-
+export function useRememberLastSession(activeSessionId: string): void {
+  const { active } = useBoxes();
   useEffect(() => {
     const prev = loadPref<Record<string, string>>(LAST_SESSION_PREF, {});
-    const next = rememberSession(prev, s.active, activeSessionId);
+    const next = rememberSession(prev, active, activeSessionId);
     if (next !== prev) savePref(LAST_SESSION_PREF, next);
-  }, [s.active, activeSessionId]);
-
-  const open = useCallback((id: string) => openBox(id, s.active, s.select), [s]);
-
-  return { ...s, open, unread, menu, openMenu: setMenu, closeMenu: () => setMenu(null) };
+  }, [active, activeSessionId]);
 }

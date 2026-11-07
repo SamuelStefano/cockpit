@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { boxUnreadStore, type BoxUnread } from '../cockpit/box-unread';
 import { useBoxes } from '../cockpit/useBoxes';
 import { sortBoxes } from '../components/sessions/useBoxSwitcher';
-import { openBox } from '../components/chrome/rail/useBoxRail';
+import { openBox } from '../cockpit/box-open';
 import { inDesktopApp } from '../lib/desktop';
 import type { Session } from '../data/types';
 import type { Route } from '../useRoute';

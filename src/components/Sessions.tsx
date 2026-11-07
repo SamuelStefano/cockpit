@@ -1,20 +1,19 @@
 import { SessionsLoadingNote } from './sessions/SessionsLoadingNote';
 import { memo } from 'react';
 import { Icon, Input } from './primitives';
-import { BoxGroups } from './sessions/BoxGroups';
-import { NewSessionButton } from './sessions/NewSessionButton';
-import { useBoxGroups } from './sessions/useBoxGroups';
+import { AgentsSection } from './sessions/AgentsSection';
 import type { Session } from '../data/types';
+import type { BotView } from '../routes/equipe/team-view';
 import { groupByRecency } from './sessions/group-by-recency';
 import { SessionGroup } from './sessions/SessionGroup';
 import { SessionRow } from './sessions/SessionRow';
 import { SessionSkeletonRow } from './sessions/SessionSkeletonRow';
-import { BoxSwitcher } from './sessions/BoxSwitcher';
 import { ArchivedSection } from './sessions/ArchivedSection';
 import { ConfirmDelete } from './sessions/ConfirmDelete';
 import { useSessionsPanel } from './sessions/useSessionsPanel';
 
 const NO_RESULTS: Session[] = [];
+const NO_AGENTS: BotView[] = [];
 
 export interface SessionsPanelProps {
   sessions: Session[];
@@ -37,6 +36,10 @@ export interface SessionsPanelProps {
   updated?: Set<string>;
   runStart?: Record<string, number>;
   userId?: string;
+  agents?: BotView[];
+  activeAgentId?: string | null;
+  onOpenAgent?: (id: string) => void;
+  onNewAgent?: () => void;
   // Backend content search: hits are merged with the local title/snippet filter.
   searchResults?: Session[];
   onSearch?: (q: string) => void;
@@ -44,11 +47,8 @@ export interface SessionsPanelProps {
   embedded?: boolean;
 }
 
-function SessionsPanelImpl({ sessions, loading, activeId, onSelect, onNew, marathon, onToggleMarathon, onRename, onDescribe, onClose, onDelete, onStop, archived = [], onUnhide, onCloseMobile, running, stalled, updated, runStart = {}, userId, searchResults = NO_RESULTS, onSearch, embedded = false }: SessionsPanelProps) {
+function SessionsPanelImpl({ sessions, loading, activeId, onSelect, onNew, marathon, onToggleMarathon, onRename, onDescribe, onClose, onDelete, onStop, archived = [], onUnhide, onCloseMobile, running, stalled, updated, runStart = {}, userId, agents = NO_AGENTS, activeAgentId = null, onOpenAgent, onNewAgent, searchResults = NO_RESULTS, onSearch, embedded = false }: SessionsPanelProps) {
   const { query, setQuery, searchRef, archive, deleteId, setDeleteId, pinned, togglePin, dismissedWaiting, dismissWaiting, filtered } = useSessionsPanel({ sessions, archived, searchResults, onSearch, userId, activeId, onClose, onUnhide, onSelect });
-  const boxes = useBoxGroups({ onNew });
-  // Desktop switches machines on the rail; only the phone drawer lists them here.
-  const railShown = embedded && !onCloseMobile;
 
   const renderRow = (s: Session) => (
     <SessionRow key={s.id} s={s} active={s.id === activeId}
@@ -61,12 +61,6 @@ function SessionsPanelImpl({ sessions, loading, activeId, onSelect, onNew, marat
 
   return (
     <div className="flex h-full flex-col bg-neutral-950">
-      {/* Desktop keeps the machine switcher in the body footer; only the phone drawer carries it. */}
-      {onCloseMobile && (
-        <div className="shrink-0 px-2.5 pt-1">
-          <BoxSwitcher userId={userId} />
-        </div>
-      )}
       {!embedded && (
         <div className="shrink-0 space-y-2 px-2.5 pt-2.5">
           <div className="flex items-center justify-between gap-2 px-0.5">
@@ -87,14 +81,10 @@ function SessionsPanelImpl({ sessions, loading, activeId, onSelect, onNew, marat
         />
       </div>
 
-      {!embedded && boxes.choices.length > 1 && (
-        <div className="shrink-0 px-2.5 pt-2.5">
-          <NewSessionButton choices={boxes.choices} onPick={(box) => { if (box) boxes.newOn(box); else onNew(); onCloseMobile?.(); }} />
-        </div>
-      )}
-
       <div className="scroll-thin mt-1.5 flex-1 space-y-2 overflow-y-auto overscroll-contain px-2 pb-3">
-        <BoxGroups {...boxes} grouped={boxes.grouped && !railShown} count={sessions.length} openOn={(box, id) => { boxes.openOn(box, id); onCloseMobile?.(); }}>
+        {!query.trim() && onOpenAgent && (
+          <AgentsSection views={agents} activeId={activeAgentId} onNew={onNewAgent && (() => { onNewAgent(); onCloseMobile?.(); })} onOpen={(id) => { onOpenAgent(id); onCloseMobile?.(); }} />
+        )}
         {loading && sessions.length === 0 ? (
           <div className="space-y-1.5" role="status" aria-label="Carregando sessões">
             <SessionsLoadingNote />
@@ -108,7 +98,6 @@ function SessionsPanelImpl({ sessions, loading, activeId, onSelect, onNew, marat
           ))
         )}
         {!loading && onUnhide && <ArchivedSection archived={archived} onUnhide={onUnhide} onDelete={onDelete ? setDeleteId : undefined} onView={(id) => { onSelect(id); onCloseMobile && onCloseMobile(); }} />}
-        </BoxGroups>
       </div>
       {deleteId && onDelete && (
         <ConfirmDelete
