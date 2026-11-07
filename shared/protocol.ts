@@ -508,6 +508,9 @@ export interface BgAgent {
 // fallback antes da lista carregar.
 export interface ModelInfo { id: string; displayName: string }
 
+// Run slots of one box: `cap` is min(configured ceiling, what free memory allows), never below 1.
+export interface CapacityInfo { live: number; cap: number; configCap: number; availMb: number }
+
 export interface SysStats {
   cpu: number;                 // 0..100
   mem: { used: number; total: number };       // bytes
@@ -1139,6 +1142,7 @@ export type ServerMsg =
   | { t: 'claude-import'; scan: ClaudeImportScan; hint?: string; result?: ClaudeImportResult }
   | { t: 'accounts'; accounts: AccountSummary[] }
   | { t: 'stats'; stats: SysStats }
+  | ({ t: 'capacity' } & CapacityInfo)
   | { t: 'graphs'; items: GraphMeta[] }
   | { t: 'canvas-graph'; graph: CanvasGraph }
   | { t: 'orchestrator-info'; info?: OrchestratorInfo }

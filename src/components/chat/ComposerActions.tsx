@@ -4,6 +4,7 @@ import type { Mic } from './mic-types';
 interface ComposerActionsProps {
   busy: boolean;
   paused: boolean;
+  holdReason?: 'quota' | 'capacity';
   hasText: boolean;
   hasAtt: boolean;
   attUploading: boolean;
@@ -59,7 +60,12 @@ function MicButton({ mic }: { mic: Mic }) {
   return <IconButton icon="mic" label="Ditar por voz" tip={mic.error ?? 'Ditar por voz'} onClick={mic.toggle} className="rounded-full" />;
 }
 
-function PrimaryAction({ paused, hasText, hasAtt, attUploading, onSubmit }: ComposerActionsProps) {
+const HOLD_TITLE = {
+  quota: 'Enfileirar — envia sozinho quando os tokens resetarem',
+  capacity: 'Enfileirar — envia sozinho quando abrir uma vaga na máquina',
+} as const;
+
+function PrimaryAction({ paused, holdReason = 'quota', hasText, hasAtt, attUploading, onSubmit }: ComposerActionsProps) {
   const canSend = hasText || hasAtt;
   return (
     <button
@@ -67,7 +73,7 @@ function PrimaryAction({ paused, hasText, hasAtt, attUploading, onSubmit }: Comp
       onClick={onSubmit}
       disabled={attUploading || !canSend}
       aria-label={paused ? 'Enfileirar mensagem' : 'Enviar mensagem'}
-      title={attUploading ? 'Aguarde o anexo terminar de subir' : paused ? 'Enfileirar — envia sozinho quando os tokens resetarem' : undefined}
+      title={attUploading ? 'Aguarde o anexo terminar de subir' : paused ? HOLD_TITLE[holdReason] : undefined}
       className={`${btn} press-spring focus-visible:ring-orange-500/40
         ${attUploading
           ? idle

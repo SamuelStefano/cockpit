@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Popover, Tooltip, UsageRing, type PopoverSide, type TooltipSide } from '../../primitives';
-import type { PlanUsage, SysStats } from '../../../../shared/protocol';
+import type { CapacityInfo, PlanUsage, SysStats } from '../../../../shared/protocol';
 import { relReset } from '../../../lib/time';
 import { usageRows } from '../usage-rows';
 import { usageChip, type UsageAgent, type UsageReading } from '../usage-agent';
@@ -8,6 +8,7 @@ import { UsagePanel } from '../UsagePanel';
 import { useOpenRefresh } from '../useUsagePanel';
 import { usageSummary } from './usage-summary';
 import { VpsMeters } from './VpsMeters';
+import { CapacityChip } from './CapacityChip';
 
 export interface UsageDockProps {
   usageAgent?: UsageAgent;
@@ -22,6 +23,7 @@ export interface UsageDockProps {
   quotaPaused?: boolean;
   quotaResetsAt?: number | null;
   stats: SysStats | null;
+  capacity?: CapacityInfo | null;
 }
 
 interface Placement { side: PopoverSide; tip: TooltipSide; size: number; box: string }
@@ -40,7 +42,7 @@ export function readUsage({ usageAgent = 'claude', planUsage, planBlockedUntil =
 }
 
 export function UsageDock(props: UsageDockProps) {
-  const { onRefreshPlanUsage, onRefreshGrokUsage, stats } = props;
+  const { onRefreshPlanUsage, onRefreshGrokUsage, stats, capacity } = props;
   const [open, setOpen] = useState(false);
   const { chip, warn, paused, gateResetAt, s } = readUsage(props);
   useOpenRefresh(open, chip.agent === 'grok' ? onRefreshGrokUsage : onRefreshPlanUsage);
@@ -48,6 +50,8 @@ export function UsageDock(props: UsageDockProps) {
   const title = chip.agent === 'grok' ? 'Uso do Grok' : 'Uso do plano';
 
   return (
+    <span className="flex items-center">
+    {capacity && <CapacityChip capacity={capacity} />}
     <Popover
       open={open} onClose={() => setOpen(false)} label={`${title} e VPS`} side={p.side} align="end"
       content={
@@ -67,5 +71,6 @@ export function UsageDock(props: UsageDockProps) {
         </button>
       </Tooltip>
     </Popover>
+    </span>
   );
 }

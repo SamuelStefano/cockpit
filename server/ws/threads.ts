@@ -122,7 +122,37 @@ export interface Thread {
   appTried: Set<string>; // tool_use id já consultado por UI de MCP App — a busca é feita uma vez só por card
 }
 
-export const threads = new Map<string, Thread>();
+// Every set/delete goes through the one Map, so a single hook sees each change of
+// the live-run count (the capacity frame) without touching the dozen call sites.
+class ObservedThreads extends Map<string, Thread> {
+  onChange: (() => void) | null = null;
+  // The hook only feeds the capacity frame: it must never break a run's start or end.
+  private notify(): void {
+    try {
+      this.onChange?.();
+    } catch {
+      // A failed capacity broadcast is retried by the stats loop.
+    }
+  }
+  override set(key: string, value: Thread): this {
+    const had = this.has(key);
+    super.set(key, value);
+    if (!had) this.notify();
+    return this;
+  }
+  override delete(key: string): boolean {
+    const gone = super.delete(key);
+    if (gone) this.notify();
+    return gone;
+  }
+  override clear(): void {
+    const had = this.size > 0;
+    super.clear();
+    if (had) this.notify();
+  }
+}
+
+export const threads = new ObservedThreads();
 
 // Which keys run AND since when. The client stamps its own clock on any key it
 // sees running without a start, and `busy` lands before the per-thread replay:

@@ -1,3 +1,4 @@
+import { currentCapacity } from './capacity';
 import type { WebSocket } from 'ws';
 import type { ClientMsg } from '../../shared/protocol';
 import type { Role } from '../auth';
@@ -53,6 +54,7 @@ export function serveConnection(ws: WebSocket, opts: { role: Role; root?: boolea
   // second replay loop here: that one sent the same frames again on each connect.
   sendDurableSnapshot(ws);
   collect().then((stats) => send(ws, { t: 'stats', stats })).catch(() => {});
+  send(ws, currentCapacity());
   boxHealth.get().then((h) => send(ws, healthFrame(h))).catch(() => {});
 
   // terminais anexados por ESTA conexão — pra desanexar no disconnect.
