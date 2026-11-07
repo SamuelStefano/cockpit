@@ -102,4 +102,16 @@ describe('ComposerActions primary slot', () => {
     expect(screen.queryByLabelText('Ligar')).toBeNull();
     expect(screen.queryByLabelText('Ditar por voz')).toBeNull();
   });
+  it('a full box turns the send button into a queue button that explains the wait', () => {
+    const { onSubmit } = setup({ paused: true, holdReason: 'capacity', hasText: true });
+    const b = queue()!;
+    expect(b.getAttribute('title')).toContain('vaga');
+    fireEvent.click(b);
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+  });
+
+  it('a spent plan keeps its own wording', () => {
+    setup({ paused: true, hasText: true });
+    expect(queue()!.getAttribute('title')).toContain('tokens');
+  });
 });

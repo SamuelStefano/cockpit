@@ -65,6 +65,8 @@ interface ChatInputProps {
   queueReleaseAt?: number;
   onToggleQueuePause?: () => void;
   paused?: boolean;
+  // The box has no free run slot: send turns into "Enfileirar" and the server queue holds the message.
+  capacityFull?: boolean;
   agentOut?: { name: string; use: () => void };
   quotaResetsAt?: number | null;
   history: string[];
@@ -76,11 +78,12 @@ interface ChatInputProps {
 }
 
 export function ChatInput(props: ChatInputProps) {
-  const { disabled, placeholder, onStop, value, setValue, mode, setMode, caps, bypass, setBypass, model, setModel, modelLocked, models, onRefreshModels, effort, setEffort, mcpServers, selectedMcps, setSelectedMcps, attachments, onRemoveAttachment, onOpenAttachment, attThumbs, onAttThumb, queued, queuedIds, queuedAtts, queuedModels, onRunQueuedBg, onRunQueuedNow, onCancelQueueAt, onEditQueuedAt, onMoveQueued, queueHeld = false, onResumeQueue, queuePaused = false, queueReleaseAt = 0, onToggleQueuePause, paused = false, agentOut, quotaResetsAt, onCall, focusMode } = props;
+  const { disabled, placeholder, onStop, value, setValue, mode, setMode, caps, bypass, setBypass, model, setModel, modelLocked, models, onRefreshModels, effort, setEffort, mcpServers, selectedMcps, setSelectedMcps, attachments, onRemoveAttachment, onOpenAttachment, attThumbs, onAttThumb, queued, queuedIds, queuedAtts, queuedModels, onRunQueuedBg, onRunQueuedNow, onCancelQueueAt, onEditQueuedAt, onMoveQueued, queueHeld = false, onResumeQueue, queuePaused = false, queueReleaseAt = 0, onToggleQueuePause, paused = false, capacityFull = false, agentOut, quotaResetsAt, onCall, focusMode } = props;
+  const holding = paused || capacityFull;
   const hasAtt = attachments.length > 0;
   const attUploading = attachments.some((a) => a.uploading);
   const resetLabel = quotaResetsAt ? new Date(quotaResetsAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : null;
-  const { taRef, fileRef, cameraRef, sel, setSel, showPalette, matches, complete, submit, onKey, onCompositionEnd, grow, pick, dragging, onDragEnter, onDragOver, onDragLeave, onDrop, onPaste, mic, ghost, ghostShown, acceptGhost, touch, dismissPalette, hintSeen } = useChatInput({ ...props, hasAtt, attUploading });
+  const { taRef, fileRef, cameraRef, sel, setSel, showPalette, matches, complete, submit, onKey, onCompositionEnd, grow, pick, dragging, onDragEnter, onDragOver, onDragLeave, onDrop, onPaste, mic, ghost, ghostShown, acceptGhost, touch, dismissPalette, hintSeen } = useChatInput({ ...props, paused: holding, hasAtt, attUploading });
   const shots = useScreenshotOffer(props.onUpload);
   const settings = { mode, setMode, caps, bypass, setBypass, model, effort, setEffort, mcpServers, selectedMcps, setSelectedMcps };
   // `relative z-20` na casca: o header sticky do CodeBlock é z-10 no contexto
@@ -135,7 +138,7 @@ export function ChatInput(props: ChatInputProps) {
             onPaste={onPaste}
             readOnly={mic.listening}
             enterKeyHint={touch ? 'enter' : 'send'}
-            placeholder={paused ? 'Enfileirar mensagem…' : mic.listening ? 'Ouvindo…' : placeholder ?? (touch && !hintSeen ? 'Mensagem · Enter quebra linha' : 'Mensagem')}
+            placeholder={holding ? 'Enfileirar mensagem…' : mic.listening ? 'Ouvindo…' : placeholder ?? (touch && !hintSeen ? 'Mensagem · Enter quebra linha' : 'Mensagem')}
             style={{ maxHeight: composerMaxH() }}
             className="scroll-thin relative w-full resize-none pr-3 bg-transparent py-1 text-[16px] leading-7 text-neutral-100 placeholder-neutral-600 outline-hidden"
           />
@@ -146,7 +149,8 @@ export function ChatInput(props: ChatInputProps) {
         <ComposerActions
           mic={mic}
           busy={disabled}
-          paused={paused}
+          paused={holding}
+          holdReason={paused ? 'quota' : 'capacity'}
           hasText={!!value.trim()}
           hasAtt={hasAtt}
           attUploading={attUploading}

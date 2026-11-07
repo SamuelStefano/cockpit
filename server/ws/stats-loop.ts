@@ -1,6 +1,7 @@
 import { collect } from '../stats';
 import { broadcast } from './broadcast';
 import { markStatsAt } from './threads';
+import { publishCapacity } from './capacity';
 
 // Um timer único: amostra a máquina e empurra pra todos os clientes abertos.
 // 2s é suave e mantém o delta de CPU significativo.
@@ -50,6 +51,7 @@ export function startStatsLoop(hasClients: () => boolean) {
       if (r.saturated) stats.saturated = r.saturated;
       broadcast({ t: 'stats', stats });
       markStatsAt(now);
+      publishCapacity();
     } catch { /* best-effort */ }
   };
   setInterval(tick, 2000).unref();
