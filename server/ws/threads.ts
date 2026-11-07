@@ -126,21 +126,29 @@ export interface Thread {
 // the live-run count (the capacity frame) without touching the dozen call sites.
 class ObservedThreads extends Map<string, Thread> {
   onChange: (() => void) | null = null;
+  // The hook only feeds the capacity frame: it must never break a run's start or end.
+  private notify(): void {
+    try {
+      this.onChange?.();
+    } catch {
+      // A failed capacity broadcast is retried by the stats loop.
+    }
+  }
   override set(key: string, value: Thread): this {
     const had = this.has(key);
     super.set(key, value);
-    if (!had) this.onChange?.();
+    if (!had) this.notify();
     return this;
   }
   override delete(key: string): boolean {
     const gone = super.delete(key);
-    if (gone) this.onChange?.();
+    if (gone) this.notify();
     return gone;
   }
   override clear(): void {
     const had = this.size > 0;
     super.clear();
-    if (had) this.onChange?.();
+    if (had) this.notify();
   }
 }
 
