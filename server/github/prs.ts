@@ -1,0 +1,145 @@
+import { execFile } from 'node:child_process';
+import { tmpdir } from 'node:os';
+import { promisify } from 'node:util';
+import { CONFIG } from '../config';
+import { mergeBlocker, mergeConfirmText, needsMergeConfirm, PR_URL_RE, type PrDetail, type PrSummary, type PrsSnapshot } from '../../shared/prs';
+import { DETAIL_QUERY, detailFromResource, PAGE_SIZE, prFromNode, SEARCH_QUERY, searchPage, type SearchMode } from './prs-parse';
+import { indexPrSessions } from './pr-sessions';
+
+const run = promisify(execFile);
+
+// The box's own `gh` login is the identity: no token ever leaves the server, and a
+// box whose owner never ran `gh auth login` just shows the error state.
+const GH_TIMEOUT_MS = 30_000;
+const SNAPSHOT_TTL_MS = 60_000;
+export const MERGED_SINCE_DAYS = 30;
+const OPEN_PAGES = 5;
+const MERGED_PAGES = 3;
+
+type Gh = (args: string[]) => Promise<string>;
+
+const realGh: Gh = async (args) => {
+  // cwd outside any repo: `gh pr merge --delete-branch` would otherwise try to
+  // switch/delete a local branch of whatever checkout the server runs in.
+  const { stdout } = await run('gh', args, { cwd: tmpdir(), timeout: GH_TIMEOUT_MS, maxBuffer: 32 * 1024 * 1024, env: { ...process.env, GH_PROMPT_DISABLED: '1', NO_COLOR: '1' } });
+  return stdout;
+};
+
+let gh: Gh = realGh;
+export function setGhForTest(fn: Gh | null): void { gh = fn ?? realGh; cache = null; inflight = null; login = null; }
+
+async function graphql(query: string, vars: Record<string, string | number>): Promise<unknown> {
+  const args = ['api', 'graphql', '-f', `query=${query}`];
+  for (const [k, v] of Object.entries(vars)) args.push(typeof v === 'number' ? '-F' : '-f', `${k}=${v}`);
+  return JSON.parse(await gh(args));
+}
+
+async function search(q: string, mode: SearchMode, pages: number): Promise<{ prs: PrSummary[]; truncated: boolean }> {
+  const prs: PrSummary[] = [];
+  let after: string | null = null;
+  for (let i = 0; i < pages; i++) {
+    const vars: Record<string, string | number> = { q, first: PAGE_SIZE[mode] };
+    if (after) vars.after = after;
+    const page = searchPage(await graphql(SEARCH_QUERY(mode), vars));
+    for (const n of page.nodes) { const pr = prFromNode(n); if (pr) prs.push(pr); }
+    after = page.next;
+    if (!after) break;
+  }
+  return { prs, truncated: after !== null };
+}
+
+const withSessions = (prs: PrSummary[], sessions: ReadonlyMap<string, string>) =>
+  prs.map((pr) => { const sessionId = sessions.get(pr.url); return sessionId ? { ...pr, sessionId } : pr; });
+
+export function ghError(e: unknown): string {
+  const err = e as { code?: string; stderr?: string; message?: string };
+  if (err.code === 'ENOENT') return 'gh não está instalado nesta máquina';
+  const text = `${err.stderr ?? ''} ${err.message ?? ''}`;
+  if (/auth login|not logged|authentication|HTTP 401/i.test(text)) return 'gh não está logado nesta máquina — rode `gh auth login`';
+  const line = (err.stderr ?? err.message ?? 'falha ao falar com o GitHub').trim().split('\n').filter(Boolean).pop() ?? '';
+  return line.slice(0, 300);
+}
+
+function sinceDate(days: number, now = Date.now()): string {
+  return new Date(now - days * 86_400_000).toISOString().slice(0, 10);
+}
+
+async function buildSnapshot(): Promise<PrsSnapshot> {
+  const fetchedAt = Date.now();
+  try {
+    // The transcript grep (~5 s) runs alongside GitHub instead of before it.
+    const [sessions, mine, merged, review] = await Promise.all([
+      indexPrSessions(CONFIG.projectsDir),
+      search('is:pr author:@me is:open archived:false sort:updated-desc', 'live', OPEN_PAGES),
+      search(`is:pr author:@me is:merged merged:>=${sinceDate(MERGED_SINCE_DAYS, fetchedAt)} sort:updated-desc`, 'history', MERGED_PAGES),
+      search('is:pr review-requested:@me is:open archived:false sort:updated-desc', 'live', 1),
+    ]);
+    const mergedPrs = withSessions(merged.prs, sessions).sort((a, b) => (b.mergedAt ?? '').localeCompare(a.mergedAt ?? ''));
+    return {
+      fetchedAt,
+      mine: withSessions(mine.prs, sessions),
+      merged: mergedPrs,
+      review: withSessions(review.prs, sessions),
+      mergedSinceDays: MERGED_SINCE_DAYS,
+      mergedTruncated: merged.truncated,
+    };
+  } catch (e) {
+    return { fetchedAt, mine: [], merged: [], review: [], mergedSinceDays: MERGED_SINCE_DAYS, mergedTruncated: false, error: ghError(e) };
+  }
+}
+
+let cache: PrsSnapshot | null = null;
+let inflight: Promise<PrsSnapshot> | null = null;
+
+export async function getPrsSnapshot(force = false, now = Date.now()): Promise<PrsSnapshot> {
+  if (!force && cache && !cache.error && now - cache.fetchedAt < SNAPSHOT_TTL_MS) return cache;
+  if (inflight) return inflight;
+  inflight = buildSnapshot().then((s) => {
+    // A failed refresh keeps the last good lists on screen, with the error on top.
+    cache = s.error && cache && !cache.error ? { ...cache, error: s.error } : s;
+    return cache;
+  }).finally(() => { inflight = null; });
+  return inflight;
+}
+
+export async function getPrDetail(url: string): Promise<{ detail: PrDetail | null; error?: string }> {
+  if (!PR_URL_RE.test(url)) return { detail: null, error: 'URL de PR inválida' };
+  try {
+    const sessions = await indexPrSessions(CONFIG.projectsDir);
+    const detail = detailFromResource(await graphql(DETAIL_QUERY, { url }), sessions);
+    return detail ? { detail } : { detail: null, error: 'PR não encontrada' };
+  } catch (e) {
+    return { detail: null, error: ghError(e) };
+  }
+}
+
+let login: string | null = null;
+async function viewerLogin(): Promise<string> {
+  if (!login) login = (await gh(['api', 'user', '--jq', '.login'])).trim();
+  return login;
+}
+
+// The gate the client only mirrors: re-read the PR fresh, refuse someone else's PR
+// (the owner reviews those, never merges them), a conflict, or a flagged PR without
+// its typed confirmation.
+export async function mergePr(url: string, confirm: string | undefined): Promise<{ ok: boolean; message?: string }> {
+  const { detail, error } = await getPrDetail(url);
+  if (!detail) return { ok: false, message: error ?? 'PR não encontrada' };
+  try {
+    if (detail.author.toLowerCase() !== (await viewerLogin()).toLowerCase()) return { ok: false, message: 'PR de outra pessoa — revise, não mergeie' };
+  } catch (e) {
+    return { ok: false, message: ghError(e) };
+  }
+  const blocker = mergeBlocker(detail);
+  if (blocker) return { ok: false, message: blocker };
+  if (needsMergeConfirm(detail) && confirm?.trim() !== mergeConfirmText(detail)) {
+    return { ok: false, message: `PR marcada como ${detail.risk === 'unsafe' ? 'insegura' : 'arriscada'} — digite ${mergeConfirmText(detail)} pra confirmar` };
+  }
+  try {
+    await gh(['pr', 'merge', url, '--squash', '--delete-branch']);
+    cache = null;
+    return { ok: true, message: `#${detail.number} mergeada` };
+  } catch (e) {
+    return { ok: false, message: ghError(e) };
+  }
+}

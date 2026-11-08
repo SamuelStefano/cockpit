@@ -1,0 +1,94 @@
+import type { ClientMsg, ServerMsg } from '../../../shared/protocol';
+import type { PrDetail, PrsSnapshot } from '../../../shared/prs';
+
+// Bridge between the /prs page and the socket owned by useCockpit — same shape as
+// bench-bus, so the page stays out of useCockpit's 2k lines. State lives here and
+// survives navigating away, so coming back to /prs paints the last snapshot at once.
+export interface DetailEntry { detail: PrDetail | null; loading: boolean; error?: string }
+export interface MergeResult { ok: boolean; message?: string }
+
+export interface PrsState {
+  snapshot: PrsSnapshot | null;
+  loading: boolean;
+  details: Record<string, DetailEntry>;
+}
+
+type Pending = { done: (r: MergeResult) => void; timer: ReturnType<typeof setTimeout> };
+
+let sender: ((m: ClientMsg) => boolean) | null = null;
+let state: PrsState = { snapshot: null, loading: false, details: {} };
+const listeners = new Set<() => void>();
+const pending = new Map<string, Pending>();
+let seq = 0;
+
+const MERGE_TIMEOUT_MS = 60_000;
+
+function set(next: Partial<PrsState>): void {
+  state = { ...state, ...next };
+  for (const l of listeners) l();
+}
+
+export function setPrsSender(fn: ((m: ClientMsg) => boolean) | null): void {
+  sender = fn;
+}
+
+export function subscribePrs(l: () => void): () => void {
+  listeners.add(l);
+  return () => { listeners.delete(l); };
+}
+
+export const getPrsState = (): PrsState => state;
+
+export function requestPrs(force = false): boolean {
+  if (!sender?.({ t: 'prs-get', force })) return false;
+  set({ loading: true });
+  return true;
+}
+
+export function requestPrDetail(url: string): boolean {
+  if (!sender?.({ t: 'prs-detail-get', url })) return false;
+  const prev = state.details[url];
+  set({ details: { ...state.details, [url]: { detail: prev?.detail ?? null, loading: true } } });
+  return true;
+}
+
+export function mergePr(url: string, confirm?: string): Promise<MergeResult> {
+  if (!sender) return Promise.resolve({ ok: false, message: 'sem conexão com o servidor' });
+  const reqId = `m${Date.now().toString(36)}${seq++}`;
+  return new Promise<MergeResult>((done) => {
+    const timer = setTimeout(() => { pending.delete(reqId); done({ ok: false, message: 'merge sem resposta — confira no GitHub' }); }, MERGE_TIMEOUT_MS);
+    pending.set(reqId, { done, timer });
+    if (!sender?.({ t: 'prs-merge', reqId, url, confirmText: confirm })) {
+      pending.delete(reqId);
+      clearTimeout(timer);
+      done({ ok: false, message: 'sem conexão com o servidor' });
+    }
+  });
+}
+
+export function failAllPrsPending(reason = 'conexão caiu durante o merge — confira no GitHub'): void {
+  const all = [...pending.values()];
+  pending.clear();
+  for (const p of all) { clearTimeout(p.timer); p.done({ ok: false, message: reason }); }
+  if (state.loading) set({ loading: false });
+}
+
+export function prsDispatch(msg: ServerMsg): void {
+  if (msg.t === 'prs') { set({ snapshot: msg.snapshot, loading: false }); return; }
+  if (msg.t === 'prs-detail') {
+    set({ details: { ...state.details, [msg.url]: { detail: msg.detail ?? state.details[msg.url]?.detail ?? null, loading: false, error: msg.error } } });
+    return;
+  }
+  if (msg.t === 'prs-merge-result') {
+    const p = pending.get(msg.reqId);
+    if (!p) return;
+    pending.delete(msg.reqId);
+    clearTimeout(p.timer);
+    p.done({ ok: msg.ok, message: msg.message });
+  }
+}
+
+export function resetPrsBus(): void {
+  failAllPrsPending();
+  state = { snapshot: null, loading: false, details: {} };
+}

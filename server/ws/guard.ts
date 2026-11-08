@@ -11,6 +11,7 @@ const HEAVY: ReadonlySet<ClientMsg['t']> = new Set([
   'search', 'term-open', 'send', 'list', 'list-archived', 'open', 'open-full', 'bench-build',
   'session-handoff', 'sessions-funnel', 'queue-run-bg', 'queue-run-now',
   'agent-test', 'agent-probe-draft', 'provider-probe', 'agent-add-custom', 'box-health-get', 'box-smoke-test', 'agent-build', 'tts', 'stt-token',
+  'prs-get', 'prs-detail-get', 'prs-merge',
 ]);
 
 export interface Bucket { tokens: number; last: number }

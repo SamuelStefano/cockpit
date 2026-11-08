@@ -72,6 +72,7 @@ import { requestPlanUsageRefresh, planUsageFrame } from './usage-plan';
 import { requestGrokUsageRefresh, grokUsageFrame } from './usage-grok';
 import { listGraphs, readGraph, buildGraph, deleteGraph, queryGraph, nodeOp } from '../graph';
 import { buildBench } from '../bench';
+import { getPrDetail, getPrsSnapshot, mergePr } from '../github/prs';
 import { buildCanvas } from '../canvas/index';
 import { withPlain } from '../mission-summary';
 import { readOrchestrator } from '../canvas/orchestrator';
@@ -509,6 +510,24 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       const res = await buildBench(msg.repo, msg.code);
       if (!res.ok) { send(ws, { t: 'bench-error', buildId: msg.buildId, error: res.error ?? 'falha no build' }); return; }
       send(ws, { t: 'bench-bundle', buildId: msg.buildId, js: res.js ?? '', css: res.css ?? '', ms: res.ms ?? 0 });
+      return;
+    }
+    case 'prs-get': {
+      send(ws, { t: 'prs', snapshot: await getPrsSnapshot(msg.force === true) });
+      return;
+    }
+    case 'prs-detail-get': {
+      const url = String(msg.url ?? '');
+      const r = await getPrDetail(url);
+      send(ws, { t: 'prs-detail', url, detail: r.detail, error: r.error });
+      return;
+    }
+    case 'prs-merge': {
+      const url = String(msg.url ?? '');
+      const r = await mergePr(url, typeof msg.confirmText === 'string' ? msg.confirmText : undefined);
+      console.log(`[prs] merge ${url} → ${r.ok ? 'ok' : `refused: ${r.message}`}`);
+      send(ws, { t: 'prs-merge-result', reqId: msg.reqId, url, ok: r.ok, message: r.message });
+      if (r.ok) send(ws, { t: 'prs', snapshot: await getPrsSnapshot(true) });
       return;
     }
     case 'list': {
