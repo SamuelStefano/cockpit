@@ -8,7 +8,7 @@ export type IconName =
   | 'lock' | 'shield' | 'shield-off' | 'mic' | 'image' | 'camera' | 'sliders' | 'volume' | 'wrapText' | 'smartphone' | 'phone'
   | 'monitor' | 'tablet' | 'maximize' | 'minimize' | 'code' | 'link' | 'layers'
   | 'users' | 'panelLeft' | 'split' | 'move' | 'external' | 'alertTriangle' | 'ellipsis' | 'clipboard' | 'swap'
-  | 'audio' | 'brain' | 'wrench' | 'eye' | 'book' | 'globe' | 'cpu' | 'key' | 'squarePen';
+  | 'audio' | 'brain' | 'wrench' | 'eye' | 'book' | 'globe' | 'cpu' | 'key' | 'squarePen' | 'gitPullRequest';
 
 const ICON_PATHS: Record<IconName, ReactNode> = {
   eye: <><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" /><circle cx="12" cy="12" r="3" /></>,
@@ -56,6 +56,7 @@ const ICON_PATHS: Record<IconName, ReactNode> = {
   grip: <><circle cx="9" cy="6" r="1" /><circle cx="15" cy="6" r="1" /><circle cx="9" cy="12" r="1" /><circle cx="15" cy="12" r="1" /><circle cx="9" cy="18" r="1" /><circle cx="15" cy="18" r="1" /></>,
   paperclip: <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />,
   clock: <><circle cx="12" cy="12" r="9" /><polyline points="12 7 12 12 15 14" /></>,
+  gitPullRequest: <><circle cx="6" cy="6" r="2.5" /><circle cx="6" cy="18" r="2.5" /><circle cx="18" cy="18" r="2.5" /><path d="M6 8.5v7" /><path d="M18 15.5V9a3 3 0 0 0-3-3h-4" /><path d="m13 3-3 3 3 3" /></>,
   star: <><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></>,
   tag: <><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" /><line x1="7" y1="7" x2="7.01" y2="7" /></>,
   lock: <><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></>,

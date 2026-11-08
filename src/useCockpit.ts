@@ -84,6 +84,7 @@ import type { ConnState } from './components/primitives';
 import { recordClose, recordConnEvent } from './app/connectionTelemetry';
 import { toast } from './components/primitives/toast-bus';
 import { benchDispatch, failAllBenchPending, setBenchSender } from './components/primitives/livepreview/bench-bus';
+import { failAllPrsPending, prsDispatch, setPrsSender } from './routes/prs/prs-bus';
 import type { Phase } from './components/Chat';
 
 // Heartbeat app-level (watchdog de socket meio-aberto). Manda um ping a cada
@@ -573,6 +574,7 @@ export function useCockpit(): Cockpit {
 
   // O card do bench vive fundo na árvore do markdown e precisa falar com o WS.
   useEffect(() => { setBenchSender(send); return () => setBenchSender(null); }, [send]);
+  useEffect(() => { setPrsSender(send); return () => setPrsSender(null); }, [send]);
 
   const { term, onTermData, onTermReplay, onTermExit, onTerms, discovered: discoveredTerms, listTerms, reattach } = useTerminals(send);
 
@@ -1285,6 +1287,12 @@ export function useCockpit(): Cockpit {
         benchDispatch(msg);
         return;
       }
+      case 'prs':
+      case 'prs-detail':
+      case 'prs-merge-result': {
+        prsDispatch(msg);
+        return;
+      }
       case 'uploaded': {
         const real: Attachment = { name: msg.name, path: msg.path, text: msg.text, s3url: msg.s3url, hash: msg.clientId ? uploadHashes.current.get(msg.clientId) : undefined };
         if (msg.clientId) uploadHashes.current.delete(msg.clientId);
@@ -1537,6 +1545,7 @@ export function useCockpit(): Cockpit {
       // 4400 = the saved box id is not valid for this account: forget it (the key={box} remount redials unbound).
       if (ev.code === 4400 && SUPABASE_ENABLED) boxStore.dropPref();
       failAllBenchPending();
+      failAllPrsPending();
       endHandoff();
       // 4401 = the identity was refused. Loopback: wrong/missing token, show the
       // token gate and stop. Relay: see onAuthClose — refresh and retry slowly.

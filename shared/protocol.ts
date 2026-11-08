@@ -12,6 +12,7 @@ import type { ClaudeImportResult, ClaudeImportScan, ImportKind } from './claude-
 import type { ByoKeyView } from './byo-providers';
 import type { AgentView, AgentPreset, AgentStatus, AgentCustomField } from './agents';
 import type { TeamMessage } from './team-messages';
+import type { PrDetail, PrsSnapshot } from './prs';
 import type { BoxHealth, SmokeResult } from './box-health';
 import type { VersionKind, VersionMeta } from './versions';
 
@@ -952,6 +953,11 @@ export type ClientMsg =
   // do chat. `repo` é SLUG de registro do servidor, nunca caminho — caminho vindo
   // do cliente seria leitura arbitrária de arquivo.
   | { t: 'bench-build'; buildId: string; repo: string; code: string }
+  // PR hub (/prs): the owner's PRs via the box's `gh`. Merge re-reads the PR on
+  // the server and enforces the risk gate there — the client's confirm is a hint.
+  | { t: 'prs-get'; force?: boolean }
+  | { t: 'prs-detail-get'; url: string }
+  | { t: 'prs-merge'; reqId: string; url: string; confirmText?: string }
   // Fila estacionada (overnight): mesma carga do 'send', mas o servidor persiste e
   // o drainer dispara assim que a sessão fica ociosa (sem olhar quota). queue-get pede
   // o snapshot atual; add/remove/move/clear gerenciam a fila; set-paused liga/desliga
@@ -1219,6 +1225,9 @@ export type ServerMsg =
   | { t: 'graph-build-done'; ok: boolean; id?: string; error?: string }
   | { t: 'bench-bundle'; buildId: string; js: string; css: string; ms: number }
   | { t: 'bench-error'; buildId: string; error: string }
+  | { t: 'prs'; snapshot: PrsSnapshot }
+  | { t: 'prs-detail'; url: string; detail: PrDetail | null; error?: string }
+  | { t: 'prs-merge-result'; reqId: string; url: string; ok: boolean; message?: string }
   | { t: 'term-data'; termId: string; data: string }
   | { t: 'term-replay'; termId: string; data: string }
   | { t: 'term-exit'; termId: string }
