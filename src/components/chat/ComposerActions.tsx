@@ -87,7 +87,14 @@ function PrimaryAction({ paused, holdReason = 'quota', hasText, hasAtt, attUploa
 }
 
 export function ComposerActions(props: ComposerActionsProps) {
-  if (props.busy) return <BusyActions {...props} />;
+  if (props.busy) {
+    return (
+      <div className="flex shrink-0 items-center gap-1 pointer-coarse:gap-2">
+        {props.mic?.supported && <MicButton mic={props.mic} />}
+        <BusyActions {...props} />
+      </div>
+    );
+  }
   return (
     <div className="flex shrink-0 items-center gap-1 pointer-coarse:gap-2">
       {props.mic?.supported && <MicButton mic={props.mic} />}

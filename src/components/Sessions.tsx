@@ -83,7 +83,7 @@ function SessionsPanelImpl({ sessions, loading, activeId, onSelect, onNew, marat
 
       <div className="scroll-thin mt-1.5 flex-1 space-y-2 overflow-y-auto overscroll-contain px-2 pb-3">
         {!query.trim() && onOpenAgent && (
-          <AgentsSection views={agents} activeId={activeAgentId} onNew={onNewAgent && (() => { onNewAgent(); onCloseMobile?.(); })} onOpen={(id) => { onOpenAgent(id); onCloseMobile?.(); }} />
+          <AgentsSection compact={!!onCloseMobile} views={agents} activeId={activeAgentId} onNew={onNewAgent && (() => { onNewAgent(); onCloseMobile?.(); })} onOpen={(id) => { onOpenAgent(id); onCloseMobile?.(); }} />
         )}
         {loading && sessions.length === 0 ? (
           <div className="space-y-1.5" role="status" aria-label="Carregando sessões">

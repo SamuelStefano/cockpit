@@ -266,6 +266,11 @@ h1, h2 { font-family: var(--font-display); font-weight: 700; letter-spacing: 0; 
   .mascot .mascot-body, .mascot .mascot-eyes, .mascot-dots circle, .living-phrase-in, .living-phrase-out { animation: none; }
   .mascot-ring { animation: none; opacity: 0.7; }
 }
+/* Drawer roster: infinite SVG animations repaint under a touch scroll and drop frames on iOS. */
+@media (max-width: 1023px) {
+  .roster-calm .mascot-body, .roster-calm .mascot-eyes, .roster-calm .mascot-dots circle { animation: none; }
+  .roster-calm .mascot-ring { animation: none; opacity: 0.7; }
+}
 
 @layer base {
   button, [role='button'], [role='tab'], [role='menuitem'], summary, a[href] {

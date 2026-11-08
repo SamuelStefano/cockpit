@@ -243,13 +243,14 @@ function CockpitBody() {
   const openPalette = () => { setDrawer(false); setPalette(true); };
   const account = { userId: sbAuth.session?.user.id, onSignOut: SUPABASE_ENABLED ? sbAuth.signOut : undefined, onChangePassword: SUPABASE_ENABLED ? sbAuth.changePassword : undefined, drops: dropApi };
 
+  const closeDrawer = useCallback(() => setDrawer(false), [setDrawer]);
   const drawerNav = drawer ? (
     <Sidebar
       route={route} nav={(to) => { setDrawer(false); nav(to); }} role={role}
       onNew={handleNew} onPalette={openPalette}
       bitState={bitState} conn={conn.ws} account={account}
-      sessions={<SessionsPanel {...sidebarProps} embedded onCloseMobile={() => setDrawer(false)} />}
-      drawer={{ onClose: () => setDrawer(false) }}
+      sessions={<SessionsPanel {...sidebarProps} embedded onCloseMobile={closeDrawer} />}
+      drawer={{ onClose: closeDrawer }}
     />
   ) : null;
   const chatSurface = route === '/';

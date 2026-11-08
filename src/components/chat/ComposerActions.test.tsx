@@ -85,6 +85,14 @@ describe('ComposerActions primary slot', () => {
     expect(m.toggle).toHaveBeenCalledTimes(1);
   });
 
+  it('keeps the mic while a run is busy, before stop', () => {
+    const m = mic();
+    setup({ mic: m, busy: true });
+    fireEvent.click(screen.getByLabelText('Ditar por voz'));
+    expect(m.toggle).toHaveBeenCalledTimes(1);
+    expect(stop()).not.toBeNull();
+  });
+
   it('has no mic when dictation is unsupported and send stays disabled', () => {
     setup({ mic: mic({ supported: false }) });
     expect(screen.queryByLabelText('Ditar por voz')).toBeNull();
@@ -97,10 +105,9 @@ describe('ComposerActions primary slot', () => {
     expect((screen.getByLabelText('Enviar mensagem') as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it('never offers the call or mic while a turn runs', () => {
+  it('never offers the call while a turn runs', () => {
     setup({ busy: true, mic: mic() });
     expect(screen.queryByLabelText('Ligar')).toBeNull();
-    expect(screen.queryByLabelText('Ditar por voz')).toBeNull();
   });
   it('a full box turns the send button into a queue button that explains the wait', () => {
     const { onSubmit } = setup({ paused: true, holdReason: 'capacity', hasText: true });
