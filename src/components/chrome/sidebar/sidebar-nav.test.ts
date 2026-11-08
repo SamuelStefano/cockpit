@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { sidebarNav, canOpenSettings } from './sidebar-nav';
 
 describe('sidebarNav', () => {
-  it('lays out every work surface for root; Pontos is root-only, Graph is off the nav', () => {
-    expect(sidebarNav('root').map((i) => i.label)).toEqual(['Canvas', 'Base', 'Pontos', 'Skills', 'Conexões', 'Docs', 'Rotinas', 'Memória']);
+  it('lays out every work surface for root; Pull requests and Pontos are root-only, Graph is off the nav', () => {
+    expect(sidebarNav('root').map((i) => i.label)).toEqual(['Canvas', 'Base', 'Pull requests', 'Pontos', 'Skills', 'Conexões', 'Docs', 'Rotinas', 'Memória']);
   });
 
   it('gives admin the same list', () => {
