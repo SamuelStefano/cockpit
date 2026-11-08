@@ -5,6 +5,7 @@ import { rememberEngineFailure, hasRecentEngineFailure } from './speech-fallback
 // No toque a Web Speech API costuma faltar (iOS Safari/webviews) ou ser instável
 // — mas o TECLADO nativo tem ditado ótimo.
 import { isTouchMobile } from './touch';
+import { primeScribeAudio, scribeSupported, startScribe, type ScribeSession } from './call/scribe-capture';
 
 // Tipos mínimos da Web Speech API (não vêm no lib.dom de todo target). Só o que
 // usamos: ditado contínuo com resultados parciais e final por trecho.
@@ -75,7 +76,9 @@ export function useSpeechInput(value: string, setValue: (v: string) => void, foc
   // Modo teclado de saída: sem API, iOS pela tela inicial (nunca capta) ou engine
   // que já falhou por aqui recentemente — não faz o usuário esperar 8s de novo.
   const [keyboardMode, setKeyboardMode] = useState(() => touch && (!hasApi || iosStandalone() || hasRecentEngineFailure()));
-  const supported = hasApi || touch;
+  const supported = hasApi || touch || scribeSupported();
+  const scribeRef = useRef<ScribeSession | null>(null);
+  const stopScribe = () => { scribeRef.current?.stop(); scribeRef.current = null; };
   const [listening, setListening] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hint, setHint] = useState<string | null>(null);
@@ -198,7 +201,41 @@ export function useSpeechInput(value: string, setValue: (v: string) => void, foc
     }
   };
 
+  const startBrowserEngine = () => {
+    if (keyboardMode || !speechCtor()) { setListening(false); startKeyboard(); return; }
+    wantRef.current = true;
+    setListening(true);
+    begin();
+  };
+
+  // Web Speech never captures on iOS (Safari, Chrome iOS, home-screen app) and is
+  // flaky on Android, so the box's Scribe engine comes first, like the voice call.
+  const startScribeEngine = () => {
+    primeScribeAudio();
+    baseRef.current = value;
+    setError(null);
+    setHint(null);
+    wantRef.current = true;
+    setListening(true);
+    scribeRef.current = startScribe({
+      onHeard: ({ text }) => { if (wantRef.current) setValueRef.current(joinTranscript(baseRef.current, text)); },
+      onFatal: (message) => {
+        scribeRef.current = null;
+        wantRef.current = false;
+        setListening(false);
+        setError(message);
+      },
+      onUnavailable: () => {
+        scribeRef.current = null;
+        if (!wantRef.current) return;
+        finalRef.current = '';
+        startBrowserEngine();
+      },
+    });
+  };
+
   const start = () => {
+    if (scribeSupported()) { stopScribe(); detach(); startScribeEngine(); return; }
     if (keyboardMode || !speechCtor()) { startKeyboard(); return; }
     detach();
     setError(null);
@@ -220,6 +257,7 @@ export function useSpeechInput(value: string, setValue: (v: string) => void, foc
   const stop = () => {
     wantRef.current = false;
     clearWatchdog();
+    if (scribeRef.current) { stopScribe(); setListening(false); return; }
     const rec = recRef.current;
     if (!rec) { setListening(false); return; }
     try { rec.stop(); } catch { detach(); setListening(false); return; }
@@ -238,6 +276,7 @@ export function useSpeechInput(value: string, setValue: (v: string) => void, foc
   const reset = () => {
     wantRef.current = false;
     clearWatchdog();
+    stopScribe();
     detach();
     baseRef.current = '';
     finalRef.current = '';
@@ -245,7 +284,7 @@ export function useSpeechInput(value: string, setValue: (v: string) => void, foc
   };
 
   // Desmontou no meio da gravação? Encerra o reconhecimento pra não vazar o mic.
-  useEffect(() => () => { wantRef.current = false; clearWatchdog(); detach(); }, []);
+  useEffect(() => () => { wantRef.current = false; clearWatchdog(); stopScribe(); detach(); }, []);
 
   // A dica do teclado some sozinha quando o texto muda (o usuário já achou o 🎤
   // ou preferiu digitar) — não precisa fechar à mão.
