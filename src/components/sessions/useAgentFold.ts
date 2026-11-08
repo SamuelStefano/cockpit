@@ -1,15 +1,21 @@
 import { useCallback, useMemo } from 'react';
 import { usePersisted } from '../../lib/persist';
-import { foldTeam, type TeamFold } from '../team/fold-team';
+import { foldTeam, glanceEntries } from '../team/fold-team';
 import type { TeamEntry } from '../team/team-order';
 
-const ALL_OPEN: TeamFold | null = null;
-
-export function useAgentFold(entries: TeamEntry[], enabled: boolean) {
+// The section starts collapsed: a long team pushed the chats below the fold.
+export function useAgentFold(entries: TeamEntry[], activeId: string | null) {
+  const [expanded, setExpanded] = usePersisted<boolean>('sidebar.agents.section', false);
   const [openIds, setOpenIds] = usePersisted<string[]>('sidebar.agents.open', []);
-  const fold = useMemo(() => (enabled ? foldTeam(entries, new Set(openIds)) : ALL_OPEN), [enabled, entries, openIds]);
+  const fold = useMemo(() => foldTeam(entries, new Set(openIds)), [entries, openIds]);
+  const glance = useMemo(() => glanceEntries(entries, activeId), [entries, activeId]);
   const toggle = useCallback((id: string) => {
     setOpenIds((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
   }, [setOpenIds]);
-  return { visible: fold ? fold.visible : entries, counts: fold?.counts, open: openIds, toggle };
+  const toggleSection = useCallback(() => setExpanded((v) => !v), [setExpanded]);
+  return {
+    expanded, toggleSection,
+    visible: expanded ? fold.visible : glance,
+    fold: expanded ? { counts: fold.counts, open: openIds, onToggle: toggle } : undefined,
+  };
 }

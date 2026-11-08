@@ -23,18 +23,22 @@ describe('AgentsSection', () => {
     expect(container.firstChild).toBeNull();
   });
 
-  it('lists agents and opens one on click', () => {
+  const expand = () => fireEvent.click(screen.getByRole('button', { name: 'Mostrar agentes' }));
+
+  it('lists agents once expanded and opens one on click', () => {
     const onOpen = vi.fn();
     render(<AgentsSection views={[view('a', 'capo', { primary: true }), view('b', 'growth')]} activeId="a" onOpen={onOpen} />);
     expect(screen.getByRole('region', { name: 'Agentes' })).toBeTruthy();
+    expand();
     expect(screen.getByRole('button', { name: 'capo' }).getAttribute('aria-current')).toBe('page');
     fireEvent.click(screen.getByRole('button', { name: 'growth' }));
     expect(onOpen).toHaveBeenCalledWith('b');
   });
 
-  it('offers a new agent only when allowed', () => {
+  it('offers a new agent only when allowed and expanded', () => {
     const onNew = vi.fn();
     const { rerender } = render(<AgentsSection views={[view('a', 'capo')]} activeId={null} onOpen={() => {}} />);
+    expand();
     expect(screen.queryByRole('button', { name: 'Novo agente' })).toBeNull();
     rerender(<AgentsSection views={[view('a', 'capo')]} activeId={null} onOpen={() => {}} onNew={onNew} />);
     fireEvent.click(screen.getByRole('button', { name: 'Novo agente' }));
@@ -46,13 +50,35 @@ describe('AgentsSection', () => {
     view('w1', 'grok-a', { parentId: 'l' }), view('w2', 'grok-b', { parentId: 'l' }),
   ];
 
-  it('keeps every agent visible off the phone', () => {
-    render(<AgentsSection views={team()} activeId={null} onOpen={() => {}} />);
+  it('starts collapsed, showing only the open, working and unread agents', () => {
+    const views = team();
+    (views[2] as { state: string }).state = 'working';
+    (views[3] as { unread: boolean }).unread = true;
+    render(<AgentsSection views={views} activeId="c" onOpen={() => {}} />);
+    expect(screen.getByRole('button', { name: 'Mostrar agentes' }).getAttribute('aria-expanded')).toBe('false');
+    expect(screen.getByRole('button', { name: 'orchestrator' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'grok-a' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'grok-b' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'grok-lead' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Novo agente' })).toBeNull();
   });
 
-  it('folds workers under their lead on the phone and expands on demand', () => {
-    render(<AgentsSection compact views={team()} activeId={null} onOpen={() => {}} />);
+  it('shows no rows collapsed when nothing is open, working or unread', () => {
+    render(<AgentsSection views={team()} activeId={null} onOpen={() => {}} />);
+    expect(screen.queryByRole('button', { name: 'orchestrator' })).toBeNull();
+  });
+
+  it('remembers the section expanded across mounts', () => {
+    const { unmount } = render(<AgentsSection views={team()} activeId={null} onOpen={() => {}} />);
+    expand();
+    unmount();
+    render(<AgentsSection views={team()} activeId={null} onOpen={() => {}} />);
+    expect(screen.getByRole('button', { name: 'Recolher agentes' })).toBeTruthy();
+  });
+
+  it.each([false, true])('folds workers under their lead once expanded (compact=%s)', (compact) => {
+    render(<AgentsSection compact={compact} views={team()} activeId={null} onOpen={() => {}} />);
+    expand();
     expect(screen.queryByRole('button', { name: 'grok-lead' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Expandir orchestrator' }));
     expect(screen.getByRole('button', { name: 'grok-lead' }).textContent).toContain('+2');

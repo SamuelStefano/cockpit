@@ -23,3 +23,11 @@ export function foldTeam(entries: TeamEntry[], open: ReadonlySet<string>): TeamF
   });
   return { counts, visible };
 }
+
+// Collapsed, the sidebar keeps only the agents worth a glance: the open one, the
+// ones working and the ones with an unread reply. Flat, since their leads may be hidden.
+export function glanceEntries(entries: TeamEntry[], activeId: string | null): TeamEntry[] {
+  return entries
+    .filter(({ view }) => view.bot.id === activeId || view.unread || view.state === 'thinking' || view.state === 'working')
+    .map((e) => ({ ...e, depth: 0 }));
+}
