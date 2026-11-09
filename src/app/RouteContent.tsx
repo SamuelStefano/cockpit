@@ -7,7 +7,7 @@ import { RouteFallback } from './RouteFallback';
 import { ChunkErrorBoundary } from './ChunkErrorBoundary';
 import {
   Skills, Pontos,
-  Graph, Canvas, Conexoes, Configuracoes, Docs, DesignSystem, Onboarding, EquipePage, Agente, Base, Arcade, Prs,
+  Graph, Canvas, Conexoes, Docs, DesignSystem, Onboarding, EquipePage, Agente, Base, Arcade, Prs,
 } from './lazyRoutes';
 import type { ChatPanelProps } from '../components/chat/chat-panel-props';
 import type { TerminalsPanelProps } from '../components/Terminals';
@@ -16,11 +16,7 @@ import type { useCockpit } from '../useCockpit';
 import type { AgentTab, Route } from '../useRoute';
 import { navigateTo } from '../lib/route-nav';
 import { ManageProviders, ManageTools } from '../routes/conexoes/Manage';
-import { requestTerminal } from '../lib/terminal-request';
-import type { NavRole } from '../components/chrome/nav-routes';
-import type { UsageDockProps } from '../components/chrome/sidebar/UsageDock';
 import { TeamRail, type TeamRailProps } from '../components/team/TeamRail';
-import type { AccountProps } from '../routes/configuracoes/Conta';
 import { VaultPanel } from '../components/vault/VaultPanel';
 
 // The DFL snapshot is root-only on the server: the Canvas of a plain admin skips it.
@@ -55,14 +51,10 @@ interface RouteContentProps {
   onOpenAgentChat: (model: string) => void;
   layout: LayoutState;
   mobile: MobileState;
-  role: NavRole;
   team: TeamRailProps;
-  nav: (to: Route) => void;
-  account: AccountProps;
-  usageDock: UsageDockProps;
 }
 
-export function RouteContent({ route, agentRoute, skillRoute, isMobile, isAdmin, isRoot, connected, cockpit, chatProps, termProps, onOpenSession, agent, onOpenAgentChat, layout, mobile, role, team, nav, account, usageDock }: RouteContentProps) {
+export function RouteContent({ route, agentRoute, skillRoute, isMobile, isAdmin, isRoot, connected, cockpit, chatProps, termProps, onOpenSession, agent, onOpenAgentChat, layout, mobile, team }: RouteContentProps) {
   const c = cockpit;
   const view = (() => {
     if (route === '/equipe/rotinas' || route === '/equipe/memoria') {
@@ -98,13 +90,6 @@ export function RouteContent({ route, agentRoute, skillRoute, isMobile, isAdmin,
           onDflGet={c.onDflGet} onDflSync={c.onDflSync} onDflChange={c.onDflChange} onDflInvoice={c.onDflInvoice}
           onPontosAgent={c.onPontosAgent}
           drafts={c.drafts} draftsLoaded={c.draftsLoaded} onDraftsGet={c.onDraftsGet} onDraftOp={c.onDraftOp} />
-      );
-    }
-    if (route === '/configuracoes' || route.startsWith('/configuracoes/')) {
-      return (
-        <Configuracoes
-          route={route} role={role} nav={nav} isMobile={isMobile} connected={connected} cockpit={c} account={account} usageDock={usageDock}
-          onOpenSession={onOpenSession} onOpenTerminal={() => { requestTerminal(); navigateTo('/'); }} />
       );
     }
     if (route === '/graph' && isAdmin) {
