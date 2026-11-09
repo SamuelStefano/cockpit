@@ -8,7 +8,6 @@ afterEach(cleanup);
 
 const base: ComposerSettingsProps = {
   mode: 'auto', setMode: vi.fn(), caps: null, model: 'sonnet',
-  effort: 'low', setEffort: vi.fn(),
   mcpServers: [], selectedMcps: [], setSelectedMcps: vi.fn(),
 };
 const mic = { listening: false, supported: true, toggle: vi.fn(), error: null };
@@ -24,11 +23,10 @@ function open(over: { touch?: boolean; onCall?: () => void; settings?: Partial<C
 }
 
 describe('ComposerPlus', () => {
-  it('lists attach, mode, think more and tools', () => {
+  it('lists attach, mode and tools', () => {
     open();
     expect(screen.getByRole('menuitem', { name: /Anexar arquivo/ })).toBeTruthy();
     expect(screen.getByText('Planejar')).toBeTruthy();
-    expect(screen.getByRole('switch', { name: 'Pensar mais' })).toBeTruthy();
     expect(screen.getByText('Ferramentas')).toBeTruthy();
   });
 
@@ -58,19 +56,6 @@ describe('ComposerPlus', () => {
     expect(screen.getByRole('menuitem', { name: /Tirar foto/ })).toBeTruthy();
   });
 
-  it('think more flips effort between low and high', () => {
-    const setEffort = vi.fn();
-    open({ settings: { setEffort } });
-    fireEvent.click(screen.getByRole('switch', { name: 'Pensar mais' }));
-    expect(setEffort).toHaveBeenCalledWith('high');
-    cleanup();
-    const back = vi.fn();
-    open({ settings: { effort: 'high', setEffort: back } });
-    expect(screen.getByRole('switch', { name: 'Pensar mais' }).getAttribute('aria-checked')).toBe('true');
-    fireEvent.click(screen.getByRole('switch', { name: 'Pensar mais' }));
-    expect(back).toHaveBeenCalledWith('low');
-  });
-
   it('tools submenu counts and toggles servers', () => {
     const setSelectedMcps = vi.fn();
     open({ settings: { mcpServers: ['a', 'b', 'c'], selectedMcps: ['a'], setSelectedMcps } });
@@ -80,9 +65,8 @@ describe('ComposerPlus', () => {
     expect(setSelectedMcps).toHaveBeenCalledWith(['a', 'b']);
   });
 
-  it('hides think more and tools for ACP agents', () => {
+  it('hides tools for ACP agents', () => {
     open({ settings: { model: 'agent:grok' } });
-    expect(screen.queryByRole('switch', { name: 'Pensar mais' })).toBeNull();
     expect(screen.queryByText('Ferramentas')).toBeNull();
   });
 
