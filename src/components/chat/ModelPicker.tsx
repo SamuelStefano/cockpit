@@ -12,7 +12,7 @@ import { useConnectionsCtx } from '../../cockpit/ConnectionsContext';
 import { openAdminTab } from '../../lib/admin-nav';
 import { openConexoes } from '../../lib/conexoes-nav';
 
-const chip = 'inline-flex h-10 max-w-28 cursor-pointer items-center gap-1 truncate rounded-md border-0 bg-transparent pl-2 pr-1.5 text-[13px] text-neutral-400 pointer-coarse:h-11 pointer-coarse:max-w-40 pointer-coarse:gap-1.5 pointer-coarse:rounded-full pointer-coarse:border pointer-coarse:border-neutral-800 pointer-coarse:bg-neutral-900 pointer-coarse:px-3 pointer-coarse:text-[14px] pointer-coarse:font-medium pointer-coarse:text-neutral-200 outline-hidden transition hover:bg-neutral-800 hover:text-neutral-100 sm:max-w-44';
+const chip = 'inline-flex h-10 max-w-28 cursor-pointer items-center gap-1 truncate rounded-md border-0 bg-transparent pl-2 pr-1.5 text-[13px] text-neutral-400 pointer-coarse:h-11 pointer-coarse:max-w-56 pointer-coarse:gap-1.5 pointer-coarse:rounded-full pointer-coarse:border pointer-coarse:border-neutral-800 pointer-coarse:bg-neutral-900 pointer-coarse:px-3 pointer-coarse:text-[14px] pointer-coarse:font-medium pointer-coarse:text-neutral-200 outline-hidden transition hover:bg-neutral-800 hover:text-neutral-100 sm:max-w-60';
 const boxed = 'inline-flex items-center gap-1 rounded-md border border-neutral-800 bg-neutral-950 px-2 py-1 text-[12px] font-medium text-neutral-300 transition hover:border-neutral-700';
 const tag = 'hidden text-[12px] font-semibold uppercase tracking-wide text-neutral-600 sm:inline';
 
@@ -81,16 +81,16 @@ function ModelSelect({ model, setModel, models, onRefreshModels, canManage, comp
       <Sheet open={open} onClose={close} label="Escolher modelo" side="top" align="end" className={showEffort ? 'w-[550px]' : 'w-[380px]'}
         content={
           <div className="flex w-full flex-col sm:flex-row">
-          <ModelPanel
-            options={options} current={model} connections={conns.connections}
-            onPick={(id) => { rememberCustom(id); setModel(id); close(); }}
-            onAdd={() => { close(); openConexoes(true); }}
-            onExpired={() => { close(); openConexoes(); }}
-            onRefresh={refresh} refreshing={refreshing}
-            onManage={canManage ? () => { close(); openAdminTab('models'); } : undefined}
-            allowCustomId
-          />
-          {showEffort && <EffortColumn effort={effort} setEffort={setEffort} />}
+            <ModelPanel
+              options={options} current={model} connections={conns.connections}
+              onPick={(id) => { rememberCustom(id); setModel(id); close(); }}
+              onAdd={() => { close(); openConexoes(true); }}
+              onExpired={() => { close(); openConexoes(); }}
+              onRefresh={refresh} refreshing={refreshing}
+              onManage={canManage ? () => { close(); openAdminTab('models'); } : undefined}
+              allowCustomId
+            />
+            {showEffort && <EffortColumn effort={effort} setEffort={setEffort} />}
           </div>
         }>
         <button type="button" onClick={toggle} aria-haspopup="dialog" aria-expanded={open}
