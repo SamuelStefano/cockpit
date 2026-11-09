@@ -1,5 +1,6 @@
 import { requestSttToken } from '../../../cockpit/tts-bus';
 import { ScribeTranscript, toPcm16 } from './scribe-transcript';
+import { normalizeDictation } from '../speech-normalize';
 import type { Heard } from './useCallRecognizer';
 
 const SCRIBE_URL = 'wss://api.elevenlabs.io/v1/speech-to-text/realtime';
@@ -59,7 +60,8 @@ export function startScribe({ onHeard, onFatal, onUnavailable }: Handlers): Scri
   let reconnects = 0;
 
   const report = (text: string, isFinal: boolean) => {
-    if (text) onHeard({ text, isFinal, confidence: 0 });
+    const clean = normalizeDictation(text);
+    if (clean) onHeard({ text: clean, isFinal, confidence: 0 });
   };
 
   const connect = async () => {

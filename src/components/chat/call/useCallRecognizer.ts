@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { SPEECH_LANG } from '../speech';
 import { isFatalSpeechError, speechErrorMessage } from '../speech-errors';
+import { normalizeDictation } from '../speech-normalize';
 import { speechCtor, type SpeechRecognition } from '../useSpeechInput';
 import { scribeSupported, startScribe, type ScribeSession } from './scribe-capture';
 
@@ -59,7 +60,7 @@ export function useCallRecognizer({ active, onHeard, onFatal }: Args) {
         let text = '';
         for (let i = baseRef.current; i < e.results.length; i++) text += e.results[i][0].transcript;
         const last = e.results[e.results.length - 1];
-        heardRef.current({ text: text.trim(), isFinal: last?.isFinal === true, confidence: last?.[0]?.confidence ?? 0 });
+        heardRef.current({ text: normalizeDictation(text.trim()), isFinal: last?.isFinal === true, confidence: last?.[0]?.confidence ?? 0 });
       };
       next.onerror = (e) => { lastError = e?.error ?? 'unknown'; };
       next.onend = () => {
