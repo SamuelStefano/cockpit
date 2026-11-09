@@ -1,30 +1,35 @@
 import { useEffect, useState } from 'react';
-import type { ModelInfo } from '../../../shared/protocol';
+import type { Effort, ModelInfo } from '../../../shared/protocol';
+import { isAgentModel } from '../../../shared/agents';
 import { shortModelName } from '../../../shared/model-catalog';
 import { OPEN_MODEL_EVENT } from './model-events';
 import { useModelPicker } from './useModelPicker';
 import { ModelPanel } from './ModelPanel';
+import { EffortColumn } from './EffortColumn';
+import { effortLabel } from './effort-levels';
 import { Icon, Sheet, tokens } from '../primitives';
 import { useConnectionsCtx } from '../../cockpit/ConnectionsContext';
 import { openAdminTab } from '../../lib/admin-nav';
 import { openConexoes } from '../../lib/conexoes-nav';
 
-const chip = 'inline-flex h-10 max-w-28 cursor-pointer items-center gap-1 truncate rounded-md border-0 bg-transparent pl-2 pr-1.5 text-[13px] text-neutral-400 pointer-coarse:h-11 pointer-coarse:max-w-40 pointer-coarse:gap-1.5 pointer-coarse:rounded-full pointer-coarse:border pointer-coarse:border-neutral-800 pointer-coarse:bg-neutral-900 pointer-coarse:px-3 pointer-coarse:text-[14px] pointer-coarse:font-medium pointer-coarse:text-neutral-200 outline-hidden transition hover:bg-neutral-800 hover:text-neutral-100 sm:max-w-44';
+const chip = 'inline-flex h-10 max-w-28 cursor-pointer items-center gap-1 truncate rounded-md border-0 bg-transparent pl-2 pr-1.5 text-[13px] text-neutral-400 pointer-coarse:h-11 pointer-coarse:max-w-56 pointer-coarse:gap-1.5 pointer-coarse:rounded-full pointer-coarse:border pointer-coarse:border-neutral-800 pointer-coarse:bg-neutral-900 pointer-coarse:px-3 pointer-coarse:text-[14px] pointer-coarse:font-medium pointer-coarse:text-neutral-200 outline-hidden transition hover:bg-neutral-800 hover:text-neutral-100 sm:max-w-60';
 const boxed = 'inline-flex items-center gap-1 rounded-md border border-neutral-800 bg-neutral-950 px-2 py-1 text-[12px] font-medium text-neutral-300 transition hover:border-neutral-700';
 const tag = 'hidden text-[12px] font-semibold uppercase tracking-wide text-neutral-600 sm:inline';
 
 const nameOf = (id: string, models: ModelInfo[]) => shortModelName(id, models.find((m) => m.id === id)?.displayName);
 
-export function ModelPicker({ model, setModel, models, onRefreshModels, canManage = false, locked, compact = false }: {
+export function ModelPicker({ model, setModel, models, onRefreshModels, canManage = false, locked, compact = false, effort, setEffort }: {
   model: string; setModel: (m: string) => void;
   models: ModelInfo[];
   onRefreshModels: () => void;
   canManage?: boolean;
   locked?: string;
   compact?: boolean;
+  effort?: Effort;
+  setEffort?: (e: Effort) => void;
 }) {
   if (locked) return <LockedModel model={model} models={models} reason={locked} compact={compact} />;
-  return <ModelSelect model={model} setModel={setModel} models={models} onRefreshModels={onRefreshModels} canManage={canManage} compact={compact} />;
+  return <ModelSelect model={model} setModel={setModel} models={models} onRefreshModels={onRefreshModels} canManage={canManage} compact={compact} effort={effort} setEffort={setEffort} />;
 }
 
 function LockedModel({ model, models, reason, compact }: { model: string; models: ModelInfo[]; reason: string; compact: boolean }) {
@@ -48,18 +53,22 @@ function LockedModel({ model, models, reason, compact }: { model: string; models
   );
 }
 
-function ModelSelect({ model, setModel, models, onRefreshModels, canManage, compact }: {
+function ModelSelect({ model, setModel, models, onRefreshModels, canManage, compact, effort, setEffort }: {
   model: string; setModel: (m: string) => void;
   models: ModelInfo[];
   onRefreshModels: () => void;
   canManage: boolean;
   compact: boolean;
+  effort?: Effort;
+  setEffort?: (e: Effort) => void;
 }) {
   const [open, setOpen] = useState(false);
   const { options, refreshing, refresh, rememberCustom } = useModelPicker({ model, models, onRefreshModels });
   const conns = useConnectionsCtx();
   const toggle = () => { if (!open) conns.refresh(); setOpen((o) => !o); };
   const close = () => setOpen(false);
+  const showEffort = !!effort && !!setEffort && !isAgentModel(model);
+  const name = nameOf(model, models);
   useEffect(() => {
     const onOpen = () => { conns.refresh(); setOpen(true); };
     window.addEventListener(OPEN_MODEL_EVENT, onOpen);
@@ -69,22 +78,26 @@ function ModelSelect({ model, setModel, models, onRefreshModels, canManage, comp
   return (
     <span className="relative inline-flex shrink-0 items-center gap-1" title="Versão do agente do próximo prompt">
       {!compact && <span className={tag}>versão</span>}
-      <Sheet open={open} onClose={close} label="Escolher modelo" side="top" align="end" className="w-[380px]"
+      <Sheet open={open} onClose={close} label="Escolher modelo" side="top" align="end" className={showEffort ? 'w-[550px]' : 'w-[380px]'}
         content={
-          <ModelPanel
-            options={options} current={model} connections={conns.connections}
-            onPick={(id) => { rememberCustom(id); setModel(id); close(); }}
-            onAdd={() => { close(); openConexoes(true); }}
-            onExpired={() => { close(); openConexoes(); }}
-            onRefresh={refresh} refreshing={refreshing}
-            onManage={canManage ? () => { close(); openAdminTab('models'); } : undefined}
-            allowCustomId
-          />
+          <div className="flex w-full flex-col sm:flex-row">
+            <ModelPanel
+              options={options} current={model} connections={conns.connections}
+              onPick={(id) => { rememberCustom(id); setModel(id); close(); }}
+              onAdd={() => { close(); openConexoes(true); }}
+              onExpired={() => { close(); openConexoes(); }}
+              onRefresh={refresh} refreshing={refreshing}
+              onManage={canManage ? () => { close(); openAdminTab('models'); } : undefined}
+              allowCustomId
+            />
+            {showEffort && <EffortColumn effort={effort} setEffort={setEffort} />}
+          </div>
         }>
         <button type="button" onClick={toggle} aria-haspopup="dialog" aria-expanded={open}
-          aria-label="Versão do agente do próximo prompt"
+          aria-label={showEffort ? `Modelo e raciocínio do próximo prompt: ${name}, ${effortLabel(effort)}` : 'Versão do agente do próximo prompt'}
           className={`${compact ? chip : boxed} ${tokens.focusRing}`}>
-          <span className="truncate">{nameOf(model, models)}</span>
+          <span className="truncate">{name}</span>
+          {showEffort && <span className="shrink-0 text-neutral-500">· {effortLabel(effort)}</span>}
           <Icon name="chevronDown" size={12} className="shrink-0 text-neutral-500" />
         </button>
       </Sheet>
