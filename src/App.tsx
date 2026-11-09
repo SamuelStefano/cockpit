@@ -28,6 +28,8 @@ import { RailChats } from './components/chrome/sidebar/RailChats';
 import { useJustDone } from './components/bit/useJustDone';
 import type { LinkState } from './components/bit/turn-bit-state';
 import { RouteContent } from './app/RouteContent';
+import { SettingsModal } from './app/SettingsModal';
+import { useSettingsBackdrop } from './app/useSettingsBackdrop';
 import { useAgentNav } from './app/useAgentNav';
 import { useCockpit } from './useCockpit';
 import { useBoxes } from './cockpit/useBoxes';
@@ -253,11 +255,13 @@ function CockpitBody() {
       drawer={{ onClose: closeDrawer }}
     />
   ) : null;
-  const chatSurface = route === '/';
-  const pageTitle = route === '/agentes'
+  const settings = useSettingsBackdrop(route);
+  const viewRoute = settings.viewRoute;
+  const chatSurface = viewRoute === '/';
+  const pageTitle = viewRoute === '/agentes'
     ? (agentId === 'novo' ? 'Novo agente' : agent.views.find((v) => v.bot.id === agentId)?.bot.name ?? 'Agente')
-    : route === '/skills' && skillId ? skills.find((x) => x.id === skillId)?.name ?? skillId
-    : navLabel(route) ?? (route === '/onboarding' ? 'Começar' : 'Deck');
+    : viewRoute === '/skills' && skillId ? skills.find((x) => x.id === skillId)?.name ?? skillId
+    : navLabel(viewRoute) ?? (viewRoute === '/onboarding' ? 'Começar' : 'Deck');
 
   const connectionsCtx = useMemo(() => ({ connections: cockpit.connections, loaded: cockpit.connectionsLoaded, refresh: cockpit.onConnectionsGet }), [cockpit.connections, cockpit.connectionsLoaded, cockpit.onConnectionsGet]);
   const gate = resolveAuthGate({ sbAuth, seal, ejectPairing, authRequired, submitToken });
@@ -331,13 +335,17 @@ function CockpitBody() {
           </div>
 
           <RouteContent
-            route={route} agentRoute={{ id: agentId, tab: agentTab, open: navAgent }} skillRoute={{ id: skillId, open: navSkill }} isMobile={isMobile} isAdmin={isAdmin} isRoot={isRoot} connected={conn.ws === 'connected'}
+            route={viewRoute} agentRoute={{ id: agentId, tab: agentTab, open: navAgent }} skillRoute={{ id: skillId, open: navSkill }} isMobile={isMobile} isAdmin={isAdmin} isRoot={isRoot} connected={conn.ws === 'connected'}
             cockpit={cockpit} chatProps={chatWithTeam} termProps={termProps}
             onOpenSession={selectSession} agent={agent}
             onOpenAgentChat={(m) => { handleNew(); setModel(m); nav('/'); }}
             layout={{ rowRef }}
             mobile={{ drawer, setDrawer, termSheet, setTermSheet, runningTerm, drawerNav }}
-            role={role} team={teamProps} nav={nav} account={account} usageDock={usageDock}
+            team={teamProps}
+          />
+          <SettingsModal
+            open={settings.open} onClose={settings.close} route={route} role={role} nav={nav} isMobile={isMobile} connected={conn.ws === 'connected'}
+            cockpit={cockpit} account={account} usageDock={usageDock} onOpenSession={selectSession}
           />
           {!isMobile && !chatSurface && bodyFooter}
         </div>
