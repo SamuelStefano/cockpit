@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PlannerColumn, PlannerTask } from '../../shared/planner';
 import { fireConfetti } from '../components/primitives';
 import { sfx, soundOn } from '../game/sfx';
-import { newTaskId, taskXp, topOrder } from './planner-logic';
+import { levelUpOnDone, newTaskId, taskXp, topOrder } from './planner-logic';
 import type { PlannerApi } from './usePlanner';
 
 const FLOAT_MS = 1400;
@@ -12,15 +12,21 @@ export function useKanban(api: PlannerApi) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showAllDone, setShowAllDone] = useState(false);
   const [floats, setFloats] = useState<Record<string, number>>({});
+  const [levelUp, setLevelUp] = useState<number | null>(null);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
 
   const celebrate = useCallback((task: PlannerTask) => {
     setFloats((f) => ({ ...f, [task.id]: taskXp(task) }));
     timers.current.push(setTimeout(() => setFloats((f) => { const { [task.id]: _, ...rest } = f; return rest; }), FLOAT_MS));
-    fireConfetti({ count: 60 });
-    if (soundOn()) sfx.levelUp();
-  }, []);
+    const level = levelUpOnDone(tasks, task);
+    if (level) {
+      setLevelUp(level);
+      timers.current.push(setTimeout(() => setLevelUp(null), 1600));
+    }
+    fireConfetti({ count: level ? 220 : 60 });
+    if (soundOn()) (level ? sfx.achievement : sfx.levelUp)();
+  }, [tasks]);
 
   const move = useCallback((id: string, column: PlannerColumn, index: number) => {
     const task = tasks.find((t) => t.id === id);
@@ -49,5 +55,5 @@ export function useKanban(api: PlannerApi) {
     setEditingId(null);
   }, [api]);
 
-  return { editingId, setEditingId, showAllDone, setShowAllDone, floats, move, add, save, remove };
+  return { levelUp, editingId, setEditingId, showAllDone, setShowAllDone, floats, move, add, save, remove };
 }

@@ -1,7 +1,7 @@
 import type { DragEvent } from 'react';
 import type { PlannerTask } from '../../../shared/planner';
 import { Icon } from '../primitives';
-import { adjacentColumn, COLUMN_LABELS, taskXp } from '../../planner/planner-logic';
+import { adjacentColumn, COLUMN_LABELS, linkChipLabel, taskXp } from '../../planner/planner-logic';
 import { DifficultyPips } from './DifficultyPips';
 
 interface PlannerCardProps {
@@ -39,19 +39,29 @@ export function PlannerCard({ task, index, dragging, dropBefore, floatXp, onOpen
       style={{ '--i': index } as React.CSSProperties} onDragOver={onDragOver}
     >
       {floatXp != null && (
-        <span className="xp-float pointer-events-none absolute right-2 top-0 z-10 font-display text-[15px] font-bold text-green-400">+{floatXp} XP</span>
+        <span className="xp-float pointer-events-none absolute bottom-7 right-3 z-10 font-display text-[15px] font-bold text-green-400">+{floatXp} XP</span>
       )}
       <div
         role="button" tabIndex={0} draggable onDragStart={onDragStart} onDragEnd={onDragEnd}
         onClick={onOpen} onKeyDown={(e) => { if (e.key === 'Enter') onOpen(); }}
         className={`group cursor-grab rounded-xl border border-neutral-800 bg-neutral-900 p-2.5 transition hover:-translate-y-px hover:border-orange-500/40 active:cursor-grabbing focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-orange-500/40 ${dragging ? 'opacity-40' : ''}`}
       >
-        <p className={`text-[13px] leading-snug ${done ? 'text-neutral-500 line-through' : 'text-neutral-100'}`}>{task.title}</p>
+        <p className={`text-[13px] leading-snug ${done ? 'text-neutral-400 line-through' : 'text-neutral-100'}`}>{task.title}</p>
         {task.description && <p className="mt-1 line-clamp-2 whitespace-pre-line text-[12px] text-neutral-500">{task.description}</p>}
+        {task.links.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1" onClick={(e) => e.stopPropagation()} onDragStart={(e) => { e.preventDefault(); e.stopPropagation(); }}>
+            {task.links.slice(0, 3).map((l) => (
+              <a
+                key={l.url} href={l.url} target="_blank" rel="noopener noreferrer" draggable={false} title={l.url}
+                className="max-w-32 truncate rounded-full border border-neutral-700 bg-neutral-800 px-2 py-px text-[12px] text-orange-300 hover:border-orange-500/50 hover:text-orange-200"
+              >{linkChipLabel(l)}</a>
+            ))}
+            {task.links.length > 3 && <span className="px-1 py-px text-[12px] text-neutral-500">+{task.links.length - 3}</span>}
+          </div>
+        )}
         <div className="mt-2 flex items-center gap-2">
           <DifficultyPips value={task.difficulty} />
           <span className="font-mono text-[12px] text-neutral-500">{taskXp(task)} XP</span>
-          {task.links.length > 0 && <Icon name="link" size={12} className="text-neutral-500" />}
           <span className="ml-auto flex items-center">
             {prev && <MoveButton dir={-1} label={`Mover para ${COLUMN_LABELS[prev]}`} onClick={() => onMoveColumn(-1)} />}
             {next && <MoveButton dir={1} label={`Mover para ${COLUMN_LABELS[next]}`} onClick={() => onMoveColumn(1)} />}

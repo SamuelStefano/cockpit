@@ -2,7 +2,7 @@ import type { PlannerTask } from '../../../shared/planner';
 import { Icon, ProgressBar } from '../primitives';
 import { doneTodayCount, levelProgress, streakDays, totalXp } from '../../planner/planner-logic';
 
-export function PlannerStats({ tasks, now }: { tasks: PlannerTask[]; now: number }) {
+export function PlannerStats({ tasks, now, levelUp = null }: { tasks: PlannerTask[]; now: number; levelUp?: number | null }) {
   const xp = totalXp(tasks);
   const { level, into, need } = levelProgress(xp);
   const streak = streakDays(tasks, now);
@@ -15,6 +15,9 @@ export function PlannerStats({ tasks, now }: { tasks: PlannerTask[]; now: number
           <ProgressBar segments={[{ value: into, tone: 'orange', label: `${into} de ${need} XP` }, { value: need - into, tone: 'track' }]} />
         </div>
       </div>
+      {levelUp && (
+        <span role="status" className="level-pulse rounded-full bg-orange-500 px-3 py-1 font-display text-[14px] font-bold text-neutral-950">Nível {levelUp}!</span>
+      )}
       <span className="text-[13px] text-neutral-300">hoje: <b className="text-neutral-100">{doneTodayCount(tasks, now)}</b> feitas</span>
       <span className="flex items-center gap-1 text-[13px] text-neutral-300" title="Dias seguidos com ao menos uma task feita">
         <Icon name="zap" size={14} className={streak ? 'text-orange-400' : 'text-neutral-600'} />

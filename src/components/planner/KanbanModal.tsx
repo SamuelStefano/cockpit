@@ -20,7 +20,7 @@ export function KanbanModal({ open, onClose, planner }: { open: boolean; onClose
   const editing = k.editingId ? planner.tasks.find((t) => t.id === k.editingId) : undefined;
   return (
     <Modal open={open} onClose={onClose} title="Kanban" icon="layers" fill pop maxWidth="max-w-6xl">
-      <PlannerStats tasks={planner.tasks} now={now} />
+      <PlannerStats tasks={planner.tasks} now={now} levelUp={k.levelUp} />
       {editing ? (
         <TaskEditor key={editing.id} task={editing} onSave={k.save} onDelete={k.remove} onBack={() => k.setEditingId(null)} />
       ) : (

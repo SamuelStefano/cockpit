@@ -1,7 +1,7 @@
 import type { DragEvent } from 'react';
 import type { PlannerColumn as Column, PlannerTask } from '../../../shared/planner';
 import { Button, EmptyState } from '../primitives';
-import { COLUMN_LABELS, adjacentColumn } from '../../planner/planner-logic';
+import { COLUMN_ACCENT, COLUMN_LABELS, adjacentColumn } from '../../planner/planner-logic';
 import { PlannerAdd } from './PlannerAdd';
 import { PlannerCard } from './PlannerCard';
 
@@ -41,9 +41,10 @@ export function PlannerColumn({ column, tasks, hiddenDone, showAllDone, floats, 
   return (
     <section
       aria-label={COLUMN_LABELS[column]} onDragOver={dnd.overColumn} onDrop={dnd.drop}
-      className={`flex min-h-0 min-w-0 flex-1 flex-col rounded-xl border bg-neutral-950/60 transition ${over ? 'border-orange-500/60 bg-orange-500/5' : 'border-neutral-800'} ${className}`}
+      className={`flex min-h-0 min-w-0 flex-1 flex-col rounded-xl border border-t-2 ${COLUMN_ACCENT[column].border} bg-neutral-950/60 transition ${over ? 'border-orange-500/60 bg-orange-500/5' : 'border-neutral-800'} ${className}`}
     >
-      <header className="flex items-center gap-2 px-3 pt-3 pb-2">
+      <header className="flex items-center gap-2 px-3 pt-3 pb-2 max-md:hidden">
+        <span className={`h-2 w-2 rounded-full ${COLUMN_ACCENT[column].dot}`} />
         <h3 className="text-[12px] font-medium uppercase tracking-[0.06em] text-neutral-400">{COLUMN_LABELS[column]}</h3>
         <span className="rounded-full bg-neutral-800 px-1.5 text-[12px] tabular-nums text-neutral-400">{tasks.length}</span>
       </header>

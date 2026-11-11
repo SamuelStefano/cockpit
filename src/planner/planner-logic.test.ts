@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { PlannerTask } from '../../shared/planner';
 import {
   adjacentColumn, applyMovesLocal, columnTasks, doneTodayCount, hiddenDoneCount, levelOf, levelProgress,
-  orderBetween, planMove, streakDays, taskXp, topOrder, totalXp,
+  levelUpOnDone, linkChipLabel, orderBetween, planMove, streakDays, taskXp, topOrder, totalXp,
 } from './planner-logic';
 
 const DAY = 86_400_000;
@@ -96,5 +96,20 @@ describe('reorder math', () => {
     expect(adjacentColumn('today', -1)).toBeNull();
     expect(adjacentColumn('today', 1)).toBe('week');
     expect(adjacentColumn('done', 1)).toBeNull();
+  });
+});
+
+describe('levelUpOnDone', () => {
+  it('detects a level crossing from the XP the task adds', () => {
+    const base = [mk({ id: 'a', column: 'done', difficulty: 3, doneAt: noon }), mk({ id: 'b', column: 'done', difficulty: 2, doneAt: noon })];
+    expect(levelUpOnDone(base, mk({ id: 'c', difficulty: 3 }))).toBe(2);
+    expect(levelUpOnDone(base, mk({ id: 'c', difficulty: 1 }))).toBeNull();
+  });
+});
+
+describe('linkChipLabel', () => {
+  it('prefers the label, else the hostname without www', () => {
+    expect(linkChipLabel({ url: 'https://www.github.com/x', label: 'PR' })).toBe('PR');
+    expect(linkChipLabel({ url: 'https://www.github.com/x' })).toBe('github.com');
   });
 });

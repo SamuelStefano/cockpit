@@ -102,3 +102,21 @@ export function adjacentColumn(column: PlannerColumn, dir: -1 | 1): PlannerColum
 export function newTaskId(): string {
   return `p${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 }
+
+export function linkChipLabel(link: { url: string; label?: string }): string {
+  if (link.label) return link.label;
+  try { return new URL(link.url).hostname.replace(/^www\./, ''); } catch { return link.url; }
+}
+
+export function levelUpOnDone(tasks: PlannerTask[], task: PlannerTask): number | null {
+  const xp = totalXp(tasks);
+  const after = levelOf(xp + taskXp(task));
+  return after > levelOf(xp) ? after : null;
+}
+
+export const COLUMN_ACCENT: Record<PlannerColumn, { dot: string; border: string }> = {
+  today: { dot: 'bg-orange-500', border: 'border-t-orange-500/60' },
+  week: { dot: 'bg-sky-400', border: 'border-t-sky-400/60' },
+  backlog: { dot: 'bg-violet-400', border: 'border-t-violet-400/60' },
+  done: { dot: 'bg-emerald-400', border: 'border-t-emerald-400/60' },
+};
