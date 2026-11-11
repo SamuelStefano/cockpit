@@ -52,6 +52,7 @@ export function sanitizeTask(raw: unknown, prev: PlannerTask | undefined, now: n
     createdAt: prev?.createdAt ?? now,
     updatedAt: now,
   };
+  if (r.source === 'agent' || prev?.source === 'agent') task.source = 'agent';
   if (column === 'done') task.doneAt = prev?.column === 'done' && prev.doneAt ? prev.doneAt : finite(r.doneAt) && r.doneAt > 0 ? r.doneAt : now;
   return task;
 }
