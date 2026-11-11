@@ -50,6 +50,19 @@ describe('sanitizeTask', () => {
   });
 });
 
+describe('sanitizeTask source', () => {
+  it('keeps source only when exactly agent', () => {
+    expect(sanitizeTask({ ...base, source: 'agent' }, undefined, 1)!.source).toBe('agent');
+    expect(sanitizeTask({ ...base, source: 'bot' }, undefined, 1)!.source).toBeUndefined();
+  });
+
+  it('keeps the previous source when an edit omits it', () => {
+    const prev = sanitizeTask({ ...base, source: 'agent' }, undefined, 1)!;
+    expect(sanitizeTask(base, prev, 2)!.source).toBe('agent');
+    expect(sanitizeTask({ ...base, source: 'x' }, prev, 2)!.source).toBe('agent');
+  });
+});
+
 describe('applyMoves / upsertTask', () => {
   const a = sanitizeTask({ ...base, id: 'a' }, undefined, 1)!;
   const b = sanitizeTask({ ...base, id: 'b', order: 2 }, undefined, 1)!;

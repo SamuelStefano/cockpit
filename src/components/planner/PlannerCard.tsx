@@ -1,6 +1,6 @@
 import type { DragEvent } from 'react';
 import type { PlannerTask } from '../../../shared/planner';
-import { Icon } from '../primitives';
+import { Badge, Icon } from '../primitives';
 import { adjacentColumn, COLUMN_LABELS, linkChipLabel, taskXp } from '../../planner/planner-logic';
 import { DifficultyPips } from './DifficultyPips';
 
@@ -62,6 +62,7 @@ export function PlannerCard({ task, index, dragging, dropBefore, floatXp, onOpen
         <div className="mt-2 flex items-center gap-2">
           <DifficultyPips value={task.difficulty} />
           <span className="font-mono text-[12px] text-neutral-500">{taskXp(task)} XP</span>
+          {task.source === 'agent' && <Badge title="Criada por um agente">agente</Badge>}
           <span className="ml-auto flex items-center">
             {prev && <MoveButton dir={-1} label={`Mover para ${COLUMN_LABELS[prev]}`} onClick={() => onMoveColumn(-1)} />}
             {next && <MoveButton dir={1} label={`Mover para ${COLUMN_LABELS[next]}`} onClick={() => onMoveColumn(1)} />}

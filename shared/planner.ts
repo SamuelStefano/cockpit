@@ -15,6 +15,7 @@ export interface PlannerTask {
   createdAt: number;
   updatedAt: number;
   doneAt?: number;
+  source?: 'agent';
 }
 
 export interface PlannerMove { id: string; column: PlannerColumn; order: number }

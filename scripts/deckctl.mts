@@ -19,10 +19,14 @@ import { randomUUID } from 'node:crypto';
 import WebSocket from 'ws';
 import type { ClientMsg, ServerMsg, Effort, Message, ToolQuestion } from '../shared/protocol';
 import { CARD_ID_RE, CARD_STATUSES, type CanvasCard, type CardStatus } from '../shared/canvas';
+import {
+  PLANNER_COLUMNS, PLANNER_LIMITS, type PlannerColumn, type PlannerDifficulty, type PlannerLink, type PlannerTask,
+} from '../shared/planner';
 import { buildTaskPrompt, buildContinuePrompt } from '../shared/canvas-prompt';
 import { ctxWindow } from '../src/routes/canvas/term-stats-view';
 import { mergeBoard } from '../src/routes/canvas/canvas-board';
 import { deriveSessionItems } from '../src/routes/canvas/kanban-items';
+import { COLUMN_LABELS, DONE_WINDOW_DAYS, columnTasks, hiddenDoneCount, topOrder } from '../src/planner/planner-logic';
 
 // --- connection -------------------------------------------------------------
 
@@ -1324,6 +1328,254 @@ async function cmdTriage(flags: Flags, json: boolean): Promise<void> {
   }
 }
 
+// --- task commands (personal Kanban planner) ----------------------------
+
+const TASK_BOOL_FLAGS = new Set(['json', 'all', 'force', 'clear-links']);
+const TASK_VALUE_FLAGS = new Set(['col', 'desc', 'diff', 'link', 'title']);
+
+export interface TaskArgs { positional: string[]; flags: Flags; links: string[] }
+
+// parseFlags keeps only the last value of a repeated flag and lets a boolean
+// flag swallow the next positional; the task commands need `--link` repeatable
+// and `--force "title"` to work, so they parse their own args.
+export function parseTaskArgs(args: string[]): TaskArgs {
+  const positional: string[] = [];
+  const flags: Flags = {};
+  const links: string[] = [];
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    if (!a.startsWith('--')) { positional.push(a); continue; }
+    const name = a.slice(2);
+    if (TASK_BOOL_FLAGS.has(name)) { flags[name] = true; continue; }
+    if (!TASK_VALUE_FLAGS.has(name)) throw new Error(`unknown flag "--${name}"`);
+    const next = args[i + 1];
+    if (next === undefined || next.startsWith('--')) throw new Error(`--${name} needs a value`);
+    i++;
+    if (name === 'link') links.push(next);
+    else flags[name] = next;
+  }
+  return { positional, flags, links };
+}
+
+export function normalizeTitle(s: string): string {
+  return s.trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+export function findDuplicate(tasks: PlannerTask[], title: string): PlannerTask | undefined {
+  const key = normalizeTitle(title);
+  return tasks.find((t) => t.column !== 'done' && normalizeTitle(t.title) === key);
+}
+
+export function parseColumn(v: string): PlannerColumn {
+  if (!(PLANNER_COLUMNS as readonly string[]).includes(v)) throw new Error(`invalid column "${v}" — one of: ${PLANNER_COLUMNS.join(', ')}`);
+  return v as PlannerColumn;
+}
+
+export function parseDifficulty(v: string): PlannerDifficulty {
+  if (v !== '1' && v !== '2' && v !== '3') throw new Error(`invalid difficulty "${v}" — one of: 1, 2, 3`);
+  return Number(v) as PlannerDifficulty;
+}
+
+export function parseLinkSpec(spec: string): PlannerLink {
+  const bar = spec.indexOf('|');
+  const rawUrl = (bar < 0 ? spec : spec.slice(0, bar)).trim();
+  const label = bar < 0 ? '' : spec.slice(bar + 1).trim().slice(0, PLANNER_LIMITS.linkLabel);
+  let url: URL;
+  try { url = new URL(rawUrl); } catch { throw new Error(`invalid link "${rawUrl}" — expected an http(s) URL, optionally "URL|label"`); }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new Error(`invalid link "${rawUrl}" — only http and https are allowed`);
+  return label ? { url: url.href, label } : { url: url.href };
+}
+
+export function mergeLinks(existing: PlannerLink[], specs: string[]): PlannerLink[] {
+  const out = [...existing];
+  for (const spec of specs) {
+    const link = parseLinkSpec(spec);
+    if (!out.some((l) => l.url === link.url)) out.push(link);
+  }
+  if (out.length > PLANNER_LIMITS.links) throw new Error(`too many links — a task holds at most ${PLANNER_LIMITS.links}`);
+  return out;
+}
+
+export function newTaskIdLocal(): string {
+  return randomUUID().replace(/-/g, '').slice(0, 12);
+}
+
+export function formatTaskList(tasks: PlannerTask[], opts: { col?: PlannerColumn; all?: boolean; now: number }): string[] {
+  const cols = opts.col ? [opts.col] : [...PLANNER_COLUMNS];
+  const lines: string[] = [];
+  for (const col of cols) {
+    const shown = columnTasks(tasks, col, { showAllDone: opts.all, now: opts.now });
+    if (!shown.length && !opts.col) continue;
+    const hidden = col === 'done' && !opts.all ? hiddenDoneCount(tasks, opts.now) : 0;
+    const note = col === 'done' && !opts.all ? ` — last ${DONE_WINDOW_DAYS} days${hidden ? `, ${hidden} older hidden (--all)` : ''}` : '';
+    lines.push(`${COLUMN_LABELS[col]} (${shown.length})${note}`);
+    for (const t of shown) {
+      const n = t.links.length;
+      lines.push(`  ${shortId(t.id)}  [${t.difficulty}] ${oneLine(t.title, 100)}${n ? `  (${n} ${n === 1 ? 'link' : 'links'})` : ''}`);
+      const desc = t.description.split('\n').find((l) => l.trim())?.trim();
+      if (desc) lines.push(`      ${oneLine(desc, 120)}`);
+      for (const l of t.links) lines.push(`      ${l.url}${l.label ? ` (${l.label})` : ''}`);
+    }
+  }
+  return lines;
+}
+
+export function findTask(tasks: PlannerTask[], idPrefix: string): PlannerTask {
+  const m = matchByPrefix(tasks.map((t) => t.id), idPrefix);
+  if (m.kind === 'ok') return tasks.find((t) => t.id === m.id)!;
+  if (m.kind === 'none') fail(`no task matches id "${idPrefix}"`);
+  fail(`ambiguous task id "${idPrefix}" — matches: ${m.matches.map(shortId).join(', ')}`);
+}
+
+export function sameTaskContent(a: PlannerTask, b: PlannerTask): boolean {
+  return a.id === b.id && a.title === b.title && a.description === b.description && a.difficulty === b.difficulty
+    && a.column === b.column && JSON.stringify(a.links) === JSON.stringify(b.links);
+}
+
+const boardWithTask = (ok: (tasks: PlannerTask[]) => boolean) =>
+  (m: ServerMsg): m is Extract<ServerMsg, { t: 'planner-board' }> => m.t === 'planner-board' && ok(m.tasks);
+
+// planner-get also registers this socket for the planner-board broadcast that
+// acknowledges each mutation.
+async function withTasks<T>(fn: (client: Client, tasks: PlannerTask[]) => Promise<T>): Promise<T> {
+  const client = await connect();
+  try {
+    client.send({ t: 'planner-get' });
+    const board = await client.waitFor(isServerMsg('planner-board'), DEFAULT_TIMEOUT_MS);
+    if (!board) fail('backend did not answer planner-get (timeout)');
+    return await fn(client, board.tasks);
+  } finally {
+    client.close();
+  }
+}
+
+function orFail<T>(fn: () => T): T {
+  try { return fn(); } catch (e) { return fail((e as Error).message); }
+}
+
+async function saveTask(client: Client, task: PlannerTask): Promise<void> {
+  client.send({ t: 'planner-task-save', task: { ...task, updatedAt: Date.now() } });
+  await mutationAck(client, boardWithTask((list) => list.some((t) => sameTaskContent(t, task))), 'planner-task-save');
+}
+
+async function cmdTaskList(args: string[]): Promise<void> {
+  const { flags } = orFail(() => parseTaskArgs(args));
+  const colRaw = flagStr(flags, 'col');
+  const col = colRaw === undefined ? undefined : orFail(() => parseColumn(colRaw));
+  const all = flags.all === true;
+  const now = Date.now();
+  const tasks = await withTasks(async (_client, t) => t);
+  if (flags.json === true) {
+    console.log(JSON.stringify((col ? [col] : [...PLANNER_COLUMNS]).flatMap((c) => columnTasks(tasks, c, { showAllDone: all, now })), null, 2));
+    return;
+  }
+  const lines = formatTaskList(tasks, { col, all, now });
+  console.log(lines.length ? lines.join('\n') : 'no tasks');
+}
+
+async function cmdTaskAdd(args: string[]): Promise<void> {
+  const { positional, flags, links } = orFail(() => parseTaskArgs(args));
+  const title = positional[0]?.trim().slice(0, PLANNER_LIMITS.title);
+  if (!title) fail('usage: deckctl task add "<title>" [--col today|week|backlog] [--desc D] [--diff 1|2|3] [--link URL[|label]]... [--force]');
+  const column = orFail(() => parseColumn(flagStr(flags, 'col') ?? 'backlog'));
+  if (column === 'done') fail('tasks are added to today, week or backlog — use "deckctl task done <id>" to finish one');
+  const difficulty = orFail(() => parseDifficulty(flagStr(flags, 'diff') ?? '1'));
+  const taskLinks = orFail(() => mergeLinks([], links));
+  await withTasks(async (client, tasks) => {
+    const dup = findDuplicate(tasks, title);
+    if (dup && flags.force !== true) fail(`a task with this title already exists: ${dup.id} (${COLUMN_LABELS[dup.column]}) — reuse it or pass --force`);
+    const now = Date.now();
+    const task: PlannerTask = {
+      id: newTaskIdLocal(), title, description: (flagStr(flags, 'desc') ?? '').slice(0, PLANNER_LIMITS.description),
+      links: taskLinks, difficulty, column, order: topOrder(tasks, column), createdAt: now, updatedAt: now, source: 'agent',
+    };
+    await saveTask(client, task);
+    console.log(`task created: ${task.id}`);
+  });
+}
+
+async function cmdTaskMove(idPrefix: string, colRaw: string): Promise<void> {
+  const column = orFail(() => parseColumn(colRaw));
+  await withTasks(async (client, tasks) => {
+    const task = findTask(tasks, idPrefix);
+    const order = topOrder(tasks.filter((t) => t.id !== task.id), column);
+    client.send({ t: 'planner-reorder', moves: [{ id: task.id, column, order }] });
+    await mutationAck(client, boardWithTask((list) => list.some((t) => t.id === task.id && t.column === column)), 'planner-reorder');
+    console.log(`task ${task.id} -> ${column}`);
+  });
+}
+
+async function cmdTaskDone(idPrefix: string, args: string[]): Promise<void> {
+  const { links } = orFail(() => parseTaskArgs(args));
+  await withTasks(async (client, tasks) => {
+    const task = findTask(tasks, idPrefix);
+    const merged = orFail(() => mergeLinks(task.links, links));
+    const order = task.column === 'done' ? task.order : topOrder(tasks.filter((t) => t.id !== task.id), 'done');
+    await saveTask(client, { ...task, links: merged, column: 'done', order });
+    console.log(`task ${task.id} -> done`);
+  });
+}
+
+async function cmdTaskEdit(idPrefix: string, args: string[]): Promise<void> {
+  const { flags, links } = orFail(() => parseTaskArgs(args));
+  const title = flagStr(flags, 'title')?.trim().slice(0, PLANNER_LIMITS.title);
+  const desc = flagStr(flags, 'desc');
+  const colRaw = flagStr(flags, 'col');
+  const diffRaw = flagStr(flags, 'diff');
+  const clear = flags['clear-links'] === true;
+  if (title === '') fail('--title cannot be empty');
+  if (title === undefined && desc === undefined && colRaw === undefined && diffRaw === undefined && !links.length && !clear) {
+    fail('nothing to change — pass --title, --desc, --diff, --link, --clear-links or --col');
+  }
+  const column = colRaw === undefined ? undefined : orFail(() => parseColumn(colRaw));
+  const difficulty = diffRaw === undefined ? undefined : orFail(() => parseDifficulty(diffRaw));
+  await withTasks(async (client, tasks) => {
+    const task = findTask(tasks, idPrefix);
+    const next: PlannerTask = { ...task, links: orFail(() => mergeLinks(clear ? [] : task.links, links)) };
+    if (title !== undefined) next.title = title;
+    if (desc !== undefined) next.description = desc.slice(0, PLANNER_LIMITS.description);
+    if (difficulty !== undefined) next.difficulty = difficulty;
+    if (column !== undefined && column !== task.column) {
+      next.column = column;
+      next.order = topOrder(tasks.filter((t) => t.id !== task.id), column);
+    }
+    await saveTask(client, next);
+    console.log(`task ${task.id} updated`);
+  });
+}
+
+async function cmdTaskRm(idPrefix: string): Promise<void> {
+  await withTasks(async (client, tasks) => {
+    const task = findTask(tasks, idPrefix);
+    client.send({ t: 'planner-task-delete', id: task.id });
+    await mutationAck(client, boardWithTask((list) => !list.some((t) => t.id === task.id)), 'planner-task-delete');
+    console.log(`task ${task.id} removed`);
+  });
+}
+
+async function cmdTask(args: string[]): Promise<void> {
+  const [sub, ...rest] = args;
+  if (sub === 'list') return cmdTaskList(rest);
+  if (sub === 'add') return cmdTaskAdd(rest);
+  if (sub === 'move') {
+    if (!rest[0] || !rest[1]) fail('usage: deckctl task move <id> <today|week|backlog|done>');
+    return cmdTaskMove(rest[0], rest[1]);
+  }
+  if (sub === 'done') {
+    if (!rest[0] || rest[0].startsWith('--')) fail('usage: deckctl task done <id> [--link URL[|label]]...');
+    return cmdTaskDone(rest[0], rest.slice(1));
+  }
+  if (sub === 'edit') {
+    if (!rest[0] || rest[0].startsWith('--')) fail('usage: deckctl task edit <id> [--title T] [--desc D] [--diff N] [--link URL[|label]]... [--clear-links] [--col C]');
+    return cmdTaskEdit(rest[0], rest.slice(1));
+  }
+  if (sub === 'rm') {
+    if (!rest[0]) fail('usage: deckctl task rm <id>');
+    return cmdTaskRm(rest[0]);
+  }
+  fail(`unknown task subcommand "${sub ?? ''}" — list|add|move|done|edit|rm`);
+}
+
 // --- main --------------------------------------------------------------
 
 const HELP = `deckctl — orchestrate the Deck canvas from a terminal
@@ -1349,10 +1601,16 @@ Usage: deckctl <command> [args] [--json]
   card move <id> <status>                   move a card (todo|doing|review|done)
   card rm <id>                              delete a card
   card run <id> [--fork <parentSessionId>]  run a card (optionally as a fork of an existing session)
+  task list [--col C] [--all]               the person's personal Kanban (today|week|backlog|done); done = last 7 days unless --all
+  task add "<title>" [--col C] [--desc D] [--diff 1|2|3] [--link URL[|label]]... [--force]   add to the top of a column (default backlog)
+  task move <id> <col>                      move a task (today|week|backlog|done)
+  task done <id> [--link URL[|label]]...    finish a task, optionally attaching the PR/result links
+  task edit <id> [--title T] [--desc D] [--diff N] [--link URL]... [--clear-links] [--col C]
+  task rm <id>                              delete a task
   status                                    one-screen overview + alerts (pending questions, hot-context sessions)
   triage [--apply] [--limit N]              score every session KEEP/PURGE/REVIEW (dry-run by default; --apply acts)
 
-Session/card ids accept unambiguous prefixes. Add --json to any read command for raw output.
+Session/card/task ids accept unambiguous prefixes. "card" = agent-run cards on the canvas; "task" = the person's personal Kanban. Add --json to any read command for raw output.
 Exit codes: 0 ok, 1 failure, 3 parked (new/handoff/card run accepted but queued by the server — do not retry).`;
 
 async function main(): Promise<void> {
@@ -1431,6 +1689,7 @@ async function main(): Promise<void> {
       fail(`unknown card subcommand "${sub}" — add|move|rm|run`);
       return;
     }
+    case 'task': return cmdTask(rest);
     case 'status': return cmdStatus();
     case 'triage': return cmdTriage(flags, json);
     default:

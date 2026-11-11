@@ -26,6 +26,7 @@ the agent that runs on the user's machine and dials OUT to the relay (no open po
 | connecting a machine, pairing a phone/laptop, passkeys | `references/machines-and-devices.md` |
 | chats, agents, skills, contexts, model/effort | `references/sessions-and-models.md` |
 | scheduled prompts, private secrets/scripts | `references/crons-and-drops.md` |
+| the personal Kanban in the header, `deckctl task`, XP | `references/kanban.md` |
 | something is broken or offline | `references/troubleshooting.md` |
 
 Read only the file for the topic. For a first-time setup, follow this order: machine →

@@ -41,6 +41,14 @@ describe('buildDeckContext', () => {
     expect(t).toContain('`deck-guide` skill');
   });
 
+  it('adds the Kanban section only when deckctl is installed', () => {
+    const on = buildDeckContext({ ...base, deckctl: true });
+    expect(on).toContain("## The person's Kanban");
+    expect(on).toContain('`deckctl task done <id> --link');
+    expect(on).toContain('`card`, `task`');
+    expect(buildDeckContext({ ...base, deckctl: false })).not.toContain("## The person's Kanban");
+  });
+
   it('stays short', () => {
     const many = { at: 0, boxes: Array.from({ length: 10 }, (_, i) => ({ label: `b${i}`, online: true, self: i === 0 })) };
     expect(buildDeckContext({ ...base, roster: many, deckctl: true, deckGuide: true }).split('\n').length).toBeLessThanOrEqual(60);
