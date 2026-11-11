@@ -63,6 +63,29 @@ describe('sanitizeTask source', () => {
   });
 });
 
+describe('sanitizeTask ref and tag', () => {
+  it('keeps a valid ref and a trimmed, clamped tag', () => {
+    const t = sanitizeTask({ ...base, ref: ' DFL-01498 ', tag: '  Tainan  ' }, undefined, 1)!;
+    expect(t.ref).toBe('DFL-01498');
+    expect(t.tag).toBe('Tainan');
+    expect(sanitizeTask({ ...base, ref: 'placar:3f9a-1c2e' }, undefined, 1)!.ref).toBe('placar:3f9a-1c2e');
+    expect(sanitizeTask({ ...base, tag: 'x'.repeat(50) }, undefined, 1)!.tag).toHaveLength(24);
+  });
+
+  it('drops an invalid ref and an empty tag', () => {
+    expect(sanitizeTask({ ...base, ref: 'has space' }, undefined, 1)!.ref).toBeUndefined();
+    expect(sanitizeTask({ ...base, ref: 'x'.repeat(81) }, undefined, 1)!.ref).toBeUndefined();
+    expect(sanitizeTask({ ...base, tag: '   ' }, undefined, 1)!.tag).toBeUndefined();
+    expect(sanitizeTask({ ...base, tag: 7 }, undefined, 1)!.tag).toBeUndefined();
+  });
+
+  it('keeps previous values when the raw omits them, clears on an explicit empty value', () => {
+    const prev = sanitizeTask({ ...base, ref: 'DFL-1', tag: 'DFL' }, undefined, 1)!;
+    expect(sanitizeTask(base, prev, 2)).toMatchObject({ ref: 'DFL-1', tag: 'DFL' });
+    expect(sanitizeTask({ ...base, tag: '' }, prev, 2)!.tag).toBeUndefined();
+  });
+});
+
 describe('applyMoves / upsertTask', () => {
   const a = sanitizeTask({ ...base, id: 'a' }, undefined, 1)!;
   const b = sanitizeTask({ ...base, id: 'b', order: 2 }, undefined, 1)!;

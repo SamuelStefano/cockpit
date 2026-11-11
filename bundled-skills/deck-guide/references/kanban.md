@@ -14,9 +14,11 @@ on the box.
 | `backlog` | Pendentes | someday / follow-ups |
 | `done` | Feito | finished; the board shows the last 7 days |
 
-Each task has a title (max 140 chars), a one-line description, up to 10 links and a difficulty:
-1 easy = 10 XP, 2 medium = 25 XP, 3 hard = 50 XP. Finished tasks give XP, levels (100 XP each)
-and a daily streak. Tasks created by an agent carry a small "agente" badge.
+Each task has a title (max 140 chars), a one-line description, up to 10 links, a difficulty
+(1 Fácil, 2 Média, 3 Difícil — a plain label, no points), an optional `ref` (external id such as
+`DFL-01498` or `placar:<uuid>`; letters, digits and `: _ . -`, max 80) and an optional `tag`
+(short source label such as `DFL`, `Itera`, `Tainan`, `Deck`; max 24). The board can be searched
+and filtered by tag. Tasks created by an agent carry a small "agente" label.
 
 ## `deckctl task`
 
@@ -25,17 +27,18 @@ Ids accept unambiguous prefixes (the short id shown by `list`). `--link` is repe
 
 ```
 deckctl task list [--col today|week|backlog|done] [--all] [--json]
-deckctl task add "<title>" [--col today|week|backlog] [--desc D] [--diff 1|2|3] [--link URL]... [--force]
+deckctl task add "<title>" [--col today|week|backlog] [--desc D] [--diff 1|2|3] [--ref R] [--tag T] [--link URL]... [--force]
 deckctl task move <id> <today|week|backlog|done>
 deckctl task done <id> [--link URL]...
-deckctl task edit <id> [--title T] [--desc D] [--diff N] [--link URL]... [--clear-links] [--col C]
+deckctl task edit <id> [--title T] [--desc D] [--diff N] [--ref R] [--tag T] [--link URL]... [--clear-links] [--col C]
 deckctl task rm <id>
 ```
 
 - `list` groups by column in board order; `done` shows only the last 7 days unless `--all`.
 - `add` defaults to `--col backlog --diff 1`, puts the task at the top of the column and prints
   the new id. It refuses (exit 1, naming the existing id) when a non-done task has the same
-  title ignoring case and extra spaces; `--force` overrides.
+  title ignoring case and extra spaces; `--force` overrides. It always refuses a `--ref` that any
+  task (done included) already has — edit that task instead.
 - `done` moves to Feito and appends links such as the PR; `edit --link` also appends (no
   duplicates), `--clear-links` empties first.
 

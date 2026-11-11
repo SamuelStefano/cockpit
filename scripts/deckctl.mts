@@ -20,7 +20,7 @@ import WebSocket from 'ws';
 import type { ClientMsg, ServerMsg, Effort, Message, ToolQuestion } from '../shared/protocol';
 import { CARD_ID_RE, CARD_STATUSES, type CanvasCard, type CardStatus } from '../shared/canvas';
 import {
-  PLANNER_COLUMNS, PLANNER_LIMITS, type PlannerColumn, type PlannerDifficulty, type PlannerLink, type PlannerTask,
+  PLANNER_COLUMNS, PLANNER_LIMITS, PLANNER_REF_RE, type PlannerColumn, type PlannerDifficulty, type PlannerLink, type PlannerTask,
 } from '../shared/planner';
 import { buildTaskPrompt, buildContinuePrompt } from '../shared/canvas-prompt';
 import { ctxWindow } from '../src/routes/canvas/term-stats-view';
@@ -1331,7 +1331,7 @@ async function cmdTriage(flags: Flags, json: boolean): Promise<void> {
 // --- task commands (personal Kanban planner) ----------------------------
 
 const TASK_BOOL_FLAGS = new Set(['json', 'all', 'force', 'clear-links']);
-const TASK_VALUE_FLAGS = new Set(['col', 'desc', 'diff', 'link', 'title']);
+const TASK_VALUE_FLAGS = new Set(['col', 'desc', 'diff', 'link', 'title', 'ref', 'tag']);
 
 export interface TaskArgs { positional: string[]; flags: Flags; links: string[] }
 
@@ -1364,6 +1364,24 @@ export function normalizeTitle(s: string): string {
 export function findDuplicate(tasks: PlannerTask[], title: string): PlannerTask | undefined {
   const key = normalizeTitle(title);
   return tasks.find((t) => t.column !== 'done' && normalizeTitle(t.title) === key);
+}
+
+// A ref is an external identity (DFL task, Placar request): one task per ref, done or not.
+export function findByRef(tasks: PlannerTask[], ref: string | undefined): PlannerTask | undefined {
+  return ref ? tasks.find((t) => t.ref === ref) : undefined;
+}
+
+export function parseRef(v: string): string {
+  const ref = v.trim();
+  if (!PLANNER_REF_RE.test(ref)) throw new Error(`invalid ref "${v}" — letters, digits and : _ . - only, max ${PLANNER_LIMITS.ref} chars`);
+  return ref;
+}
+
+export function parseTag(v: string): string {
+  const tag = v.trim().replace(/\s+/g, ' ');
+  if (!tag) throw new Error('--tag cannot be empty');
+  if (tag.length > PLANNER_LIMITS.tag) throw new Error(`tag too long — max ${PLANNER_LIMITS.tag} chars`);
+  return tag;
 }
 
 export function parseColumn(v: string): PlannerColumn {
@@ -1411,7 +1429,8 @@ export function formatTaskList(tasks: PlannerTask[], opts: { col?: PlannerColumn
     lines.push(`${COLUMN_LABELS[col]} (${shown.length})${note}`);
     for (const t of shown) {
       const n = t.links.length;
-      lines.push(`  ${shortId(t.id)}  [${t.difficulty}] ${oneLine(t.title, 100)}${n ? `  (${n} ${n === 1 ? 'link' : 'links'})` : ''}`);
+      const meta = [t.ref, t.tag && `#${t.tag}`].filter(Boolean).join(' ');
+      lines.push(`  ${shortId(t.id)}  [${t.difficulty}] ${oneLine(t.title, 100)}${meta ? `  ${meta}` : ''}${n ? `  (${n} ${n === 1 ? 'link' : 'links'})` : ''}`);
       const desc = t.description.split('\n').find((l) => l.trim())?.trim();
       if (desc) lines.push(`      ${oneLine(desc, 120)}`);
       for (const l of t.links) lines.push(`      ${l.url}${l.label ? ` (${l.label})` : ''}`);
@@ -1429,7 +1448,8 @@ export function findTask(tasks: PlannerTask[], idPrefix: string): PlannerTask {
 
 export function sameTaskContent(a: PlannerTask, b: PlannerTask): boolean {
   return a.id === b.id && a.title === b.title && a.description === b.description && a.difficulty === b.difficulty
-    && a.column === b.column && JSON.stringify(a.links) === JSON.stringify(b.links);
+    && a.column === b.column && JSON.stringify(a.links) === JSON.stringify(b.links)
+    && (a.ref ?? '') === (b.ref ?? '') && (a.tag ?? '') === (b.tag ?? '');
 }
 
 const boardWithTask = (ok: (tasks: PlannerTask[]) => boolean) =>
@@ -1476,18 +1496,25 @@ async function cmdTaskList(args: string[]): Promise<void> {
 async function cmdTaskAdd(args: string[]): Promise<void> {
   const { positional, flags, links } = orFail(() => parseTaskArgs(args));
   const title = positional[0]?.trim().slice(0, PLANNER_LIMITS.title);
-  if (!title) fail('usage: deckctl task add "<title>" [--col today|week|backlog] [--desc D] [--diff 1|2|3] [--link URL[|label]]... [--force]');
+  if (!title) fail('usage: deckctl task add "<title>" [--col today|week|backlog] [--desc D] [--diff 1|2|3] [--ref R] [--tag T] [--link URL[|label]]... [--force]');
   const column = orFail(() => parseColumn(flagStr(flags, 'col') ?? 'backlog'));
   if (column === 'done') fail('tasks are added to today, week or backlog — use "deckctl task done <id>" to finish one');
   const difficulty = orFail(() => parseDifficulty(flagStr(flags, 'diff') ?? '1'));
   const taskLinks = orFail(() => mergeLinks([], links));
+  const refRaw = flagStr(flags, 'ref');
+  const tagRaw = flagStr(flags, 'tag');
+  const ref = refRaw === undefined ? undefined : orFail(() => parseRef(refRaw));
+  const tag = tagRaw === undefined ? undefined : orFail(() => parseTag(tagRaw));
   await withTasks(async (client, tasks) => {
+    const byRef = findByRef(tasks, ref);
+    if (byRef) fail(`a task with ref ${ref} already exists: ${byRef.id} (${COLUMN_LABELS[byRef.column]}) — edit it instead`);
     const dup = findDuplicate(tasks, title);
     if (dup && flags.force !== true) fail(`a task with this title already exists: ${dup.id} (${COLUMN_LABELS[dup.column]}) — reuse it or pass --force`);
     const now = Date.now();
     const task: PlannerTask = {
       id: newTaskIdLocal(), title, description: (flagStr(flags, 'desc') ?? '').slice(0, PLANNER_LIMITS.description),
       links: taskLinks, difficulty, column, order: topOrder(tasks, column), createdAt: now, updatedAt: now, source: 'agent',
+      ...(ref ? { ref } : {}), ...(tag ? { tag } : {}),
     };
     await saveTask(client, task);
     console.log(`task created: ${task.id}`);
@@ -1523,10 +1550,14 @@ async function cmdTaskEdit(idPrefix: string, args: string[]): Promise<void> {
   const colRaw = flagStr(flags, 'col');
   const diffRaw = flagStr(flags, 'diff');
   const clear = flags['clear-links'] === true;
+  const refRaw = flagStr(flags, 'ref');
+  const tagRaw = flagStr(flags, 'tag');
   if (title === '') fail('--title cannot be empty');
-  if (title === undefined && desc === undefined && colRaw === undefined && diffRaw === undefined && !links.length && !clear) {
-    fail('nothing to change — pass --title, --desc, --diff, --link, --clear-links or --col');
+  if (title === undefined && desc === undefined && colRaw === undefined && diffRaw === undefined && refRaw === undefined && tagRaw === undefined && !links.length && !clear) {
+    fail('nothing to change — pass --title, --desc, --diff, --ref, --tag, --link, --clear-links or --col');
   }
+  const ref = refRaw === undefined ? undefined : orFail(() => parseRef(refRaw));
+  const tag = tagRaw === undefined ? undefined : orFail(() => parseTag(tagRaw));
   const column = colRaw === undefined ? undefined : orFail(() => parseColumn(colRaw));
   const difficulty = diffRaw === undefined ? undefined : orFail(() => parseDifficulty(diffRaw));
   await withTasks(async (client, tasks) => {
@@ -1535,6 +1566,12 @@ async function cmdTaskEdit(idPrefix: string, args: string[]): Promise<void> {
     if (title !== undefined) next.title = title;
     if (desc !== undefined) next.description = desc.slice(0, PLANNER_LIMITS.description);
     if (difficulty !== undefined) next.difficulty = difficulty;
+    if (ref !== undefined) {
+      const other = findByRef(tasks, ref);
+      if (other && other.id !== task.id) fail(`ref ${ref} already belongs to task ${other.id}`);
+      next.ref = ref;
+    }
+    if (tag !== undefined) next.tag = tag;
     if (column !== undefined && column !== task.column) {
       next.column = column;
       next.order = topOrder(tasks.filter((t) => t.id !== task.id), column);
@@ -1566,7 +1603,7 @@ async function cmdTask(args: string[]): Promise<void> {
     return cmdTaskDone(rest[0], rest.slice(1));
   }
   if (sub === 'edit') {
-    if (!rest[0] || rest[0].startsWith('--')) fail('usage: deckctl task edit <id> [--title T] [--desc D] [--diff N] [--link URL[|label]]... [--clear-links] [--col C]');
+    if (!rest[0] || rest[0].startsWith('--')) fail('usage: deckctl task edit <id> [--title T] [--desc D] [--diff N] [--ref R] [--tag T] [--link URL[|label]]... [--clear-links] [--col C]');
     return cmdTaskEdit(rest[0], rest.slice(1));
   }
   if (sub === 'rm') {
@@ -1602,10 +1639,10 @@ Usage: deckctl <command> [args] [--json]
   card rm <id>                              delete a card
   card run <id> [--fork <parentSessionId>]  run a card (optionally as a fork of an existing session)
   task list [--col C] [--all]               the person's personal Kanban (today|week|backlog|done); done = last 7 days unless --all
-  task add "<title>" [--col C] [--desc D] [--diff 1|2|3] [--link URL[|label]]... [--force]   add to the top of a column (default backlog)
+  task add "<title>" [--col C] [--desc D] [--diff 1|2|3] [--ref R] [--tag T] [--link URL[|label]]... [--force]   add to the top of a column (default backlog); refuses an existing ref
   task move <id> <col>                      move a task (today|week|backlog|done)
   task done <id> [--link URL[|label]]...    finish a task, optionally attaching the PR/result links
-  task edit <id> [--title T] [--desc D] [--diff N] [--link URL]... [--clear-links] [--col C]
+  task edit <id> [--title T] [--desc D] [--diff N] [--ref R] [--tag T] [--link URL]... [--clear-links] [--col C]
   task rm <id>                              delete a task
   status                                    one-screen overview + alerts (pending questions, hot-context sessions)
   triage [--apply] [--limit N]              score every session KEEP/PURGE/REVIEW (dry-run by default; --apply acts)

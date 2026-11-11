@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react';
 import { Modal } from '../primitives';
+import { KanbanHeader } from './KanbanHeader';
 import { PlannerBoard } from './PlannerBoard';
-import { PlannerStats } from './PlannerStats';
 import { TaskEditor } from './TaskEditor';
 import { useKanban } from '../../planner/useKanban';
+import { useKanbanFilter } from '../../planner/useKanbanFilter';
 import type { PlannerApi } from '../../planner/usePlanner';
 
 export function KanbanModal({ open, onClose, planner }: { open: boolean; onClose: () => void; planner: PlannerApi }) {
   const k = useKanban(planner);
+  const f = useKanbanFilter(planner.tasks, open && !k.editingId);
   const [now, setNow] = useState(() => Date.now());
   const { onPlannerGet } = planner;
   useEffect(() => {
@@ -19,16 +21,15 @@ export function KanbanModal({ open, onClose, planner }: { open: boolean; onClose
   }, [open, onPlannerGet]);
   const editing = k.editingId ? planner.tasks.find((t) => t.id === k.editingId) : undefined;
   return (
-    <Modal open={open} onClose={onClose} title="Kanban" icon="layers" fill pop maxWidth="max-w-6xl">
-      <PlannerStats tasks={planner.tasks} now={now} levelUp={k.levelUp} />
-      {editing ? (
-        <TaskEditor key={editing.id} task={editing} onSave={k.save} onDelete={k.remove} onBack={() => k.setEditingId(null)} />
-      ) : (
+    <Modal open={open} onClose={onClose} label="Kanban" full>
+      <KanbanHeader filter={f} total={planner.tasks.length} onClose={onClose} />
+      <div className="relative flex min-h-0 flex-1 flex-col">
         <PlannerBoard
-          tasks={planner.tasks} now={now} showAllDone={k.showAllDone} floats={k.floats}
+          tasks={planner.tasks} visible={f.visible} filtering={f.filtering} now={now} showAllDone={k.showAllDone}
           onToggleAllDone={() => k.setShowAllDone((v) => !v)} onAdd={k.add} onOpen={k.setEditingId} onMove={k.move}
         />
-      )}
+        {editing && <TaskEditor key={editing.id} task={editing} onSave={k.save} onDelete={k.remove} onBack={() => k.setEditingId(null)} />}
+      </div>
     </Modal>
   );
 }

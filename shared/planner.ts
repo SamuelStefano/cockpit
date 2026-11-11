@@ -16,6 +16,8 @@ export interface PlannerTask {
   updatedAt: number;
   doneAt?: number;
   source?: 'agent';
+  ref?: string;
+  tag?: string;
 }
 
 export interface PlannerMove { id: string; column: PlannerColumn; order: number }
@@ -27,6 +29,9 @@ export const PLANNER_LIMITS = {
   links: 10,
   linkUrl: 2000,
   linkLabel: 80,
+  ref: 80,
+  tag: 24,
 } as const;
 
 export const PLANNER_ID_RE = /^[A-Za-z0-9_-]{1,80}$/;
+export const PLANNER_REF_RE = /^[A-Za-z0-9:_.-]{1,80}$/;

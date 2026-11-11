@@ -1,11 +1,8 @@
-import { useState } from 'react';
-import type { PlannerColumn, PlannerDifficulty, PlannerTask } from '../../../shared/planner';
-import { PLANNER_LIMITS } from '../../../shared/planner';
-import { Button, Input, Segmented } from '../primitives';
+import type { PlannerTask } from '../../../shared/planner';
+import { Button } from '../primitives';
 import { useArmed } from '../primitives/useArmed';
-import { COLUMN_LABELS, DIFFICULTY_LABELS, taskXp } from '../../planner/planner-logic';
-import { TaskLinksView } from './TaskLinksView';
-import { isHttpUrl, TaskLinksEditor } from './TaskLinksEditor';
+import { useTaskEditor } from '../../planner/useTaskEditor';
+import { TaskEditorFields } from './TaskEditorFields';
 
 interface TaskEditorProps {
   task: PlannerTask;
@@ -14,52 +11,30 @@ interface TaskEditorProps {
   onBack: () => void;
 }
 
-const label = 'text-[12px] font-medium uppercase tracking-[0.06em] text-neutral-500';
-const diffItems = ([1, 2, 3] as const).map((n) => ({ id: String(n), label: DIFFICULTY_LABELS[n] }));
-const colItems = (['today', 'week', 'backlog', 'done'] as const).map((c) => ({ id: c, label: COLUMN_LABELS[c] }));
-
 export function TaskEditor({ task, onSave, onDelete, onBack }: TaskEditorProps) {
-  const [draft, setDraft] = useState(task);
+  const ed = useTaskEditor(task, onSave, onBack);
   const del = useArmed();
-  const patch = (p: Partial<PlannerTask>) => setDraft((d) => ({ ...d, ...p }));
-  const valid = draft.title.trim() !== '';
-  const save = () => {
-    if (!valid) return;
-    onSave({ ...draft, title: draft.title.trim(), links: draft.links.filter((l) => isHttpUrl(l.url)).map((l) => ({ ...l, url: l.url.trim() })) });
-    onBack();
-  };
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain px-4 py-4">
-        <label className="flex flex-col gap-1.5"><span className={label}>Título</span>
-          <Input autoFocus value={draft.title} maxLength={PLANNER_LIMITS.title} onChange={(e) => patch({ title: e.target.value })} />
-        </label>
-        <label className="flex flex-col gap-1.5"><span className={label}>Descrição</span>
-          <textarea
-            value={draft.description} maxLength={PLANNER_LIMITS.description} rows={6} onChange={(e) => patch({ description: e.target.value })}
-            className="resize-y rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-[13px] text-neutral-200 focus-visible:border-orange-500/40 focus-visible:outline-hidden"
-          />
-        </label>
-        <div className="flex flex-wrap gap-x-6 gap-y-3">
-          <div className="flex flex-col gap-1.5"><span className={label}>Dificuldade · {taskXp(draft)} XP</span>
-            <Segmented label="Dificuldade" items={diffItems} value={String(draft.difficulty)} onChange={(v) => patch({ difficulty: Number(v) as PlannerDifficulty })} />
-          </div>
-          <div className="flex flex-col gap-1.5"><span className={label}>Coluna</span>
-            <Segmented<PlannerColumn> label="Coluna" items={colItems} value={draft.column} onChange={(c) => patch({ column: c })} />
-          </div>
+    <div className="absolute inset-0 z-10 flex justify-end">
+      <div className="fade-in absolute inset-0 bg-black/50 max-sm:hidden" onClick={onBack} aria-hidden />
+      <aside
+        role="dialog" aria-label="Editar task" onKeyDown={ed.onKeyDown}
+        className="slide-up-in relative flex h-full w-[min(460px,100%)] flex-col border-l border-neutral-800 bg-neutral-900 shadow-2xl shadow-black/60 max-sm:w-full max-sm:border-0"
+      >
+        <div className="flex items-center gap-2 border-b border-neutral-800/80 px-4 py-2.5">
+          <span className="flex-1 text-[13px] font-medium text-neutral-300">Editar task</span>
+          <Button variant="ghost" size="sm" square icon="x" aria-label="Fechar editor" title="Fechar (Esc)" onClick={onBack} />
         </div>
-        <div className="flex flex-col gap-1.5"><span className={label}>Links</span>
-          <TaskLinksEditor links={draft.links} onChange={(links) => patch({ links })} />
-          <TaskLinksView links={draft.links.filter((l) => isHttpUrl(l.url))} />
+        <TaskEditorFields draft={ed.draft} patch={ed.patch} refInvalid={ed.refInvalid} />
+        <div className="flex items-center gap-2 border-t border-neutral-800/80 px-4 py-3">
+          <Button variant="danger" size="sm" icon="trash" onClick={() => del.fire(() => onDelete(task.id))}>{del.armed ? 'Confirmar?' : 'Excluir'}</Button>
+          <span className="ml-auto flex items-center gap-2">
+            <span className="text-[11px] text-neutral-600 max-sm:hidden">Ctrl+Enter</span>
+            <Button variant="ghost" size="sm" onClick={onBack}>Cancelar</Button>
+            <Button size="sm" disabled={!ed.valid} onClick={ed.save}>Salvar</Button>
+          </span>
         </div>
-      </div>
-      <div className="flex items-center gap-2 border-t border-neutral-800 px-4 py-3">
-        <Button variant="danger" size="sm" icon="trash" onClick={() => del.fire(() => onDelete(task.id))}>{del.armed ? 'Confirmar?' : 'Excluir'}</Button>
-        <span className="ml-auto flex gap-2">
-          <Button variant="ghost" size="sm" onClick={onBack}>Cancelar</Button>
-          <Button size="sm" disabled={!valid} onClick={save}>Salvar</Button>
-        </span>
-      </div>
+      </aside>
     </div>
   );
 }

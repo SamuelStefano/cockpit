@@ -6,8 +6,8 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { PlannerTask } from '../shared/planner';
 import {
-  findDuplicate, formatTaskList, mergeLinks, normalizeTitle, parseColumn, parseDifficulty, parseLinkSpec, parseTaskArgs,
-  sameTaskContent, parseFlags,
+  findByRef, findDuplicate, formatTaskList, mergeLinks, normalizeTitle, parseColumn, parseDifficulty, parseLinkSpec, parseTaskArgs,
+  sameTaskContent, parseFlags, parseRef, parseTag,
 } from './deckctl.mts';
 import { topOrder } from '../src/planner/planner-logic';
 
@@ -77,6 +77,22 @@ describe('findDuplicate', () => {
   });
   it('ignores done tasks', () => {
     expect(findDuplicate(tasks, 'ship it')).toBeUndefined();
+  });
+});
+
+describe('ref and tag', () => {
+  it('finds a task by ref, done or not', () => {
+    const tasks = [task({ id: 'a', ref: 'DFL-01498', column: 'done', doneAt: NOW })];
+    expect(findByRef(tasks, 'DFL-01498')?.id).toBe('a');
+    expect(findByRef(tasks, 'DFL-1')).toBeUndefined();
+    expect(findByRef(tasks, undefined)).toBeUndefined();
+  });
+  it('validates ref and tag', () => {
+    expect(parseRef(' placar:ab-12 ')).toBe('placar:ab-12');
+    expect(() => parseRef('a b')).toThrow(/invalid ref/);
+    expect(parseTag('  Tainan ')).toBe('Tainan');
+    expect(() => parseTag('x'.repeat(25))).toThrow(/too long/);
+    expect(() => parseTag('  ')).toThrow(/empty/);
   });
 });
 
@@ -167,6 +183,19 @@ describe('deckctl task against a fake backend', () => {
     expect(saved).toMatchObject({ title: 'New thing', column: 'today', difficulty: 2, source: 'agent' });
     expect(saved!.order).toBeLessThan(3);
     expect(saved!.links).toHaveLength(2);
+  });
+
+  it('add stores ref and tag, and refuses an existing ref', async () => {
+    let saved: PlannerTask | undefined;
+    const ok = await run(['task', 'add', 'Imported', '--ref', 'DFL-01498', '--tag', 'DFL'], [existing], (m) => {
+      saved = m.task as PlannerTask;
+      return [existing, saved];
+    });
+    expect(ok.code).toBe(0);
+    expect(saved).toMatchObject({ ref: 'DFL-01498', tag: 'DFL' });
+    const dup = await run(['task', 'add', 'Other title', '--ref', 'DFL-01498'], [existing, saved!], () => null);
+    expect(dup.code).toBe(1);
+    expect(dup.out).toContain(saved!.id);
   });
 
   it('done moves to done and appends links', async () => {

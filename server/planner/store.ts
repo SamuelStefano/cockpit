@@ -3,7 +3,7 @@ import { readFile, writeFile, mkdir, rename } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
 import {
-  PLANNER_COLUMNS, PLANNER_ID_RE, PLANNER_LIMITS,
+  PLANNER_COLUMNS, PLANNER_ID_RE, PLANNER_LIMITS, PLANNER_REF_RE,
   type PlannerColumn, type PlannerDifficulty, type PlannerLink, type PlannerMove, type PlannerTask,
 } from '../../shared/planner';
 import { withFileLockAsync } from '../ws/file-lock';
@@ -35,6 +35,18 @@ export function clampDifficulty(v: unknown): PlannerDifficulty {
   return n <= 1 || !Number.isFinite(n) ? 1 : n >= 3 ? 3 : 2;
 }
 
+function sanitizeRef(v: unknown): string | undefined {
+  if (typeof v !== 'string') return undefined;
+  const ref = v.trim();
+  return PLANNER_REF_RE.test(ref) ? ref : undefined;
+}
+
+function sanitizeTag(v: unknown): string | undefined {
+  if (typeof v !== 'string') return undefined;
+  const tag = v.trim().replace(/\s+/g, ' ').slice(0, PLANNER_LIMITS.tag).trim();
+  return tag || undefined;
+}
+
 export function sanitizeTask(raw: unknown, prev: PlannerTask | undefined, now: number): PlannerTask | null {
   const r = raw as Partial<PlannerTask> | null | undefined;
   if (!r || typeof r !== 'object' || typeof r.id !== 'string' || !PLANNER_ID_RE.test(r.id)) return null;
@@ -53,6 +65,10 @@ export function sanitizeTask(raw: unknown, prev: PlannerTask | undefined, now: n
     updatedAt: now,
   };
   if (r.source === 'agent' || prev?.source === 'agent') task.source = 'agent';
+  const ref = 'ref' in r ? sanitizeRef(r.ref) : prev?.ref;
+  if (ref) task.ref = ref;
+  const tag = 'tag' in r ? sanitizeTag(r.tag) : prev?.tag;
+  if (tag) task.tag = tag;
   if (column === 'done') task.doneAt = prev?.column === 'done' && prev.doneAt ? prev.doneAt : finite(r.doneAt) && r.doneAt > 0 ? r.doneAt : now;
   return task;
 }
