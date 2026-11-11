@@ -88,6 +88,8 @@ import {
 import { activeFlowRuns } from '../canvas/flow-runs';
 import { startCanvasFlows } from '../canvas/flows';
 import { registerCanvasClient, emitCanvasMsg } from './canvas-clients';
+import { registerPlannerClient, emitPlannerMsg } from './planner-clients';
+import { applyMoves, readTasksChained, sanitizeTask, updateTasks, upsertTask } from '../planner/store';
 import { CARD_STATUSES, type CanvasBoard, type CardStatus } from '../../shared/canvas';
 import { updateAreaCacheFromGraph, getAreaOf } from '../canvas/autopause-loop';
 import { areaUsageFromIds } from '../../shared/canvas-budget';
@@ -468,6 +470,35 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       if (!card?.dfl) { send(ws, { t: 'dfl-task-write', reqId: msg.reqId, ok: false, message: 'card não vinculado' }); return; }
       void pushCardDflStatus(cardId, card.status, card.dfl.taskId, { confirmed: true });
       send(ws, { t: 'dfl-task-write', reqId: msg.reqId, ok: true });
+      return;
+    }
+    case 'planner-get': {
+      registerPlannerClient(ws);
+      send(ws, { t: 'planner-board', tasks: await readTasksChained() });
+      return;
+    }
+    case 'planner-task-save': {
+      const now = Date.now();
+      let rejected = false;
+      const tasks = await updateTasks((list) => {
+        const task = sanitizeTask(msg.task, list.find((x) => x.id === msg.task?.id), now);
+        const next = task ? upsertTask(list, task) : null;
+        rejected = !next;
+        return next ?? list;
+      });
+      if (rejected) send(ws, { t: 'error', message: 'task inválida' });
+      emitPlannerMsg({ t: 'planner-board', tasks });
+      return;
+    }
+    case 'planner-task-delete': {
+      const tasks = await updateTasks((list) => list.filter((x) => x.id !== msg.id));
+      emitPlannerMsg({ t: 'planner-board', tasks });
+      return;
+    }
+    case 'planner-reorder': {
+      const now = Date.now();
+      const tasks = await updateTasks((list) => applyMoves(list, msg.moves, now));
+      emitPlannerMsg({ t: 'planner-board', tasks });
       return;
     }
     case 'canvas-card-delete': {

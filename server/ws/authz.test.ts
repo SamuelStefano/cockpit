@@ -72,6 +72,13 @@ describe('authorize', () => {
     }
   });
 
+  it('planner é admin-only', () => {
+    for (const t of ['planner-get', 'planner-task-save', 'planner-task-delete', 'planner-reorder'] as const) {
+      expect(authorize('student', t)).toBe(false);
+      expect(authorize('admin', t)).toBe(true);
+    }
+  });
+
   // Kanban triage (canvas review item 2): same admin-only surface as
   // canvas-session-status — default-deny means a new `t` needs no allowlist
   // entry to stay blocked, this just documents the intent.
