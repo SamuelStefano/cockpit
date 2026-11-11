@@ -10,7 +10,7 @@ import { Icon, type IconName } from './Icon';
 // recriar `fixed inset-0` solto a cada tela. footer opcional (ações); sem footer, o
 // conteúdo já traz seus botões.
 export function Modal({
-  open, onClose, title, icon, children, footer, maxWidth = 'max-w-lg', label, fill = false, pop = false,
+  open, onClose, title, icon, children, footer, maxWidth = 'max-w-lg', label, fill: fillProp = false, pop = false, full = false,
 }: {
   open: boolean;
   onClose: () => void;
@@ -23,7 +23,10 @@ export function Modal({
   // Fixed-height panel whose child owns the scroll (side nav + pane); full screen on a phone.
   fill?: boolean;
   pop?: boolean;
+  // Near-full-screen workspace (board-like views); implies fill.
+  full?: boolean;
 }) {
+  const fill = fillProp || full;
   useEscapeLayer(open, onClose);
   const ref = useRef<HTMLDivElement>(null);
   const opener = useRef<Element | null>(null);
@@ -41,7 +44,7 @@ export function Modal({
         aria-modal="true"
         aria-label={label ?? title}
         tabIndex={-1}
-        className={`${pop ? 'pop-in' : 'scale-in'} flex max-h-[88dvh] w-full ${maxWidth} ${fill ? 'h-[min(760px,88dvh)] max-sm:h-full max-sm:max-h-full max-sm:rounded-none max-sm:border-0' : ''} flex-col overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-900 shadow-2xl shadow-black/50`}
+        className={`${full ? 'slide-up-in' : pop ? 'pop-in' : 'scale-in'} flex w-full ${full ? 'max-h-[96dvh] max-w-[1680px]' : `max-h-[88dvh] ${maxWidth}`} ${fill ? `${full ? 'h-[96dvh]' : 'h-[min(760px,88dvh)]'} max-sm:h-full max-sm:max-h-full max-sm:rounded-none max-sm:border-0` : ''} flex-col overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-900 shadow-2xl shadow-black/50`}
         onClick={(e) => e.stopPropagation()}
       >
         {title && (

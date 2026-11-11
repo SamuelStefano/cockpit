@@ -6,7 +6,9 @@ export const DRAG_TYPE = 'application/x-planner-task';
 
 interface Over { column: PlannerColumn; index: number }
 
-export function usePlannerDnd(tasks: PlannerTask[], showAllDone: boolean, onMove: (id: string, column: PlannerColumn, index: number) => void) {
+// `visible` is the filtered list the cards are drawn from; the drop slot is
+// mapped back to the full column so a search never scrambles the real order.
+export function usePlannerDnd(tasks: PlannerTask[], visible: PlannerTask[], showAllDone: boolean, onMove: (id: string, column: PlannerColumn, index: number) => void) {
   const [dragId, setDragId] = useState<string | null>(null);
   const [over, setOver] = useState<Over | null>(null);
 
@@ -39,12 +41,14 @@ export function usePlannerDnd(tasks: PlannerTask[], showAllDone: boolean, onMove
     const slot = over?.column === column ? over.index : Number.MAX_SAFE_INTEGER;
     reset();
     if (!id) return;
-    const list = columnTasks(tasks, column, { showAllDone });
-    const from = list.findIndex((t) => t.id === id);
-    if (column === 'done' && from >= 0) return;
-    const index = from >= 0 && from < slot ? slot - 1 : slot;
-    onMove(id, column, Math.min(index, list.length));
-  }, [dragId, over, reset, tasks, showAllDone, onMove]);
+    const shown = columnTasks(visible, column, { showAllDone });
+    if (column === 'done' && shown.some((t) => t.id === id)) return;
+    const from = shown.findIndex((t) => t.id === id);
+    const anchor = shown.filter((t) => t.id !== id)[from >= 0 && from < slot ? slot - 1 : slot];
+    const rest = columnTasks(tasks, column, { showAllDone: true }).filter((t) => t.id !== id);
+    const at = anchor ? rest.findIndex((t) => t.id === anchor.id) : -1;
+    onMove(id, column, at >= 0 ? at : rest.length);
+  }, [dragId, over, reset, tasks, visible, showAllDone, onMove]);
 
   return { dragId, over, startDrag, overCard, overColumn, drop, reset };
 }

@@ -1,7 +1,8 @@
 import type { DragEvent } from 'react';
 import type { PlannerColumn as Column, PlannerTask } from '../../../shared/planner';
-import { Button, EmptyState } from '../primitives';
-import { COLUMN_ACCENT, COLUMN_LABELS, adjacentColumn } from '../../planner/planner-logic';
+import { Button } from '../primitives';
+import { COLUMN_DOT, COLUMN_LABELS } from '../../planner/planner-logic';
+import { useColumnPage } from '../../planner/useColumnPage';
 import { PlannerAdd } from './PlannerAdd';
 import { PlannerCard } from './PlannerCard';
 
@@ -18,9 +19,10 @@ export interface ColumnDnd {
 interface PlannerColumnProps {
   column: Column;
   tasks: PlannerTask[];
+  filtering: boolean;
+  coarse: boolean;
   hiddenDone: number;
   showAllDone: boolean;
-  floats: Record<string, number>;
   dnd: ColumnDnd;
   className?: string;
   onToggleAllDone: () => void;
@@ -29,41 +31,35 @@ interface PlannerColumnProps {
   onMove: (id: string, column: Column, index: number) => void;
 }
 
-const EMPTY: Record<Column, string> = {
-  today: 'Nada para hoje. Puxe algo da semana.',
-  week: 'Semana livre.',
-  backlog: 'Sem pendências.',
-  done: 'Nada feito ainda. Bora!',
-};
+const EMPTY: Record<Column, string> = { today: 'Nada para hoje.', week: 'Semana livre.', backlog: 'Sem pendências.', done: 'Nada feito ainda.' };
 
-export function PlannerColumn({ column, tasks, hiddenDone, showAllDone, floats, dnd, className = '', onToggleAllDone, onAdd, onOpen, onMove }: PlannerColumnProps) {
+export function PlannerColumn({ column, tasks, filtering, coarse, hiddenDone, showAllDone, dnd, className = '', onToggleAllDone, onAdd, onOpen, onMove }: PlannerColumnProps) {
+  const page = useColumnPage(tasks);
   const over = dnd.overIndex !== null;
   return (
     <section
       aria-label={COLUMN_LABELS[column]} onDragOver={dnd.overColumn} onDrop={dnd.drop}
-      className={`flex min-h-0 min-w-0 flex-1 flex-col rounded-xl border border-t-2 ${COLUMN_ACCENT[column].border} bg-neutral-950/60 transition ${over ? 'border-orange-500/60 bg-orange-500/5' : 'border-neutral-800'} ${className}`}
+      className={`flex min-h-0 min-w-0 flex-1 flex-col rounded-xl transition-colors ${over ? 'bg-neutral-800/30' : 'bg-neutral-950/40'} ${className}`}
     >
-      <header className="flex items-center gap-2 px-3 pt-3 pb-2 max-md:hidden">
-        <span className={`h-2 w-2 rounded-full ${COLUMN_ACCENT[column].dot}`} />
-        <h3 className="text-[12px] font-medium uppercase tracking-[0.06em] text-neutral-400">{COLUMN_LABELS[column]}</h3>
-        <span className="rounded-full bg-neutral-800 px-1.5 text-[12px] tabular-nums text-neutral-400">{tasks.length}</span>
+      <header className="flex items-center gap-2 px-3 pb-1.5 pt-2.5 max-md:hidden">
+        <span className={`h-1.5 w-1.5 rounded-full ${COLUMN_DOT[column]}`} aria-hidden />
+        <h3 className="text-[13px] font-medium text-neutral-300">{COLUMN_LABELS[column]}</h3>
+        <span className="text-[12px] tabular-nums text-neutral-600">{tasks.length}</span>
       </header>
-      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain px-2 pb-2">
+      <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto overscroll-contain px-1.5 pb-2 [scrollbar-width:thin]">
         {column !== 'done' && <PlannerAdd onAdd={onAdd} />}
-        {tasks.length === 0 && <EmptyState size="xs" title={EMPTY[column]} />}
-        {tasks.map((t, i) => (
+        {tasks.length === 0 && <p className="px-2 py-3 text-[12px] text-neutral-600">{filtering ? 'Nada encontrado.' : EMPTY[column]}</p>}
+        {page.shown.map((t, i) => (
           <PlannerCard
-            key={t.id} task={t} index={i} dragging={dnd.dragId === t.id} dropBefore={dnd.overIndex === i}
-            floatXp={floats[t.id]} onOpen={() => onOpen(t.id)}
-            onMoveColumn={(dir) => { const to = adjacentColumn(t.column, dir); if (to) onMove(t.id, to, 0); }}
+            key={t.id} task={t} dragging={dnd.dragId === t.id} coarse={coarse} dropBefore={dnd.overIndex === i}
+            onOpen={() => onOpen(t.id)} onMoveTo={(to) => onMove(t.id, to, 0)}
             onDragStart={(e) => dnd.startDrag(e, t.id)} onDragEnd={dnd.reset} onDragOver={(e) => dnd.overCard(e, i)}
           />
         ))}
-        {dnd.overIndex === tasks.length && tasks.length > 0 && <div className="h-0.5 shrink-0 rounded-full bg-orange-500" />}
+        {dnd.overIndex === page.shown.length && page.shown.length > 0 && <div className="mx-1 h-0.5 shrink-0 rounded-full bg-orange-500" />}
+        {page.hidden > 0 && <Button variant="ghost" size="xs" onClick={page.more}>mostrar mais ({page.hidden})</Button>}
         {column === 'done' && (hiddenDone > 0 || showAllDone) && (
-          <Button variant="ghost" size="xs" onClick={onToggleAllDone}>
-            {showAllDone ? 'só últimos 7 dias' : `ver todas (+${hiddenDone})`}
-          </Button>
+          <Button variant="ghost" size="xs" onClick={onToggleAllDone}>{showAllDone ? 'só últimos 7 dias' : `ver todas (+${hiddenDone})`}</Button>
         )}
       </div>
     </section>

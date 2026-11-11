@@ -2,7 +2,7 @@ import type { PlannerLink } from '../../../shared/planner';
 import { PLANNER_LIMITS } from '../../../shared/planner';
 import { Button, Input } from '../primitives';
 
-export const isHttpUrl = (v: string): boolean => /^https?:\/\/\S+$/i.test(v.trim());
+import { isHttpUrl } from '../../planner/useTaskEditor';
 
 interface Props { links: PlannerLink[]; onChange: (links: PlannerLink[]) => void }
 

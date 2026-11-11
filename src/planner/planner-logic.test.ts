@@ -1,50 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import type { PlannerTask } from '../../shared/planner';
 import {
-  adjacentColumn, applyMovesLocal, columnTasks, doneTodayCount, hiddenDoneCount, levelOf, levelProgress,
-  levelUpOnDone, linkChipLabel, orderBetween, planMove, streakDays, taskXp, topOrder, totalXp,
+  adjacentColumn, applyMovesLocal, columnTasks, hiddenDoneCount, isLockedRef, linkChipLabel, matchesFilter, orderBetween,
+  planMove, tagsOf, topOrder,
 } from './planner-logic';
 
 const DAY = 86_400_000;
 const noon = new Date(2026, 5, 15, 12).getTime();
 const mk = (o: Partial<PlannerTask> & { id: string }): PlannerTask => ({
   title: o.id, description: '', links: [], difficulty: 1, column: 'today', order: 0, createdAt: 0, updatedAt: 0, ...o,
-});
-
-describe('xp and level', () => {
-  it('gives 10/25/50 by difficulty and counts only done tasks', () => {
-    expect([1, 2, 3].map((d) => taskXp({ difficulty: d as 1 | 2 | 3 }))).toEqual([10, 25, 50]);
-    const tasks = [mk({ id: 'a', column: 'done', difficulty: 3, doneAt: noon }), mk({ id: 'b', difficulty: 3 }), mk({ id: 'c', column: 'done', difficulty: 2, doneAt: noon })];
-    expect(totalXp(tasks)).toBe(75);
-  });
-
-  it('levels every 100 xp', () => {
-    expect(levelOf(0)).toBe(1);
-    expect(levelOf(99)).toBe(1);
-    expect(levelOf(100)).toBe(2);
-    expect(levelProgress(250)).toEqual({ level: 3, into: 50, need: 100 });
-  });
-});
-
-describe('streak', () => {
-  const done = (id: string, daysAgo: number) => mk({ id, column: 'done', doneAt: noon - daysAgo * DAY });
-
-  it('counts consecutive local days ending today', () => {
-    expect(streakDays([done('a', 0), done('b', 1), done('c', 2), done('d', 4)], noon)).toBe(3);
-  });
-
-  it('survives a day without completions yet', () => {
-    expect(streakDays([done('a', 1), done('b', 2)], noon)).toBe(2);
-  });
-
-  it('breaks after a gap and is zero when empty', () => {
-    expect(streakDays([done('a', 2)], noon)).toBe(0);
-    expect(streakDays([], noon)).toBe(0);
-  });
-
-  it('counts done today', () => {
-    expect(doneTodayCount([done('a', 0), done('b', 0), done('c', 1)], noon)).toBe(2);
-  });
 });
 
 describe('columnTasks', () => {
@@ -99,11 +63,31 @@ describe('reorder math', () => {
   });
 });
 
-describe('levelUpOnDone', () => {
-  it('detects a level crossing from the XP the task adds', () => {
-    const base = [mk({ id: 'a', column: 'done', difficulty: 3, doneAt: noon }), mk({ id: 'b', column: 'done', difficulty: 2, doneAt: noon })];
-    expect(levelUpOnDone(base, mk({ id: 'c', difficulty: 3 }))).toBe(2);
-    expect(levelUpOnDone(base, mk({ id: 'c', difficulty: 1 }))).toBeNull();
+describe('filters', () => {
+  const tasks = [
+    mk({ id: 'a', title: 'Fix login', tag: 'DFL', ref: 'DFL-01498' }),
+    mk({ id: 'b', title: 'Write post', description: 'about caching', tag: 'Tainan' }),
+    mk({ id: 'c', title: 'Other' }),
+  ];
+
+  it('lists distinct sorted tags', () => {
+    expect(tagsOf(tasks)).toEqual(['DFL', 'Tainan']);
+  });
+
+  it('matches title, description, ref and tag, case-insensitive', () => {
+    const ids = (q: string, tags: string[] = []) => tasks.filter((t) => matchesFilter(t, q, tags)).map((t) => t.id);
+    expect(ids('')).toEqual(['a', 'b', 'c']);
+    expect(ids('dfl-014')).toEqual(['a']);
+    expect(ids('CACHING')).toEqual(['b']);
+    expect(ids('tainan')).toEqual(['b']);
+    expect(ids('', ['DFL'])).toEqual(['a']);
+    expect(ids('post', ['DFL'])).toEqual([]);
+  });
+
+  it('locks only DFL refs', () => {
+    expect(isLockedRef('DFL-1')).toBe(true);
+    expect(isLockedRef('placar:x')).toBe(false);
+    expect(isLockedRef(undefined)).toBe(false);
   });
 });
 

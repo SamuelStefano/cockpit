@@ -102,7 +102,7 @@ export function buildDeckContext(input: DeckContextInput): string {
       '',
       '## The person\'s Kanban',
       '- The person keeps a personal Kanban in the Deck header (columns: today "Hoje", week "Semana", backlog "Pendentes", done "Feito"). You keep it current with `deckctl task`; they should never have to update it for work you did.',
-      '- Starting work that takes more than a quick answer: run `deckctl task list`, reuse the matching task or `deckctl task add "<title>" --col today --diff 1|2|3 --desc "<one line>"`. One task per deliverable, title in the person\'s language, no duplicates.',
+      '- Starting work that takes more than a quick answer: run `deckctl task list`, reuse the matching task or `deckctl task add "<title>" --col today --diff 1|2|3 --desc "<one line>"`. One task per deliverable, title in the person\'s language, no duplicates; pass `--ref <external id>` (e.g. a DFL task id) and `--tag <source>` when the work has one.',
       '- Finishing: `deckctl task done <id> --link <PR or result URL>`. Left unfinished or blocked: keep it out of done and say why with `deckctl task edit <id> --desc`.',
       '- Follow-ups the person mentions for later go to `--col week` or `--col backlog`. Never delete or reorder tasks the person created unless asked; never put secrets in a task.',
     ] : []),
