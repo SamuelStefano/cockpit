@@ -1,4 +1,5 @@
 import { useRef, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { useEscapeLayer } from './useEscapeLayer';
 import { useDialogFocus } from './useDialogFocus';
 import { Button } from './Button';
@@ -36,7 +37,7 @@ export function Modal({
   useDialogFocus(ref, open, opener);
 
   if (!open) return null;
-  return (
+  const overlay = (
     <div className={`fixed inset-0 z-60 flex items-center justify-center bg-black/70 p-4 pt-[max(1rem,env(safe-area-inset-top))] pr-[max(1rem,env(safe-area-inset-right))] pb-[max(1rem,env(safe-area-inset-bottom))] pl-[max(1rem,env(safe-area-inset-left))] backdrop-blur-xs ${fill ? 'max-sm:px-0 max-sm:pt-[env(safe-area-inset-top)] max-sm:pb-0' : ''}`} onClick={onClose}>
       <div
         ref={ref}
@@ -44,7 +45,7 @@ export function Modal({
         aria-modal="true"
         aria-label={label ?? title}
         tabIndex={-1}
-        className={`${full ? 'slide-up-in' : pop ? 'pop-in' : 'scale-in'} flex w-full ${full ? 'max-h-[96dvh] max-w-[1680px]' : `max-h-[88dvh] ${maxWidth}`} ${fill ? `${full ? 'h-[96dvh]' : 'h-[min(760px,88dvh)]'} max-sm:h-full max-sm:max-h-full max-sm:rounded-none max-sm:border-0` : ''} flex-col overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-900 shadow-2xl shadow-black/50`}
+        className={`${full ? 'slide-up-in' : pop ? 'pop-in' : 'scale-in'} flex w-full ${full ? 'max-h-full max-w-[1680px]' : `max-h-[88dvh] ${maxWidth}`} ${fill ? `${full ? 'h-full' : 'h-[min(760px,88dvh)]'} max-sm:h-full max-sm:max-h-full max-sm:rounded-none max-sm:border-0` : ''} flex-col overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-900 shadow-2xl shadow-black/50`}
         onClick={(e) => e.stopPropagation()}
       >
         {title && (
@@ -59,4 +60,6 @@ export function Modal({
       </div>
     </div>
   );
+  // A full board opened from inside a header would be clipped by that header's stacking context.
+  return full && typeof document !== 'undefined' ? createPortal(overlay, document.body) : overlay;
 }
