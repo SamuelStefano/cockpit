@@ -5,7 +5,9 @@ const chip = 'max-w-36 truncate rounded px-1.5 py-px text-[11px] leading-4';
 const MAX_LINKS = 2;
 
 export function CardMeta({ task }: { task: PlannerTask }) {
-  const { ref, tag, difficulty, links } = task;
+  const { tag, difficulty, links } = task;
+  // Machine refs (placar:<uuid>) are import keys, not something a person reads.
+  const ref = task.ref && !task.ref.includes(':') ? task.ref : undefined;
   if (!ref && !tag && difficulty === 1 && !links.length && task.source !== 'agent') return null;
   return (
     <div className="mt-2 flex flex-wrap items-center gap-1 text-neutral-500">

@@ -21,7 +21,7 @@ export function KanbanHeader({ filter, total, onClose }: KanbanHeaderProps) {
         />
       </div>
       {allTags.length > 0 && (
-        <div className="flex min-w-0 items-center gap-1.5 overflow-x-auto" role="group" aria-label="Filtrar por tag">
+        <div className="flex min-w-0 items-center gap-1.5 overflow-x-auto max-md:order-last max-md:w-full max-md:pb-0.5" role="group" aria-label="Filtrar por tag">
           {allTags.map((t) => (
             <ToggleChip key={t} icon="tag" on={activeTags.includes(t)} aria-pressed={activeTags.includes(t)} onClick={() => toggleTag(t)}>{t}</ToggleChip>
           ))}
