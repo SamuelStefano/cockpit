@@ -186,7 +186,15 @@ h1, h2 { font-family: var(--font-display); font-weight: 700; letter-spacing: 0; 
 @keyframes scaleIn { from { opacity: 0; transform: scale(0.97); } to { opacity: 1; transform: scale(1); } }
 .fade-in { animation: fadeIn 0.3s ease-out; }
 .scale-in { animation: scaleIn 0.2s cubic-bezier(0.22, 1, 0.36, 1); }
-@media (prefers-reduced-motion: reduce) { .fade-in, .scale-in { animation: none; } }
+@keyframes popIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+.pop-in { animation: popIn 0.26s cubic-bezier(0.22, 1, 0.36, 1); }
+.stagger-in { animation: fadeUp 0.32s cubic-bezier(0.22, 1, 0.36, 1) backwards; animation-delay: calc(var(--i, 0) * 45ms + 120ms); }
+@keyframes xpFloat { 0% { opacity: 0; transform: translateY(6px) scale(0.8); } 20% { opacity: 1; transform: translateY(-4px) scale(1.1); } 100% { opacity: 0; transform: translateY(-26px) scale(1); } }
+.xp-float { animation: xpFloat 1.3s ease-out forwards; }
+@keyframes levelPulse { 0% { opacity: 0; transform: scale(0.6); box-shadow: 0 0 0 0 rgba(249,115,22,0.7); } 35% { opacity: 1; transform: scale(1.18); box-shadow: 0 0 24px 6px rgba(249,115,22,0.55); } 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 0 0 rgba(249,115,22,0); } }
+.level-pulse { animation: levelPulse 1.2s cubic-bezier(0.22, 1, 0.36, 1); }
+@media (prefers-reduced-motion: reduce) { .level-pulse { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .fade-in, .scale-in, .pop-in, .stagger-in, .xp-float { animation: none; } .xp-float { opacity: 1; } }
 
 /* Entrada de rota/carga: fill default (none) de propósito — um transform persistido
    viraria containing block e quebraria os modais fixed dentro das views. */
