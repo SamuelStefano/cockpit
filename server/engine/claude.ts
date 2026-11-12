@@ -21,7 +21,7 @@ import { projectSlug } from '../config';
 import { restrictedTurn, ensureWorkspace, type RestrictedTurn } from './restricted-profile';
 import { deckAgentContext, joinSystemPrompts } from '../deck-context';
 import { withGithubCredentialHelper } from '../github-app';
-import { agentCwdSync } from '../agent-source';
+import { agentCwdSync } from '../agent-dir';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 

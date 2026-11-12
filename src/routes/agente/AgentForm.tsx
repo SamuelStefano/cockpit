@@ -12,6 +12,7 @@ import { useBuilderPanels } from './useBuilderPanels';
 import { ModelSection } from './ModelSection';
 import { Permissions } from './Permissions';
 import { SkillPicker } from './SkillPicker';
+import { RepoSource } from './RepoSource';
 import { permsFromProfile, profileFromPerms, type Perms } from './perms';
 
 const field = 'w-full rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-[13px] text-neutral-200 outline-hidden focus:border-orange-500/40';
@@ -36,11 +37,12 @@ interface AgentFormProps {
   onSaved: (id: string) => void;
   onCancel: () => void;
   onDelete?: (id: string) => void;
+  onSyncSource?: (id: string) => void;
   agentBuild?: AgentBuildResult | null;
   onAgentBuild?: (req: AgentBuildRequest) => boolean;
 }
 
-export function AgentForm({ bot, bots, models, locked, skills = [], onSave, onSaved, onCancel, onDelete, agentBuild = null, onAgentBuild }: AgentFormProps) {
+export function AgentForm({ bot, bots, models, locked, skills = [], onSave, onSaved, onCancel, onDelete, onSyncSource, agentBuild = null, onAgentBuild }: AgentFormProps) {
   const idRef = useRef('');
   const { id, draft, set, patch, error, submit, parents } = useBotForm(bot, bots, onSave, () => onSaved(idRef.current), locked);
   idRef.current = id;
@@ -72,6 +74,11 @@ export function AgentForm({ bot, bots, models, locked, skills = [], onSave, onSa
           <textarea aria-label="Instruções" placeholder="O que esse agente faz, como fala, o que nunca faz…" rows={6}
             value={draft.instructions} onChange={(e) => set('instructions', e.target.value)} className={`${field} resize-none`} />
         </Field>
+        {!locked && (
+          <Field label="Repositório" help="Opcional. O agente roda dentro dessa pasta da main (CLAUDE.md e .claude/skills). Para editar, mude no GitHub.">
+            <RepoSource repo={draft.sourceRepo} path={draft.sourcePath} bot={bot} onRepo={(v) => set('sourceRepo', v)} onPath={(v) => set('sourcePath', v)} onSync={onSyncSource} />
+          </Field>
+        )}
         <Field label="Modelo">
           <ModelSection model={draft.model} fallbackModel={draft.fallbackModel} models={models} noAgents={noAgents}
             onModel={(id) => set('model', id)} onFallback={(id) => set('fallbackModel', id)} />
