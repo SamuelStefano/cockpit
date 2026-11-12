@@ -1,5 +1,5 @@
 import type { WebSocket } from 'ws';
-import type { ClientMsg, ServerMsg } from '../../shared/protocol';
+import type { ClientMsg, ServerMsg, TeamBot } from '../../shared/protocol';
 import type { Role } from '../auth';
 import { listSessions, listArchived } from '../sessions/index';
 import { searchSessions } from '../sessions/search';
@@ -26,6 +26,7 @@ import { fireCron, type CronFire } from './runs';
 import { getTeam, saveBot, deleteBot } from '../team';
 import { getMemories, saveMemory, deleteMemory, validateMemoryInput, readMemoriesSafe } from '../memories';
 import { botTurnFor, botDenyRules } from '../team-prompt';
+import { refreshAgentSource } from '../agent-source';
 import { agentBuilderTurn } from '../engine/triage';
 import { cleanBuildRequest } from './agent-build';
 import { parseTtsText, synthesize, mintSttToken } from '../tts';
@@ -947,6 +948,14 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       const r = await saveBot(coerceBotForRole(v.bot, role));
       if (!r.ok) { send(ws, { t: 'error', message: r.error }); return; }
       broadcast({ t: 'team', bots: r.bots });
+      void refreshAndBroadcast(r.bots.find((b) => b.id === v.bot.id));
+      return;
+    }
+    case 'team-sync-source': {
+      if (role !== 'admin') { send(ws, { t: 'error', message: 'só o admin sincroniza agente de repositório' }); return; }
+      const bot = (await getTeam()).find((b) => b.id === msg.id);
+      if (!bot?.source) { send(ws, { t: 'error', message: 'esse agente não vem de um repositório' }); return; }
+      await refreshAndBroadcast(bot, true);
       return;
     }
     case 'tts': {
@@ -1276,7 +1285,9 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     case 'send': {
       // Skills selecionadas pela UI viram regras de negação das NÃO-selecionadas
       // (Skill(id)). Resolvido aqui (async) e passado adiante; vazio = todas ativas.
-      const bot = botTurnFor(await getTeam(), msg.sessionKey, msg.sessionId, role, await readMemoriesSafe());
+      const team = await getTeam();
+      const bot = botTurnFor(team, msg.sessionKey, msg.sessionId, role, await readMemoriesSafe());
+      if (bot?.profile === 'full') await refreshAndBroadcast(team.find((b) => b.id === bot.botId));
       const disallowedSkills = [...new Set([...(await resolveSkillDeny(msg.skills)), ...(await botDenyRules(bot))])];
       // The human's next message in the bot's thread is the answer, picked or typed.
       if (bot && msg.auto !== true) clearBotQuestion(bot.botId);
@@ -1581,4 +1592,11 @@ async function claudeImportFrame(path?: string): Promise<Extract<ServerMsg, { t:
   const scan = await scanClaudeImport(path);
   const hint = scan.reason === 'unreadable' ? copyHintCommand(scan.source) : undefined;
   return { t: 'claude-import', scan, hint };
+}
+
+// A failed sync is recorded on the bot (the form shows it); the turn still runs on
+// whatever was synced before.
+async function refreshAndBroadcast(bot: TeamBot | undefined, force = false): Promise<void> {
+  const bots = await refreshAgentSource(bot, force).catch(() => null);
+  if (bots) broadcast({ t: 'team', bots });
 }

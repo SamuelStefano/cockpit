@@ -468,11 +468,16 @@ export interface TeamBot {
   // Absent = every skill / today's tool set. Empty skills also means every skill.
   skills?: string[];
   permissions?: BotPermissions;
+  // Agent defined in a GitHub repo folder, synced read-only to the box (server/agent-source.ts).
+  source?: AgentSource;
+  sourceSync?: AgentSourceSync;
   createdAt: number;
   updatedAt: number;
 }
-// What the browser may send: sessionId/createdAt/updatedAt are the server's.
-export type TeamBotInput = Omit<TeamBot, 'sessionId' | 'createdAt' | 'updatedAt'>;
+export interface AgentSource { repo: string; path: string }
+export interface AgentSourceSync { at: number; commit?: string; error?: string }
+// What the browser may send: sessionId/createdAt/updatedAt/sourceSync are the server's.
+export type TeamBotInput = Omit<TeamBot, 'sessionId' | 'createdAt' | 'updatedAt' | 'sourceSync'>;
 // A bot's AskUserQuestion still waiting on the human. Persisted server-side
 // (~/.cockpit/team-pending.json) so a question asked by a routine or a bot↔bot
 // turn, with nobody watching, survives a reload and reaches another device.
@@ -837,6 +842,7 @@ export type ClientMsg =
   | { t: 'team-get' }
   | { t: 'team-save'; bot: TeamBotInput }
   | { t: 'team-delete'; id: string }
+  | { t: 'team-sync-source'; id: string }
   // One chunk (<=600 chars) rendered to mp3 by the box; answered by tts-audio or tts-error with the same reqId.
   | { t: 'tts'; reqId: string; text: string }
   | { t: 'stt-token'; reqId: string }

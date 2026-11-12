@@ -21,6 +21,7 @@ import { projectSlug } from '../config';
 import { restrictedTurn, ensureWorkspace, type RestrictedTurn } from './restricted-profile';
 import { deckAgentContext, joinSystemPrompts } from '../deck-context';
 import { withGithubCredentialHelper } from '../github-app';
+import { agentCwdSync } from '../agent-source';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -173,6 +174,12 @@ export function teamMcpDef(botId: string, hop: number): Record<string, unknown> 
 
 // The one place a bot profile changes a turn: tools, paths, cwd, env, MCPs and mode.
 // undefined = not restricted, the turn follows resolveMode as before.
+// The transcript must still land in the Deck's projects dir when the cwd moves
+// (history, `--resume` and the session list read it from there).
+export function agentDirEnv(home = process.env.HOME ?? ''): Record<string, string> {
+  return { CLAUDE_CONFIG_DIR: join(home, '.claude'), CLAUDE_CODE_PROJECT_DIR_NAME: projectSlug(CONFIG.workdir) };
+}
+
 export function profilePermissions(o: Pick<RunOpts, 'profile' | 'botId' | 'mode'>): RestrictedTurn | { error: string } | undefined {
   if (o.profile !== 'restricted') return undefined;
   return restrictedTurn(o, projectSlug(CONFIG.workdir));
@@ -284,6 +291,8 @@ export function run(opts: RunOpts): RunHandle {
   const fail = (msg: string): RunHandle => { onError(msg); onClose(); return { kill: () => {}, send: () => false }; };
   if (restricted && 'error' in restricted) return fail(restricted.error);
   if (restricted && !ensureWorkspace(restricted.cwd)) return fail('perfil travado: não deu pra criar o workspace do bot');
+  // A repo-backed bot starts in its synced folder, so its CLAUDE.md and skills load.
+  const agentDir = restricted ? undefined : agentCwdSync(botId);
 
   // MCP por sessão: escreve um config TEMPORÁRIO só com os servers escolhidos
   // (definições completas lidas do ~/.claude.json). Sem seleção → sem arquivo →
@@ -319,8 +328,8 @@ export function run(opts: RunOpts): RunHandle {
   // tokens in it, until the next sweep.
   try {
     child = spawn(claudeBin(), built.args, {
-      cwd: restricted?.cwd ?? opts.cwd ?? CONFIG.workdir,
-      env: { ...vaultEnv, ...minimalEnv(), ...restricted?.env },
+      cwd: restricted?.cwd ?? agentDir ?? opts.cwd ?? CONFIG.workdir,
+      env: { ...vaultEnv, ...minimalEnv(), ...restricted?.env, ...(agentDir ? agentDirEnv() : {}) },
       shell: false,
       detached: detachedGroup,
       windowsHide: true,
