@@ -26,7 +26,7 @@ import { fireCron, type CronFire } from './runs';
 import { getTeam, saveBot, deleteBot } from '../team';
 import { getMemories, saveMemory, deleteMemory, validateMemoryInput, readMemoriesSafe } from '../memories';
 import { botTurnFor, botDenyRules } from '../team-prompt';
-import { refreshAgentSource } from '../agent-source';
+import { refreshAgentSource, removeAgentSource } from '../agent-source';
 import { agentBuilderTurn } from '../engine/triage';
 import { cleanBuildRequest } from './agent-build';
 import { parseTtsText, synthesize, mintSttToken } from '../tts';
@@ -990,6 +990,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     case 'team-delete': {
       if (typeof msg.id !== 'string') { send(ws, { t: 'error', message: 'bot inválido' }); return; }
       broadcast({ t: 'team', bots: await deleteBot(msg.id) });
+      await removeAgentSource(msg.id).catch(() => {});
       clearBotQuestion(msg.id);
       const paused = await pauseBotRoutines(msg.id);
       if (paused) broadcast({ t: 'crons', items: paused });

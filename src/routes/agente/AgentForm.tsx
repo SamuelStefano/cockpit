@@ -76,7 +76,7 @@ export function AgentForm({ bot, bots, models, locked, skills = [], onSave, onSa
         </Field>
         {!locked && (
           <Field label="Repositório" help="Opcional. O agente roda dentro dessa pasta da main (CLAUDE.md e .claude/skills). Para editar, mude no GitHub.">
-            <RepoSource repo={draft.sourceRepo} path={draft.sourcePath} bot={bot} onRepo={(v) => set('sourceRepo', v)} onPath={(v) => set('sourcePath', v)} onSync={onSyncSource} />
+            <RepoSource repo={draft.sourceRepo} path={draft.sourcePath} bot={bot} onRepo={(v) => set('sourceRepo', v)} onPath={(v) => set('sourcePath', v)} onSync={onSyncSource} restricted={draft.profile === 'restricted'} />
           </Field>
         )}
         <Field label="Modelo">
