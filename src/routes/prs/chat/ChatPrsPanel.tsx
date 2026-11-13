@@ -38,7 +38,7 @@ export function ChatPrsPanel({ state: s, deps }: ChatPrsPanelProps) {
             <span className="min-w-0 flex-1 truncate text-[12px] text-neutral-500">
               {repos > 0 && `${repos} ${repos === 1 ? 'repositório' : 'repositórios'} · ${s.count} ${s.count === 1 ? 'PR' : 'PRs'}`}
             </span>
-            <Button variant="ghost" size="xs" icon="rotate" loading={s.refreshing} onClick={s.refresh}>Atualizar</Button>
+            <Button variant="ghost" size="xs" square icon="rotate" loading={s.refreshing} onClick={s.refresh} title="Atualizar" aria-label="Atualizar" />
             <Button variant="secondary" size="xs" icon="gitPullRequest" onClick={go(onAllPrs)}>Todas as PRs</Button>
           </div>
           <div className="p-3">{list}</div>

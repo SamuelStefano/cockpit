@@ -10,8 +10,8 @@ const ROW: Record<DiffRow['t'], string> = {
   hunk: 'bg-sky-500/8 text-sky-300/80',
 };
 const GUTTER: Record<DiffRow['t'], string> = {
-  add: 'bg-emerald-500/15 text-emerald-300/70',
-  del: 'bg-red-500/15 text-red-300/70',
+  add: 'text-emerald-300/60',
+  del: 'text-red-300/60',
   ctx: 'text-neutral-600',
   hunk: 'bg-sky-500/8 text-sky-300/50',
 };

@@ -6,7 +6,7 @@ import { promisify } from 'node:util';
 import { CONFIG } from '../config';
 import { mergeBlocker, mergeConfirmText, needsMergeConfirm, PR_URL_RE, type PrDetail, type PrSummary, type PrsSnapshot } from '../../shared/prs';
 import { DETAIL_QUERY, detailFromResource, PAGE_SIZE, prFromNode, SEARCH_QUERY, searchPage, type SearchMode } from './prs-parse';
-import { indexPrSessions } from './pr-sessions';
+import { indexPrSessions, peekPrSessions } from './pr-sessions';
 
 const run = promisify(execFile);
 
@@ -162,7 +162,7 @@ export function markPrMerged(url: string, now = Date.now()): PrsSnapshot | null 
 export async function getPrDetail(url: string): Promise<{ detail: PrDetail | null; error?: string }> {
   if (!PR_URL_RE.test(url)) return { detail: null, error: 'URL de PR inválida' };
   try {
-    const sessions = await indexPrSessions(CONFIG.projectsDir);
+    const sessions = peekPrSessions(CONFIG.projectsDir);
     const detail = detailFromResource(await graphql(DETAIL_QUERY, { url }), sessions);
     return detail ? { detail } : { detail: null, error: 'PR não encontrada' };
   } catch (e) {

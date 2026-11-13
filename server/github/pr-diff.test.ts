@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('./pr-sessions', () => ({ indexPrSessions: vi.fn(async () => new Map<string, string>()) }));
+vi.mock('./pr-sessions', () => ({ indexPrSessions: vi.fn(async () => new Map<string, string>()), peekPrSessions: () => new Map<string, string>() }));
 
 import { clearPrDiffCache, getPrDiff } from './pr-diff';
 import { setGhForTest } from './prs';
