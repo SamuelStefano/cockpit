@@ -77,6 +77,12 @@ export function gitError(e: unknown): string {
   return 'não deu pra sincronizar o repositório';
 }
 
+// A deleted agent leaves no copy of a (possibly private) repo behind on the box.
+export async function removeAgentSource(botId: string): Promise<void> {
+  const clone = sourceCloneDir(botId);
+  if (clone) await rm(clone, { recursive: true, force: true });
+}
+
 export function syncIsFresh(bot: Pick<TeamBot, 'sourceSync'>, now = Date.now()): boolean {
   const s = bot.sourceSync;
   return !!s && !s.error && now - s.at < SYNC_TTL_MS;

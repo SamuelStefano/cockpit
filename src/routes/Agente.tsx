@@ -55,11 +55,14 @@ export function Agente({ agentId, tab, views, api, connected, isAdmin, isMobile,
       <div className="mx-auto w-full max-w-240 px-4 pb-8 pt-6 max-lg:pt-2 sm:px-8">{children}</div>
     </div>
   );
+  // The draft is built once, on mount: before the team list and the role arrive it
+  // would take "first agent" (primary) and the non-admin lock (restricted profile).
   if (agentId === 'novo') {
+    if (!api.teamLoaded) return shell(<SkeletonCards />);
     return shell(
       <div className="max-w-95">
         <h1 className="pb-5 text-[22px] max-lg:hidden font-semibold tracking-[-0.02em] text-neutral-100">Novo agente</h1>
-        <AgentForm bot={null} bots={api.bots} models={api.models} skills={api.skills} locked={!isAdmin} onSave={api.onTeamSave}
+        <AgentForm key={String(isAdmin)} bot={null} bots={api.bots} models={api.models} skills={api.skills} locked={!isAdmin} onSave={api.onTeamSave}
           agentBuild={api.agentBuild} onAgentBuild={api.onAgentBuild} onSaved={(id) => onTab(id, 'perfil')} onCancel={onList} />
       </div>,
     );
@@ -83,7 +86,7 @@ export function Agente({ agentId, tab, views, api, connected, isAdmin, isMobile,
       <Tabs items={tabs} active={tab} onChange={(t) => onTab(bot.id, t)} className="mb-6 max-lg:mb-3" />
       {tab === 'perfil' && (
         <div className="max-w-95">
-          <AgentForm key={`${bot.id}:${bot.updatedAt}:${formKey}`} bot={bot} bots={api.bots} models={api.models} skills={api.skills} locked={!isAdmin}
+          <AgentForm key={`${bot.id}:${bot.updatedAt}:${formKey}:${isAdmin}`} bot={bot} bots={api.bots} models={api.models} skills={api.skills} locked={!isAdmin}
             agentBuild={api.agentBuild} onAgentBuild={api.onAgentBuild} onSave={api.onTeamSave} onSaved={() => toast('Agente salvo')} onCancel={() => setFormKey((k) => k + 1)}
             onDelete={(id) => { api.onTeamDelete(id); onList(); }} onSyncSource={api.onTeamSyncSource} />
         </div>

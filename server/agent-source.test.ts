@@ -1,8 +1,8 @@
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { gitError, syncAgentSource, syncIsFresh, SYNC_TTL_MS } from './agent-source';
+import { gitError, removeAgentSource, syncAgentSource, syncIsFresh, SYNC_TTL_MS } from './agent-source';
 import { sourceCloneDir } from './agent-dir';
 
 let root: string;
@@ -43,5 +43,15 @@ describe('syncIsFresh', () => {
     expect(syncIsFresh({ sourceSync: { at: 1000 } }, 1000 + SYNC_TTL_MS)).toBe(false);
     expect(syncIsFresh({ sourceSync: { at: 1000, error: 'x' } }, 1001)).toBe(false);
     expect(syncIsFresh({}, 0)).toBe(false);
+  });
+});
+
+describe('removeAgentSource', () => {
+  it('deletes the clone of a removed agent and ignores an unsafe id', async () => {
+    const clone = sourceCloneDir('bot1')!;
+    mkdirSync(join(clone, 'maria'), { recursive: true });
+    await removeAgentSource('bot1');
+    expect(existsSync(clone)).toBe(false);
+    await expect(removeAgentSource('../x')).resolves.toBeUndefined();
   });
 });
