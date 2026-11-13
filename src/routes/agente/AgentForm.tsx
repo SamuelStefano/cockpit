@@ -99,13 +99,13 @@ export function AgentForm({ bot, bots, models, locked, skills = [], onSave, onSa
           </select>
         </Field>
         {!locked && <Switch checked={draft.primary} onChange={() => set('primary', !draft.primary)} icon="star" label="Agente principal" hint="O primeiro da equipe, que fala com você por padrão" />}
-        <div className="sticky bottom-0 z-10 -mx-1 flex items-center gap-2 bg-neutral-950 px-1 py-3 max-sm:-mx-4 max-lg:border-t max-lg:border-neutral-800 max-sm:px-4 max-lg:pb-[max(12px,env(safe-area-inset-bottom))]">
+        <div className="sticky bottom-0 z-10 -mx-1 flex items-center gap-2 max-sm:flex-wrap max-sm:justify-end bg-neutral-950 px-1 py-3 max-sm:-mx-4 max-lg:border-t max-lg:border-neutral-800 max-sm:px-4 max-lg:pb-[max(12px,env(safe-area-inset-bottom))]">
           {onDelete && bot && (
             <Button type="button" variant="danger" size="md" icon="trash" onClick={() => del.fire(() => onDelete(bot.id))}>
               {del.armed ? 'Confirmar remoção?' : 'Remover'}
             </Button>
           )}
-          <span role="alert" className="min-w-0 flex-1 truncate text-[13px] text-red-400">{error}</span>
+          <span role="alert" className="min-w-0 flex-1 truncate max-sm:basis-full max-sm:empty:hidden text-[13px] text-red-400">{error}</span>
           <Button type="button" variant="ghost" size="md" onClick={onCancel}>Descartar</Button>
           <Button type="submit" variant="primary" size="md" icon={bot ? 'check' : 'plus'} className={tokens.focusRing}>{bot ? 'Salvar' : 'Criar'}</Button>
         </div>
