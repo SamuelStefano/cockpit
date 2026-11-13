@@ -10,6 +10,14 @@ const base: DeckContextInput = {
 };
 
 describe('buildDeckContext', () => {
+  it('a repo agent never gets pointers to the operator\'s instructions, memory or Kanban', () => {
+    const t = buildDeckContext({ ...base, deckctl: true, deckGuide: true, repoAgent: true });
+    expect(t).not.toContain('.claude/CLAUDE.md');
+    expect(t).not.toContain('memory');
+    expect(t).not.toContain('deckctl task');
+    expect(buildDeckContext({ ...base, deckctl: true })).toContain('.claude/CLAUDE.md');
+  });
+
   it('names the box, the host and the context files of this box', () => {
     const t = buildDeckContext(base);
     expect(t).toContain('Box: pc-samuel (hostname DESKTOP-1)');
