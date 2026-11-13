@@ -38,7 +38,7 @@ export function usePontosPage({ connected, now, snapshot, drafts, onDraftsGet, o
   const totals = recomputed?.totals ?? snapshot?.totals;
   const m = useMonthSummary({ snapshot, totals, now });
   const ws = useWorkspace(drafts, projects);
-  const d = useDrafts({ connected, onDraftsGet, onDraftOp });
+  const d = useDrafts({ connected, drafts, onDraftsGet, onDraftOp });
   const newEpic = useToggle(false);
   return {
     projects, totals,
