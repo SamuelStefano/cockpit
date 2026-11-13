@@ -14,7 +14,7 @@ describe('buildDeckContext', () => {
     const t = buildDeckContext({ ...base, deckctl: true, deckGuide: true, repoAgent: true });
     expect(t).not.toContain('.claude/CLAUDE.md');
     expect(t).not.toContain('memory');
-    expect(t).not.toContain('Kanban');
+    expect(t).not.toContain('deckctl task');
     expect(buildDeckContext({ ...base, deckctl: true })).toContain('.claude/CLAUDE.md');
   });
 
