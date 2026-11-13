@@ -41,7 +41,9 @@ export function TaskEditModal() {
   return (
     <Modal
       open
-      onClose={close}
+      // Not closable mid-save: reopening the same task would let Save fire a
+      // second change request while the first is still in flight.
+      onClose={saving ? () => {} : close}
       title={t.name || 'Sem título'}
       icon="pencil"
       footer={

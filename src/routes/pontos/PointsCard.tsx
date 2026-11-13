@@ -23,7 +23,7 @@ export function PointsCard({ entry, now, glow, onCorrect, onNote, onDelete }: Pr
           <input
             autoFocus value={c.ptsDraft} onChange={(e) => c.setPtsDraft(e.target.value)} onBlur={c.savePts}
             onKeyDown={(e) => { if (e.key === 'Enter') c.savePts(); if (e.key === 'Escape') c.cancelPts(); }}
-            inputMode="numeric"
+            inputMode="decimal"
             className="w-16 rounded-md border border-orange-500/40 bg-neutral-950 px-1.5 py-0.5 font-mono text-xl font-bold tabular-nums tracking-tight text-neutral-100 outline-hidden"
           />
         ) : (
