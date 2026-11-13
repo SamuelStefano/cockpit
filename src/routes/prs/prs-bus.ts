@@ -1,22 +1,27 @@
 import type { ClientMsg, ServerMsg } from '../../../shared/protocol';
-import type { PrDetail, PrsSnapshot } from '../../../shared/prs';
+import type { PrDetail, PrDiff, PrsSnapshot, SessionPrs } from '../../../shared/prs';
 
 // Bridge between the /prs page and the socket owned by useCockpit — same shape as
 // bench-bus, so the page stays out of useCockpit's 2k lines. State lives here and
 // survives navigating away, so coming back to /prs paints the last snapshot at once.
 export interface DetailEntry { detail: PrDetail | null; loading: boolean; error?: string }
+export interface DiffEntry { diff: PrDiff | null; loading: boolean; error?: string }
+export interface SessionEntry { session: SessionPrs | null; loading: boolean }
 export interface MergeResult { ok: boolean; message?: string }
 
 export interface PrsState {
   snapshot: PrsSnapshot | null;
   loading: boolean;
   details: Record<string, DetailEntry>;
+  diffs: Record<string, DiffEntry>;
+  sessions: Record<string, SessionEntry>;
 }
 
 type Pending = { done: (r: MergeResult) => void; timer: ReturnType<typeof setTimeout> };
 
 let sender: ((m: ClientMsg) => boolean) | null = null;
-let state: PrsState = { snapshot: null, loading: false, details: {} };
+const EMPTY: PrsState = { snapshot: null, loading: false, details: {}, diffs: {}, sessions: {} };
+let state: PrsState = EMPTY;
 const listeners = new Set<() => void>();
 const pending = new Map<string, Pending>();
 let seq = 0;
@@ -52,6 +57,18 @@ export function requestPrDetail(url: string): boolean {
   return true;
 }
 
+export function requestPrDiff(url: string): boolean {
+  if (!sender?.({ t: 'prs-diff-get', url })) return false;
+  set({ diffs: { ...state.diffs, [url]: { diff: state.diffs[url]?.diff ?? null, loading: true } } });
+  return true;
+}
+
+export function requestSessionPrs(sessionId: string, hydrate: boolean): boolean {
+  if (!sender?.({ t: 'prs-session-get', sessionId, hydrate })) return false;
+  set({ sessions: { ...state.sessions, [sessionId]: { session: state.sessions[sessionId]?.session ?? null, loading: true } } });
+  return true;
+}
+
 export function mergePr(url: string, confirm?: string): Promise<MergeResult> {
   if (!sender) return Promise.resolve({ ok: false, message: 'sem conexão com o servidor' });
   const reqId = `m${Date.now().toString(36)}${seq++}`;
@@ -74,7 +91,18 @@ export function failAllPrsPending(reason = 'conexão caiu durante o merge — co
 }
 
 export function prsDispatch(msg: ServerMsg): void {
-  if (msg.t === 'prs') { set({ snapshot: msg.snapshot, loading: false }); return; }
+  if (msg.t === 'prs') { set({ snapshot: msg.snapshot, loading: msg.pending === true }); return; }
+  if (msg.t === 'prs-diff') {
+    set({ diffs: { ...state.diffs, [msg.url]: { diff: msg.diff ?? state.diffs[msg.url]?.diff ?? null, loading: false, error: msg.error } } });
+    return;
+  }
+  if (msg.t === 'prs-session') {
+    const prev = state.sessions[msg.session.sessionId]?.session;
+    // A count-only answer must not wipe the hydrated list the panel is showing.
+    const session = msg.session.prs || !prev?.prs ? msg.session : { ...msg.session, prs: prev.prs };
+    set({ sessions: { ...state.sessions, [session.sessionId]: { session, loading: false } } });
+    return;
+  }
   if (msg.t === 'prs-detail') {
     set({ details: { ...state.details, [msg.url]: { detail: msg.detail ?? state.details[msg.url]?.detail ?? null, loading: false, error: msg.error } } });
     return;
@@ -90,5 +118,5 @@ export function prsDispatch(msg: ServerMsg): void {
 
 export function resetPrsBus(): void {
   failAllPrsPending();
-  state = { snapshot: null, loading: false, details: {} };
+  state = EMPTY;
 }

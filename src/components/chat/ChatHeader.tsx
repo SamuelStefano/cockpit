@@ -13,6 +13,7 @@ import type { TurnStats } from '../../../shared/protocol';
 import type { ChatAgentHeader } from './chat-panel-props';
 import { UsageDock, readUsage, type UsageDockProps } from '../chrome/sidebar/UsageDock';
 import { inShell } from '../../lib/shell';
+import { ChatPrsButton } from '../../routes/prs/chat/ChatPrsButton';
 
 export type ChatHeaderAgent = ChatAgentHeader & { name: string };
 
@@ -64,6 +65,8 @@ export function ChatHeader({ session, messages, isEmpty, contextTokens, contextM
   const profile = agent?.onProfile ? { open: !!agent.profileOpen, toggle: agent.onProfile } : null;
   const canRename = saved && !agent && !!onRename;
   const canDelete = saved && !agent && !!onDelete;
+  const prMarkers = messages.reduce((n, m) => n + (m.role === 'compact' && m.kind === 'pr' ? 1 : 0), 0);
+  const prs = (compact: boolean) => saved && <ChatPrsButton sessionId={session.id} markers={prMarkers} compact={compact} />;
   const ctx = contextMeter(contextTokens, contextModel);
   const phoneMenu = !!onMenu;
   const reading = phoneMenu && usage && !inShell() ? readUsage(usage) : null;
@@ -130,6 +133,7 @@ export function ChatHeader({ session, messages, isEmpty, contextTokens, contextM
         )}
         {agent?.actions}
         {teamSlot}
+        {prs(true)}
         {!agent && <IconButton icon="plus" label="Nova conversa" side="bottom" onClick={onNew} className="pointer-coarse:h-11 pointer-coarse:w-11" />}
         {!fresh && moreMenu}
         {confirm}
@@ -150,6 +154,7 @@ export function ChatHeader({ session, messages, isEmpty, contextTokens, contextM
       <div className="ml-auto flex shrink-0 items-center gap-2 pointer-coarse:gap-3">
         {agent?.actions}
         {teamSlot}
+        {prs(false)}
         <ContextRing tokens={contextTokens} model={contextModel} onNew={agent ? undefined : onNew} />
         {usage && !inShell() && <UsageDock {...usage} />}
         {terminalButton}

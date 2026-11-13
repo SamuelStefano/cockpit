@@ -3,7 +3,7 @@ import { Markdown } from '../../components/primitives/Markdown';
 
 export function PrSummaryTab({ pr, body }: { pr: PrSummary; body?: string }) {
   return (
-    <div className="space-y-5">
+    <div className="max-w-3xl space-y-5">
       {pr.riskReasons.length > 0 && (
         <section>
           <h3 className="mb-1.5 text-[11px] font-medium uppercase tracking-[0.06em] text-neutral-500">Por que esse risco</h3>

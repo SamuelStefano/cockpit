@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 const dir = mkdtempSync(join(tmpdir(), 'session-prs-'));
 const file = join(dir, 'sess.jsonl');
 
-vi.mock('./pr-sessions', () => ({ indexPrSessions: vi.fn(async () => new Map<string, string>()) }));
+vi.mock('./pr-sessions', () => ({ indexPrSessions: vi.fn(async () => new Map<string, string>()), peekPrSessions: () => new Map<string, string>() }));
 vi.mock('../sessions/records', () => ({ sessionPath: (id: string) => (id === 'bad' ? null : id === 'missing' ? join(dir, 'nope.jsonl') : file) }));
 
 import { setGhForTest } from './prs';

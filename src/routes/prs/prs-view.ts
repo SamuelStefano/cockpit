@@ -1,4 +1,4 @@
-import type { PrSummary } from '../../../shared/prs';
+import type { PrDetail, PrSummary } from '../../../shared/prs';
 
 export type BadgeTone = 'neutral' | 'green' | 'red' | 'yellow';
 export interface PrBadge { label: string; tone: BadgeTone }
@@ -87,4 +87,35 @@ export function relativeTime(iso: string | number, now: number = Date.now()): st
 
 export function mergedCountLabel(count: number, days: number, truncated: boolean): string {
   return `${count}${truncated ? '+' : ''} mergeadas em ${days} dias`;
+}
+
+export type DetailTab = 'code' | 'summary' | 'checks' | 'conversation';
+
+// Counts in the labels: whether a tab is worth opening is read without opening it.
+export function detailTabs(pr: Pick<PrSummary, 'changedFiles'>, detail: Pick<PrDetail, 'checkRuns' | 'comments' | 'threads'> | null): { id: DetailTab; label: string }[] {
+  const n = (label: string, count: number | undefined) => (count ? `${label} ${count}` : label);
+  const failing = detail?.checkRuns.filter((c) => c.state === 'failure').length ?? 0;
+  return [
+    { id: 'code', label: n('Código', pr.changedFiles) },
+    { id: 'summary', label: 'Resumo' },
+    { id: 'checks', label: failing ? `Checks ${failing} ✕` : n('Checks', detail?.checkRuns.length) },
+    { id: 'conversation', label: n('Conversa', detail ? detail.comments.length + detail.threads.length : undefined) },
+  ];
+}
+
+export interface RepoGroup { repo: string; open: number; merged: number; prs: PrSummary[] }
+
+// A chat's PRs by repository, the repo with the most open work first.
+export function groupByRepo(prs: PrSummary[]): RepoGroup[] {
+  const groups = new Map<string, RepoGroup>();
+  for (const pr of prs) {
+    const g = groups.get(pr.repo) ?? { repo: pr.repo, open: 0, merged: 0, prs: [] };
+    g.prs.push(pr);
+    if (pr.state === 'open') g.open++;
+    else if (pr.state === 'merged') g.merged++;
+    groups.set(pr.repo, g);
+  }
+  const rank = (p: PrSummary) => (p.state === 'open' ? 0 : 1);
+  for (const g of groups.values()) g.prs.sort((a, b) => rank(a) - rank(b) || b.number - a.number);
+  return [...groups.values()].sort((a, b) => b.open - a.open || b.prs.length - a.prs.length || a.repo.localeCompare(b.repo));
 }

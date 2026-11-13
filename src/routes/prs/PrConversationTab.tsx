@@ -1,12 +1,20 @@
 import type { PrDetail } from '../../../shared/prs';
 import { EmptyState } from '../../components/primitives/EmptyState';
 import { Markdown } from '../../components/primitives/Markdown';
+import { PrThreadNote } from './PrThreadNote';
 import { relativeTime } from './prs-view';
 
 export function PrConversationTab({ detail }: { detail: PrDetail }) {
-  if (!detail.comments.length) return <EmptyState size="xs" title="Sem comentários" />;
+  const loose = detail.threads.filter((t) => !t.resolved);
+  if (!detail.comments.length && !detail.threads.length) return <EmptyState size="xs" title="Sem comentários" />;
   return (
-    <ul className="space-y-3">
+    <ul className="max-w-3xl space-y-3">
+      {loose.map((t, i) => (
+        <li key={`t${i}`} className="space-y-1.5">
+          <p className="truncate font-mono text-[12px] text-neutral-500">{t.path}</p>
+          <PrThreadNote thread={t} />
+        </li>
+      ))}
       {detail.comments.map((c, i) => (
         <li key={`${c.createdAt}-${i}`} className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-3">
           <div className="mb-1.5 flex flex-wrap items-center gap-x-2 text-[12px] text-neutral-500">

@@ -4,7 +4,7 @@ import { promisify } from 'node:util';
 import { CONFIG } from '../config';
 import { PR_URL_RE, type PrSummary, type SessionPrs } from '../../shared/prs';
 import { sessionPath } from '../sessions/records';
-import { indexPrSessions } from './pr-sessions';
+import { peekPrSessions } from './pr-sessions';
 import { graphql, ghError } from './prs';
 import { LIST_FIELDS, prFromNode } from './prs-parse';
 
@@ -62,7 +62,7 @@ async function readLists(sessionId: string, path: string): Promise<{ createdUrls
 }
 
 async function hydrate(urls: string[]): Promise<PrSummary[]> {
-  const sessions = await indexPrSessions(CONFIG.projectsDir);
+  const sessions = peekPrSessions(CONFIG.projectsDir);
   const byUrl = new Map<string, PrSummary>();
   for (let i = 0; i < urls.length; i += CHUNK) {
     const chunk = urls.slice(i, i + CHUNK);
