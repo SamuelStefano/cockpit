@@ -8,6 +8,7 @@ import type { DetailEntry } from './prs-bus';
 import { PrActions } from './PrActions';
 import { PrBadges } from './PrBadges';
 import { PrChecksTab } from './PrChecksTab';
+import { PrCommitsTab } from './PrCommitsTab';
 import { PrConversationTab } from './PrConversationTab';
 import { PrDiffTab } from './PrDiffTab';
 import { PrSummaryTab } from './PrSummaryTab';
@@ -53,7 +54,8 @@ export function PrDetailPanel({ pr, entry, canMerge, onRetry, hideSessionLink = 
       )}
       {tab === 'code' && <PrDiffTab pr={pr} detail={detail} />}
       {tab === 'summary' && <PrSummaryTab pr={pr} body={detail?.body} />}
-      {(tab === 'checks' || tab === 'conversation') && loading && <Skeleton className="h-24 w-full" />}
+      {tab !== 'code' && tab !== 'summary' && loading && <Skeleton className="h-24 w-full" />}
+      {tab === 'commits' && detail && <PrCommitsTab pr={pr} detail={detail} />}
       {tab === 'checks' && detail && <PrChecksTab detail={detail} />}
       {tab === 'conversation' && detail && <PrConversationTab detail={detail} />}
     </div>

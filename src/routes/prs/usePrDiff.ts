@@ -38,7 +38,7 @@ export function usePrDiff(url: string) {
   const retry = useCallback(() => { requestPrDiff(url); }, [url]);
 
   return {
-    diff, files, loading: !diff && !entry?.error, error: entry?.error, total: parsed.length,
+    diff, files, loading: !diff && !entry?.error && entry?.loading !== false, error: entry?.error, total: parsed.length,
     viewedCount: parsed.filter((p) => isViewed(p.file)).length, anyOpen: files.some((f) => f.open),
     query, setQuery, wrap, setWrap, toggleOpen, setAll, toggleViewed, retry,
   };

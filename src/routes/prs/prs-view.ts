@@ -89,15 +89,16 @@ export function mergedCountLabel(count: number, days: number, truncated: boolean
   return `${count}${truncated ? '+' : ''} mergeadas em ${days} dias`;
 }
 
-export type DetailTab = 'code' | 'summary' | 'checks' | 'conversation';
+export type DetailTab = 'code' | 'summary' | 'commits' | 'checks' | 'conversation';
 
 // Counts in the labels: whether a tab is worth opening is read without opening it.
-export function detailTabs(pr: Pick<PrSummary, 'changedFiles'>, detail: Pick<PrDetail, 'checkRuns' | 'comments' | 'threads'> | null): { id: DetailTab; label: string }[] {
+export function detailTabs(pr: Pick<PrSummary, 'changedFiles'>, detail: Pick<PrDetail, 'checkRuns' | 'comments' | 'threads' | 'commitCount'> | null): { id: DetailTab; label: string }[] {
   const n = (label: string, count: number | undefined) => (count ? `${label} ${count}` : label);
   const failing = detail?.checkRuns.filter((c) => c.state === 'failure').length ?? 0;
   return [
     { id: 'code', label: n('Código', pr.changedFiles) },
     { id: 'summary', label: 'Resumo' },
+    { id: 'commits', label: n('Commits', detail?.commitCount) },
     { id: 'checks', label: failing ? `Checks ${failing} ✕` : n('Checks', detail?.checkRuns.length) },
     { id: 'conversation', label: n('Conversa', detail ? detail.comments.length + detail.threads.length : undefined) },
   ];

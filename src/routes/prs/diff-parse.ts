@@ -81,3 +81,80 @@ export function threadsForFile(threads: PrReviewThread[], path: string, rows: Di
 
 // Stable DOM id for jump-to-file; paths carry characters an id selector chokes on.
 export const fileAnchor = (path: string): string => `prf-${path.replace(/[^\w-]/g, '_')}`;
+
+export type CharRange = [start: number, end: number];
+
+const PAIR_RUN_MAX = 40;
+// Past this share of the line, "what changed" is the whole line: marking it only adds noise.
+const CHANGED_SHARE_MAX = 0.7;
+
+function changedRanges(a: string, b: string): [CharRange, CharRange] | null {
+  let pre = 0;
+  const max = Math.min(a.length, b.length);
+  while (pre < max && a[pre] === b[pre]) pre++;
+  let suf = 0;
+  while (suf < max - pre && a[a.length - 1 - suf] === b[b.length - 1 - suf]) suf++;
+  const da = a.length - pre - suf;
+  const db = b.length - pre - suf;
+  if (!pre && !suf) return null;
+  if (Math.max(da, db) > Math.max(a.length, b.length) * CHANGED_SHARE_MAX) return null;
+  return [[pre, pre + da], [pre, pre + db]];
+}
+
+// A run of N removed lines followed by N added ones is N edited lines: the part of
+// each that differs gets a stronger mark, so a one-word edit reads at a glance.
+export function markChanges(rows: DiffRow[]): Map<number, CharRange> {
+  const out = new Map<number, CharRange>();
+  let i = 0;
+  while (i < rows.length) {
+    if (rows[i].t !== 'del') { i++; continue; }
+    let d = i;
+    while (d < rows.length && rows[d].t === 'del') d++;
+    let a = d;
+    while (a < rows.length && rows[a].t === 'add') a++;
+    const dels = d - i;
+    if (dels === a - d && dels <= PAIR_RUN_MAX) {
+      for (let k = 0; k < dels; k++) {
+        const r = changedRanges(rows[i + k].text, rows[d + k].text);
+        if (!r) continue;
+        if (r[0][1] > r[0][0]) out.set(i + k, r[0]);
+        if (r[1][1] > r[1][0]) out.set(d + k, r[1]);
+      }
+    }
+    i = a;
+  }
+  return out;
+}
+
+export interface Piece { content: string; color?: string; italic?: boolean; mark: boolean }
+
+// Cuts highlighter tokens at the range edges so the mark can wrap exact characters.
+export function splitAtRange(tokens: { content: string; color?: string; fontStyle?: number }[], range: CharRange | undefined): Piece[] {
+  const out: Piece[] = [];
+  let pos = 0;
+  for (const t of tokens) {
+    const base = { color: t.color, italic: !!(t.fontStyle && t.fontStyle & 1) };
+    const end = pos + t.content.length;
+    if (!range || end <= range[0] || pos >= range[1]) out.push({ ...base, content: t.content, mark: false });
+    else {
+      const a = Math.max(range[0] - pos, 0);
+      const b = Math.min(range[1] - pos, t.content.length);
+      if (a > 0) out.push({ ...base, content: t.content.slice(0, a), mark: false });
+      out.push({ ...base, content: t.content.slice(a, b), mark: true });
+      if (b < t.content.length) out.push({ ...base, content: t.content.slice(b), mark: false });
+    }
+    pos = end;
+  }
+  return out;
+}
+
+// GitHub anchors a file inside "Files changed" by the SHA-256 of its path.
+export async function githubFileUrl(prUrl: string, path: string): Promise<string> {
+  try {
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(path));
+    const hex = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+    return `${prUrl}/files#diff-${hex}`;
+  } catch {
+    return `${prUrl}/files`;
+  }
+}

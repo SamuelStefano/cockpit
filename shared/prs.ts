@@ -44,6 +44,8 @@ export interface PrThreadComment { author: string; body: string; createdAt: stri
 // knows it (`line`), file-level otherwise.
 export interface PrReviewThread { path: string; line?: number; resolved: boolean; outdated: boolean; comments: PrThreadComment[] }
 
+export interface PrCommit { sha: string; title: string; author: string; committedAt: string; checks: PrChecks }
+
 export interface PrDetail extends PrSummary {
   body: string;
   files: PrFile[];
@@ -51,6 +53,8 @@ export interface PrDetail extends PrSummary {
   checkRuns: PrCheckRun[];
   comments: PrComment[];
   threads: PrReviewThread[];
+  commits: PrCommit[];
+  commitCount: number;
 }
 
 // The code of a PR. `patch` is GitHub's unified hunks for one file (no file

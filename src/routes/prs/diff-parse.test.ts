@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { PrDiffFile, PrReviewThread } from '../../../shared/prs';
-import { filterFiles, isGenerated, langOf, parsePatch, splitPath, startsCollapsed, threadsForFile } from './diff-parse';
+import { filterFiles, isGenerated, langOf, markChanges, parsePatch, splitAtRange, splitPath, startsCollapsed, threadsForFile } from './diff-parse';
 
 const PATCH = [
   '@@ -10,4 +10,5 @@ export function run() {',
@@ -85,5 +85,27 @@ describe('threadsForFile', () => {
     const out = threadsForFile([thread({ line: 11 }), thread({ line: 999 }), thread({}), thread({ path: 'other.ts', line: 11 })], 'src/a.ts', rows);
     expect([...out.byLine.keys()]).toEqual([11]);
     expect(out.loose).toHaveLength(2);
+  });
+});
+
+describe('markChanges / splitAtRange', () => {
+  it('marks only the differing middle of a paired edit', () => {
+    const rows = parsePatch('@@ -1,2 +1,2 @@\n-const b = 2;\n-keep me\n+const b = 30;\n+keep me');
+    const marks = markChanges(rows);
+    expect(marks.get(1)).toEqual([10, 11]);
+    expect(marks.get(3)).toEqual([10, 12]);
+    expect(marks.has(2)).toBe(false);
+    expect(marks.has(4)).toBe(false);
+  });
+
+  it('leaves unpaired runs and rewritten lines alone', () => {
+    expect(markChanges(parsePatch('@@ -1,2 +1 @@\n-a = 1\n-b = 2\n+a = 3')).size).toBe(0);
+    expect(markChanges(parsePatch('@@ -1 +1 @@\n-x completely different\n-\n+x other words entirely here\n+')).size).toBe(0);
+  });
+
+  it('cuts tokens at the range edges', () => {
+    const pieces = splitAtRange([{ content: 'const ', color: 'a' }, { content: 'value', color: 'b' }], [4, 8]);
+    expect(pieces.map((p) => [p.content, p.mark])).toEqual([['cons', false], ['t ', true], ['va', true], ['lue', false]]);
+    expect(splitAtRange([{ content: 'abc' }], undefined)).toEqual([{ content: 'abc', color: undefined, italic: false, mark: false }]);
   });
 });

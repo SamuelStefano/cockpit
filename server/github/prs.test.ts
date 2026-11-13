@@ -167,4 +167,15 @@ describe('markPrMerged', () => {
     expect(s.mine.map((p) => p.number)).toEqual([2]);
     expect(s.merged[0]).toMatchObject({ number: 1, state: 'merged', mergedAt: new Date(5000).toISOString() });
   });
+
+  it('a refresh that still lists the PR as open does not bring it back', async () => {
+    const pr = (n: number) => ({ url: `https://github.com/a/b/pull/${n}`, number: n, state: 'OPEN', repository: { nameWithOwner: 'a/b' } });
+    setGhForTest(async (args) => JSON.stringify({ data: { search: { pageInfo: {}, nodes: args.join(' ').includes('is:open') ? [pr(1), pr(2)] : [] } } }));
+    await getPrsSnapshot(true);
+    markPrMerged('https://github.com/a/b/pull/1');
+    const s = await getPrsSnapshot(true);
+    expect(s.mine.map((p) => p.number)).toEqual([2]);
+    expect(s.review.map((p) => p.number)).toEqual([2]);
+    expect(s.merged.map((p) => p.number)).toEqual([1]);
+  });
 });

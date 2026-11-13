@@ -29,7 +29,7 @@ const realGh: Gh = async (args) => {
 
 let gh: Gh = realGh;
 export const runGh: Gh = (args) => gh(args);
-export function setGhForTest(fn: Gh | null): void { gh = fn ?? realGh; cache = null; inflight = null; login = null; diskLoaded = false; }
+export function setGhForTest(fn: Gh | null): void { justMerged.clear(); gh = fn ?? realGh; cache = null; inflight = null; login = null; diskLoaded = false; }
 
 export async function graphql(query: string, vars: Record<string, string | number>): Promise<unknown> {
   const args = ['api', 'graphql', '-f', `query=${query}`];
@@ -117,9 +117,23 @@ function saveDisk(s: PrsSnapshot): void {
   } catch { /* a cache that cannot be written only costs a cold start */ }
 }
 
+// GitHub's search index trails a merge by up to a minute, and a refresh may already
+// have been in flight when it happened: either way the PR would pop back as open.
+const JUST_MERGED_MS = 3 * 60_000;
+const justMerged = new Map<string, { at: number; pr: PrSummary | null }>();
+
+function withoutJustMerged(s: PrsSnapshot, now = Date.now()): PrsSnapshot {
+  for (const [url, m] of justMerged) if (now - m.at > JUST_MERGED_MS) justMerged.delete(url);
+  if (!justMerged.size) return s;
+  const open = (p: PrSummary) => !justMerged.has(p.url);
+  const missing = [...justMerged.values()].map((m) => m.pr).filter((p): p is PrSummary => !!p && !s.merged.some((x) => x.url === p.url));
+  return { ...s, mine: s.mine.filter(open), review: s.review.filter(open), merged: [...missing, ...s.merged] };
+}
+
 function refresh(): Promise<PrsSnapshot> {
   if (inflight) return inflight;
-  inflight = buildSnapshot().then((s) => {
+  inflight = buildSnapshot().then((built) => {
+    const s = built.error ? built : withoutJustMerged(built);
     // A failed refresh keeps the last good lists on screen, with the error on top.
     cache = s.error && cache && !cache.error ? { ...cache, error: s.error } : s;
     if (!s.error) saveDisk(s);
@@ -152,9 +166,11 @@ export function peekPrsSnapshot(): PrsSnapshot | null {
 // Right after a merge the list should already show it: the real refresh takes ~20 s.
 export function markPrMerged(url: string, now = Date.now()): PrsSnapshot | null {
   loadDisk();
+  const found = cache ? [...cache.mine, ...cache.review].find((p) => p.url === url) : undefined;
+  const asMerged = found ? { ...found, state: 'merged' as const, mergedAt: new Date(now).toISOString() } : null;
+  justMerged.set(url, { at: now, pr: asMerged });
   if (!cache) return null;
-  const found = [...cache.mine, ...cache.review].find((p) => p.url === url);
-  const merged = found ? [{ ...found, state: 'merged' as const, mergedAt: new Date(now).toISOString() }, ...cache.merged.filter((p) => p.url !== url)] : cache.merged;
+  const merged = asMerged ? [asMerged, ...cache.merged.filter((p) => p.url !== url)] : cache.merged;
   cache = { ...cache, mine: cache.mine.filter((p) => p.url !== url), review: cache.review.filter((p) => p.url !== url), merged };
   return cache;
 }

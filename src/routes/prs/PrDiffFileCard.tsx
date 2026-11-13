@@ -6,7 +6,8 @@ import { Icon } from '../../components/primitives/Icon';
 import { IconButton } from '../../components/primitives/IconButton';
 import { tokens } from '../../components/primitives/tokens';
 import { useShikiTokens } from '../../components/primitives/useShikiTokens';
-import { fileAnchor, isGenerated, langOf, splitPath, threadsForFile } from './diff-parse';
+import { fileAnchor, githubFileUrl, isGenerated, langOf, markChanges, splitPath, threadsForFile } from './diff-parse';
+import { toast } from '../../components/primitives/toast-bus';
 import { PrDiffRows } from './PrDiffRows';
 import { PrThreadNote } from './PrThreadNote';
 import type { DiffFileView } from './usePrDiff';
@@ -36,6 +37,7 @@ export function PrDiffFileCard({ view, prUrl, threads, wrap, onToggle, onViewed 
   const code = useMemo(() => (open && rows.length <= HIGHLIGHT_MAX_ROWS ? rows.map((r) => (r.t === 'hunk' ? '' : r.text)).join('\n') : ''), [open, rows]);
   const shiki = useShikiTokens(code, langOf(file.path));
   const fileThreads = useMemo(() => threadsForFile(threads, file.path, rows), [threads, file.path, rows]);
+  const marks = useMemo(() => (open ? markChanges(rows) : new Map()), [open, rows]);
   const change = CHANGE[file.change];
   const noteCount = fileThreads.loose.length + [...fileThreads.byLine.values()].reduce((n, t) => n + t.length, 0);
 
@@ -57,7 +59,8 @@ export function PrDiffFileCard({ view, prUrl, threads, wrap, onToggle, onViewed 
         <span className="shrink-0 font-mono text-[12px] tabular-nums">
           <span className="text-emerald-400">+{file.additions}</span> <span className="text-red-400">−{file.deletions}</span>
         </span>
-        <IconButton icon="external" size="xs" label="Abrir arquivo no GitHub" onClick={() => window.open(`${prUrl}/files`, '_blank', 'noopener')} />
+        <IconButton icon="copy" size="xs" label="Copiar caminho" className="hidden sm:inline-flex" onClick={() => { void navigator.clipboard?.writeText(file.path).then(() => toast('Caminho copiado')); }} />
+        <IconButton icon="external" size="xs" label="Abrir arquivo no GitHub" onClick={() => { const tab = window.open('about:blank', '_blank'); void githubFileUrl(prUrl, file.path).then((u) => { if (tab) { tab.opener = null; tab.location.href = u; } }); }} />
         <label className="flex shrink-0 cursor-pointer items-center gap-1.5 pr-1 text-[12px] text-neutral-500">
           <Checkbox checked={viewed} onChange={() => onViewed(file)} label={viewed ? 'Desmarcar como visto' : 'Marcar como visto'} />
           <span className="hidden sm:inline">Visto</span>
@@ -72,7 +75,7 @@ export function PrDiffFileCard({ view, prUrl, threads, wrap, onToggle, onViewed 
             </div>
           )}
           {rows.length > 0
-            ? <PrDiffRows rows={rows} tokens={code ? shiki : null} wrap={wrap} threads={fileThreads} />
+            ? <PrDiffRows rows={rows} tokens={code ? shiki : null} wrap={wrap} threads={fileThreads} marks={marks} />
             : <p className="px-3 py-3 text-[13px] text-neutral-500">{file.patch === undefined ? 'Sem diff de texto: arquivo binário, grande demais ou só renomeado.' : 'Nada mudou no conteúdo.'}</p>}
           {file.patchTruncated && <p className="border-t border-neutral-800/80 px-3 py-2 text-[12px] text-yellow-400">Diff cortado: arquivo grande demais. O resto está no GitHub.</p>}
         </>

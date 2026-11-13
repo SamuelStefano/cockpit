@@ -57,11 +57,34 @@ export function requestPrDetail(url: string): boolean {
   return true;
 }
 
+// A box whose agent predates the diff frame never answers it: without this the tab
+// would sit on a skeleton forever.
+const DIFF_TIMEOUT_MS = 25_000;
+const diffTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+function clearDiffTimer(url: string): void {
+  const t = diffTimers.get(url);
+  if (t) clearTimeout(t);
+  diffTimers.delete(url);
+}
+
 export function requestPrDiff(url: string): boolean {
-  if (!sender?.({ t: 'prs-diff-get', url })) return false;
+  if (!sender?.({ t: 'prs-diff-get', url })) {
+    set({ diffs: { ...state.diffs, [url]: { diff: state.diffs[url]?.diff ?? null, loading: false, error: 'sem conexão com o servidor' } } });
+    return false;
+  }
+  clearDiffTimer(url);
+  diffTimers.set(url, setTimeout(() => {
+    diffTimers.delete(url);
+    if (!state.diffs[url]?.loading) return;
+    set({ diffs: { ...state.diffs, [url]: { diff: state.diffs[url]?.diff ?? null, loading: false, error: 'O servidor não respondeu. Se esta máquina está com o Deck antigo, atualize o agente dela.' } } });
+  }, DIFF_TIMEOUT_MS));
   set({ diffs: { ...state.diffs, [url]: { diff: state.diffs[url]?.diff ?? null, loading: true } } });
   return true;
 }
+
+// An older agent sends a detail without the newer lists.
+const withDefaults = (d: PrDetail | null): PrDetail | null => (d ? { ...d, threads: d.threads ?? [], commits: d.commits ?? [], commitCount: d.commitCount ?? 0 } : d);
 
 export function requestSessionPrs(sessionId: string, hydrate: boolean): boolean {
   if (!sender?.({ t: 'prs-session-get', sessionId, hydrate })) return false;
@@ -93,6 +116,7 @@ export function failAllPrsPending(reason = 'conexão caiu durante o merge — co
 export function prsDispatch(msg: ServerMsg): void {
   if (msg.t === 'prs') { set({ snapshot: msg.snapshot, loading: msg.pending === true }); return; }
   if (msg.t === 'prs-diff') {
+    clearDiffTimer(msg.url);
     set({ diffs: { ...state.diffs, [msg.url]: { diff: msg.diff ?? state.diffs[msg.url]?.diff ?? null, loading: false, error: msg.error } } });
     return;
   }
@@ -104,7 +128,7 @@ export function prsDispatch(msg: ServerMsg): void {
     return;
   }
   if (msg.t === 'prs-detail') {
-    set({ details: { ...state.details, [msg.url]: { detail: msg.detail ?? state.details[msg.url]?.detail ?? null, loading: false, error: msg.error } } });
+    set({ details: { ...state.details, [msg.url]: { detail: withDefaults(msg.detail) ?? state.details[msg.url]?.detail ?? null, loading: false, error: msg.error } } });
     return;
   }
   if (msg.t === 'prs-merge-result') {
@@ -118,5 +142,6 @@ export function prsDispatch(msg: ServerMsg): void {
 
 export function resetPrsBus(): void {
   failAllPrsPending();
+  for (const url of [...diffTimers.keys()]) clearDiffTimer(url);
   state = EMPTY;
 }

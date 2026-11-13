@@ -100,6 +100,16 @@ describe('detailFromResource', () => {
     expect(detailFromResource({ data: { resource: node() } })?.threads).toEqual([]);
   });
 
+  it('maps commits newest first with their CI state', () => {
+    const commit = (oid: string, state: string | null, login: string | null) => ({ commit: { oid, messageHeadline: `msg ${oid}`, committedDate: '2026-11-07T09:00:00Z', author: { name: 'Name', user: login ? { login } : null }, statusCheckRollup: state ? { state } : null } });
+    const d = detailFromResource({ data: { resource: { ...node(), history: { totalCount: 9, nodes: [commit('aaa', 'SUCCESS', 'sam'), commit('bbb', null, null)] } } } });
+    expect(d?.commitCount).toBe(9);
+    expect(d?.commits).toEqual([
+      { sha: 'bbb', title: 'msg bbb', author: 'Name', committedAt: '2026-11-07T09:00:00Z', checks: 'none' },
+      { sha: 'aaa', title: 'msg aaa', author: 'sam', committedAt: '2026-11-07T09:00:00Z', checks: 'success' },
+    ]);
+  });
+
   it('a missing resource is null', () => {
     expect(detailFromResource({ data: { resource: null } })).toBeNull();
   });

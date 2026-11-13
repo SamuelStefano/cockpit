@@ -38,6 +38,9 @@ query($url: URI!) {
       ... on CheckRun { name status conclusion detailsUrl }
       ... on StatusContext { context state targetUrl }
     } } } } } }
+    history: commits(last: 50) { totalCount nodes { commit {
+      oid messageHeadline committedDate author { name user { login } } statusCheckRollup { state }
+    } } }
     comments(last: 30) { nodes { author { login } body createdAt } }
     reviews(last: 20) { nodes { author { login } body state createdAt } }
     reviewThreads(first: 50) { nodes { path line isResolved isOutdated comments(first: 20) { nodes { author { login } body createdAt } } } }
@@ -170,6 +173,7 @@ export function detailFromResource(raw: unknown, sessions?: ReadonlyMap<string, 
     const o = obj(f);
     return { path: str(o.path), additions: num(o.additions), deletions: num(o.deletions), change: mapChange(o.changeType) };
   }).filter((f) => f.path);
+  const history = obj(n.history);
   const ctx = obj(obj(obj(obj(arr(obj(n.checks).nodes)[0]).commit).statusCheckRollup).contexts);
   const checkRuns = orderChecks(arr(ctx.nodes).map(checkRunFromNode).filter((c): c is PrCheckRun => c !== null));
   const comments: PrComment[] = [
@@ -201,6 +205,18 @@ export function detailFromResource(raw: unknown, sessions?: ReadonlyMap<string, 
     filesTruncated: num(files.totalCount) > fileList.length,
     checkRuns,
     comments,
+    commits: arr(history.nodes).map((c) => {
+      const o = obj(obj(c).commit);
+      const author = obj(o.author);
+      return {
+        sha: str(o.oid),
+        title: str(o.messageHeadline),
+        author: str(obj(author.user).login) || str(author.name) || 'ghost',
+        committedAt: str(o.committedDate),
+        checks: mapChecks(obj(o.statusCheckRollup).state),
+      };
+    }).filter((c) => c.sha).reverse(),
+    commitCount: num(history.totalCount),
     threads,
   };
 }
