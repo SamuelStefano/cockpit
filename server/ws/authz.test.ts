@@ -107,7 +107,7 @@ describe('authorize', () => {
       'agent-add-custom', 'agent-probe-draft', 'provider-probe',
       'claude-import-scan', 'claude-import-apply',
       'versions-restore',
-      'vault-put', 'vault-list', 'vault-rm', 'prs-get', 'prs-detail-get', 'prs-merge', 'claude-account-get', 'claude-logout',
+      'vault-put', 'vault-list', 'vault-rm', 'prs-get', 'prs-detail-get', 'prs-diff-get', 'prs-session-get', 'prs-merge', 'claude-account-get', 'claude-logout',
     ] as const;
     expect([...ROOT_ONLY].sort()).toEqual([...owner].sort());
     for (const t of owner) {

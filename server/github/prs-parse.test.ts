@@ -79,12 +79,25 @@ describe('detailFromResource', () => {
         { author: { login: 'taigfs' }, body: '', state: 'CHANGES_REQUESTED', createdAt: '2026-11-07T09:00:00Z' },
         { author: { login: 'x' }, body: '', state: 'COMMENTED', createdAt: '2026-11-07T09:30:00Z' },
       ] },
+      reviewThreads: { nodes: [
+        { path: 'src/a.ts', line: 12, isResolved: false, isOutdated: false, comments: { nodes: [{ author: null, body: 'nit', createdAt: '2026-11-07T09:00:00Z' }] } },
+        { path: 'src/b.ts', line: null, isResolved: true, isOutdated: true, comments: { nodes: [{ author: { login: 'taigfs' }, body: 'old', createdAt: '2026-11-07T09:00:00Z' }] } },
+        { path: 'src/c.ts', line: 1, isResolved: false, isOutdated: false, comments: { nodes: [] } },
+      ] },
     } } };
     const d = detailFromResource(raw);
+    expect(d?.threads).toEqual([
+      { path: 'src/a.ts', line: 12, resolved: false, outdated: false, comments: [{ author: 'ghost', body: 'nit', createdAt: '2026-11-07T09:00:00Z' }] },
+      { path: 'src/b.ts', line: undefined, resolved: true, outdated: true, comments: [{ author: 'taigfs', body: 'old', createdAt: '2026-11-07T09:00:00Z' }] },
+    ]);
     expect(d?.files).toEqual([{ path: 'src/a.ts', additions: 4, deletions: 1, change: 'added' }]);
     expect(d?.filesTruncated).toBe(false);
     expect(d?.checkRuns).toEqual([{ name: 'gate', state: 'failure', url: undefined }]);
     expect(d?.comments.map((c) => [c.author, c.kind, c.body])).toEqual([['taigfs', 'review', '_pediu mudanças_'], ['taigfs', 'comment', 'later']]);
+  });
+
+  it('no reviewThreads field gives an empty list', () => {
+    expect(detailFromResource({ data: { resource: node() } })?.threads).toEqual([]);
   });
 
   it('a missing resource is null', () => {

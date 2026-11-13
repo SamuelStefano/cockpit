@@ -1,5 +1,7 @@
 import { execFile } from 'node:child_process';
-import { tmpdir } from 'node:os';
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { homedir, tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 import { CONFIG } from '../config';
 import { mergeBlocker, mergeConfirmText, needsMergeConfirm, PR_URL_RE, type PrDetail, type PrSummary, type PrsSnapshot } from '../../shared/prs';
@@ -16,7 +18,7 @@ export const MERGED_SINCE_DAYS = 30;
 const OPEN_PAGES = 5;
 const MERGED_PAGES = 3;
 
-type Gh = (args: string[]) => Promise<string>;
+export type Gh = (args: string[]) => Promise<string>;
 
 const realGh: Gh = async (args) => {
   // cwd outside any repo: `gh pr merge --delete-branch` would otherwise try to
@@ -26,9 +28,10 @@ const realGh: Gh = async (args) => {
 };
 
 let gh: Gh = realGh;
-export function setGhForTest(fn: Gh | null): void { gh = fn ?? realGh; cache = null; inflight = null; login = null; }
+export const runGh: Gh = (args) => gh(args);
+export function setGhForTest(fn: Gh | null): void { gh = fn ?? realGh; cache = null; inflight = null; login = null; diskLoaded = false; }
 
-async function graphql(query: string, vars: Record<string, string | number>): Promise<unknown> {
+export async function graphql(query: string, vars: Record<string, string | number>): Promise<unknown> {
   const args = ['api', 'graphql', '-f', `query=${query}`];
   for (const [k, v] of Object.entries(vars)) args.push(typeof v === 'number' ? '-F' : '-f', `${k}=${v}`);
   return JSON.parse(await gh(args));
@@ -90,16 +93,70 @@ async function buildSnapshot(): Promise<PrsSnapshot> {
 
 let cache: PrsSnapshot | null = null;
 let inflight: Promise<PrsSnapshot> | null = null;
+let diskLoaded = false;
 
-export async function getPrsSnapshot(force = false, now = Date.now()): Promise<PrsSnapshot> {
-  if (!force && cache && !cache.error && now - cache.fetchedAt < SNAPSHOT_TTL_MS) return cache;
+const cachePath = () => process.env.COCKPIT_PRS_CACHE ?? join(homedir(), '.cockpit', 'prs-snapshot.json');
+
+function loadDisk(): void {
+  if (diskLoaded) return;
+  diskLoaded = true;
+  if (cache) return;
+  try {
+    const s = JSON.parse(readFileSync(cachePath(), 'utf8')) as PrsSnapshot;
+    if (s && typeof s.fetchedAt === 'number' && Array.isArray(s.mine) && Array.isArray(s.merged) && Array.isArray(s.review)) cache = s;
+  } catch { /* no cache yet, or an unreadable one: the first build rewrites it */ }
+}
+
+function saveDisk(s: PrsSnapshot): void {
+  try {
+    const path = cachePath();
+    mkdirSync(dirname(path), { recursive: true });
+    const tmp = `${path}.${process.pid}.tmp`;
+    writeFileSync(tmp, JSON.stringify(s), { mode: 0o600 });
+    renameSync(tmp, path);
+  } catch { /* a cache that cannot be written only costs a cold start */ }
+}
+
+function refresh(): Promise<PrsSnapshot> {
   if (inflight) return inflight;
   inflight = buildSnapshot().then((s) => {
     // A failed refresh keeps the last good lists on screen, with the error on top.
     cache = s.error && cache && !cache.error ? { ...cache, error: s.error } : s;
+    if (!s.error) saveDisk(s);
     return cache;
   }).finally(() => { inflight = null; });
   return inflight;
+}
+
+const isFresh = (s: PrsSnapshot | null, now: number) => !!s && !s.error && now - s.fetchedAt < SNAPSHOT_TTL_MS;
+
+export async function getPrsSnapshot(force = false, now = Date.now()): Promise<PrsSnapshot> {
+  loadDisk();
+  if (!force && cache && isFresh(cache, now)) return cache;
+  return refresh();
+}
+
+// Stale-while-revalidate: `cached` is whatever exists (memory or disk) at any age,
+// `fresh` is set when it is missing, stale, failed, or the caller forced a refresh.
+export function getPrsSnapshotSwr(force = false, now = Date.now()): { cached: PrsSnapshot | null; fresh: Promise<PrsSnapshot> | null } {
+  loadDisk();
+  const cached = cache;
+  return { cached, fresh: force || !isFresh(cached, now) ? refresh() : null };
+}
+
+export function peekPrsSnapshot(): PrsSnapshot | null {
+  loadDisk();
+  return cache;
+}
+
+// Right after a merge the list should already show it: the real refresh takes ~20 s.
+export function markPrMerged(url: string, now = Date.now()): PrsSnapshot | null {
+  loadDisk();
+  if (!cache) return null;
+  const found = [...cache.mine, ...cache.review].find((p) => p.url === url);
+  const merged = found ? [{ ...found, state: 'merged' as const, mergedAt: new Date(now).toISOString() }, ...cache.merged.filter((p) => p.url !== url)] : cache.merged;
+  cache = { ...cache, mine: cache.mine.filter((p) => p.url !== url), review: cache.review.filter((p) => p.url !== url), merged };
+  return cache;
 }
 
 export async function getPrDetail(url: string): Promise<{ detail: PrDetail | null; error?: string }> {
@@ -137,7 +194,7 @@ export async function mergePr(url: string, confirm: string | undefined): Promise
   }
   try {
     await gh(['pr', 'merge', url, '--squash', '--delete-branch']);
-    cache = null;
+    markPrMerged(url);
     return { ok: true, message: `#${detail.number} mergeada` };
   } catch (e) {
     return { ok: false, message: ghError(e) };
