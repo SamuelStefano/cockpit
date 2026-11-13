@@ -44,3 +44,10 @@ export async function indexPrSessions(dir: string, now = Date.now()): Promise<Ma
   inflight = scan(dir).then((map) => { cached = { at: Date.now(), dir, map }; return map; }).finally(() => { inflight = null; });
   return inflight;
 }
+
+// For answers that must not wait ~5 s on a cold grep: whatever index exists now
+// (possibly none), with a rebuild kicked off for the next caller.
+export function peekPrSessions(dir: string): ReadonlyMap<string, string> {
+  void indexPrSessions(dir).catch(() => undefined);
+  return cached && cached.dir === dir ? cached.map : new Map();
+}

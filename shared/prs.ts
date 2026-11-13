@@ -39,12 +39,55 @@ export interface PrFile { path: string; additions: number; deletions: number; ch
 export interface PrCheckRun { name: string; state: 'success' | 'failure' | 'pending' | 'skipped'; url?: string }
 export interface PrComment { author: string; body: string; createdAt: string; path?: string; kind: 'comment' | 'review' }
 
+export interface PrThreadComment { author: string; body: string; createdAt: string }
+// An inline review thread: anchored to a line when GitHub still knows it (`line`),
+// file-level otherwise. `side` says which file the number counts in: a comment on
+// a removed line is numbered in the old one.
+export interface PrReviewThread { path: string; line?: number; side?: 'left' | 'right'; resolved: boolean; outdated: boolean; comments: PrThreadComment[] }
+
+export interface PrCommit { sha: string; title: string; author: string; committedAt: string; checks: PrChecks }
+
 export interface PrDetail extends PrSummary {
   body: string;
   files: PrFile[];
   filesTruncated: boolean;
   checkRuns: PrCheckRun[];
   comments: PrComment[];
+  threads: PrReviewThread[];
+  commits: PrCommit[];
+  commitCount: number;
+}
+
+// The code of a PR. `patch` is GitHub's unified hunks for one file (no file
+// header); it is absent for binaries and for files GitHub refuses to diff, and cut
+// (`patchTruncated`) when one file alone would blow the frame.
+export interface PrDiffFile {
+  path: string;
+  previousPath?: string;
+  change: PrFile['change'];
+  additions: number;
+  deletions: number;
+  patch?: string;
+  patchTruncated?: boolean;
+}
+
+export interface PrDiff {
+  url: string;
+  files: PrDiffFile[];
+  totalFiles: number;
+  // Some files were left out (page cap or byte budget): the list is partial.
+  truncated: boolean;
+}
+
+// The PRs of one chat: the ones it opened (pr-link records) and the ones that only
+// show up in its transcript. `prs` comes only on a hydrated answer; the URL lists
+// alone are enough for the count on the header button.
+export interface SessionPrs {
+  sessionId: string;
+  createdUrls: string[];
+  mentionedUrls: string[];
+  prs?: PrSummary[];
+  error?: string;
 }
 
 export interface PrsSnapshot {
@@ -112,4 +155,5 @@ export function mergeBlocker(pr: Pick<PrSummary, 'state' | 'mergeable'>): string
   return null;
 }
 
-export const PR_URL_RE = /^https:\/\/github\.com\/([\w.-]+\/[\w.-]+)\/pull\/(\d+)$/;
+// `.`/`..` are not owners or repos: without the lookaheads they would walk the REST path.
+export const PR_URL_RE = /^https:\/\/github\.com\/((?!\.{1,2}\/)[\w.-]+\/(?!\.{1,2}\/)[\w.-]+)\/pull\/(\d+)$/;

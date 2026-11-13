@@ -1,4 +1,4 @@
-import { Suspense, type ReactNode } from 'react';
+import { Suspense, useMemo, type ReactNode } from 'react';
 import { MobileLayout } from '../components/Mobile';
 import { DesktopLayout } from './DesktopLayout';
 import { AgentCenter } from './AgentCenter';
@@ -18,6 +18,7 @@ import { navigateTo } from '../lib/route-nav';
 import { ManageProviders, ManageTools } from '../routes/conexoes/Manage';
 import { TeamRail, type TeamRailProps } from '../components/team/TeamRail';
 import { VaultPanel } from '../components/vault/VaultPanel';
+import { ChatPrDepsContext, type ChatPrDeps } from '../routes/prs/chat/pr-deps-context';
 
 // The DFL snapshot is root-only on the server: the Canvas of a plain admin skips it.
 const noop = () => {};
@@ -56,6 +57,11 @@ interface RouteContentProps {
 
 export function RouteContent({ route, agentRoute, skillRoute, isMobile, isAdmin, isRoot, connected, cockpit, chatProps, termProps, onOpenSession, agent, onOpenAgentChat, layout, mobile, team }: RouteContentProps) {
   const c = cockpit;
+  const { onSendTo, onLaunchAgent } = c;
+  const prDeps = useMemo<ChatPrDeps | null>(
+    () => (isRoot ? { onOpenSession, onSendTo, onLaunchAgent, connected, onAllPrs: () => navigateTo('/prs') } : null),
+    [isRoot, connected, onOpenSession, onSendTo, onLaunchAgent],
+  );
   const view = (() => {
     if (route === '/equipe/rotinas' || route === '/equipe/memoria') {
       return (
@@ -189,7 +195,9 @@ export function RouteContent({ route, agentRoute, skillRoute, isMobile, isAdmin,
   return (
     <div key={route} className="route-fade flex min-h-0 min-w-0 flex-1 flex-col">
       <ChunkErrorBoundary>
-        <Suspense fallback={<RouteFallback />}>{view}</Suspense>
+        <ChatPrDepsContext.Provider value={prDeps}>
+          <Suspense fallback={<RouteFallback />}>{view}</Suspense>
+        </ChatPrDepsContext.Provider>
       </ChunkErrorBoundary>
     </div>
   );

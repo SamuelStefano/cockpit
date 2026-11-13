@@ -1,4 +1,4 @@
-import { classifyRisk, taskFromBody, type PrCheckRun, type PrChecks, type PrComment, type PrDetail, type PrFile, type PrMergeable, type PrReview, type PrState, type PrSummary } from '../../shared/prs';
+import { classifyRisk, taskFromBody, type PrCheckRun, type PrChecks, type PrComment, type PrDetail, type PrFile, type PrMergeable, type PrReview, type PrReviewThread, type PrState, type PrSummary } from '../../shared/prs';
 
 // Pure: GitHub GraphQL nodes in, hub shapes out. Kept apart from the `gh` runner
 // so the mapping is tested on fixtures without a network.
@@ -38,8 +38,12 @@ query($url: URI!) {
       ... on CheckRun { name status conclusion detailsUrl }
       ... on StatusContext { context state targetUrl }
     } } } } } }
+    history: commits(last: 50) { totalCount nodes { commit {
+      oid messageHeadline committedDate author { name user { login } } statusCheckRollup { state }
+    } } }
     comments(last: 30) { nodes { author { login } body createdAt } }
     reviews(last: 20) { nodes { author { login } body state createdAt } }
+    reviewThreads(first: 50) { nodes { path line diffSide isResolved isOutdated comments(first: 20) { nodes { author { login } body createdAt } } } }
   } }
 }`;
 
@@ -169,6 +173,7 @@ export function detailFromResource(raw: unknown, sessions?: ReadonlyMap<string, 
     const o = obj(f);
     return { path: str(o.path), additions: num(o.additions), deletions: num(o.deletions), change: mapChange(o.changeType) };
   }).filter((f) => f.path);
+  const history = obj(n.history);
   const ctx = obj(obj(obj(obj(arr(obj(n.checks).nodes)[0]).commit).statusCheckRollup).contexts);
   const checkRuns = orderChecks(arr(ctx.nodes).map(checkRunFromNode).filter((c): c is PrCheckRun => c !== null));
   const comments: PrComment[] = [
@@ -183,6 +188,16 @@ export function detailFromResource(raw: unknown, sessions?: ReadonlyMap<string, 
       kind,
     }))
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  const threads: PrReviewThread[] = arr(obj(n.reviewThreads).nodes).flatMap((t) => {
+    const o = obj(t);
+    const comments = arr(obj(o.comments).nodes).map((c) => ({
+      author: str(obj(obj(c).author).login) || 'ghost',
+      body: str(obj(c).body),
+      createdAt: str(obj(c).createdAt),
+    }));
+    if (!comments.length) return [];
+    return [{ path: str(o.path), line: typeof o.line === 'number' ? o.line : undefined, side: o.diffSide === 'LEFT' ? 'left' as const : 'right' as const, resolved: o.isResolved === true, outdated: o.isOutdated === true, comments }];
+  });
   return {
     ...summary,
     body: str(n.body),
@@ -190,5 +205,18 @@ export function detailFromResource(raw: unknown, sessions?: ReadonlyMap<string, 
     filesTruncated: num(files.totalCount) > fileList.length,
     checkRuns,
     comments,
+    commits: arr(history.nodes).map((c) => {
+      const o = obj(obj(c).commit);
+      const author = obj(o.author);
+      return {
+        sha: str(o.oid),
+        title: str(o.messageHeadline),
+        author: str(obj(author.user).login) || str(author.name) || 'ghost',
+        committedAt: str(o.committedDate),
+        checks: mapChecks(obj(o.statusCheckRollup).state),
+      };
+    }).filter((c) => c.sha).reverse(),
+    commitCount: num(history.totalCount),
+    threads,
   };
 }

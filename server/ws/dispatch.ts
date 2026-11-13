@@ -73,7 +73,9 @@ import { requestPlanUsageRefresh, planUsageFrame } from './usage-plan';
 import { requestGrokUsageRefresh, grokUsageFrame } from './usage-grok';
 import { listGraphs, readGraph, buildGraph, deleteGraph, queryGraph, nodeOp } from '../graph';
 import { buildBench } from '../bench';
-import { getPrDetail, getPrsSnapshot, mergePr } from '../github/prs';
+import { getPrDetail, getPrsSnapshot, getPrsSnapshotSwr, mergePr, peekPrsSnapshot } from '../github/prs';
+import { getPrDiff } from '../github/pr-diff';
+import { clearSessionPrsCache, getSessionPrs } from '../github/session-prs';
 import { buildCanvas } from '../canvas/index';
 import { withPlain } from '../mission-summary';
 import { readOrchestrator } from '../canvas/orchestrator';
@@ -545,7 +547,19 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       return;
     }
     case 'prs-get': {
-      send(ws, { t: 'prs', snapshot: await getPrsSnapshot(msg.force === true) });
+      const { cached, fresh } = getPrsSnapshotSwr(msg.force === true);
+      if (cached) send(ws, { t: 'prs', snapshot: cached, pending: fresh ? true : undefined });
+      if (fresh) send(ws, { t: 'prs', snapshot: await fresh });
+      return;
+    }
+    case 'prs-diff-get': {
+      const url = String(msg.url ?? '');
+      const r = await getPrDiff(url);
+      send(ws, { t: 'prs-diff', url, diff: r.diff, error: r.error });
+      return;
+    }
+    case 'prs-session-get': {
+      send(ws, { t: 'prs-session', session: await getSessionPrs(String(msg.sessionId ?? ''), msg.hydrate === true) });
       return;
     }
     case 'prs-detail-get': {
@@ -559,7 +573,12 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       const r = await mergePr(url, typeof msg.confirmText === 'string' ? msg.confirmText : undefined);
       console.log(`[prs] merge ${url} → ${r.ok ? 'ok' : `refused: ${r.message}`}`);
       send(ws, { t: 'prs-merge-result', reqId: msg.reqId, url, ok: r.ok, message: r.message });
-      if (r.ok) send(ws, { t: 'prs', snapshot: await getPrsSnapshot(true) });
+      if (r.ok) {
+        clearSessionPrsCache();
+        const optimistic = peekPrsSnapshot();
+        if (optimistic) send(ws, { t: 'prs', snapshot: optimistic, pending: true });
+        void getPrsSnapshot(true).then((snapshot) => send(ws, { t: 'prs', snapshot }));
+      }
       return;
     }
     case 'list': {

@@ -18,7 +18,7 @@ export const ROOT_ONLY: ReadonlySet<ClientMsg['t']> = new Set<ClientMsg['t']>([
   'claude-import-scan', 'claude-import-apply', 'claude-account-get', 'claude-logout',
   'versions-restore',
   'vault-put', 'vault-list', 'vault-rm',
-  'prs-get', 'prs-detail-get', 'prs-merge',
+  'prs-get', 'prs-detail-get', 'prs-merge', 'prs-diff-get', 'prs-session-get',
 ]);
 
 // A frame whose own prefix says it belongs to the owner, even if a future one is

@@ -2,9 +2,9 @@ import type { PrSummary } from '../../../shared/prs';
 import { PrBadges } from './PrBadges';
 import { relativeTime, repoName } from './prs-view';
 
-interface PrRowProps { pr: PrSummary; active: boolean; onSelect: (url: string) => void }
+interface PrRowProps { pr: PrSummary; active: boolean; onSelect: (url: string) => void; hideRepo?: boolean; tag?: string }
 
-export function PrRow({ pr, active, onSelect }: PrRowProps) {
+export function PrRow({ pr, active, onSelect, hideRepo = false, tag }: PrRowProps) {
   const when = relativeTime(pr.mergedAt ?? pr.updatedAt);
   return (
     <button
@@ -14,7 +14,7 @@ export function PrRow({ pr, active, onSelect }: PrRowProps) {
     >
       <span className="block truncate text-[14px] font-medium text-neutral-100">{pr.title}</span>
       <span className="mt-0.5 block truncate font-mono text-[12px] text-neutral-500">
-        #{pr.number} · {repoName(pr.repo)} · {when}
+        #{pr.number}{!hideRepo && ` · ${repoName(pr.repo)}`} · {pr.state === 'merged' ? `mergeada ${when}` : pr.state === 'closed' ? `fechada ${when}` : when}{tag && ` · ${tag}`}
       </span>
       <span className="mt-1.5 flex flex-wrap items-center gap-1">
         <PrBadges pr={pr} />

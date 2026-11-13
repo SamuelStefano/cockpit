@@ -1304,6 +1304,8 @@ export function useCockpit(): Cockpit {
       }
       case 'prs':
       case 'prs-detail':
+      case 'prs-diff':
+      case 'prs-session':
       case 'prs-merge-result': {
         prsDispatch(msg);
         return;

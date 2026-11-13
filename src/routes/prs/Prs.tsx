@@ -35,7 +35,7 @@ export function Prs({ connected, ...deps }: PrsProps) {
   else body = <PrList tab={s.tab} prs={s.visible} days={s.days} selectedUrl={s.selectedUrl} onSelect={s.select} />;
 
   const list = (
-    <div className="scroll-thin min-w-0 flex-1 overflow-y-auto p-3">
+    <div className={`scroll-thin overflow-y-auto p-3 ${mobile ? 'min-w-0 flex-1' : 'w-[23rem] shrink-0'}`}>
       <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2">
         <Segmented items={TABS} value={s.tab} onChange={(t: PrTab) => s.changeTab(t)} label="Lista de PRs" />
         {s.tab === 'merged' && snap && (
@@ -56,14 +56,14 @@ export function Prs({ connected, ...deps }: PrsProps) {
         subtitle={snap ? `atualizado ${relativeTime(snap.fetchedAt)}` : undefined}
         actions={<Button variant="secondary" size="sm" icon="rotate" loading={s.loading} onClick={s.refresh} disabled={!connected}>Atualizar</Button>}
       />
-      {mobile && <PrsSidebar horizontal orgs={s.orgs} total={s.total} filter={s.filter} onChange={s.setFilter} />}
+      <div className={mobile ? '' : 'min-[1500px]:hidden'}><PrsSidebar horizontal orgs={s.orgs} total={s.total} filter={s.filter} onChange={s.setFilter} /></div>
       <div className="flex min-h-0 flex-1">
-        {!mobile && <PrsSidebar horizontal={false} orgs={s.orgs} total={s.total} filter={s.filter} onChange={s.setFilter} />}
+        {!mobile && <div className="hidden min-[1500px]:flex"><PrsSidebar horizontal={false} orgs={s.orgs} total={s.total} filter={s.filter} onChange={s.setFilter} /></div>}
         {list}
         {!mobile && (
-          <aside className="scroll-thin w-[28rem] shrink-0 overflow-y-auto border-l border-neutral-800/80">
-            {detailPanel || <EmptyState icon="gitPullRequest" size="sm" title="Selecione uma PR" />}
-          </aside>
+          <main className="scroll-thin min-w-0 flex-1 overflow-y-auto border-l border-neutral-800/80">
+            {detailPanel || <EmptyState icon="gitPullRequest" title="Selecione uma PR" description="O código, os checks e a conversa abrem aqui." />}
+          </main>
         )}
       </div>
       {mobile && (
