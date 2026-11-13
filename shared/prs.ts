@@ -39,12 +39,50 @@ export interface PrFile { path: string; additions: number; deletions: number; ch
 export interface PrCheckRun { name: string; state: 'success' | 'failure' | 'pending' | 'skipped'; url?: string }
 export interface PrComment { author: string; body: string; createdAt: string; path?: string; kind: 'comment' | 'review' }
 
+export interface PrThreadComment { author: string; body: string; createdAt: string }
+// An inline review thread: anchored to a line of the head side when GitHub still
+// knows it (`line`), file-level otherwise.
+export interface PrReviewThread { path: string; line?: number; resolved: boolean; outdated: boolean; comments: PrThreadComment[] }
+
 export interface PrDetail extends PrSummary {
   body: string;
   files: PrFile[];
   filesTruncated: boolean;
   checkRuns: PrCheckRun[];
   comments: PrComment[];
+  threads: PrReviewThread[];
+}
+
+// The code of a PR. `patch` is GitHub's unified hunks for one file (no file
+// header); it is absent for binaries and for files GitHub refuses to diff, and cut
+// (`patchTruncated`) when one file alone would blow the frame.
+export interface PrDiffFile {
+  path: string;
+  previousPath?: string;
+  change: PrFile['change'];
+  additions: number;
+  deletions: number;
+  patch?: string;
+  patchTruncated?: boolean;
+}
+
+export interface PrDiff {
+  url: string;
+  files: PrDiffFile[];
+  totalFiles: number;
+  // Some files were left out (page cap or byte budget): the list is partial.
+  truncated: boolean;
+}
+
+// The PRs of one chat: the ones it opened (pr-link records) and the ones that only
+// show up in its transcript. `prs` comes only on a hydrated answer; the URL lists
+// alone are enough for the count on the header button.
+export interface SessionPrs {
+  sessionId: string;
+  createdUrls: string[];
+  mentionedUrls: string[];
+  prs?: PrSummary[];
+  error?: string;
 }
 
 export interface PrsSnapshot {

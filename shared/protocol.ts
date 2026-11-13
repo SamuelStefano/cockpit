@@ -13,7 +13,7 @@ import type { ClaudeImportResult, ClaudeImportScan, ImportKind } from './claude-
 import type { ByoKeyView } from './byo-providers';
 import type { AgentView, AgentPreset, AgentStatus, AgentCustomField } from './agents';
 import type { TeamMessage } from './team-messages';
-import type { PrDetail, PrsSnapshot } from './prs';
+import type { PrDetail, PrDiff, PrsSnapshot, SessionPrs } from './prs';
 import type { BoxHealth, SmokeResult } from './box-health';
 import type { VersionKind, VersionMeta } from './versions';
 
@@ -968,6 +968,8 @@ export type ClientMsg =
   // the server and enforces the risk gate there — the client's confirm is a hint.
   | { t: 'prs-get'; force?: boolean }
   | { t: 'prs-detail-get'; url: string }
+  | { t: 'prs-diff-get'; url: string }
+  | { t: 'prs-session-get'; sessionId: string; hydrate?: boolean }
   | { t: 'prs-merge'; reqId: string; url: string; confirmText?: string }
   // Fila estacionada (overnight): mesma carga do 'send', mas o servidor persiste e
   // o drainer dispara assim que a sessão fica ociosa (sem olhar quota). queue-get pede
@@ -1237,7 +1239,10 @@ export type ServerMsg =
   | { t: 'graph-build-done'; ok: boolean; id?: string; error?: string }
   | { t: 'bench-bundle'; buildId: string; js: string; css: string; ms: number }
   | { t: 'bench-error'; buildId: string; error: string }
-  | { t: 'prs'; snapshot: PrsSnapshot }
+  // `pending`: a cached snapshot painted at once; a fresh one follows on this socket.
+  | { t: 'prs'; snapshot: PrsSnapshot; pending?: boolean }
+  | { t: 'prs-diff'; url: string; diff: PrDiff | null; error?: string }
+  | { t: 'prs-session'; session: SessionPrs }
   | { t: 'prs-detail'; url: string; detail: PrDetail | null; error?: string }
   | { t: 'prs-merge-result'; reqId: string; url: string; ok: boolean; message?: string }
   | { t: 'term-data'; termId: string; data: string }
