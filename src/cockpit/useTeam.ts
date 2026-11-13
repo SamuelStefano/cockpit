@@ -16,6 +16,7 @@ export interface Team {
   onTeamGet: () => void;
   onTeamSave: (bot: TeamBotInput) => void;
   onTeamDelete: (id: string) => void;
+  onTeamSyncSource: (id: string) => void;
   onTeamMessagesGet: (q?: TeamMessagesQuery) => void;
   onTeamPauseSet: (paused: boolean) => void;
   agentBuild: AgentBuildResult | null;
@@ -68,6 +69,7 @@ export function useTeam(send: (m: ClientMsg) => boolean): Team {
     onTeamGet: useCallback(() => { send({ t: 'team-get' }); }, [send]),
     onTeamSave: useCallback((bot: TeamBotInput) => { send({ t: 'team-save', bot }); }, [send]),
     onTeamDelete: useCallback((id: string) => { send({ t: 'team-delete', id }); }, [send]),
+    onTeamSyncSource: useCallback((id: string) => { send({ t: 'team-sync-source', id }); }, [send]),
     onTeamMessagesGet: useCallback((q: TeamMessagesQuery = {}) => { send({ t: 'team-messages-get', ...q }); }, [send]),
     onTeamPauseSet: useCallback((paused: boolean) => { send({ t: 'team-pause-set', paused }); }, [send]),
     onMsg,

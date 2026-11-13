@@ -1,8 +1,9 @@
 import { randomBytes } from 'node:crypto';
 import { readFile, writeFile, mkdir, rename } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import type { TeamBot, TeamBotInput } from '../shared/protocol';
+import type { AgentSourceSync, TeamBot, TeamBotInput } from '../shared/protocol';
 import { MAX_BOTS, wouldCycle } from '../shared/team';
+import { sameSource } from '../shared/agent-source';
 import { withFileLockAsync } from './ws/file-lock';
 import { teamFile } from './team-log';
 
@@ -44,6 +45,7 @@ export function saveBot(input: TeamBotInput, now = Date.now()): Promise<SaveResu
     // rewind the bot's thread to an older session.
     const bot: TeamBot = { ...input, createdAt: prev?.createdAt ?? now, updatedAt: now };
     if (prev?.sessionId) bot.sessionId = prev.sessionId;
+    if (prev?.sourceSync && bot.source && sameSource(prev.source, bot.source)) bot.sourceSync = prev.sourceSync;
     if (bot.primary) for (const b of all) if (b.id !== bot.id) delete b.primary;
     if (i >= 0) all[i] = bot; else all.push(bot);
     // Exactly one primary while the team is non-empty: the roster's lead card and
@@ -75,6 +77,18 @@ export function bindBotSession(id: string, sessionId: string, now = Date.now()):
     if (!bot || bot.sessionId === sessionId) return null;
     bot.sessionId = sessionId;
     bot.updatedAt = now;
+    await writeTeam(all);
+    return all;
+  });
+}
+
+// Records the last sync of a repo-backed agent. Returns the new list for the broadcast.
+export function setSourceSync(id: string, sync: AgentSourceSync): Promise<TeamBot[] | null> {
+  return serialize(async () => {
+    const all = await getTeam();
+    const bot = all.find((b) => b.id === id);
+    if (!bot?.source) return null;
+    bot.sourceSync = sync;
     await writeTeam(all);
     return all;
   });

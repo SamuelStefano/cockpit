@@ -23,6 +23,7 @@ export interface AgentePageApi extends CronApi, BotFilesApi, BotComputerApi {
   term: TermApi;
   onTeamSave: (bot: TeamBotInput) => void;
   onTeamDelete: (id: string) => void;
+  onTeamSyncSource?: (id: string) => void;
   agentBuild?: AgentBuildResult | null;
   onAgentBuild?: (req: AgentBuildRequest) => boolean;
 }
@@ -84,7 +85,7 @@ export function Agente({ agentId, tab, views, api, connected, isAdmin, isMobile,
         <div className="max-w-95">
           <AgentForm key={`${bot.id}:${bot.updatedAt}:${formKey}`} bot={bot} bots={api.bots} models={api.models} skills={api.skills} locked={!isAdmin}
             agentBuild={api.agentBuild} onAgentBuild={api.onAgentBuild} onSave={api.onTeamSave} onSaved={() => toast('Agente salvo')} onCancel={() => setFormKey((k) => k + 1)}
-            onDelete={(id) => { api.onTeamDelete(id); onList(); }} />
+            onDelete={(id) => { api.onTeamDelete(id); onList(); }} onSyncSource={api.onTeamSyncSource} />
         </div>
       )}
       {tab === 'rotinas' && <RoutinesTab botId={bot.id} bots={api.bots} api={api} connected={connected} onChat={onChat} />}
