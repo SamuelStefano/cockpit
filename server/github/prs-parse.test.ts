@@ -87,8 +87,8 @@ describe('detailFromResource', () => {
     } } };
     const d = detailFromResource(raw);
     expect(d?.threads).toEqual([
-      { path: 'src/a.ts', line: 12, resolved: false, outdated: false, comments: [{ author: 'ghost', body: 'nit', createdAt: '2026-11-07T09:00:00Z' }] },
-      { path: 'src/b.ts', line: undefined, resolved: true, outdated: true, comments: [{ author: 'taigfs', body: 'old', createdAt: '2026-11-07T09:00:00Z' }] },
+      { path: 'src/a.ts', line: 12, side: 'right', resolved: false, outdated: false, comments: [{ author: 'ghost', body: 'nit', createdAt: '2026-11-07T09:00:00Z' }] },
+      { path: 'src/b.ts', line: undefined, side: 'right', resolved: true, outdated: true, comments: [{ author: 'taigfs', body: 'old', createdAt: '2026-11-07T09:00:00Z' }] },
     ]);
     expect(d?.files).toEqual([{ path: 'src/a.ts', additions: 4, deletions: 1, change: 'added' }]);
     expect(d?.filesTruncated).toBe(false);

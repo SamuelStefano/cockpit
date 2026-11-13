@@ -6,7 +6,9 @@ import type { PrDetail, PrDiff, PrsSnapshot, SessionPrs } from '../../../shared/
 // survives navigating away, so coming back to /prs paints the last snapshot at once.
 export interface DetailEntry { detail: PrDetail | null; loading: boolean; error?: string }
 export interface DiffEntry { diff: PrDiff | null; loading: boolean; error?: string }
-export interface SessionEntry { session: SessionPrs | null; loading: boolean }
+// `hydrating`: the full list was asked and has not answered; the count-only ask
+// answering first must not make the panel look done.
+export interface SessionEntry { session: SessionPrs | null; hydrating: boolean }
 export interface MergeResult { ok: boolean; message?: string }
 
 export interface PrsState {
@@ -86,9 +88,28 @@ export function requestPrDiff(url: string): boolean {
 // An older agent sends a detail without the newer lists.
 const withDefaults = (d: PrDetail | null): PrDetail | null => (d ? { ...d, threads: d.threads ?? [], commits: d.commits ?? [], commitCount: d.commitCount ?? 0 } : d);
 
+const SESSION_TIMEOUT_MS = 25_000;
+const sessionTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+function settleSession(sessionId: string, patch: Partial<SessionEntry>): void {
+  const t = sessionTimers.get(sessionId);
+  if (t) clearTimeout(t);
+  sessionTimers.delete(sessionId);
+  const prev = state.sessions[sessionId] ?? { session: null, hydrating: false };
+  set({ sessions: { ...state.sessions, [sessionId]: { ...prev, ...patch } } });
+}
+
+const EMPTY_SESSION = (sessionId: string, error: string): SessionPrs => ({ sessionId, createdUrls: [], mentionedUrls: [], error });
+
 export function requestSessionPrs(sessionId: string, hydrate: boolean): boolean {
   if (!sender?.({ t: 'prs-session-get', sessionId, hydrate })) return false;
-  set({ sessions: { ...state.sessions, [sessionId]: { session: state.sessions[sessionId]?.session ?? null, loading: true } } });
+  if (!hydrate) return true;
+  settleSession(sessionId, { hydrating: true });
+  // A dropped frame or a box on an older agent never answers: stop the skeleton.
+  sessionTimers.set(sessionId, setTimeout(() => {
+    const prev = state.sessions[sessionId]?.session;
+    settleSession(sessionId, { hydrating: false, session: prev ? { ...prev, error: 'O servidor não respondeu.' } : EMPTY_SESSION(sessionId, 'O servidor não respondeu.') });
+  }, SESSION_TIMEOUT_MS));
   return true;
 }
 
@@ -113,6 +134,17 @@ export function failAllPrsPending(reason = 'conexão caiu durante o merge — co
   if (state.loading) set({ loading: false });
 }
 
+// The chat panels hold their own copies of the PR: without this they would keep
+// offering "Mergear" on something that just merged.
+function markMergedInSessions(url: string): void {
+  const sessions = Object.fromEntries(Object.entries(state.sessions).map(([id, e]) => {
+    if (!e.session?.prs?.some((p) => p.url === url && p.state === 'open')) return [id, e];
+    const prs = e.session.prs.map((p) => (p.url === url ? { ...p, state: 'merged' as const, mergedAt: new Date().toISOString() } : p));
+    return [id, { ...e, session: { ...e.session, prs } }];
+  }));
+  set({ sessions });
+}
+
 export function prsDispatch(msg: ServerMsg): void {
   if (msg.t === 'prs') { set({ snapshot: msg.snapshot, loading: msg.pending === true }); return; }
   if (msg.t === 'prs-diff') {
@@ -121,10 +153,13 @@ export function prsDispatch(msg: ServerMsg): void {
     return;
   }
   if (msg.t === 'prs-session') {
-    const prev = state.sessions[msg.session.sessionId]?.session;
+    const id = msg.session.sessionId;
+    const prev = state.sessions[id];
+    const full = !!msg.session.prs || !!msg.session.error;
     // A count-only answer must not wipe the hydrated list the panel is showing.
-    const session = msg.session.prs || !prev?.prs ? msg.session : { ...msg.session, prs: prev.prs };
-    set({ sessions: { ...state.sessions, [session.sessionId]: { session, loading: false } } });
+    const session = msg.session.prs || !prev?.session?.prs ? msg.session : { ...msg.session, prs: prev.session.prs };
+    if (full || !prev?.hydrating) settleSession(id, { session, hydrating: false });
+    else set({ sessions: { ...state.sessions, [id]: { session, hydrating: true } } });
     return;
   }
   if (msg.t === 'prs-detail') {
@@ -137,11 +172,14 @@ export function prsDispatch(msg: ServerMsg): void {
     pending.delete(msg.reqId);
     clearTimeout(p.timer);
     p.done({ ok: msg.ok, message: msg.message });
+    if (msg.ok) markMergedInSessions(msg.url);
   }
 }
 
 export function resetPrsBus(): void {
   failAllPrsPending();
   for (const url of [...diffTimers.keys()]) clearDiffTimer(url);
+  for (const t of sessionTimers.values()) clearTimeout(t);
+  sessionTimers.clear();
   state = EMPTY;
 }

@@ -63,21 +63,30 @@ export function filterFiles(files: PrDiffFile[], query: string): PrDiffFile[] {
   return q ? files.filter((f) => f.path.toLowerCase().includes(q)) : files;
 }
 
-export interface FileThreads { byLine: Map<number, PrReviewThread[]>; loose: PrReviewThread[] }
+export interface FileThreads { byNew: Map<number, PrReviewThread[]>; byOld: Map<number, PrReviewThread[]>; loose: PrReviewThread[]; count: number }
 
-// Threads anchored to a head-side line that the patch shows go under that row; the
-// rest (outdated, file-level, line outside every hunk) sit on top of the file.
+const push = (map: Map<number, PrReviewThread[]>, line: number, t: PrReviewThread) => map.set(line, [...(map.get(line) ?? []), t]);
+
+// A thread goes under its row when the patch shows that line on the thread's own
+// side (a comment on a removed line counts in the old file). The rest — outdated,
+// file-level, outside every hunk — sit on top of the file.
 export function threadsForFile(threads: PrReviewThread[], path: string, rows: DiffRow[]): FileThreads {
-  const shown = new Set(rows.filter((r) => r.newLn > 0).map((r) => r.newLn));
-  const byLine = new Map<number, PrReviewThread[]>();
-  const loose: PrReviewThread[] = [];
+  const out: FileThreads = { byNew: new Map(), byOld: new Map(), loose: [], count: 0 };
+  const news = new Set(rows.filter((r) => r.newLn > 0).map((r) => r.newLn));
+  const olds = new Set(rows.filter((r) => r.oldLn > 0).map((r) => r.oldLn));
   for (const t of threads) {
     if (t.path !== path) continue;
-    if (t.line && shown.has(t.line)) byLine.set(t.line, [...(byLine.get(t.line) ?? []), t]);
-    else loose.push(t);
+    out.count++;
+    if (t.line && t.side === 'left' && olds.has(t.line)) push(out.byOld, t.line, t);
+    else if (t.line && t.side !== 'left' && news.has(t.line)) push(out.byNew, t.line, t);
+    else out.loose.push(t);
   }
-  return { byLine, loose };
+  return out;
 }
+
+// Files open by default only while the page stays cheap: past this many rows the
+// rest wait folded, one tap away, instead of all being built and highlighted at once.
+export const OPEN_ROWS_BUDGET = 2500;
 
 // Stable DOM id for jump-to-file; paths carry characters an id selector chokes on.
 export const fileAnchor = (path: string): string => `prf-${path.replace(/[^\w-]/g, '_')}`;

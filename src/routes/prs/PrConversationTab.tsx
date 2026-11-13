@@ -6,7 +6,7 @@ import { relativeTime } from './prs-view';
 
 export function PrConversationTab({ detail }: { detail: PrDetail }) {
   const loose = detail.threads.filter((t) => !t.resolved);
-  if (!detail.comments.length && !detail.threads.length) return <EmptyState size="xs" title="Sem comentários" />;
+  if (!detail.comments.length && !loose.length) return <EmptyState size="xs" title="Sem comentários" />;
   return (
     <ul className="max-w-3xl space-y-3">
       {loose.map((t, i) => (

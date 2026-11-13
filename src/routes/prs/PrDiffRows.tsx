@@ -1,4 +1,4 @@
-import { Fragment } from 'react';
+import { Fragment, memo } from 'react';
 import type { ShToken } from '../../components/primitives/useShikiTokens';
 import { splitAtRange, type CharRange, type DiffRow, type FileThreads } from './diff-parse';
 import { PrThreadNote } from './PrThreadNote';
@@ -36,12 +36,12 @@ function Code({ row, tokens, range }: { row: DiffRow; tokens?: ShToken[]; range?
 
 interface PrDiffRowsProps { rows: DiffRow[]; tokens: ShToken[][] | null; wrap: boolean; threads: FileThreads; marks: Map<number, CharRange> }
 
-export function PrDiffRows({ rows, tokens, wrap, threads, marks }: PrDiffRowsProps) {
+export const PrDiffRows = memo(function PrDiffRows({ rows, tokens, wrap, threads, marks }: PrDiffRowsProps) {
   return (
     <div className={`scroll-thin bg-[#070707] font-mono text-[12px] leading-[1.55] ${wrap ? '' : 'overflow-x-auto'}`}>
       <div className={wrap ? '' : 'w-max min-w-full'}>
         {rows.map((r, i) => {
-          const notes = r.newLn ? threads.byLine.get(r.newLn) : undefined;
+          const notes = [...(r.t !== 'add' && r.oldLn ? threads.byOld.get(r.oldLn) ?? [] : []), ...(r.t !== 'del' && r.newLn ? threads.byNew.get(r.newLn) ?? [] : [])];
           return (
             <Fragment key={i}>
               {r.t === 'hunk' ? (
@@ -58,11 +58,11 @@ export function PrDiffRows({ rows, tokens, wrap, threads, marks }: PrDiffRowsPro
                   <span className={`min-w-0 flex-1 pr-4 ${wrap ? 'whitespace-pre-wrap break-all' : 'whitespace-pre'}`}><Code row={r} tokens={tokens?.[i]} range={marks.get(i)} /></span>
                 </div>
               )}
-              {notes?.map((t, n) => <PrThreadNote key={n} thread={t} inline />)}
+              {notes.map((t, n) => <PrThreadNote key={n} thread={t} inline />)}
             </Fragment>
           );
         })}
       </div>
     </div>
   );
-}
+});

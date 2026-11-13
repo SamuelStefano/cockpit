@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { memo, useMemo } from 'react';
 import type { PrReviewThread } from '../../../shared/prs';
 import { Badge } from '../../components/primitives/Badge';
 import { Checkbox } from '../../components/primitives/Checkbox';
@@ -23,7 +23,10 @@ const CHANGE = {
 const HIGHLIGHT_MAX_ROWS = 1500;
 
 interface PrDiffFileCardProps {
-  view: DiffFileView;
+  file: DiffFileView['file'];
+  rows: DiffFileView['rows'];
+  open: boolean;
+  viewed: boolean;
   prUrl: string;
   threads: PrReviewThread[];
   wrap: boolean;
@@ -31,15 +34,14 @@ interface PrDiffFileCardProps {
   onViewed: (file: DiffFileView['file']) => void;
 }
 
-export function PrDiffFileCard({ view, prUrl, threads, wrap, onToggle, onViewed }: PrDiffFileCardProps) {
-  const { file, rows, open, viewed } = view;
+export const PrDiffFileCard = memo(function PrDiffFileCard({ file, rows, open, viewed, prUrl, threads, wrap, onToggle, onViewed }: PrDiffFileCardProps) {
   const { dir, name } = splitPath(file.path);
   const code = useMemo(() => (open && rows.length <= HIGHLIGHT_MAX_ROWS ? rows.map((r) => (r.t === 'hunk' ? '' : r.text)).join('\n') : ''), [open, rows]);
   const shiki = useShikiTokens(code, langOf(file.path));
   const fileThreads = useMemo(() => threadsForFile(threads, file.path, rows), [threads, file.path, rows]);
   const marks = useMemo(() => (open ? markChanges(rows) : new Map()), [open, rows]);
   const change = CHANGE[file.change];
-  const noteCount = fileThreads.loose.length + [...fileThreads.byLine.values()].reduce((n, t) => n + t.length, 0);
+  const noteCount = fileThreads.count;
 
   return (
     <section id={fileAnchor(file.path)} className="scroll-mt-14 overflow-clip rounded-xl border border-neutral-800 bg-neutral-950 [content-visibility:auto] [contain-intrinsic-size:auto_3rem]">
@@ -82,4 +84,4 @@ export function PrDiffFileCard({ view, prUrl, threads, wrap, onToggle, onViewed 
       )}
     </section>
   );
-}
+});

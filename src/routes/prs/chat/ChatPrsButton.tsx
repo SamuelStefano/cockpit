@@ -8,7 +8,7 @@ const ChatPrsPanel = lazy(() => import('./ChatPrsPanel').then((m) => ({ default:
 interface ChatPrsButtonProps { sessionId: string; markers: number; compact?: boolean }
 
 function Inner({ sessionId, markers, compact, deps }: ChatPrsButtonProps & { deps: ChatPrDeps }) {
-  const s = useChatPrs(sessionId, markers);
+  const s = useChatPrs(sessionId, markers, deps.connected);
   const label = s.count ? `Pull requests desta conversa: ${s.count}` : 'Pull requests desta conversa';
   return (
     <>
@@ -30,5 +30,6 @@ function Inner({ sessionId, markers, compact, deps }: ChatPrsButtonProps & { dep
 // code of each PR, one tap from the thread.
 export function ChatPrsButton(props: ChatPrsButtonProps) {
   const deps = useContext(ChatPrDepsContext);
-  return deps ? <Inner {...props} deps={deps} /> : null;
+  // Keyed by chat: the open panel and the picked PR belong to one conversation.
+  return deps ? <Inner key={props.sessionId} {...props} deps={deps} /> : null;
 }

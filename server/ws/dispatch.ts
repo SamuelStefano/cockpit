@@ -75,7 +75,7 @@ import { listGraphs, readGraph, buildGraph, deleteGraph, queryGraph, nodeOp } fr
 import { buildBench } from '../bench';
 import { getPrDetail, getPrsSnapshot, getPrsSnapshotSwr, mergePr, peekPrsSnapshot } from '../github/prs';
 import { getPrDiff } from '../github/pr-diff';
-import { getSessionPrs } from '../github/session-prs';
+import { clearSessionPrsCache, getSessionPrs } from '../github/session-prs';
 import { buildCanvas } from '../canvas/index';
 import { withPlain } from '../mission-summary';
 import { readOrchestrator } from '../canvas/orchestrator';
@@ -574,6 +574,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       console.log(`[prs] merge ${url} → ${r.ok ? 'ok' : `refused: ${r.message}`}`);
       send(ws, { t: 'prs-merge-result', reqId: msg.reqId, url, ok: r.ok, message: r.message });
       if (r.ok) {
+        clearSessionPrsCache();
         const optimistic = peekPrsSnapshot();
         if (optimistic) send(ws, { t: 'prs', snapshot: optimistic, pending: true });
         void getPrsSnapshot(true).then((snapshot) => send(ws, { t: 'prs', snapshot }));

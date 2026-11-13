@@ -43,7 +43,7 @@ query($url: URI!) {
     } } }
     comments(last: 30) { nodes { author { login } body createdAt } }
     reviews(last: 20) { nodes { author { login } body state createdAt } }
-    reviewThreads(first: 50) { nodes { path line isResolved isOutdated comments(first: 20) { nodes { author { login } body createdAt } } } }
+    reviewThreads(first: 50) { nodes { path line diffSide isResolved isOutdated comments(first: 20) { nodes { author { login } body createdAt } } } }
   } }
 }`;
 
@@ -196,7 +196,7 @@ export function detailFromResource(raw: unknown, sessions?: ReadonlyMap<string, 
       createdAt: str(obj(c).createdAt),
     }));
     if (!comments.length) return [];
-    return [{ path: str(o.path), line: typeof o.line === 'number' ? o.line : undefined, resolved: o.isResolved === true, outdated: o.isOutdated === true, comments }];
+    return [{ path: str(o.path), line: typeof o.line === 'number' ? o.line : undefined, side: o.diffSide === 'LEFT' ? 'left' as const : 'right' as const, resolved: o.isResolved === true, outdated: o.isOutdated === true, comments }];
   });
   return {
     ...summary,

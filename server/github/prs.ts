@@ -95,6 +95,8 @@ let cache: PrsSnapshot | null = null;
 let inflight: Promise<PrsSnapshot> | null = null;
 let diskLoaded = false;
 
+// Bump when PrSummary changes shape: a snapshot written by an older build is dropped, not painted.
+const CACHE_VERSION = 1;
 const cachePath = () => process.env.COCKPIT_PRS_CACHE ?? join(homedir(), '.cockpit', 'prs-snapshot.json');
 
 function loadDisk(): void {
@@ -102,7 +104,8 @@ function loadDisk(): void {
   diskLoaded = true;
   if (cache) return;
   try {
-    const s = JSON.parse(readFileSync(cachePath(), 'utf8')) as PrsSnapshot;
+    const file = JSON.parse(readFileSync(cachePath(), 'utf8')) as { v?: number; snapshot?: PrsSnapshot };
+    const s = file.v === CACHE_VERSION ? file.snapshot : undefined;
     if (s && typeof s.fetchedAt === 'number' && Array.isArray(s.mine) && Array.isArray(s.merged) && Array.isArray(s.review)) cache = s;
   } catch { /* no cache yet, or an unreadable one: the first build rewrites it */ }
 }
@@ -112,7 +115,7 @@ function saveDisk(s: PrsSnapshot): void {
     const path = cachePath();
     mkdirSync(dirname(path), { recursive: true });
     const tmp = `${path}.${process.pid}.tmp`;
-    writeFileSync(tmp, JSON.stringify(s), { mode: 0o600 });
+    writeFileSync(tmp, JSON.stringify({ v: CACHE_VERSION, snapshot: s }), { mode: 0o600 });
     renameSync(tmp, path);
   } catch { /* a cache that cannot be written only costs a cold start */ }
 }

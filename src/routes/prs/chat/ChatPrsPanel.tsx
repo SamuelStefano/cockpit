@@ -10,7 +10,7 @@ import type { useChatPrs } from './useChatPrs';
 interface ChatPrsPanelProps { state: ReturnType<typeof useChatPrs>; deps: ChatPrDeps }
 
 export function ChatPrsPanel({ state: s, deps }: ChatPrsPanelProps) {
-  const { onAllPrs, ...actions } = deps;
+  const { onAllPrs, connected: _connected, ...actions } = deps;
   const close = () => s.setOpen(false);
   const go = (fn: () => void) => () => { close(); fn(); };
   const repos = s.groups.length;

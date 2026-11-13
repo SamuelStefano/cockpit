@@ -59,8 +59,8 @@ export function RouteContent({ route, agentRoute, skillRoute, isMobile, isAdmin,
   const c = cockpit;
   const { onSendTo, onLaunchAgent } = c;
   const prDeps = useMemo<ChatPrDeps | null>(
-    () => (isRoot ? { onOpenSession, onSendTo, onLaunchAgent, onAllPrs: () => navigateTo('/prs') } : null),
-    [isRoot, onOpenSession, onSendTo, onLaunchAgent],
+    () => (isRoot ? { onOpenSession, onSendTo, onLaunchAgent, connected, onAllPrs: () => navigateTo('/prs') } : null),
+    [isRoot, connected, onOpenSession, onSendTo, onLaunchAgent],
   );
   const view = (() => {
     if (route === '/equipe/rotinas' || route === '/equipe/memoria') {

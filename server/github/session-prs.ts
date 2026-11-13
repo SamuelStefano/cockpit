@@ -57,26 +57,53 @@ async function readLists(sessionId: string, path: string): Promise<{ createdUrls
     grep(['-hoE', PR_ANY_RE, '--', path]),
   ]);
   const value = urlListsFrom(links, urls);
-  lists.set(sessionId, { key, value });
+  remember(lists, sessionId, { key, value });
   return value;
 }
 
-async function hydrate(urls: string[]): Promise<PrSummary[]> {
+// One PR the login cannot read (an org behind SSO, a deleted repo) makes `gh` exit
+// non-zero for the whole batch while still printing the PRs it could read: keep
+// those, and keep the batches that already answered.
+async function batch(query: string, vars: Record<string, string>): Promise<{ data?: Record<string, unknown>; error?: string }> {
+  try {
+    return (await graphql(query, vars)) as { data?: Record<string, unknown> };
+  } catch (e) {
+    try {
+      const partial = JSON.parse((e as { stdout?: string }).stdout ?? '') as { data?: Record<string, unknown> };
+      if (partial.data) return { data: partial.data };
+    } catch { /* no usable output: a real failure */ }
+    return { error: ghError(e) };
+  }
+}
+
+async function hydrate(urls: string[]): Promise<{ prs: PrSummary[]; error?: string }> {
   const sessions = peekPrSessions(CONFIG.projectsDir);
   const byUrl = new Map<string, PrSummary>();
+  let error: string | undefined;
   for (let i = 0; i < urls.length; i += CHUNK) {
     const chunk = urls.slice(i, i + CHUNK);
     const decl = chunk.map((_, j) => `$u${j}: URI!`).join(', ');
     const body = chunk.map((_, j) => `p${j}: resource(url: $u${j}) { ... on PullRequest { ${LIST_FIELDS} files(first: 100) { totalCount nodes { path } } } }`).join('\n');
     const vars: Record<string, string> = {};
     chunk.forEach((u, j) => { vars[`u${j}`] = u; });
-    const raw = (await graphql(`query(${decl}) {\n${body}\n}`, vars)) as { data?: Record<string, unknown> };
+    const raw = await batch(`query(${decl}) {\n${body}\n}`, vars);
+    if (raw.error) error = raw.error;
     chunk.forEach((u, j) => {
       const pr = prFromNode(raw.data?.[`p${j}`], sessions);
       if (pr) byUrl.set(u, pr);
     });
   }
-  return urls.map((u) => byUrl.get(u)).filter((p): p is PrSummary => !!p);
+  return { prs: urls.map((u) => byUrl.get(u)).filter((p): p is PrSummary => !!p), error };
+}
+
+// A merge changes what every hydrated list should say; the next ask re-reads GitHub.
+export function clearSessionPrsCache(): void { hydrated.clear(); }
+
+const CACHE_MAX = 60;
+function remember<V>(map: Map<string, V>, key: string, value: V): void {
+  map.delete(key);
+  map.set(key, value);
+  if (map.size > CACHE_MAX) map.delete(map.keys().next().value as string);
 }
 
 export async function getSessionPrs(sessionId: string, wantPrs: boolean): Promise<SessionPrs> {
@@ -89,11 +116,8 @@ export async function getSessionPrs(sessionId: string, wantPrs: boolean): Promis
   const key = urls.join('\n');
   const hit = hydrated.get(sessionId);
   if (hit && hit.key === key && Date.now() - hit.at < HYDRATE_TTL_MS) return { ...out, prs: hit.prs };
-  try {
-    const prs = await hydrate(urls);
-    hydrated.set(sessionId, { at: Date.now(), key, prs });
-    return { ...out, prs };
-  } catch (e) {
-    return { ...out, error: ghError(e) };
-  }
+  const { prs, error } = await hydrate(urls);
+  if (!prs.length && error) return { ...out, error };
+  if (!error) remember(hydrated, sessionId, { at: Date.now(), key, prs });
+  return { ...out, prs, error };
 }

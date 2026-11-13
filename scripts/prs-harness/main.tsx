@@ -27,7 +27,7 @@ setPrsSender((m) => {
   return true;
 });
 
-const deps = { onOpenSession: () => {}, onSendTo: () => true, onLaunchAgent: () => null, onAllPrs: () => {} };
+const deps = { onOpenSession: () => {}, onSendTo: () => true, onLaunchAgent: () => null, onAllPrs: () => {}, connected: true };
 const chat = new URLSearchParams(location.search).get('view') === 'chat';
 
 createRoot(document.getElementById('root')!).render(
@@ -37,6 +37,6 @@ createRoot(document.getElementById('root')!).render(
         <span className="text-[14px] font-medium text-neutral-100">Demo conversation</span>
         <div className="ml-auto"><ChatPrsButton sessionId={fixture.sessionId} markers={0} /></div>
       </div>
-    ) : <Prs connected {...deps} />}
+    ) : <Prs connected onOpenSession={deps.onOpenSession} onSendTo={deps.onSendTo} onLaunchAgent={deps.onLaunchAgent} />}
   </ChatPrDepsContext.Provider>,
 );

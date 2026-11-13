@@ -127,7 +127,7 @@ describe('getPrsSnapshotSwr', () => {
     expect(first.cached).toBeNull();
     const s = await first.fresh!;
     const path = process.env.COCKPIT_PRS_CACHE!;
-    expect(JSON.parse(readFileSync(path, 'utf8')).fetchedAt).toBe(s.fetchedAt);
+    expect(JSON.parse(readFileSync(path, 'utf8'))).toMatchObject({ v: 1, snapshot: { fetchedAt: s.fetchedAt } });
     expect(statSync(path).mode & 0o777).toBe(0o600);
     setGhForTest(async () => empty);
     const again = getPrsSnapshotSwr(false, s.fetchedAt + 1000);
@@ -136,7 +136,7 @@ describe('getPrsSnapshotSwr', () => {
   });
 
   it('a stale disk cache comes back at once with a refresh running', async () => {
-    writeFileSync(process.env.COCKPIT_PRS_CACHE!, JSON.stringify(snap()));
+    writeFileSync(process.env.COCKPIT_PRS_CACHE!, JSON.stringify({ v: 1, snapshot: snap() }));
     setGhForTest(async () => empty);
     const r = getPrsSnapshotSwr(false, 1000 + 120_000);
     expect(r.cached?.fetchedAt).toBe(1000);

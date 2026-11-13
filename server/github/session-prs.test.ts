@@ -69,4 +69,13 @@ describe('getSessionPrs', () => {
     expect(r).toMatchObject({ createdUrls: [U(7)], error: 'boom' });
     expect(r.prs).toBeUndefined();
   });
+
+  it('keeps the PRs gh could read when one in the batch is refused', async () => {
+    writeFileSync(file, [JSON.stringify({ type: 'pr-link', prUrl: U(21) }), JSON.stringify({ type: 'pr-link', prUrl: U(22) })].join('\n'));
+    const partial = { data: { p0: { url: U(21), number: 21, repository: { nameWithOwner: 'a/b' } }, p1: null }, errors: [{ message: 'SAML' }] };
+    setGhForTest(async () => { throw Object.assign(new Error('gh: SAML'), { stdout: JSON.stringify(partial), stderr: 'gh: SAML' }); });
+    const r = await getSessionPrs('sess-partial', true);
+    expect(r.prs?.map((p) => p.number)).toEqual([21]);
+    expect(r.error).toBeUndefined();
+  });
 });

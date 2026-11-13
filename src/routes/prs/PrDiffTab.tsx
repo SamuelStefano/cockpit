@@ -1,4 +1,4 @@
-import type { PrDetail, PrSummary } from '../../../shared/prs';
+import type { PrDetail, PrReviewThread, PrSummary } from '../../../shared/prs';
 import { Button } from '../../components/primitives/Button';
 import { EmptyState } from '../../components/primitives/EmptyState';
 import { IconButton } from '../../components/primitives/IconButton';
@@ -8,9 +8,11 @@ import { PrDiffFileCard } from './PrDiffFileCard';
 import { PrDiffFileNav } from './PrDiffFileNav';
 import { usePrDiff } from './usePrDiff';
 
+const NO_THREADS: PrReviewThread[] = [];
+
 export function PrDiffTab({ pr, detail }: { pr: PrSummary; detail: PrDetail | null }) {
   const d = usePrDiff(pr.url);
-  const threads = detail?.threads ?? [];
+  const threads = detail?.threads ?? NO_THREADS;
 
   if (d.loading) return <div className="space-y-3"><Skeleton className="h-9 w-full" /><Skeleton className="h-40 w-full" /><Skeleton className="h-24 w-full" /></div>;
   if (!d.diff) {
@@ -44,7 +46,7 @@ export function PrDiffTab({ pr, detail }: { pr: PrSummary; detail: PrDetail | nu
         <PrDiffFileNav files={d.files} onJump={(path) => d.toggleOpen(path, true)} />
         <div className="min-w-0 flex-1 space-y-3">
           {d.files.length
-            ? d.files.map((v) => <PrDiffFileCard key={v.file.path} view={v} prUrl={pr.url} threads={threads} wrap={d.wrap} onToggle={d.toggleOpen} onViewed={d.toggleViewed} />)
+            ? d.files.map((v) => <PrDiffFileCard key={v.file.path} file={v.file} rows={v.rows} open={v.open} viewed={v.viewed} prUrl={pr.url} threads={threads} wrap={d.wrap} onToggle={d.toggleOpen} onViewed={d.toggleViewed} />)
             : <EmptyState size="xs" title="Nenhum arquivo com esse nome" />}
         </div>
       </div>

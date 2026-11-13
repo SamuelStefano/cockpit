@@ -83,8 +83,17 @@ describe('threadsForFile', () => {
   it('anchors a thread to its line only when the patch shows that line', () => {
     const rows = parsePatch(PATCH);
     const out = threadsForFile([thread({ line: 11 }), thread({ line: 999 }), thread({}), thread({ path: 'other.ts', line: 11 })], 'src/a.ts', rows);
-    expect([...out.byLine.keys()]).toEqual([11]);
+    expect([...out.byNew.keys()]).toEqual([11]);
     expect(out.loose).toHaveLength(2);
+    expect(out.count).toBe(3);
+  });
+
+  it('a comment on a removed line anchors on the old side', () => {
+    const rows = parsePatch(PATCH);
+    const out = threadsForFile([thread({ line: 40, side: 'left' }), thread({ line: 41, side: 'left' })], 'src/a.ts', rows);
+    expect([...out.byOld.keys()]).toEqual([40]);
+    expect(out.byNew.size).toBe(0);
+    expect(out.loose).toHaveLength(1);
   });
 });
 

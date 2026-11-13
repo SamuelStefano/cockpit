@@ -7,16 +7,16 @@ const WIDE = '(min-width: 1024px)';
 
 // `markers`: how many PR dividers the thread shows; a new one means the chat just
 // opened a PR, so the count on the button is asked again.
-export function useChatPrs(sessionId: string, markers: number) {
+export function useChatPrs(sessionId: string, markers: number, connected: boolean) {
   const state = useSyncExternalStore(subscribePrs, getPrsState, getPrsState);
   const [open, setOpen] = useState(false);
   const [picked, setPicked] = useState<string | null>(null);
   const entry = state.sessions[sessionId];
   const session = entry?.session ?? null;
 
-  useEffect(() => { requestSessionPrs(sessionId, false); }, [sessionId, markers]);
-  useEffect(() => { setOpen(false); setPicked(null); }, [sessionId]);
-  useEffect(() => { if (open) requestSessionPrs(sessionId, true); }, [open, sessionId, markers]);
+  // `connected` in the deps: a header that mounted before the socket opened asks again.
+  useEffect(() => { if (connected) requestSessionPrs(sessionId, false); }, [sessionId, markers, connected]);
+  useEffect(() => { if (open && connected) requestSessionPrs(sessionId, true); }, [open, sessionId, markers, connected]);
 
   const prs: PrSummary[] = useMemo(() => session?.prs ?? [], [session]);
   const created = useMemo(() => new Set(session?.createdUrls ?? []), [session]);
@@ -26,7 +26,7 @@ export function useChatPrs(sessionId: string, markers: number) {
   const selectedUrl = picked ?? fallback;
   const selected = prs.find((p) => p.url === selectedUrl) ?? null;
 
-  useEffect(() => { if (open && selectedUrl) requestPrDetail(selectedUrl); }, [open, selectedUrl]);
+  useEffect(() => { if (open && connected && selectedUrl) requestPrDetail(selectedUrl); }, [open, connected, selectedUrl]);
 
   const retryDetail = useCallback(() => { if (selectedUrl) requestPrDetail(selectedUrl); }, [selectedUrl]);
   const refresh = useCallback(() => { requestSessionPrs(sessionId, true); }, [sessionId]);
@@ -35,7 +35,7 @@ export function useChatPrs(sessionId: string, markers: number) {
     open, setOpen, groups, created, selected, selectedUrl, select: setPicked,
     count: session ? session.createdUrls.length + session.mentionedUrls.length : 0,
     createdCount: session?.createdUrls.length ?? 0,
-    loading: !session?.prs && (entry?.loading ?? true), refreshing: !!entry?.loading, error: session?.error,
+    loading: !session?.prs && !session?.error && (entry?.hydrating ?? true), refreshing: !!entry?.hydrating, error: session?.error,
     detail: selectedUrl ? state.details[selectedUrl] : undefined, retryDetail, refresh,
   };
 }

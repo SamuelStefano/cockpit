@@ -100,7 +100,7 @@ export function detailTabs(pr: Pick<PrSummary, 'changedFiles'>, detail: Pick<PrD
     { id: 'summary', label: 'Resumo' },
     { id: 'commits', label: n('Commits', detail?.commitCount) },
     { id: 'checks', label: failing ? `Checks ${failing} ✕` : n('Checks', detail?.checkRuns.length) },
-    { id: 'conversation', label: n('Conversa', detail ? detail.comments.length + detail.threads.length : undefined) },
+    { id: 'conversation', label: n('Conversa', detail ? detail.comments.length + detail.threads.filter((t) => !t.resolved).length : undefined) },
   ];
 }
 
