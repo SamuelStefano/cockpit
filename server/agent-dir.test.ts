@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { agentCwdSync, resolveAgentDir, sourceCloneDir } from './agent-dir';
+import { agentCwdSync, ancestorClaudeMdExcludes, resolveAgentDir, sourceCloneDir } from './agent-dir';
 
 let root: string;
 beforeEach(() => { root = mkdtempSync(join(tmpdir(), 'agent-src-')); process.env.COCKPIT_BOTS_DIR = root; });
@@ -41,5 +41,15 @@ describe('agentCwdSync', () => {
     expect(agentCwdSync('bot1', file)).toBe(join(sourceCloneDir('bot1')!, 'maria'));
     expect(agentCwdSync('bot2', file)).toBeUndefined();
     expect(agentCwdSync(undefined, file)).toBeUndefined();
+  });
+});
+
+describe('ancestorClaudeMdExcludes', () => {
+  it('excludes every memory file above the clone, home .claude included, never inside it', () => {
+    const ex = ancestorClaudeMdExcludes('/home/op/.cockpit/bots/abcd1/source');
+    expect(ex).toContain('/home/op/.claude/CLAUDE.md');
+    expect(ex).toContain('/home/op/CLAUDE.md');
+    expect(ex).toContain('/CLAUDE.md');
+    expect(ex.some((p) => p.startsWith('/home/op/.cockpit/bots/abcd1/source/'))).toBe(false);
   });
 });

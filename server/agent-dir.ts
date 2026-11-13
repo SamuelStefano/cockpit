@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, realpathSync } from 'node:fs';
-import { join, sep } from 'node:path';
+import { dirname, join, sep } from 'node:path';
 import type { AgentSource, TeamBot } from '../shared/protocol';
 import { validateAgentSource } from '../shared/agent-source';
 import { botsRoot } from './engine/restricted-profile';
@@ -35,4 +35,25 @@ export function agentCwdSync(botId: string | undefined, file = teamFile()): stri
     const bot = Array.isArray(team) ? team.find((b) => b.id === botId) : undefined;
     return bot?.source ? resolveAgentDir(bot.id, bot.source) : undefined;
   } catch { return undefined; }
+}
+
+// CLAUDE.md discovery walks up from the cwd and also reads `<dir>/.claude/CLAUDE.md`,
+// so a clone under the operator's home would load the operator's global
+// ~/.claude/CLAUDE.md as a "project" file. Every memory file above the clone is excluded.
+export function ancestorClaudeMdExcludes(cloneRoot: string): string[] {
+  const out: string[] = [];
+  let d = cloneRoot;
+  for (;;) {
+    const up = dirname(d);
+    if (up === d) break;
+    d = up;
+    const base = d === '/' ? '' : d;
+    out.push(`${base}/CLAUDE.md`, `${base}/CLAUDE.local.md`, `${base}/.claude/CLAUDE.md`, `${base}/.claude/rules/**`);
+  }
+  return out;
+}
+
+export function agentCloneRootSync(botId: string | undefined): string | undefined {
+  const clone = botId ? sourceCloneDir(botId) : undefined;
+  try { return clone ? realpathSync(clone) : undefined; } catch { return undefined; }
 }
