@@ -50,6 +50,8 @@ export interface ChatPanelProps {
   session: Session | null;
   messages: Message[];
   phase: Phase;
+  // Final CLI result already seen; hides the working indicators until `done`.
+  settled?: boolean;
   // Escrita externa (turno do terminal) na sessão ativa há <5s — acende a
   // estrelinha mesmo sem run do app (paridade com acompanhar pelo terminal).
   terminalBusy?: boolean;

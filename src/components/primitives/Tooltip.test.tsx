@@ -38,4 +38,20 @@ describe('Tooltip', () => {
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(screen.queryByRole('tooltip')).toBeNull();
   });
+
+  it('does not open on focus after a touch tap and closes on click', () => {
+    render(<Tooltip label="Dica" delay={0}><button>x</button></Tooltip>);
+    const btn = screen.getByRole('button');
+    const wrap = btn.parentElement!;
+    const spy = vi.spyOn(btn, 'matches').mockReturnValue(true);
+    fireEvent.pointerDown(wrap, { pointerType: 'touch' });
+    fireEvent.focus(btn);
+    expect(screen.queryByRole('tooltip')).toBeNull();
+    fireEvent.keyDown(wrap, { key: 'Tab' });
+    fireEvent.focus(btn);
+    expect(screen.getByRole('tooltip')).toBeTruthy();
+    fireEvent.click(btn);
+    expect(screen.queryByRole('tooltip')).toBeNull();
+    spy.mockRestore();
+  });
 });

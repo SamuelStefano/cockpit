@@ -238,6 +238,7 @@ export function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
         thread.text = capTail(r.result);
         broadcast({ t: 'delta', sessionKey, text: r.result });
       }
+      if (!thread.stopped && !thread.pendingBgTasks?.length) broadcast({ t: 'settled', sessionKey });
       capture(thread, ev);
       return;
     }
