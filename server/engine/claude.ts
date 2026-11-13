@@ -324,7 +324,7 @@ export function run(opts: RunOpts): RunHandle {
   const built = buildArgs({
     prompt, resumeId, mode, model, effort, maxBudgetUsd, bypass, role, disallowedSkills, forkId, allowWorkflow, appendSystemPrompt, botId, profile,
     agentRoot: agentDir ? agentCloneRootSync(botId) ?? agentDir : undefined,
-    deckContext: restricted ? undefined : deckAgentContext({ bot: !!botId }),
+    deckContext: restricted ? undefined : deckAgentContext({ bot: !!botId, repoAgent: !!agentDir }),
   }, mcpConfigPath);
   if ('error' in built) {
     cleanupMcp();
