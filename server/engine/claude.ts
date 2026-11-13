@@ -21,7 +21,7 @@ import { projectSlug } from '../config';
 import { restrictedTurn, ensureWorkspace, type RestrictedTurn } from './restricted-profile';
 import { deckAgentContext, joinSystemPrompts } from '../deck-context';
 import { withGithubCredentialHelper } from '../github-app';
-import { agentCwdSync } from '../agent-dir';
+import { agentCwdSync, agentCloneRootSync, ancestorClaudeMdExcludes } from '../agent-dir';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -184,9 +184,12 @@ export function agentDirEnv(home = process.env.HOME ?? ''): Record<string, strin
 }
 
 // Setting sources for a repo agent: the folder's own CLAUDE.md, .claude/settings
-// and .claude/skills load; the operator's user source (~/.claude/CLAUDE.md, user
-// settings, hooks, skills, plugins) does not. Auth is not a setting source.
-export const AGENT_DIR_SETTING_SOURCES = ['--setting-sources', 'project,local'];
+// and .claude/skills load; the operator's user source (user settings, hooks,
+// skills, plugins) does not, and neither does any CLAUDE.md above the clone
+// (~/.claude/CLAUDE.md included). Auth is not a setting source.
+export function agentDirArgs(cloneRoot: string): string[] {
+  return ['--setting-sources', 'project,local', '--settings', JSON.stringify({ claudeMdExcludes: ancestorClaudeMdExcludes(cloneRoot) })];
+}
 
 export function profilePermissions(o: Pick<RunOpts, 'profile' | 'botId' | 'mode'>): RestrictedTurn | { error: string } | undefined {
   if (o.profile !== 'restricted') return undefined;
@@ -210,7 +213,7 @@ export function profilePermissions(o: Pick<RunOpts, 'profile' | 'botId' | 'mode'
 // task pendente (`system/task_updated {status:"killed"}`) e sai — é por isso
 // que "eu te aviso quando terminar" nunca chegava a acontecer no Deck. Root
 // cause + comportamento verificados ao vivo com claude 2.1.281 (ver PR).
-export type BuildArgsOpts = Pick<RunOpts, 'prompt' | 'resumeId' | 'mode' | 'model' | 'effort' | 'maxBudgetUsd' | 'bypass' | 'role' | 'disallowedSkills' | 'forkId' | 'allowWorkflow' | 'appendSystemPrompt' | 'deckContext' | 'botId' | 'profile'> & { agentDir?: boolean };
+export type BuildArgsOpts = Pick<RunOpts, 'prompt' | 'resumeId' | 'mode' | 'model' | 'effort' | 'maxBudgetUsd' | 'bypass' | 'role' | 'disallowedSkills' | 'forkId' | 'allowWorkflow' | 'appendSystemPrompt' | 'deckContext' | 'botId' | 'profile'> & { agentRoot?: string };
 
 export function buildArgs(opts: BuildArgsOpts, mcpConfigPath?: string): { args: string[] } | { error: string } {
   const { resumeId, mode, model, effort, maxBudgetUsd, bypass, role, disallowedSkills, forkId, allowWorkflow, appendSystemPrompt, deckContext, botId } = opts;
@@ -237,7 +240,7 @@ export function buildArgs(opts: BuildArgsOpts, mcpConfigPath?: string): { args: 
     '--strict-mcp-config',
   ];
   if (restricted) args.push(...restricted.args);
-  else if (opts.agentDir) args.push(...AGENT_DIR_SETTING_SOURCES);
+  else if (opts.agentRoot) args.push(...agentDirArgs(opts.agentRoot));
   if (mcpConfigPath) args.push('--mcp-config', mcpConfigPath, '--permission-prompt-tool', PERMISSION_PROMPT_TOOL);
   if (model && validModel(model)) args.push('--model', model);
   // Nível de pensamento. Sem a flag o CLI usa o default da conta (alto) e queima
@@ -320,7 +323,7 @@ export function run(opts: RunOpts): RunHandle {
 
   const built = buildArgs({
     prompt, resumeId, mode, model, effort, maxBudgetUsd, bypass, role, disallowedSkills, forkId, allowWorkflow, appendSystemPrompt, botId, profile,
-    agentDir: !!agentDir,
+    agentRoot: agentDir ? agentCloneRootSync(botId) ?? agentDir : undefined,
     deckContext: restricted ? undefined : deckAgentContext({ bot: !!botId }),
   }, mcpConfigPath);
   if ('error' in built) {

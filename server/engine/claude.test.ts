@@ -8,7 +8,7 @@ import { PassThrough } from 'node:stream';
 let managed: Record<string, string> = {};
 let mcpDefs: Record<string, unknown> = {};
 const agentDir = vi.hoisted(() => ({ value: undefined as string | undefined }));
-vi.mock('../agent-dir', () => ({ agentCwdSync: () => agentDir.value }));
+vi.mock('../agent-dir', async (orig) => ({ ...(await orig<typeof import('../agent-dir')>()), agentCwdSync: () => agentDir.value, agentCloneRootSync: () => (agentDir.value ? '/tmp/bots/abcd1/source' : undefined) }));
 vi.mock('../admin-ops', () => ({ managedEnvSync: () => managed, mcpServerDefsSync: () => mcpDefs }));
 
 // run() writes its MCP config under tmpdir(); keep the ones these tests create out of the real /tmp.
@@ -800,6 +800,9 @@ describe('repo agent isolation', () => {
     const { args, opts } = go();
     expect(opts.cwd).toBe('/tmp/bots/abcd1/source/maria');
     expect(valAfter(args, '--setting-sources')).toBe('project,local');
+    const ex: string[] = JSON.parse(valAfter(args, '--settings')!).claudeMdExcludes;
+    expect(ex).toEqual(expect.arrayContaining(['/tmp/bots/abcd1/CLAUDE.md', '/tmp/.claude/CLAUDE.md', '/CLAUDE.md']));
+    expect(ex.some((p) => p.startsWith('/tmp/bots/abcd1/source/'))).toBe(false);
     expect(opts.env?.CLAUDE_CODE_DISABLE_AUTO_MEMORY).toBe('1');
     expect(opts.env?.CLAUDE_CONFIG_DIR).toBe(join(process.env.HOME ?? '', '.claude'));
   });
@@ -807,6 +810,7 @@ describe('repo agent isolation', () => {
   it('a bot without a repo is unchanged', () => {
     const { args, opts } = go();
     expect(args).not.toContain('--setting-sources');
+    expect(args).not.toContain('--settings');
     expect(opts.env?.CLAUDE_CODE_DISABLE_AUTO_MEMORY).toBeUndefined();
   });
 });
