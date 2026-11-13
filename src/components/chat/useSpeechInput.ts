@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { joinTranscript, SPEECH_LANG } from './speech';
+import { normalizeDictation } from './speech-normalize';
 import { speechErrorMessage, isFatalSpeechError, noCaptureMessage, KEYBOARD_DICTATION_HINT } from './speech-errors';
 import { rememberEngineFailure, hasRecentEngineFailure } from './speech-fallback';
 // No toque a Web Speech API costuma faltar (iOS Safari/webviews) ou ser instável
@@ -164,8 +165,8 @@ export function useSpeechInput(value: string, setValue: (v: string) => void, foc
       let interim = '';
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const r = e.results[i];
-        if (r.isFinal) finalRef.current += r[0].transcript;
-        else interim += r[0].transcript;
+        if (r.isFinal) finalRef.current += normalizeDictation(r[0].transcript);
+        else interim += normalizeDictation(r[0].transcript);
       }
       setValueRef.current(joinTranscript(baseRef.current, finalRef.current + interim));
     };
