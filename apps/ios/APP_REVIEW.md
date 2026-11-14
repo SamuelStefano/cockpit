@@ -42,12 +42,12 @@ uploaded but not attached. These block a submission:
 | Demo account signs in today | **owner: Samuel + Tainan** | A student account on a box we operate, `DECK_ACCOUNT_TRUST` on (plan S2). Credentials go to the `ios-release` environment (`ASC_REVIEW_DEMO_USER`, `ASC_REVIEW_DEMO_PASSWORD`), never the repo. Sign in on the attached build the day of submission. |
 | Demo account does not expire in review | **gap** | No trial, no magic link, no 2FA, no confirmation email. Not verified. Test a clean install and a reinstall. |
 | Third-party login (4.8) | **pass, not verified on device** | `grep` of `src/` finds no `signInWithOAuth`. Sign-in is email and password. If a social login is ever added, Sign in with Apple becomes mandatory. |
-| Account creation needs in-app deletion (5.1.1(v)) | **gap** | Signup is free, in the app, by email. Deletion (Dashboard and EnrollDevice, relay POST, auth admin delete, purge of `shares/<uid>/`) is plan row S3, an unsafe class that Samuel approves. The review notes already name `Settings > Delete account`: **re-check the exact path against S3 before submitting**. |
+| Account creation needs in-app deletion (5.1.1(v)) | **pass (code), gap (device)** | Signup is free, in the app, by email. Deletion shipped in #1138: profile menu > Excluir conta (`src/components/ProfileMenu.tsx`, `DeleteAccount.tsx`), also on the no-server and device-enrollment screens. The notes and both descriptions name the profile menu. Not yet run on a build. |
 | App only for people with an account | **pass (notes)** | The notes say who the users are and that a new account needs its own server. A new account sees an honest screen (S2) with Sign out and Delete account. |
 
 ## 3. Business model and the standard questions (2.1 "Information Needed")
 
-All answers are in `store/metadata.json` `review.notes` (English, 2439 characters).
+All answers are in `store/metadata.json` `review.notes` (English, 3609 characters, limit 4000).
 
 | Apple asks | The notes say | State |
 |---|---|---|
