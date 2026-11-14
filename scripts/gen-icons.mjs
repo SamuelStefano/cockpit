@@ -8,7 +8,10 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 
-const PUBLIC = join(dirname(dirname(fileURLToPath(import.meta.url))), 'public');
+const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
+const PUBLIC = join(ROOT, 'public');
+// The App Store icon: 1024 px, no alpha, rendered from the same mark (never upscaled from 512).
+const IOS_ASSETS = join(ROOT, 'apps', 'ios', 'assets');
 
 const BG = '#101013';
 const ORANGE_FROM = '#f97316';
@@ -47,6 +50,7 @@ const TARGETS = [
   { file: 'icon-512-maskable.png', size: 512, ratio: 0.52 },
   { file: 'apple-touch-icon.png', size: 180, ratio: 0.62 },
   { file: 'favicon-32.png', size: 32, ratio: 0.72 },
+  { file: 'icon.png', dir: IOS_ASSETS, size: 1024, ratio: 0.62 },
 ];
 
 mkdirSync(PUBLIC, { recursive: true });
@@ -54,12 +58,12 @@ writeFileSync(join(PUBLIC, 'favicon.svg'), markSvg(0.72) + '\n');
 
 const browser = await chromium.launch();
 const page = await browser.newPage({ deviceScaleFactor: 1 });
-for (const { file, size, ratio } of TARGETS) {
+for (const { file, dir = PUBLIC, size, ratio } of TARGETS) {
   await page.setViewportSize({ width: size, height: size });
   await page.setContent(
     `<!doctype html><meta charset="utf-8"><style>html,body{margin:0;padding:0;background:${BG}}svg{display:block;width:${size}px;height:${size}px}</style>${markSvg(ratio)}`,
   );
-  await page.screenshot({ path: join(PUBLIC, file), omitBackground: false });
+  await page.screenshot({ path: join(dir, file), omitBackground: false });
   console.log(`${file} ${size}x${size}`);
 }
 await browser.close();
