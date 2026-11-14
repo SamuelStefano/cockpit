@@ -1,20 +1,22 @@
 # App Review readiness of Deck (iOS)
 
-Gate table of `app-store-review` section 2, filled for the shell of this PR (plan `deck-ios`, rows S1 and S4).
+Gate table of `app-store-review` section 2 (plan `deck-ios`, rows S1 to S6).
 Each line is **pass** (with evidence), **gap** (with the route) or **owner** (a person holds it).
-A claim not checked says "not verified". Nothing here was run on a device: there is no build yet.
+A claim not checked says "not verified".
 
-## 0. Verdict
+## 0. Verdict (2026-11-14)
 
-**Not ready to submit.** The config and the store kit are in place. These block a submission:
+**Not ready to submit.** The shell (#1137) and the web side (#1138: privacy, support and terms pages,
+in-app account deletion, AI consent, shell gates) are merged. App Store Connect holds version 0.1.0 with
+the listing pushed on 2026-11-03 and build 7 attached; build 8 (`production-bundle`, 2026-11-08) is
+uploaded but not attached. These block a submission:
 
-1. No build exists. Nothing was opened on a device, and the iPad compatibility run is not done.
-2. Account deletion, the privacy page and the support page are other PRs (rows S3, S4 dependency).
-3. The web side of the bridge (S0) and the store-surface gate (S5) are other PRs. Until they land, the shell
-   offers `notify`, `share` and `haptic`, but the page may not call them, and the web may still show
-   `/pontos`, Arcade, admin or sandbox screens to the reviewer.
-4. The demo account, the box it connects to, the App Privacy label, price, content rights: humans only.
-5. No 1024 px icon master and no screenshots.
+1. No build was opened on a device yet (iPhone or iPad), so 2.1 and the bundled-origin spike are open.
+2. The demo account and its box do not exist: `ASC_REVIEW_DEMO_USER`/`ASC_REVIEW_DEMO_PASSWORD` are unset.
+3. No screenshots (spec in `store/screenshots/README.md`).
+4. App Privacy label and content rights: UI only, not answered.
+5. The privacy manifest gained crash and diagnostic data and the icon is now 1024 px: both need a new
+   `production-bundle` build after this lands.
 
 ## 1. Binary (2.1, 2.5)
 
@@ -69,13 +71,13 @@ All answers are in `store/metadata.json` `review.notes` (English, 2439 character
 
 | Item | State | Evidence or route |
 |---|---|---|
-| Screenshots are real frames of the app | **gap** | None committed. Route: iPhone frames of the attached build, 1290x2796, no alpha, in `store/screenshots/<locale>/APP_IPHONE_67/`. `asc-store.mjs` validates size and alpha. Browser renders are a 2.3.3 rejection. |
+| Screenshots are real frames of the app | **gap** | None committed. Spec, frame list and the resize from a 6.1" iPhone: `store/screenshots/README.md`. Browser renders are a 2.3.3 rejection. |
 | Screenshots show the app in use | **gap** | Needs the demo box: a chat with a real reply. |
-| Same name everywhere | **pass (config), gap (web)** | "Deck" in `app.json` and `metadata.json`. Not verified that every web title says Deck. |
+| Same name everywhere | **pass (explained)** | Store name "Deck Multi-Agents", home-screen name "Deck" (`app.json`); the review notes say the short name is a form of the store name. |
 | Description only says what exists | **pass (text)** | Chat, voice input, share sheet, local notification, delete account. Each bullet depends on the web calling the bridge (S0) and on S3. No price, plan, beta or other-platform words (`validateMetadata` rejects them). |
-| Support URL has a way to reach a person | **gap** | `https://deck.devfellowship.com/support` is built by another PR. `preflight.sh` fetches it; a SPA shell without contact wording is a FAIL (1.5). |
+| Support URL has a way to reach a person | **pass** | `https://deck.devfellowship.com/support` answers 200 with a contact route (`preflight.sh`, 2026-11-14). |
 | Category and age rating | **owner: Tainan** | Primary Developer Tools, secondary Productivity. Age rating answers are in `metadata.json`: no user-generated content, no unrestricted web access (allow-list), no social features. The agent can produce any text: confirm the answers with that in mind. |
-| App icon | **gap** | `assets/icon.png` is a copy of `public/icon-512.png` (512 px), a placeholder. The store needs a 1024x1024 PNG without alpha. A master is needed from the designer. It is not upscaled here on purpose. |
+| App icon | **pass (file), gap (build)** | `assets/icon.png` is 1024x1024 RGB, no alpha, rasterized from the vector mark (`scripts/gen-icons.mjs`, same mark as `public/icon-512.png`), not upscaled. Builds up to 8 carry the old 512 px file. |
 
 ## 6. Privacy (5.1.1, 5.1.2)
 
@@ -83,12 +85,12 @@ The privacy manifest (`app.json`), the App Privacy label (UI of App Store Connec
 
 | Item | State | Evidence or route |
 |---|---|---|
-| Manifest: collected data | **pass** | Email address, user ID, other user content, photos or videos (a screenshot the user chose to paste, sent to their own server); linked to the user; not used for tracking; purpose App Functionality. `NSPrivacyTracking` false, no tracking domains. Asserted by `assert-native-config.mjs`. |
+| Manifest: collected data | **pass (config)** | Email address, user ID, other user content, photos or videos (a screenshot the user chose to paste, sent to their own server), crash data and other diagnostic data (`src/app/diag/diagReport.ts` inserts reports tied to the account into `diag_reports`); linked to the user; not used for tracking; purpose App Functionality. `NSPrivacyTracking` false, no tracking domains. Asserted by `assert-native-config.mjs`. Builds up to 8 lack the two diagnostic types. |
 | Manifest: required-reason APIs | **pass (not re-scanned per module)** | FileTimestamp C617.1 0A2A.1 3B52.1, UserDefaults CA92.1, DiskSpace E174.1 85F4.1, SystemBootTime 35F9.1 (React Native, expo-updates, expo-constants). App Store Connect scans the binary at upload and mails a gap (ITMS-91053): the first upload is the final check. |
 | Voice | **gap** | Dictation uses iOS speech recognition through the web page. Audio is not stored by the shell. Where the audio goes (Apple servers or on device) depends on the device; the policy must say so. The label likely needs "Audio Data" only if Deck itself receives audio: **not verified**. |
-| Policy page covers the app | **gap** | `https://deck.devfellowship.com/privacy` is built by another PR (S3). It must name voice input, the data sent to the relay, that the agent on the user's server sends prompts to its own provider (5.1.2(i), consent at first send, S3), retention and the deletion route. |
+| Policy page covers the app | **pass after deploy** | `public/privacy/index.html` names voice input, the relay, the AI provider and consent, sharing, diagnostics, retention, deletion and (since 2026-11-14) the Photos screenshot offer. `preflight.sh` checks the live page. |
 | Analytics and traces from the web page | **gap** | `grep` of `src/` finds an analytics-like name in the points code only; not verified for an embedded script. If the page sends analytics, the manifest, label and policy must declare it, or it is turned off in the shell. |
-| Label published in App Store Connect | **owner: Tainan** | Tick: Email Address, User ID, Other User Content, Photos or Videos; linked to the user; not used for tracking; purpose App Functionality. |
+| Label published in App Store Connect | **owner: account holder (UI)** | Tick: Email Address, User ID, Photos or Videos, Other User Content, Crash Data, Other Diagnostic Data; each linked to the user; not used for tracking; purpose App Functionality. |
 
 ## 7. Money (3.1)
 
