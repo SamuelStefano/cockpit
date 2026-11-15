@@ -2,7 +2,6 @@ import { useState, type ReactNode } from 'react';
 import { IconButton, Popover } from '../primitives';
 import { ConfirmDelete } from '../sessions/ConfirmDelete';
 import { ChatHeaderMenu } from './ChatHeaderMenu';
-import { ContextRing } from './ContextRing';
 import { EditableTitle } from './EditableTitle';
 import { useHeaderMenu } from './useHeaderMenu';
 import type { Session, Message } from '../../data/types';
@@ -70,14 +69,15 @@ export function ChatHeader({ session, messages, isEmpty, contextTokens, contextM
   const reading = phoneMenu && usage && !inShell() ? readUsage(usage) : null;
   const usageHot = !!reading && (reading.paused || reading.warn || (reading.s.pct ?? 0) >= 85);
   const ctxHot = (ctx?.pct ?? 0) >= 85;
-  // An agent owns one bound thread (BotThread stubs onNew), so a restart control would be dead.
   const phone = phoneMenu
     ? {
         usage: reading ? { text: reading.s.tip, hot: usageHot, onOpen: () => setUsageOpen(true) } : undefined,
         onTerminal, terminalOpen,
-        onRestart: ctx && ctx.pct >= 70 && !agent ? onNew : undefined,
       }
     : undefined;
+  // An agent owns one bound thread (BotThread stubs onNew), so a restart control would be dead.
+  const onRestart = ctx && ctx.pct >= 70 && !agent ? onNew : undefined;
+  const running = usage?.capacity ? `${usage.capacity.live} de ${usage.capacity.cap}` : undefined;
   const hasMenu = phoneMenu || !!ctx || !!turnStatParts(lastTurn) || !!ranOn || !!history || canExport || !!profile || !!agent?.pause || canRename || canDelete;
 
   const moreMenu = hasMenu && (
@@ -87,14 +87,14 @@ export function ChatHeader({ session, messages, isEmpty, contextTokens, contextM
         <ChatHeaderMenu
           title={session?.title || 'sessao'} messages={messages} lastTurn={lastTurn} ranOn={ranOn}
           selectedModel={selectedModel} history={history} canExport={canExport} profile={profile} pause={agent?.pause} onDone={menu.close} phone={phone}
-          contextPct={ctx?.pct ?? null} onRename={canRename ? () => setRenameSignal((n) => n + 1) : undefined}
+          contextPct={ctx?.pct ?? null} onRestart={onRestart} running={running} onRename={canRename ? () => setRenameSignal((n) => n + 1) : undefined}
           onDelete={canDelete ? () => setConfirmDelete(true) : undefined}
         />
       }
     >
       <span className="relative inline-flex">
-        <IconButton icon="ellipsis" label={phoneMenu && (ctxHot || usageHot) ? `Mais ações da conversa, ${[ctxHot && 'contexto cheio', usageHot && 'uso do plano alto'].filter(Boolean).join(' e ')}` : 'Mais ações da conversa'} side="bottom" aria-expanded={menu.open} aria-haspopup="dialog" onClick={menu.toggle} />
-        {(ctxHot || usageHot) && phoneMenu && <span aria-hidden className={`pointer-events-none absolute right-1 top-1 h-2 w-2 rounded-full ring-2 ring-neutral-950 ${ctxHot ? 'bg-red-400' : 'bg-amber-400'}`} />}
+        <IconButton icon="ellipsis" label={ctxHot || usageHot ? `Mais ações da conversa, ${[ctxHot && 'contexto cheio', usageHot && 'uso do plano alto'].filter(Boolean).join(' e ')}` : 'Mais ações da conversa'} side="bottom" aria-expanded={menu.open} aria-haspopup="dialog" onClick={menu.toggle} />
+        {(ctxHot || usageHot) && <span aria-hidden className={`pointer-events-none absolute right-1 top-1 h-2 w-2 rounded-full ring-2 ring-neutral-950 ${ctxHot ? 'bg-red-400' : 'bg-amber-400'}`} />}
       </span>
     </Popover>
   );
@@ -154,7 +154,6 @@ export function ChatHeader({ session, messages, isEmpty, contextTokens, contextM
         {agent?.actions}
         {teamSlot}
         {prs(false)}
-        <ContextRing tokens={contextTokens} model={contextModel} onNew={agent ? undefined : onNew} />
         {usage && !inShell() && <UsageDock {...usage} />}
         {terminalButton}
         {moreMenu}

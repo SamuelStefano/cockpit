@@ -9,7 +9,6 @@ import { UsagePanel } from '../UsagePanel';
 import { useOpenRefresh } from '../useUsagePanel';
 import { usageSummary } from './usage-summary';
 import { VpsMeters } from './VpsMeters';
-import { CapacityChip } from './CapacityChip';
 import { capacityLabel } from '../../../lib/capacity';
 
 export interface UsageDockProps {
@@ -75,7 +74,7 @@ export function UsageSheet({ open, onClose, ...props }: UsageDockProps & { open:
 }
 
 export function UsageDock(props: UsageDockProps) {
-  const { onRefreshPlanUsage, onRefreshGrokUsage, capacity } = props;
+  const { onRefreshPlanUsage, onRefreshGrokUsage } = props;
   const [open, setOpen] = useState(false);
   const { chip, warn, paused, s } = readUsage(props);
   useOpenRefresh(open, chip.agent === 'grok' ? onRefreshGrokUsage : onRefreshPlanUsage);
@@ -83,7 +82,6 @@ export function UsageDock(props: UsageDockProps) {
 
   return (
     <span className="flex items-center">
-    {capacity && capacity.live >= capacity.cap && <CapacityChip capacity={capacity} />}
     <Popover
       open={open} onClose={() => setOpen(false)} label={`${titleOf(chip.agent)} e VPS`} side={p.side} align="end"
       content={<UsageDetail {...props} />}

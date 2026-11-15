@@ -27,14 +27,17 @@ interface ChatHeaderMenuProps {
   profile?: { open: boolean; toggle: () => void } | null;
   pause?: { paused: boolean; onSet: (paused: boolean) => void };
   contextPct?: number | null;
+  onRestart?: () => void;
+  // Conversations running on this machine, "1 de 5".
+  running?: string;
   onRename?: () => void;
   onDelete?: () => void;
   onDone: () => void;
   // Phone: the header keeps only the essentials, the rest lives here.
-  phone?: { usage?: { text: string; hot: boolean; onOpen: () => void }; onTerminal?: () => void; terminalOpen?: boolean; onRestart?: () => void };
+  phone?: { usage?: { text: string; hot: boolean; onOpen: () => void }; onTerminal?: () => void; terminalOpen?: boolean };
 }
 
-export function ChatHeaderMenu({ title, messages, lastTurn, ranOn, selectedModel, history, canExport, profile, pause, contextPct = null, onRename, onDelete, onDone, phone }: ChatHeaderMenuProps) {
+export function ChatHeaderMenu({ title, messages, lastTurn, ranOn, selectedModel, history, canExport, profile, pause, contextPct = null, onRestart, running, onRename, onDelete, onDone, phone }: ChatHeaderMenuProps) {
   const turn = turnStatParts(lastTurn);
   const turns = lastTurn?.numTurns ? ` · ${lastTurn.numTurns} turno${lastTurn.numTurns === 1 ? '' : 's'}` : '';
   const hasActions = !!onRename || canExport || !!history;
@@ -50,11 +53,11 @@ export function ChatHeaderMenu({ title, messages, lastTurn, ranOn, selectedModel
               </span>
               <span className="tabular-nums">{contextPct}%</span>
             </div>
+            {onRestart && <MenuItem icon="rotate" label="Recomeçar com contexto limpo" onClick={onRestart} />}
             <MenuSeparator />
           </>
         )}
         {phone?.usage && <MenuItem icon="clock" label={phone.usage.text} aria-haspopup="dialog" onClick={phone.usage.onOpen} right={<>{phone.usage.hot && <span aria-hidden className="h-2 w-2 rounded-full bg-amber-400" />}<Icon name="chevronRight" size={14} /></>} />}
-        {phone?.onRestart && <MenuItem icon="rotate" label="Recomeçar com contexto limpo" onClick={phone.onRestart} />}
         {phone?.onTerminal && <MenuItem icon="terminal" label="Abrir terminais" aria-pressed={phone.terminalOpen} onClick={phone.onTerminal} />}
         {profile && <MenuItem icon="user" label="Perfil do agente" aria-pressed={profile.open} onClick={profile.toggle} />}
         {pause && <MenuItem icon={pause.paused ? 'play' : 'pause'} label={pause.paused ? 'Retomar agentes' : 'Pausar agentes'} aria-pressed={pause.paused} onClick={() => pause.onSet(!pause.paused)} />}
@@ -72,6 +75,13 @@ export function ChatHeaderMenu({ title, messages, lastTurn, ranOn, selectedModel
         {ranOn && (
           <p className="px-2.5 py-1.5 text-[12px] text-amber-300/90">
             rodou em {prettyModel(ranOn)}, não em {prettyModel(selectedModel)}
+          </p>
+        )}
+        {running && (
+          <p className="flex items-center gap-2.5 px-2.5 py-2 text-[13px] text-neutral-300">
+            <Icon name="cpu" size={14} className="text-neutral-400" />
+            <span>Conversas rodando nesta máquina</span>
+            <span className="ml-auto text-[12px] tabular-nums text-neutral-500">{running}</span>
           </p>
         )}
         {onDelete && (
