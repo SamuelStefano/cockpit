@@ -151,7 +151,7 @@ describe('ChatHeader phone bar', () => {
     render(<ChatHeader {...base} usage={{ planUsage: null, stats: null, capacity: { live: 1, cap: 5, configCap: 5 } as never }} />);
     expect(screen.queryByText('1/5')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Mais ações da conversa' }));
-    expect(screen.getByText('Conversas rodando nesta máquina')).toBeTruthy();
+    expect(screen.getByText('Conversas rodando')).toBeTruthy();
     expect(screen.getByText('1 de 5')).toBeTruthy();
   });
 

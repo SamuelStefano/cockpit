@@ -80,8 +80,8 @@ export function ChatHeaderMenu({ title, messages, lastTurn, ranOn, selectedModel
         {running && (
           <p className="flex items-center gap-2.5 px-2.5 py-2 text-[13px] text-neutral-300">
             <Icon name="cpu" size={14} className="text-neutral-400" />
-            <span>Conversas rodando nesta máquina</span>
-            <span className="ml-auto text-[12px] tabular-nums text-neutral-500">{running}</span>
+            <span>Conversas rodando</span>
+            <span className="ml-auto whitespace-nowrap text-[12px] tabular-nums text-neutral-500">{running}</span>
           </p>
         )}
         {onDelete && (
