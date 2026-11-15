@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Popover, Tooltip, UsageRing, type PopoverSide, type TooltipSide } from '../../primitives';
+import { Sheet } from '../../primitives/Sheet';
 import type { CapacityInfo, PlanUsage, SysStats } from '../../../../shared/protocol';
 import { relReset } from '../../../lib/time';
 import { usageRows } from '../usage-rows';
@@ -41,25 +42,44 @@ export function readUsage({ usageAgent = 'claude', planUsage, planBlockedUntil =
   return { chip, warn, paused, gateResetAt, s };
 }
 
+const titleOf = (agent: string) => (agent === 'grok' ? 'Uso do Grok' : 'Uso do plano');
+
+// Every limit with its reset (session, week, per model) plus the VPS meters.
+function UsageDetail(props: UsageDockProps) {
+  const { chip, warn, paused, gateResetAt } = readUsage(props);
+  return (
+    <>
+      <UsagePanel inline rows={usageRows(chip.usage)} reset={gateResetAt ? relReset(gateResetAt) : ''} warn={warn || paused} blockedUntil={chip.blockedUntil} readAt={chip.readAt} nextReadAt={chip.nextReadAt} title={titleOf(chip.agent)} secondary={chip.secondary} />
+      <VpsMeters stats={props.stats} />
+    </>
+  );
+}
+
+// Phone: the header has no ring, so the "…" menu row opens the same detail as a bottom sheet.
+export function UsageSheet({ open, onClose, ...props }: UsageDockProps & { open: boolean; onClose: () => void }) {
+  const { chip } = readUsage(props);
+  useOpenRefresh(open, chip.agent === 'grok' ? props.onRefreshGrokUsage : props.onRefreshPlanUsage);
+  if (!open) return null;
+  return (
+    <Sheet open onClose={onClose} label={`${titleOf(chip.agent)} e VPS`} align="end" content={<div className="[&>div]:w-full"><UsageDetail {...props} /></div>}>
+      <span />
+    </Sheet>
+  );
+}
+
 export function UsageDock(props: UsageDockProps) {
-  const { onRefreshPlanUsage, onRefreshGrokUsage, stats, capacity } = props;
+  const { onRefreshPlanUsage, onRefreshGrokUsage, capacity } = props;
   const [open, setOpen] = useState(false);
-  const { chip, warn, paused, gateResetAt, s } = readUsage(props);
+  const { chip, warn, paused, s } = readUsage(props);
   useOpenRefresh(open, chip.agent === 'grok' ? onRefreshGrokUsage : onRefreshPlanUsage);
   const p = HEADER;
-  const title = chip.agent === 'grok' ? 'Uso do Grok' : 'Uso do plano';
 
   return (
     <span className="flex items-center">
     {capacity && <CapacityChip capacity={capacity} />}
     <Popover
-      open={open} onClose={() => setOpen(false)} label={`${title} e VPS`} side={p.side} align="end"
-      content={
-        <>
-          <UsagePanel inline rows={usageRows(chip.usage)} reset={gateResetAt ? relReset(gateResetAt) : ''} warn={warn || paused} blockedUntil={chip.blockedUntil} readAt={chip.readAt} nextReadAt={chip.nextReadAt} title={title} secondary={chip.secondary} />
-          <VpsMeters stats={stats} />
-        </>
-      }
+      open={open} onClose={() => setOpen(false)} label={`${titleOf(chip.agent)} e VPS`} side={p.side} align="end"
+      content={<UsageDetail {...props} />}
     >
       <Tooltip label={s.tip} side={p.tip} disabled={open}>
         <button

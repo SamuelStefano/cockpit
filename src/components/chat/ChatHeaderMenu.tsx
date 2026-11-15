@@ -31,7 +31,7 @@ interface ChatHeaderMenuProps {
   onDelete?: () => void;
   onDone: () => void;
   // Phone: the header keeps only the essentials, the rest lives here.
-  phone?: { usage?: { text: string; hot: boolean }; onTerminal?: () => void; terminalOpen?: boolean; onRestart?: () => void };
+  phone?: { usage?: { text: string; hot: boolean; onOpen: () => void }; onTerminal?: () => void; terminalOpen?: boolean; onRestart?: () => void };
 }
 
 export function ChatHeaderMenu({ title, messages, lastTurn, ranOn, selectedModel, history, canExport, profile, pause, contextPct = null, onRename, onDelete, onDone, phone }: ChatHeaderMenuProps) {
@@ -53,12 +53,7 @@ export function ChatHeaderMenu({ title, messages, lastTurn, ranOn, selectedModel
             <MenuSeparator />
           </>
         )}
-        {phone?.usage && (
-          <p className={`flex items-center gap-2.5 px-2.5 py-2 text-[13px] ${phone.usage.hot ? 'text-amber-300' : 'text-neutral-300'}`}>
-            <Icon name="clock" size={14} className="text-neutral-400" />
-            <span>{phone.usage.text}</span>
-          </p>
-        )}
+        {phone?.usage && <MenuItem icon="clock" label={phone.usage.text} aria-haspopup="dialog" onClick={phone.usage.onOpen} right={<>{phone.usage.hot && <span aria-hidden className="h-2 w-2 rounded-full bg-amber-400" />}<Icon name="chevronRight" size={14} /></>} />}
         {phone?.onRestart && <MenuItem icon="rotate" label="Recomeçar com contexto limpo" onClick={phone.onRestart} />}
         {phone?.onTerminal && <MenuItem icon="terminal" label="Abrir terminais" aria-pressed={phone.terminalOpen} onClick={phone.onTerminal} />}
         {profile && <MenuItem icon="user" label="Perfil do agente" aria-pressed={profile.open} onClick={profile.toggle} />}
