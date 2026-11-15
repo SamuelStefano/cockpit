@@ -17,14 +17,15 @@ function setup(over: Partial<SidebarProps> = {}) {
 }
 
 describe('Sidebar', () => {
-  it('starts expanded with a big new-chat button and search as header icon and keeps the palette aria-label', () => {
+  it('starts expanded with a big new-chat button; the palette icon lives in the collapsed rail only', () => {
     const p = setup();
     expect(screen.getByRole('complementary', { name: 'Navegação principal' }).className).toContain('w-75');
-    expect(screen.queryByText('Buscar')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: /^Comandos \((⌘K|Ctrl\+K)\)$/ }));
-    expect(p.onPalette).toHaveBeenCalledOnce();
+    expect(screen.queryByRole('button', { name: /^Comandos/ })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Nova conversa' }));
     expect(p.onNew).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole('button', { name: 'Recolher barra lateral' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Comandos \((⌘K|Ctrl\+K)\)$/ }));
+    expect(p.onPalette).toHaveBeenCalledOnce();
   });
 
   it('collapses to the rail, hides the text and persists the choice', () => {
@@ -59,7 +60,7 @@ describe('Sidebar', () => {
     expect(screen.queryByRole('navigation', { name: 'Rotas' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Perfil' }));
     const names = within(screen.getByRole('navigation', { name: 'Rotas' })).getAllByRole('button').map((b) => b.getAttribute('aria-label'));
-    expect(names).toEqual(['Canvas', 'Base', 'Pull requests', 'Pontos', 'Skills', 'Conexões', 'Docs', 'Rotinas', 'Memória']);
+    expect(names).toEqual(['Canvas', 'Pull requests', 'Pontos', 'Skills', 'Conexões', 'Rotinas', 'Docs']);
     fireEvent.click(screen.getByRole('button', { name: 'Skills' }));
     expect(p.nav).toHaveBeenCalledWith('/skills');
     expect(screen.queryByRole('navigation', { name: 'Rotas' })).toBeNull();

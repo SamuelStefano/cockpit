@@ -3,11 +3,11 @@ import { sidebarNav, canOpenSettings } from './sidebar-nav';
 
 describe('sidebarNav', () => {
   it('lays out every work surface for root; Pull requests and Pontos are root-only, Graph is off the nav', () => {
-    expect(sidebarNav('root').map((i) => i.label)).toEqual(['Canvas', 'Base', 'Pull requests', 'Pontos', 'Skills', 'Conexões', 'Docs', 'Rotinas', 'Memória']);
+    expect(sidebarNav('root').map((i) => i.label)).toEqual(['Canvas', 'Pull requests', 'Pontos', 'Skills', 'Conexões', 'Rotinas', 'Docs']);
   });
 
   it('gives admin the same list', () => {
-    expect(sidebarNav('admin').map((i) => i.label)).toEqual(['Canvas', 'Base', 'Skills', 'Conexões', 'Docs', 'Rotinas', 'Memória']);
+    expect(sidebarNav('admin').map((i) => i.label)).toEqual(['Canvas', 'Skills', 'Conexões', 'Rotinas', 'Docs']);
   });
 
   it('keeps a student off every side route: navFor still gates every entry', () => {

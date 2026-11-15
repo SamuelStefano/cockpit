@@ -83,7 +83,7 @@ export function ChatPanel({ session, messages, phase, settled = false, terminalB
 
   return (
     <div
-      className="bg-doodle relative flex h-full flex-col bg-[var(--bg-deep)]"
+      className="relative flex h-full flex-col bg-[var(--bg-deep)]"
       onDragEnter={panelDnd.onDragEnter} onDragOver={panelDnd.onDragOver}
       onDragLeave={panelDnd.onDragLeave} onDrop={panelDnd.onDrop}
     >

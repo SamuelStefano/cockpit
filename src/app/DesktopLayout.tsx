@@ -9,11 +9,10 @@ export interface DesktopLayoutProps {
   termProps: TerminalsPanelProps;
   center?: ReactNode;
   hideTerminals?: boolean;
-  rail?: ReactNode;
   rowRef: React.RefObject<HTMLDivElement | null>;
 }
 
-export function DesktopLayout({ chatProps, termProps, center, hideTerminals = false, rail, rowRef }: DesktopLayoutProps) {
+export function DesktopLayout({ chatProps, termProps, center, hideTerminals = false, rowRef }: DesktopLayoutProps) {
   const [terminalOpen, setTerminalOpen] = useState(takeTerminalRequest);
   useEffect(() => {
     const toggle = () => setTerminalOpen((o) => !o);
@@ -37,7 +36,6 @@ export function DesktopLayout({ chatProps, termProps, center, hideTerminals = fa
         </div>
       )}
 
-      {rail && <div className="hidden min-[1100px]:flex">{rail}</div>}
     </div>
   );
 }

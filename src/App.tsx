@@ -5,7 +5,6 @@ import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { memorizePrompt } from './components/chat/memorize';
 import { type TeamStackProps } from './components/team/TeamStack';
 import { HeaderSlot } from './components/planner/HeaderSlot';
-import type { TeamRailProps } from './components/team/TeamRail';
 import { Sidebar } from './components/chrome/sidebar/Sidebar';
 import { MobileTopBar } from './components/chrome/sidebar/MobileTopBar';
 import { TopBarSlotContext } from './components/chrome/sidebar/TopBarSlot';
@@ -235,9 +234,9 @@ function CockpitBody() {
     bots: cockpit.bots, teamLoaded: cockpit.teamLoaded, sessions, running, activeId: activeSessionId, phase, interrupted: cockpit.interrupted, runStart,
     pendingQuestions: cockpit.pendingQuestions, teamMessages: cockpit.teamMessages, connected: conn.ws === 'connected', onTeamGet: cockpit.onTeamGet, onOpenBot: cockpit.onOpenBot,
   }, route, nav, navAgent);
-  const teamProps: TeamRailProps & Pick<TeamStackProps, 'onGo'> = {
+  const teamProps: TeamStackProps = {
     views: agent.views, activeId: agent.active?.bot.id ?? null, onNew: agent.openNew, onGo: nav,
-    onOpen: agent.open, canManage: isAdmin, paused: cockpit.teamPaused, onPauseSet: cockpit.onTeamPauseSet,
+    onOpen: agent.open, canManage: isAdmin,
   };
   const sidebarProps = { ...sessionsProps, agents: agent.views, activeAgentId: agent.active?.bot.id ?? null, onOpenAgent: agent.open, onNewAgent: isAdmin ? agent.openNew : undefined };
   const quotaNotice = claudeQuota && quotaGate.warn && !quotaClosed && rate ? <QuotaBanner reset={relReset(rate.resetsAt)} onClose={() => setQuotaClosed(true)} /> : null;
@@ -342,7 +341,6 @@ function CockpitBody() {
             onOpenAgentChat={(m) => { handleNew(); setModel(m); nav('/'); }}
             layout={{ rowRef }}
             mobile={{ drawer, setDrawer, termSheet, setTermSheet, runningTerm, drawerNav }}
-            team={teamProps}
           />
           <SettingsModal
             open={settings.open} onClose={settings.close} route={route} role={role} nav={nav} isMobile={isMobile} connected={conn.ws === 'connected'}
