@@ -100,7 +100,7 @@ export function ChatPanel({ session, messages, phase, settled = false, terminalB
         fullLoaded={c.fullLoaded} truncated={truncated} onOpenFull={onOpenFull} onLoadOlder={onLoadOlder} onOpenSummary={onOpenSummary}
         beforeGrow={c.captureAnchor}
         setFullLoaded={c.setFullLoaded} onTerminal={onTerminal} terminalRunning={terminalRunning} terminalOpen={terminalOpen} usage={usage} onRename={onRename} onDelete={onDelete}
-        keyboardOpen={keyboardOpen} selectedModel={model} onMenu={isMobile ? onMenu : undefined} teamSlot={teamSlot} restoring={restoring}
+        selectedModel={model} onMenu={isMobile ? onMenu : undefined} teamSlot={teamSlot} restoring={restoring}
         agent={botDecor && { name: botDecor.name, avatar: botDecor.avatar, ...botDecor.header }}
       />
       </FocusCollapse>

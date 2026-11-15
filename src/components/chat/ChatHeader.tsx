@@ -1,7 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { IconButton, Popover } from '../primitives';
 import { ConfirmDelete } from '../sessions/ConfirmDelete';
-import { ChatHeaderCompact } from './ChatHeaderCompact';
 import { ChatHeaderMenu } from './ChatHeaderMenu';
 import { ContextRing } from './ContextRing';
 import { EditableTitle } from './EditableTitle';
@@ -11,7 +10,7 @@ import { ranOnOtherModel } from '../../cockpit/session-model';
 import { contextMeter, turnStatParts } from './toolbar-format';
 import type { TurnStats } from '../../../shared/protocol';
 import type { ChatAgentHeader } from './chat-panel-props';
-import { UsageDock, readUsage, type UsageDockProps } from '../chrome/sidebar/UsageDock';
+import { UsageDock, UsageSheet, readUsage, type UsageDockProps } from '../chrome/sidebar/UsageDock';
 import { inShell } from '../../lib/shell';
 import { ChatPrsButton } from '../../routes/prs/chat/ChatPrsButton';
 
@@ -39,7 +38,6 @@ interface ChatHeaderProps {
   usage?: UsageDockProps;
   onRename?: (id: string, title: string) => void;
   onDelete?: (id: string) => void;
-  keyboardOpen?: boolean;
   selectedModel?: string;
   // An agent's thread: its mascot and name stand in for the editable session title.
   agent?: ChatHeaderAgent;
@@ -49,12 +47,12 @@ interface ChatHeaderProps {
   restoring?: boolean;
 }
 
-export function ChatHeader({ session, messages, isEmpty, contextTokens, contextModel = null, lastTurn, onNew, fullLoaded, truncated, onOpenFull, onLoadOlder, onOpenSummary, setFullLoaded, beforeGrow, onTerminal, terminalRunning, terminalOpen = false, usage, onRename, onDelete, keyboardOpen = false, selectedModel, agent, onMenu, teamSlot, restoring = false }: ChatHeaderProps) {
+export function ChatHeader({ session, messages, isEmpty, contextTokens, contextModel = null, lastTurn, onNew, fullLoaded, truncated, onOpenFull, onLoadOlder, onOpenSummary, setFullLoaded, beforeGrow, onTerminal, terminalRunning, terminalOpen = false, usage, onRename, onDelete, selectedModel, agent, onMenu, teamSlot, restoring = false }: ChatHeaderProps) {
   const menu = useHeaderMenu();
   const [renameSignal, setRenameSignal] = useState(0);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [usageOpen, setUsageOpen] = useState(false);
   const title = agent?.name ?? (session ? session.title : restoring ? '' : 'Nova conversa');
-  if (keyboardOpen) return <ChatHeaderCompact title={title} onTerminal={onTerminal} terminalRunning={terminalRunning} />;
 
   const saved = !!session && !session.id.startsWith('new-');
   const ranOn = selectedModel ? ranOnOtherModel(selectedModel, messages) : null;
@@ -75,7 +73,7 @@ export function ChatHeader({ session, messages, isEmpty, contextTokens, contextM
   // An agent owns one bound thread (BotThread stubs onNew), so a restart control would be dead.
   const phone = phoneMenu
     ? {
-        usage: reading ? { text: reading.s.pct === null ? 'Uso do plano: lendo' : `Uso do plano ${reading.s.pct}%`, hot: usageHot } : undefined,
+        usage: reading ? { text: reading.s.tip, hot: usageHot, onOpen: () => setUsageOpen(true) } : undefined,
         onTerminal, terminalOpen,
         onRestart: ctx && ctx.pct >= 70 && !agent ? onNew : undefined,
       }
@@ -135,7 +133,8 @@ export function ChatHeader({ session, messages, isEmpty, contextTokens, contextM
         {teamSlot}
         {prs(true)}
         {!agent && <IconButton icon="plus" label="Nova conversa" side="bottom" onClick={onNew} className="pointer-coarse:h-11 pointer-coarse:w-11" />}
-        {!fresh && moreMenu}
+        {(!fresh || !!reading) && moreMenu}
+        {usage && reading && <UsageSheet {...usage} open={usageOpen} onClose={() => setUsageOpen(false)} />}
         {confirm}
       </div>
     );
