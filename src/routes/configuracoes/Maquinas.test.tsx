@@ -25,7 +25,7 @@ describe('Settings › Máquinas', () => {
   it('offers pairing when there is no machine yet', () => {
     render(<Maquinas />);
     expect(screen.getByText('Nenhuma máquina ainda')).toBeTruthy();
-    fireEvent.click(screen.getAllByRole('button', { name: 'Adicionar máquina' })[0]);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Adicionar à Fleet' })[0]);
     expect(screen.getByText('pairing')).toBeTruthy();
   });
 

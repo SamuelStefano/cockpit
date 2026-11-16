@@ -14,11 +14,11 @@ export function Maquinas({ userId }: { userId?: string }) {
     <>
       <div className="flex items-center max-lg:hidden">
         <SectionTitle className="flex-1">Máquinas</SectionTitle>
-        <Button variant="secondary" size="sm" icon="plus" onClick={s.startAdd}>Adicionar máquina</Button>
+        <Button variant="secondary" size="sm" icon="plus" onClick={s.startAdd}>Adicionar à Fleet</Button>
       </div>
       {!s.visible ? (
         <EmptyState size="sm" icon="monitor" title="Nenhuma máquina ainda" description="Adicione uma máquina para conversar com o agente dela.">
-          <Button icon="plus" onClick={s.startAdd}>Adicionar máquina</Button>
+          <Button icon="plus" onClick={s.startAdd}>Adicionar à Fleet</Button>
         </EmptyState>
       ) : (
         <ul aria-label="Máquinas" className="overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900/60 hairline max-lg:rounded-none max-lg:border-0 max-lg:bg-transparent">
@@ -32,7 +32,7 @@ export function Maquinas({ userId }: { userId?: string }) {
       )}
       {s.visible && (
         <div className="mt-3 flex flex-wrap gap-2">
-          <Button className="lg:hidden" variant="secondary" icon="plus" onClick={s.startAdd}>Adicionar máquina</Button>
+          <Button className="lg:hidden" variant="secondary" icon="plus" onClick={s.startAdd}>Adicionar à Fleet</Button>
           <Button variant="ghost" size="sm" icon="shield" onClick={s.openHealth}>Saúde das máquinas</Button>
         </div>
       )}
