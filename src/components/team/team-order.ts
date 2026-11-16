@@ -26,5 +26,4 @@ export function orderTeam(views: BotView[]): TeamEntry[] {
   return out;
 }
 
-export const waitingCount = (views: BotView[]) => views.filter((v) => !!v.pending).length;
 export const workingCount = (views: BotView[]) => views.filter((v) => v.state === 'thinking' || v.state === 'working').length;

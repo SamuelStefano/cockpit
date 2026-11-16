@@ -16,7 +16,6 @@ import type { useCockpit } from '../useCockpit';
 import type { AgentTab, Route } from '../useRoute';
 import { navigateTo } from '../lib/route-nav';
 import { ManageProviders, ManageTools } from '../routes/conexoes/Manage';
-import { TeamRail, type TeamRailProps } from '../components/team/TeamRail';
 import { VaultPanel } from '../components/vault/VaultPanel';
 import { ChatPrDepsContext, type ChatPrDeps } from '../routes/prs/chat/pr-deps-context';
 
@@ -52,10 +51,9 @@ interface RouteContentProps {
   onOpenAgentChat: (model: string) => void;
   layout: LayoutState;
   mobile: MobileState;
-  team: TeamRailProps;
 }
 
-export function RouteContent({ route, agentRoute, skillRoute, isMobile, isAdmin, isRoot, connected, cockpit, chatProps, termProps, onOpenSession, agent, onOpenAgentChat, layout, mobile, team }: RouteContentProps) {
+export function RouteContent({ route, agentRoute, skillRoute, isMobile, isAdmin, isRoot, connected, cockpit, chatProps, termProps, onOpenSession, agent, onOpenAgentChat, layout, mobile }: RouteContentProps) {
   const c = cockpit;
   const { onSendTo, onLaunchAgent } = c;
   const prDeps = useMemo<ChatPrDeps | null>(
@@ -179,7 +177,6 @@ export function RouteContent({ route, agentRoute, skillRoute, isMobile, isAdmin,
     return (
       <DesktopLayout
         chatProps={chatProps} termProps={termProps} center={center} hideTerminals={agent.profileOpen}
-        rail={<TeamRail {...team} />}
         rowRef={layout.rowRef}
       />
     );

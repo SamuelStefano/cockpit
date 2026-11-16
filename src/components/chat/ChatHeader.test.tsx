@@ -88,13 +88,14 @@ describe('ChatHeader', () => {
   it('shows the context row in the menu', () => {
     setup({ contextTokens: 100_000, contextModel: 'claude-opus-4-8' });
     fireEvent.click(screen.getByLabelText('Mais ações da conversa'));
-    expect(screen.getAllByRole('meter').length).toBeGreaterThan(1);
+    expect(screen.getAllByRole('meter')).toHaveLength(1);
   });
 
   it('surfaces the new-session action over the context limit', () => {
     const onNew = vi.fn();
     setup({ contextTokens: 900_000, contextModel: 'claude-opus-4-8', onNew });
-    fireEvent.click(screen.getByRole('button', { name: 'Recomeçar com contexto limpo' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Mais ações da conversa, contexto cheio' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Recomeçar com contexto limpo' }));
     expect(onNew).toHaveBeenCalledTimes(1);
   });
 
@@ -146,6 +147,14 @@ describe('ChatHeader phone bar', () => {
     expect(onNew).toHaveBeenCalledOnce();
   });
 
+  it('names the running-conversations count inside the menu instead of a bare "1/5" in the header', () => {
+    render(<ChatHeader {...base} usage={{ planUsage: null, stats: null, capacity: { live: 1, cap: 5, configCap: 5 } as never }} />);
+    expect(screen.queryByText('1/5')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Mais ações da conversa' }));
+    expect(screen.getByText('Conversas rodando')).toBeTruthy();
+    expect(screen.getByText('1 de 5')).toBeTruthy();
+  });
+
   const planUsage = { fiveHour: 43, sevenDay: 12, resetsAt: Date.now() + 2 * 3_600_000, sevenDayResetsAt: Date.now() + 86_400_000 } as never;
 
   it('the "…" menu row opens the full usage sheet: session and week, each with its reset', () => {
@@ -174,10 +183,11 @@ describe('ChatHeader phone bar', () => {
   describe('restart with a clean context', () => {
     const FULL = 900_000;
 
-    it('plain chat: the ring button calls onNew', () => {
+    it('plain chat: the menu action calls onNew', () => {
       const onNew = vi.fn();
       setup({ contextTokens: FULL, contextModel: 'claude-opus-4-8', onNew });
-      fireEvent.click(screen.getByRole('button', { name: 'Recomeçar com contexto limpo' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Mais ações da conversa, contexto cheio' }));
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Recomeçar com contexto limpo' }));
       expect(onNew).toHaveBeenCalledTimes(1);
     });
 

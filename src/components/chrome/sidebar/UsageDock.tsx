@@ -9,7 +9,7 @@ import { UsagePanel } from '../UsagePanel';
 import { useOpenRefresh } from '../useUsagePanel';
 import { usageSummary } from './usage-summary';
 import { VpsMeters } from './VpsMeters';
-import { CapacityChip } from './CapacityChip';
+import { capacityLabel } from '../../../lib/capacity';
 
 export interface UsageDockProps {
   usageAgent?: UsageAgent;
@@ -51,6 +51,12 @@ function UsageDetail(props: UsageDockProps) {
     <>
       <UsagePanel inline rows={usageRows(chip.usage)} reset={gateResetAt ? relReset(gateResetAt) : ''} warn={warn || paused} blockedUntil={chip.blockedUntil} readAt={chip.readAt} nextReadAt={chip.nextReadAt} title={titleOf(chip.agent)} secondary={chip.secondary} />
       <VpsMeters stats={props.stats} />
+      {props.capacity && (
+        <p className="flex items-center justify-between border-t border-neutral-800 px-3.5 py-2.5 text-[12px] text-neutral-400">
+          <span>Conversas rodando</span>
+          <span className="tabular-nums text-neutral-300">{capacityLabel(props.capacity)}</span>
+        </p>
+      )}
     </>
   );
 }
@@ -68,7 +74,7 @@ export function UsageSheet({ open, onClose, ...props }: UsageDockProps & { open:
 }
 
 export function UsageDock(props: UsageDockProps) {
-  const { onRefreshPlanUsage, onRefreshGrokUsage, capacity } = props;
+  const { onRefreshPlanUsage, onRefreshGrokUsage } = props;
   const [open, setOpen] = useState(false);
   const { chip, warn, paused, s } = readUsage(props);
   useOpenRefresh(open, chip.agent === 'grok' ? onRefreshGrokUsage : onRefreshPlanUsage);
@@ -76,7 +82,6 @@ export function UsageDock(props: UsageDockProps) {
 
   return (
     <span className="flex items-center">
-    {capacity && <CapacityChip capacity={capacity} />}
     <Popover
       open={open} onClose={() => setOpen(false)} label={`${titleOf(chip.agent)} e VPS`} side={p.side} align="end"
       content={<UsageDetail {...props} />}

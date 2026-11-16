@@ -59,6 +59,9 @@ try {
 
   // Paleta: o placeholder real é "Buscar…"; o diálogo da paleta tem nome próprio.
   await page.goto(`${BASE}/`, { waitUntil: 'networkidle', timeout: 20000 });
+  // The palette icon only shows in the collapsed rail; the expanded sidebar has no search button.
+  const collapse = page.getByRole('button', { name: 'Recolher barra lateral' });
+  if (await collapse.count()) await collapse.click();
   await page.getByRole('button', { name: /^Comandos \((⌘K|Ctrl\+K)\)$/ }).click();
   const palette = page.getByRole('dialog', { name: 'Paleta de comandos' });
   await palette.waitFor({ timeout: 5000 });

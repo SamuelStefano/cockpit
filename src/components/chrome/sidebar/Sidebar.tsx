@@ -61,7 +61,7 @@ export function Sidebar({ route, nav, role, navCounts, onNew, onPalette, bitStat
         {!drawer && !expanded && <IconButton icon="panelLeft" label={toggleLabel} side="right" aria-expanded={expanded} onClick={toggle} />}
         {expanded && <span className="flex-1" />}
         {!drawer && !expanded && <IconButton icon="squarePen" label="Nova conversa" side="right" onClick={onNew} />}
-        <IconButton icon="search" label={`Comandos (${k})`} tip={`Buscar · ${k}`} side={expanded ? 'bottom' : 'right'} onClick={onPalette} />
+        {!expanded && <IconButton icon="search" label={`Comandos (${k})`} tip={`Buscar · ${k}`} side="right" onClick={onPalette} />}
         {(expanded || drawer) && <IconButton icon={drawer ? 'x' : 'panelLeft'} label={drawer ? 'Fechar menu' : toggleLabel} side="bottom" aria-expanded={expanded} onClick={drawer ? drawer.onClose : toggle} />}
       </div>
 
