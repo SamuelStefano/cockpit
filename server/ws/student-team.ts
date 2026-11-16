@@ -11,6 +11,8 @@ export function coerceBotForRole(bot: TeamBotInput, role: Role | undefined): Tea
   if (isAgentModel(out.model)) delete out.model;
   if (isAgentModel(out.fallbackModel)) delete out.fallbackModel;
   if (out.permissions) out.permissions = { ...out.permissions, write: false };
+  // The clone uses the box's GitHub credentials: only admin picks what it reads.
+  delete out.source;
   return out;
 }
 

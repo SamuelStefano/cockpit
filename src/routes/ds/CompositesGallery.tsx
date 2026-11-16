@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Button, EmptyState, Badge, RouteHeader, SectionHeader, Stat, ProgressBar, Tabs, SideNav, Modal, InlineEdit, fireConfetti } from '../../components/primitives';
 import { Section } from './Section';
 import { Row } from './Row';
+import { ModelChipDemo } from './ModelChipDemo';
 
 export function CompositesGallery() {
   const [tab, setTab] = useState<'arvore' | 'faturas' | 'ledger'>('arvore');
@@ -152,6 +153,7 @@ export function CompositesGallery() {
           <span className="text-[13px] text-neutral-600">indicador ao vivo</span>
         </Row>
       </Section>
+      <ModelChipDemo />
     </>
   );
 }

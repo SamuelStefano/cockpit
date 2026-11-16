@@ -3,7 +3,7 @@ import { Icon, tokens } from '../primitives';
 import { ModeToggle } from './ModeToggle';
 import { isAgentModel } from '../../../shared/agents';
 import { ALL_MCPS, isAllMcps } from '../../../shared/mcp';
-import type { PermMode, Effort, Caps } from '../../../shared/protocol';
+import type { PermMode, Caps } from '../../../shared/protocol';
 
 export interface ComposerSettingsProps {
   mode: PermMode;
@@ -12,8 +12,6 @@ export interface ComposerSettingsProps {
   bypass?: boolean;
   setBypass?: (b: boolean) => void;
   model: string;
-  effort: Effort;
-  setEffort: (e: Effort) => void;
   mcpServers: string[];
   selectedMcps: string[];
   setSelectedMcps: (ids: string[]) => void;
@@ -28,8 +26,6 @@ function Track({ on }: { on: boolean }) {
     </span>
   );
 }
-
-const thinksMore = (e: Effort) => e === 'high' || e === 'xhigh' || e === 'max';
 
 function Tools({ servers, selected, setSelected }: { servers: string[]; selected: string[]; setSelected: (ids: string[]) => void }) {
   const [open, setOpen] = useState(false);
@@ -73,7 +69,6 @@ function Tools({ servers, selected, setSelected }: { servers: string[]; selected
 
 export function ComposerSettings(p: ComposerSettingsProps) {
   const claude = !isAgentModel(p.model);
-  const deep = thinksMore(p.effort);
   return (
     <section aria-label="Ajustes" className="border-t border-neutral-800 py-1">
       <div className="px-3 pb-1 pt-2 text-[11px] font-medium text-neutral-500">Modo</div>
@@ -83,14 +78,7 @@ export function ComposerSettings(p: ComposerSettingsProps) {
           <Icon name={p.bypass ? 'shield-off' : 'shield'} size={14} className={p.bypass ? 'text-red-400' : 'text-neutral-500'} /> Pular aprovações <Track on={!!p.bypass} />
         </button>
       )}
-      {claude && (
-        <>
-          <button type="button" role="switch" aria-checked={deep} aria-label="Pensar mais" onClick={() => p.setEffort(deep ? 'low' : 'high')} className={row}>
-            <Icon name="brain" size={14} className="text-neutral-500" /> Pensar mais <Track on={deep} />
-          </button>
-          <Tools servers={p.mcpServers} selected={p.selectedMcps} setSelected={p.setSelectedMcps} />
-        </>
-      )}
+      {claude && <Tools servers={p.mcpServers} selected={p.selectedMcps} setSelected={p.setSelectedMcps} />}
     </section>
   );
 }

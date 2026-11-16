@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach, vi } from 'vitest';
+import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -495,6 +495,12 @@ describe('account trust (default)', () => {
 
 describe('trust on first use for a box with no devices', () => {
   const open = () => tofuWindow({ DECK_ACCOUNT_TRUST: 'off' });
+
+  // The cutoff is a fixed calendar date, so these tests must run inside the
+  // window regardless of when CI runs.
+  let clock: ReturnType<typeof vi.spyOn> | null = null;
+  beforeEach(() => { clock = vi.spyOn(Date, 'now').mockReturnValue(TOFU_UNTIL - 30 * 24 * 3600_000); });
+  afterEach(() => { clock?.mockRestore(); clock = null; });
 
   it('trusts the first device, says so in the accept, and logs it on the box', async () => {
     const h = await passkeySetup(BOX, open());

@@ -9,7 +9,6 @@ afterEach(cleanup);
 const mic = { listening: false, supported: true, toggle: vi.fn(), error: null } as never;
 const settings: ComposerSettingsProps = {
   mode: 'auto', setMode: vi.fn(), caps: null, model: 'sonnet',
-  effort: 'low', setEffort: vi.fn(),
   mcpServers: [], selectedMcps: [], setSelectedMcps: vi.fn(),
 };
 const plus = () => <ComposerPlus touch mic={mic} onAttach={vi.fn()} onPhoto={vi.fn()} onCall={vi.fn()} settings={settings} />;

@@ -146,6 +146,31 @@ describe('ChatHeader phone bar', () => {
     expect(onNew).toHaveBeenCalledOnce();
   });
 
+  const planUsage = { fiveHour: 43, sevenDay: 12, resetsAt: Date.now() + 2 * 3_600_000, sevenDayResetsAt: Date.now() + 86_400_000 } as never;
+
+  it('the "…" menu row opens the full usage sheet: session and week, each with its reset', () => {
+    render(<ChatHeader {...base} onMenu={vi.fn()} usage={{ planUsage, planReadAt: Date.now(), stats: null }} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Mais ações da conversa' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /^Uso do plano: 43%/ }));
+    expect(screen.queryByRole('menuitem', { name: /^Uso do plano/ })).toBeNull();
+    const sheet = screen.getByRole('dialog', { name: 'Uso do plano e VPS' });
+    expect(sheet.textContent).toContain('Sessão (5h)');
+    expect(sheet.textContent).toContain('Semanal');
+    expect(sheet.textContent).toContain('reseta em');
+  });
+
+  it('a fresh chat still reaches the usage through the menu', () => {
+    render(<ChatHeader {...base} isEmpty onMenu={vi.fn()} usage={{ planUsage, planReadAt: Date.now(), stats: null }} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Mais ações da conversa' }));
+    expect(screen.getByRole('menuitem', { name: /^Uso do plano: 43%/ })).toBeTruthy();
+  });
+
+  it('renaming keeps the title field mounted: no compact swap when the keyboard opens', () => {
+    render(<ChatHeader {...base} onMenu={vi.fn()} onRename={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Renomear sessão: Relatório' }));
+    expect(document.activeElement).toBe(screen.getByLabelText('Nome da sessão'));
+  });
+
   describe('restart with a clean context', () => {
     const FULL = 900_000;
 

@@ -4,6 +4,7 @@
 
 import type { AreaBudget, AreaId, CanvasBoard, CanvasCard, CanvasFlow, CanvasFlowRun, CanvasGraph, CanvasPos, CardPlain, CardStatus, OrchestratorActivity, OrchestratorInfo, SessionPeek, TermStats } from './canvas';
 import type { AreaUsage } from './canvas-budget';
+import type { PlannerMove, PlannerTask } from './planner';
 import type { DflDraft, DraftOp } from './dfl-drafts';
 import type { McpsState } from './mcps';
 import type { Connection } from './connections';
@@ -12,6 +13,7 @@ import type { ClaudeImportResult, ClaudeImportScan, ImportKind } from './claude-
 import type { ByoKeyView } from './byo-providers';
 import type { AgentView, AgentPreset, AgentStatus, AgentCustomField } from './agents';
 import type { TeamMessage } from './team-messages';
+import type { PrDetail, PrDiff, PrsSnapshot, SessionPrs } from './prs';
 import type { BoxHealth, SmokeResult } from './box-health';
 import type { VersionKind, VersionMeta } from './versions';
 
@@ -466,11 +468,16 @@ export interface TeamBot {
   // Absent = every skill / today's tool set. Empty skills also means every skill.
   skills?: string[];
   permissions?: BotPermissions;
+  // Agent defined in a GitHub repo folder, synced read-only to the box (server/agent-source.ts).
+  source?: AgentSource;
+  sourceSync?: AgentSourceSync;
   createdAt: number;
   updatedAt: number;
 }
-// What the browser may send: sessionId/createdAt/updatedAt are the server's.
-export type TeamBotInput = Omit<TeamBot, 'sessionId' | 'createdAt' | 'updatedAt'>;
+export interface AgentSource { repo: string; path: string }
+export interface AgentSourceSync { at: number; commit?: string; error?: string }
+// What the browser may send: sessionId/createdAt/updatedAt/sourceSync are the server's.
+export type TeamBotInput = Omit<TeamBot, 'sessionId' | 'createdAt' | 'updatedAt' | 'sourceSync'>;
 // A bot's AskUserQuestion still waiting on the human. Persisted server-side
 // (~/.cockpit/team-pending.json) so a question asked by a routine or a bot↔bot
 // turn, with nobody watching, survives a reload and reaches another device.
@@ -507,6 +514,9 @@ export interface BgAgent {
 // específico (ex: claude-opus-4-8); aliases opus/sonnet/haiku ainda valem como
 // fallback antes da lista carregar.
 export interface ModelInfo { id: string; displayName: string }
+
+// Run slots of one box: `cap` is min(configured ceiling, what free memory allows), never below 1.
+export interface CapacityInfo { live: number; cap: number; configCap: number; availMb: number }
 
 export interface SysStats {
   cpu: number;                 // 0..100
@@ -832,6 +842,7 @@ export type ClientMsg =
   | { t: 'team-get' }
   | { t: 'team-save'; bot: TeamBotInput }
   | { t: 'team-delete'; id: string }
+  | { t: 'team-sync-source'; id: string }
   // One chunk (<=600 chars) rendered to mp3 by the box; answered by tts-audio or tts-error with the same reqId.
   | { t: 'tts'; reqId: string; text: string }
   | { t: 'stt-token'; reqId: string }
@@ -929,6 +940,10 @@ export type ClientMsg =
   | { t: 'canvas-pos-reset' }
   | { t: 'canvas-card-save'; card: CanvasCard }
   | { t: 'canvas-card-delete'; id: string }
+  | { t: 'planner-get' }
+  | { t: 'planner-task-save'; task: PlannerTask }
+  | { t: 'planner-task-delete'; id: string }
+  | { t: 'planner-reorder'; moves: PlannerMove[] }
   // Kanban session item (src/routes/canvas/kanban-items.ts): user override on
   // a session's derived status — drag onto a column or "marcar completo".
   | { t: 'canvas-session-status'; sessionId: string; status: CardStatus }
@@ -949,6 +964,13 @@ export type ClientMsg =
   // do chat. `repo` é SLUG de registro do servidor, nunca caminho — caminho vindo
   // do cliente seria leitura arbitrária de arquivo.
   | { t: 'bench-build'; buildId: string; repo: string; code: string }
+  // PR hub (/prs): the owner's PRs via the box's `gh`. Merge re-reads the PR on
+  // the server and enforces the risk gate there — the client's confirm is a hint.
+  | { t: 'prs-get'; force?: boolean }
+  | { t: 'prs-detail-get'; url: string }
+  | { t: 'prs-diff-get'; url: string }
+  | { t: 'prs-session-get'; sessionId: string; hydrate?: boolean }
+  | { t: 'prs-merge'; reqId: string; url: string; confirmText?: string }
   // Fila estacionada (overnight): mesma carga do 'send', mas o servidor persiste e
   // o drainer dispara assim que a sessão fica ociosa (sem olhar quota). queue-get pede
   // o snapshot atual; add/remove/move/clear gerenciam a fila; set-paused liga/desliga
@@ -996,7 +1018,7 @@ export type Caps = { role: 'root' | 'admin' | 'fellow' | 'student'; canBypass: b
 
 export type ServerMsg =
   | { t: 'caps'; caps: Caps }
-  | { t: 'mcp-servers'; servers: string[] }  // nomes dos MCP disponíveis (do ~/.claude.json), p/ o seletor por sessão; default = nenhum carregado
+  | { t: 'mcp-servers'; servers: string[] }  // nomes dos MCP disponíveis (~/.claude.json, servers do projeto do workdir e conectores claude.ai), p/ o seletor por sessão; default = nenhum carregado
   // Esta box tem uma conta Anthropic conectada (OAuth ou ANTHROPIC_API_KEY)? Sem
   // isso o `claude` nem inicia, então a UI avisa que nada vai rodar até conectar.
   // É fato do ENGINE (a VPS), não do viewer — por isso vai à parte do caps, que
@@ -1139,8 +1161,10 @@ export type ServerMsg =
   | { t: 'claude-import'; scan: ClaudeImportScan; hint?: string; result?: ClaudeImportResult }
   | { t: 'accounts'; accounts: AccountSummary[] }
   | { t: 'stats'; stats: SysStats }
+  | ({ t: 'capacity' } & CapacityInfo)
   | { t: 'graphs'; items: GraphMeta[] }
   | { t: 'canvas-graph'; graph: CanvasGraph }
+  | { t: 'planner-board'; tasks: PlannerTask[] }
   | { t: 'orchestrator-info'; info?: OrchestratorInfo }
   | { t: 'orchestrator-activity'; activity: OrchestratorActivity }
   | { t: 'canvas-term-stats'; stats: Record<string, TermStats> }
@@ -1215,10 +1239,18 @@ export type ServerMsg =
   | { t: 'graph-build-done'; ok: boolean; id?: string; error?: string }
   | { t: 'bench-bundle'; buildId: string; js: string; css: string; ms: number }
   | { t: 'bench-error'; buildId: string; error: string }
+  // `pending`: a cached snapshot painted at once; a fresh one follows on this socket.
+  | { t: 'prs'; snapshot: PrsSnapshot; pending?: boolean }
+  | { t: 'prs-diff'; url: string; diff: PrDiff | null; error?: string }
+  | { t: 'prs-session'; session: SessionPrs }
+  | { t: 'prs-detail'; url: string; detail: PrDetail | null; error?: string }
+  | { t: 'prs-merge-result'; reqId: string; url: string; ok: boolean; message?: string }
   | { t: 'term-data'; termId: string; data: string }
   | { t: 'term-replay'; termId: string; data: string }
   | { t: 'term-exit'; termId: string }
   | { t: 'terms'; ids: string[] }
+  // The CLI emitted its final `result` with nothing pending; `done` follows when the process closes.
+  | { t: 'settled'; sessionKey: string }
   | { t: 'done'; sessionKey: string; sessionId: string; costUsd?: number; durationMs?: number; numTurns?: number; turnTokens?: number; inputTokens?: number; outputTokens?: number; endReason?: string; model?: string; stopped?: boolean }
   // Tópicos de continuação sugeridos pós-turno (chips selecionáveis, estilo ChatGPT).
   | { t: 'queue'; items: ParkedView[]; paused: boolean; releaseAt?: number }

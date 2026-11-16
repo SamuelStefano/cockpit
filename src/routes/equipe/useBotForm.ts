@@ -19,6 +19,8 @@ export interface BotDraft {
   effort: Effort | '';
   permissions?: BotPermissions;
   skills: string[];
+  sourceRepo: string;
+  sourcePath: string;
 }
 
 // locked = what the server forces on a non-admin's bot, shown up front in the form.
@@ -29,12 +31,13 @@ export function draftFrom(bot: TeamBot | null, count: number, locked = false): B
 
 function baseDraft(bot: TeamBot | null, count: number): BotDraft {
   if (!bot) {
-    return { name: '', label: '', instructions: '', shape: 'blob', color: MASCOT_COLORS[count % MASCOT_COLORS.length], parentId: '', primary: count === 0, profile: 'full', model: '', fallbackModel: '', mode: '', effort: '', skills: [] };
+    return { name: '', label: '', instructions: '', shape: 'blob', color: MASCOT_COLORS[count % MASCOT_COLORS.length], parentId: '', primary: count === 0, profile: 'full', model: '', fallbackModel: '', mode: '', effort: '', skills: [], sourceRepo: '', sourcePath: '' };
   }
   return {
     name: bot.name, label: bot.label, instructions: bot.instructions, shape: bot.mascot.shape, color: bot.mascot.color,
     parentId: bot.parentId ?? '', primary: !!bot.primary, profile: bot.profile, model: bot.model ?? '', fallbackModel: bot.fallbackModel ?? '', mode: bot.mode ?? '', effort: bot.effort ?? '',
     skills: bot.skills ?? [],
+    sourceRepo: bot.source?.repo ?? '', sourcePath: bot.source?.path ?? '',
     ...(bot.permissions ? { permissions: bot.permissions } : {}),
   };
 }
@@ -49,6 +52,7 @@ export function toInput(id: string, d: BotDraft): TeamBotInput {
   if (d.effort) bot.effort = d.effort;
   if (d.permissions) bot.permissions = d.permissions;
   if (d.skills.length) bot.skills = d.skills;
+  if (d.sourceRepo.trim()) bot.source = { repo: d.sourceRepo.trim(), path: d.sourcePath.trim() };
   return bot;
 }
 

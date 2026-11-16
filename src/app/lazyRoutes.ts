@@ -22,3 +22,4 @@ export const Configuracoes = lazy(() => import('../routes/Configuracoes').then((
 export const Arcade = lazy(() => import('../routes/Arcade').then((m) => ({ default: m.Arcade })));
 export const Base = lazy(() => import('../routes/base/Base').then((m) => ({ default: m.Base })));
 export const Conexoes = lazy(() => import('../routes/Conexoes').then((m) => ({ default: m.Conexoes })));
+export const Prs = lazy(() => import('../routes/prs/Prs').then((m) => ({ default: m.Prs })));

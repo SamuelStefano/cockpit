@@ -19,6 +19,26 @@ describe('ModelPicker', () => {
     expect(getByRole('button', { name: 'Versão do agente do próximo prompt' }).textContent).toBe('Opus 5.5');
   });
 
+  it('shows the effort next to a Claude model and hides it for agents', () => {
+    const claude = render(<ModelPicker {...props} model="claude-opus-5-5" effort="low" setEffort={vi.fn()} />);
+    const btn = claude.getByRole('button', { name: 'Modelo e raciocínio do próximo prompt: Opus 5.5, Baixo' });
+    expect(btn.textContent).toBe('Opus 5.5· Baixo');
+    claude.unmount();
+    const agent = render(<ModelPicker {...props} model="agent:grok" effort="low" setEffort={vi.fn()} />);
+    expect(agent.queryByText(/Baixo/)).toBeNull();
+    fireEvent.click(agent.getByRole('button'));
+    expect(agent.queryByRole('radiogroup')).toBeNull();
+  });
+
+  it('keeps the panel open when an effort level is picked', () => {
+    const setEffort = vi.fn();
+    const { getByRole, getByLabelText } = render(<ModelPicker {...props} model="claude-opus-5-5" effort="low" setEffort={setEffort} />);
+    fireEvent.click(getByRole('button', { name: /Modelo e raciocínio/ }));
+    fireEvent.click(getByRole('radio', { name: /Alto/ }));
+    expect(setEffort).toHaveBeenCalledWith('high');
+    expect(getByLabelText('Buscar modelo')).toBeTruthy();
+  });
+
   it('opens the panel, picks a model and closes', () => {
     const setModel = vi.fn();
     const { getByRole, getByLabelText, queryByLabelText } = render(<ModelPicker {...props} setModel={setModel} model="claude-opus-5-5" />);

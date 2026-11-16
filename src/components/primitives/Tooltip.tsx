@@ -29,6 +29,8 @@ export function Tooltip({ label, children, side = 'top', delay = 350, disabled =
   const id = useId();
   const wrapRef = useRef<HTMLSpanElement>(null);
   const timer = useRef<number | undefined>(undefined);
+  // Last input was a touch: focus (e.g. restored when a menu closes) must not open the bubble.
+  const touched = useRef(false);
   const [rect, setRect] = useState<DOMRect | null>(null);
 
   const show = useCallback((immediate: boolean) => {
@@ -56,8 +58,10 @@ export function Tooltip({ label, children, side = 'top', delay = 350, disabled =
       className={className}
       onPointerEnter={(e) => { if (e.pointerType !== 'touch') show(false); }}
       onPointerLeave={hide}
-      onPointerDown={hide}
-      onFocus={(e) => { if (e.target.matches(':focus-visible')) show(true); }}
+      onPointerDown={(e) => { touched.current = e.pointerType === 'touch'; hide(); }}
+      onClick={hide}
+      onKeyDown={() => { touched.current = false; }}
+      onFocus={(e) => { if (!touched.current && e.target.matches(':focus-visible')) show(true); }}
       onBlur={hide}
     >
       {trigger}

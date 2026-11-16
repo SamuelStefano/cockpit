@@ -13,6 +13,9 @@ describe('coerceBotForRole', () => {
     expect(b.model).toBeUndefined();
     expect(coerceBotForRole({ ...bot, model: 'haiku' }, 'student').model).toBe('haiku');
   });
+  it('student: never keeps a repo source', () => {
+    expect(coerceBotForRole({ ...bot, source: { repo: 'a/b', path: '' } }, 'student').source).toBeUndefined();
+  });
   it('admin: untouched', () => {
     expect(coerceBotForRole(bot, 'admin')).toBe(bot);
   });

@@ -6,10 +6,21 @@ interface Fakes {
   usage: PlanUsage | null;
   refreshes: number;
   readAt: number;
+  credMtime: number;
+  frames: unknown[];
 }
-const f: Fakes = { rate: null, usage: null, refreshes: 0, readAt: 0 };
+const f: Fakes = { rate: null, usage: null, refreshes: 0, readAt: 0, credMtime: 0, frames: [] };
 
-vi.mock('./rate', () => ({ getRateSnapshot: () => f.rate }));
+vi.mock('./rate', () => ({
+  getRateSnapshot: () => f.rate,
+  dropRateFromOldLogin: (mtime: number) => {
+    if (!f.rate || mtime <= f.rate.setAt) return false;
+    f.rate = null;
+    return true;
+  },
+}));
+vi.mock('./auth-health', () => ({ credMtime: () => f.credMtime }));
+vi.mock('./broadcast', () => ({ broadcast: (m: unknown) => { f.frames.push(m); } }));
 vi.mock('./usage-plan', () => ({
   getLastPlanUsage: () => f.usage,
   getPlanUsageReadAt: () => f.readAt,
@@ -21,7 +32,7 @@ import { quotaHoldUntil, quotaHold, planLimited, burnedByQuota, UNKNOWN_HOLD_MS,
 const NOW = 1_800_000_000_000;
 
 beforeEach(() => {
-  Object.assign(f, { rate: null, usage: null, refreshes: 0, readAt: 0 });
+  Object.assign(f, { rate: null, usage: null, refreshes: 0, readAt: 0, credMtime: 0, frames: [] });
 });
 const rate = (status: string, resetsAt: number, setAt = NOW) => ({ status, resetsAt, setAt });
 const plan = (fiveHour: number, resetsAt: number | null): PlanUsage => ({ fiveHour, sevenDay: 10, resetsAt, sevenDayResetsAt: null, limits: [] });
@@ -187,6 +198,18 @@ describe('planLimited', () => {
   });
 
   it('falso sem teto', () => {
+    expect(planLimited(NOW)).toBe(false);
+  });
+});
+
+describe('quotaHold after an account switch', () => {
+  it('frees the queue when /login happened after the ceiling, without waiting for a usage read', () => {
+    f.rate = rate('rejected', NOW + 3_600_000, NOW - 60_000);
+    f.credMtime = NOW - 120_000;
+    expect(quotaHold(NOW)).toBe(NOW + 3_600_000);
+    f.credMtime = NOW - 1_000;
+    expect(quotaHold(NOW)).toBe(0);
+    expect(f.frames).toEqual([{ t: 'rate', resetsAt: 0, status: 'allowed' }]);
     expect(planLimited(NOW)).toBe(false);
   });
 });

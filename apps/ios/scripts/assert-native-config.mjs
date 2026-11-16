@@ -125,6 +125,9 @@ export const REQUIRED_COLLECTED_TYPES = [
   'NSPrivacyCollectedDataTypeUserID',
   'NSPrivacyCollectedDataTypeOtherUserContent',
   'NSPrivacyCollectedDataTypePhotosorVideos',
+  // The web build sends crash and connection diagnostics tied to the account (src/app/diag/diagReport.ts).
+  'NSPrivacyCollectedDataTypeCrashData',
+  'NSPrivacyCollectedDataTypeOtherDiagnosticData',
 ];
 
 /** The reasons declared for one required-reason category (empty when the category is absent). */

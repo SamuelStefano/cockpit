@@ -1,5 +1,7 @@
 import type { PlanUsage } from '../../shared/protocol';
-import { getRateSnapshot, type RateSnapshot } from './rate';
+import { credMtime } from './auth-health';
+import { broadcast } from './broadcast';
+import { dropRateFromOldLogin, getRateSnapshot, type RateSnapshot } from './rate';
 import { getLastPlanUsage, getPlanUsageReadAt, requestPlanUsageRefresh } from './usage-plan';
 
 // Teto de tokens do plano: enquanto vale, NENHUMA fila drena. Sem este gate o
@@ -44,15 +46,23 @@ export function quotaHoldUntil(rate: RateSnapshot | null, usage: PlanUsage | nul
 
 // Hold ao vivo (sinais em memória do agente). Enquanto segura, pede um refresh do
 // usage pra soltar a fila assim que a janela virar, sem esperar o poll de 60s.
+// A ceiling hit before `/login` belongs to the old account. The usage poll also drops
+// it, but that poll sits in a 429 cooldown right when the limit is hit, so the queue
+// stayed locked until the OLD account's reset. Checking here frees it on the next pass.
+function liveRate(): RateSnapshot | null {
+  if (dropRateFromOldLogin(credMtime())) broadcast({ t: 'rate', resetsAt: 0, status: 'allowed' });
+  return getRateSnapshot();
+}
+
 export function quotaHold(now = Date.now()): number {
-  const until = quotaHoldUntil(getRateSnapshot(), getLastPlanUsage(), now, getPlanUsageReadAt());
+  const until = quotaHoldUntil(liveRate(), getLastPlanUsage(), now, getPlanUsageReadAt());
   if (until) requestPlanUsageRefresh({ mode: 'idle' });
   return until;
 }
 
 // O turno que acabou de fechar bateu no teto?
 export function planLimited(now = Date.now()): boolean {
-  return quotaHoldUntil(getRateSnapshot(), getLastPlanUsage(), now, getPlanUsageReadAt()) > 0;
+  return quotaHoldUntil(liveRate(), getLastPlanUsage(), now, getPlanUsageReadAt()) > 0;
 }
 
 const QUOTA_TEXT = /usage limit|limit reached|hit your [\w-]+ limit|out of (tokens|credits)|limite de uso|sem tokens|tokens esgotad/i;

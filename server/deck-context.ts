@@ -21,6 +21,8 @@ export interface DeckContextInput {
   bot: boolean;
   home: string;
   workdir: string;
+  // Repo agent: its context is the repo folder, never the operator's own files or Kanban.
+  repoAgent?: boolean;
 }
 
 export function rosterFile(env: NodeJS.ProcessEnv = process.env): string {
@@ -83,7 +85,7 @@ export function buildDeckContext(input: DeckContextInput): string {
     '',
     '## What the person sees',
     '- A sidebar of sessions grouped by box, with a box switcher; this chat is one of them. Your text streams live; tool calls show as collapsed cards.',
-    '- A kanban/canvas view of sessions as cards, and a queue: messages sent while you work are delivered after your turn ends.',
+    '- A canvas view of sessions as kanban cards (`deckctl board`/`card`; not the personal Kanban below), and a queue: messages sent while you work are delivered after your turn ends.',
     '- A beep and a notification when your turn ends, so close every turn with a clear final message (what was done, what is left).',
     '- "Drop privado": for a secret (token, key, password), ask the person to put it in the private drop instead of pasting it in the chat; it lands in ~/.deck-drop/<name> on this box and never enters the transcript unless you Read it.',
     '- Images: save the file and cite it with a relative path, ![caption](file.png), and the chat renders it.',
@@ -91,17 +93,27 @@ export function buildDeckContext(input: DeckContextInput): string {
     '',
     '## Acting on the Deck',
     input.deckctl
-      ? '- `deckctl` is installed here: it drives this box\'s Deck from the shell (`deckctl sessions`, `read`, `new`, `send`, `wait`, `board`, `card`, `queue`, `status`). Run `deckctl` with no arguments for the full list.'
+      ? '- `deckctl` is installed here: it drives this box\'s Deck from the shell (`deckctl sessions`, `read`, `new`, `send`, `wait`, `board`, `card`, `task`, `queue`, `status`). Run `deckctl` with no arguments for the full list.'
       : '- `deckctl` is not installed on this box, so you cannot list or start Deck sessions from the shell here.',
     input.bot
       ? '- You are an Equipe bot: the `deck-team` MCP gives you `team_list` and `team_send` to message the other bots of this box\'s team.'
       : '- The `deck-team` MCP (team_list/team_send) only loads in Equipe bot turns; this session does not have it.',
     '- There is no way yet to message a session or bot on another box. If asked, say so plainly; the person can switch box in the sidebar.',
-    ...(input.deckGuide ? ['- For how-to questions about the Deck itself (setup, boxes, crons, drops, models), use the `deck-guide` skill.'] : []),
-    '',
-    '## Your own context (this box only)',
-    `- Instructions: ${join(input.home, '.claude', 'CLAUDE.md')}. Skills: ${join(input.home, '.claude', 'skills')}/. Memory: ${memory}/.`,
-    '- Other boxes keep their own copies; editing these files changes only this box.',
+    ...(input.deckGuide && !input.repoAgent ? ['- For how-to questions about the Deck itself (setup, boxes, crons, drops, models), use the `deck-guide` skill.'] : []),
+    ...(input.deckctl && !input.repoAgent ? [
+      '',
+      '## The person\'s Kanban',
+      '- The person keeps a personal Kanban in the Deck header (columns: today "Hoje", week "Semana", backlog "Pendentes", done "Feito"). You keep it current with `deckctl task`; they should never have to update it for work you did.',
+      '- Starting work that takes more than a quick answer: run `deckctl task list`, reuse the matching task or `deckctl task add "<title>" --col today --diff 1|2|3 --desc "<one line>"`. One task per deliverable, title in the person\'s language, no duplicates; pass `--ref <external id>` (e.g. a DFL task id) and `--tag <source>` when the work has one.',
+      '- Finishing: `deckctl task done <id> --link <PR or result URL>`. Left unfinished or blocked: keep it out of done and say why with `deckctl task edit <id> --desc`.',
+      '- Follow-ups the person mentions for later go to `--col week` or `--col backlog`. Never delete or reorder tasks the person created unless asked; never put secrets in a task.',
+    ] : []),
+    ...(input.repoAgent ? [] : [
+      '',
+      '## Your own context (this box only)',
+      `- Instructions: ${join(input.home, '.claude', 'CLAUDE.md')}. Skills: ${join(input.home, '.claude', 'skills')}/. Memory: ${memory}/.`,
+      '- Other boxes keep their own copies; editing these files changes only this box.',
+    ]),
   ];
   return lines.join('\n');
 }
@@ -110,7 +122,7 @@ export function deckContextEnabled(env: NodeJS.ProcessEnv = process.env): boolea
   return env.DECK_AGENT_CONTEXT !== '0';
 }
 
-export function deckAgentContext(opts: { bot: boolean }, env: NodeJS.ProcessEnv = process.env): string | undefined {
+export function deckAgentContext(opts: { bot: boolean; repoAgent?: boolean }, env: NodeJS.ProcessEnv = process.env): string | undefined {
   if (!deckContextEnabled(env)) return undefined;
   const roster = loadRoster(rosterFile(env));
   const host = hostname();
@@ -123,6 +135,7 @@ export function deckAgentContext(opts: { bot: boolean }, env: NodeJS.ProcessEnv 
     deckctl: onPath('deckctl', env),
     deckGuide: existsSync(join(home, '.claude', 'skills', 'deck-guide', 'SKILL.md')),
     bot: opts.bot,
+    repoAgent: opts.repoAgent,
     home,
     workdir: CONFIG.workdir,
   });

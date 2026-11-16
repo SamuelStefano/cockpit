@@ -38,6 +38,7 @@ import {
 import { authHold, isAuthFailure, markAuthBroken, AUTH_MESSAGE } from './auth-health';
 import { threadIsMarathon, MARATHON_AUTO_RESUME_CAP } from './marathon';
 import { bindBotSession, getTeam } from '../team';
+import { refreshAgentSource } from '../agent-source';
 import { botTurnParams, botDenyRules } from '../team-prompt';
 import { readMemoriesSafe } from '../memories';
 import { botThreadKey } from '../../shared/team';
@@ -1430,6 +1431,10 @@ async function fireBotRoutine(cron: Cron, botId: string): Promise<CronFire> {
   if (!turn) return 'bot-gone';
   if (botLiveKey(botId, bot.sessionId)) return 'bot-busy';
   if (isAreaAdmissionBlocked(turn.resumeId, key)) return 'blocked';
+  if (turn.profile === 'full') {
+    const bots = await refreshAgentSource(bot).catch(() => null);
+    if (bots) broadcast({ t: 'team', bots });
+  }
   const denied = await botDenyRules(turn);
   startRun({
     ws: null,

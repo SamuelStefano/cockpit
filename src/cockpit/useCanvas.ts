@@ -12,6 +12,8 @@ export interface CanvasApi {
   canvasLoadingSince: number | null;
   canvasStale: boolean;
   onCanvasGet: () => void;
+  // Socket (re)opened: replays board writes queued while it was down.
+  onCanvasReconnect: () => void;
   onCanvasPos: (pos: Record<string, CanvasPos>) => void;
   onCanvasPosReset: () => void;
   onCanvasCardSave: (card: CanvasCard) => void;
@@ -90,6 +92,17 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
   const [cvLiveSessionIds, setCvLive] = useState<string[]>([]);
   const [cvIdleSessionIds, setCvIdle] = useState<string[]>([]);
   const [sessionPeeks, setSessionPeeks] = useState<Record<string, SessionPeek | null>>({});
+  // Board writes made while the socket is down. They used to be sent into the
+  // void: the optimistic card showed, and the first board after reconnect (past
+  // the write grace) dropped it, prompt and all, with no warning. Queued here
+  // and replayed on the next open, with their grace timestamps refreshed so a
+  // board snapshot racing the replay does not drop them either.
+  const pendingWrites = useRef<ClientMsg[]>([]);
+  const write = useCallback((m: ClientMsg) => {
+    if (send(m)) return;
+    pendingWrites.current.push(m);
+    if (m.t === 'canvas-card-save' || m.t === 'canvas-flow-save') toast('Sem conexão — a mudança vai quando reconectar', { tone: 'error' });
+  }, [send]);
   const onSessionPeek = useCallback((sessionId: string) => { send({ t: 'canvas-session-peek', sessionId }); }, [send]);
   const loadingRef = useRef(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -348,19 +361,36 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
     ackTimerRef.current = setTimeout(() => { setStale(true); settle(); }, CANVAS_ACK_TIMEOUT_MS);
   }, [send, clearTimer, settle]);
 
+  const onCanvasReconnect = useCallback(() => {
+    const queued = pendingWrites.current;
+    pendingWrites.current = [];
+    const now = Date.now();
+    for (const m of queued) {
+      if (m.t === 'canvas-card-save') cardWriteAt.current[m.card.id] = now;
+      if (m.t === 'canvas-card-delete') deleteWriteAt.current[m.id] = now;
+      if (m.t === 'canvas-pos') for (const id of Object.keys(m.pos)) posWriteAt.current[id] = now;
+      if (m.t === 'canvas-flow-save') flowWriteAt.current[m.flow.id] = now;
+      if (m.t === 'canvas-flow-delete') flowDeleteWriteAt.current[m.id] = now;
+      if (m.t === 'canvas-session-status') sessionStatusWriteAt.current[m.sessionId] = now;
+      if (m.t === 'canvas-session-status-bulk') for (const id of m.sessionIds) sessionStatusWriteAt.current[id] = now;
+      if (m.t === 'canvas-session-hide' || m.t === 'canvas-session-unhide-all') hiddenWriteAt.current = now;
+      if (!send(m)) pendingWrites.current.push(m);
+    }
+  }, [send]);
+
   // Positions are applied locally at once; the server copy only matters on reload.
   const onCanvasPos = useCallback((pos: Record<string, CanvasPos>) => {
     const now = Date.now();
     for (const id of Object.keys(pos)) posWriteAt.current[id] = now;
     setBoard((b) => ({ ...b, pos: { ...b.pos, ...pos } }));
-    send({ t: 'canvas-pos', pos });
-  }, [send]);
+    write({ t: 'canvas-pos', pos });
+  }, [write]);
 
   const onCanvasPosReset = useCallback(() => {
     posWriteAt.current = {};
     setBoard((b) => ({ ...b, pos: {} }));
-    send({ t: 'canvas-pos-reset' });
-  }, [send]);
+    write({ t: 'canvas-pos-reset' });
+  }, [write]);
 
   // Optimistic: a card dragged across the kanban must not snap back while the
   // server round-trip is in flight; the broadcast that follows is authoritative.
@@ -371,15 +401,15 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
       const i = b.cards.findIndex((c) => c.id === card.id);
       return { ...b, cards: i < 0 ? [card, ...b.cards] : b.cards.map((c) => (c.id === card.id ? card : c)) };
     });
-    send({ t: 'canvas-card-save', card });
-  }, [send]);
+    write({ t: 'canvas-card-save', card });
+  }, [write]);
 
   const onCanvasCardDelete = useCallback((id: string) => {
     delete cardWriteAt.current[id];
     deleteWriteAt.current[id] = Date.now();
     setBoard((b) => ({ ...b, cards: b.cards.filter((c) => c.id !== id) }));
-    send({ t: 'canvas-card-delete', id });
-  }, [send]);
+    write({ t: 'canvas-card-delete', id });
+  }, [write]);
 
   // Optimistic, same shape as onCanvasCardSave: the drag/click lands at once,
   // the broadcast that follows (or doesn't, offline) is authoritative.
@@ -387,8 +417,8 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
     const at = Date.now();
     sessionStatusWriteAt.current[sessionId] = at;
     setBoard((b) => ({ ...b, sessionStatus: { ...b.sessionStatus, [sessionId]: { status, at } } }));
-    send({ t: 'canvas-session-status', sessionId, status });
-  }, [send]);
+    write({ t: 'canvas-session-status', sessionId, status });
+  }, [write]);
 
   // Same optimistic shape, batched: applies the SAME entry to every id at
   // once instead of looping onCanvasSessionStatus (one wire frame, not N).
@@ -401,20 +431,20 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
       for (const id of sessionIds) sessionStatus[id] = { status, at };
       return { ...b, sessionStatus };
     });
-    send({ t: 'canvas-session-status-bulk', sessionIds, status });
-  }, [send]);
+    write({ t: 'canvas-session-status-bulk', sessionIds, status });
+  }, [write]);
 
   const onCanvasHideSession = useCallback((sessionId: string) => {
     hiddenWriteAt.current = Date.now();
     setBoard((b) => (b.hiddenSessions.includes(sessionId) ? b : { ...b, hiddenSessions: [...b.hiddenSessions, sessionId] }));
-    send({ t: 'canvas-session-hide', sessionId });
-  }, [send]);
+    write({ t: 'canvas-session-hide', sessionId });
+  }, [write]);
 
   const onCanvasUnhideAllSessions = useCallback(() => {
     hiddenWriteAt.current = Date.now();
     setBoard((b) => ({ ...b, hiddenSessions: [] }));
-    send({ t: 'canvas-session-unhide-all' });
-  }, [send]);
+    write({ t: 'canvas-session-unhide-all' });
+  }, [write]);
 
   const onCanvasFlowSave = useCallback((flow: CanvasFlow) => {
     delete flowDeleteWriteAt.current[flow.id];
@@ -423,15 +453,15 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
       const i = b.flows.findIndex((f) => f.id === flow.id);
       return { ...b, flows: i < 0 ? [flow, ...b.flows] : b.flows.map((f) => (f.id === flow.id ? flow : f)) };
     });
-    send({ t: 'canvas-flow-save', flow });
-  }, [send]);
+    write({ t: 'canvas-flow-save', flow });
+  }, [write]);
 
   const onCanvasFlowDelete = useCallback((id: string) => {
     delete flowWriteAt.current[id];
     flowDeleteWriteAt.current[id] = Date.now();
     setBoard((b) => ({ ...b, flows: b.flows.filter((f) => f.id !== id) }));
-    send({ t: 'canvas-flow-delete', id });
-  }, [send]);
+    write({ t: 'canvas-flow-delete', id });
+  }, [write]);
 
   const onCanvasTermStats = useCallback((sessions: string[], terms: string[]) => {
     send({ t: 'canvas-term-stats', sessions, terms });
@@ -448,12 +478,12 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
   // its popover is already closed by the caller on submit — a brief round-trip
   // before the chip updates is not the glitch a snapped-back drag would be.
   const onCanvasBudgetSave = useCallback((area: AreaId, budget: AreaBudget) => {
-    send({ t: 'canvas-budget-save', area, budget });
-  }, [send]);
+    write({ t: 'canvas-budget-save', area, budget });
+  }, [write]);
 
   return {
     canvasGraph, canvasBoard, canvasLoading, canvasLoadingSince, canvasStale,
-    onCanvasGet, onCanvasPos, onCanvasPosReset, onCanvasCardSave, onCanvasCardDelete, onCanvasSessionStatus,
+    onCanvasGet, onCanvasReconnect, onCanvasPos, onCanvasPosReset, onCanvasCardSave, onCanvasCardDelete, onCanvasSessionStatus,
     onCanvasSessionStatusBulk, onCanvasHideSession, onCanvasUnhideAllSessions,
     onCanvasFlowSave, onCanvasFlowDelete, canvasFlowFired, canvasFlowRuns, onCanvasBudgetSave,
     canvasTermStats, onCanvasTermStats, onCanvasCtxStats, canvasAreaUsage,

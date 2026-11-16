@@ -30,7 +30,7 @@ vi.mock('../canvas/term-stats', () => ({
   collectTermStats: vi.fn(), collectCtxOnly: vi.fn(), hasInteractiveClaude: vi.fn(async () => false), newCpuSamples: vi.fn(() => new Map()),
 }));
 vi.mock('../canvas/cv-liveness', () => ({
-  readBusyElsewhereSessionIds: vi.fn(async () => []), readBusyHeadlessElsewhereSessionIds: vi.fn(async () => []), refreshLivenessSnapshot: vi.fn(),
+  readBusyElsewhereSessionIds: vi.fn(async () => []), readBusyHeadlessElsewhereSessionIds: vi.fn(async () => []), readTmuxPaneSessionIds: vi.fn(async () => []), refreshLivenessSnapshot: vi.fn(),
 }));
 
 import { handle } from './dispatch';

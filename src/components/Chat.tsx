@@ -4,6 +4,7 @@ import { Icon } from './primitives';
 import { subscribeRefine } from './primitives/livepreview/refine-bus';
 import { MessageRow } from './chat/MessageView';
 import { LiveLine } from './chat/LiveLine';
+import { showsWorking } from './chat/turn-settled';
 import { ChatEmpty, ChatInput } from './chat/ChatInput';
 import { ChatHeader } from './chat/ChatHeader';
 import { FocusCollapse } from './chat/FocusCollapse';
@@ -30,7 +31,7 @@ import { BotThreadContext, BOT_ANSWER_PLACEHOLDER } from './chat/bot-thread-cont
 
 export type { Phase };
 
-export function ChatPanel({ session, messages, phase, terminalBusy = false, draft, setDraft, onSend, onPrompt, onApproveWorkflow, onStop, mode, setMode, caps, claudeReady = true, bypass, setBypass, model, setModel, modelLocked, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, slashCommands, contextTokens, contextModel = null, sendCost, liveTurnTokens, turnStartedAt, bgAgents, lastTurn, lastEnd, onNew, onHandoff, handoffBusy = false, attachments, onUpload, onRemoveAttachment, attPreview = null, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser, onQuote, onMemorize, onRename, onDelete, onOpenFull, onLoadOlder, onOpenSummary, truncated, onShowHelp, focusSignal = 0, onTerminal, terminalRunning, terminalOpen, usage, isMobile = false, onMenu, keyboardOpen = false, quotaPaused = false, quotaResetsAt = null, queue, queueAdd, queueRetarget, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueReleaseAt = 0, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce, resumeOffer = null, resumeRun, turnStatus, teamSlot, footer, restoring = false, botDecor, conn, call }: ChatPanelProps) {
+export function ChatPanel({ session, messages, phase, settled = false, terminalBusy = false, draft, setDraft, onSend, onPrompt, onApproveWorkflow, onStop, mode, setMode, caps, claudeReady = true, bypass, setBypass, model, setModel, modelLocked, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, slashCommands, contextTokens, contextModel = null, sendCost, liveTurnTokens, turnStartedAt, bgAgents, lastTurn, lastEnd, onNew, onHandoff, handoffBusy = false, attachments, onUpload, onRemoveAttachment, attPreview = null, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser, onQuote, onMemorize, onRename, onDelete, onOpenFull, onLoadOlder, onOpenSummary, truncated, onShowHelp, focusSignal = 0, onTerminal, terminalRunning, terminalOpen, usage, isMobile = false, onMenu, keyboardOpen = false, quotaPaused = false, capacityFull = false, quotaResetsAt = null, queue, queueAdd, queueRetarget, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueReleaseAt = 0, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce, resumeOffer = null, resumeRun, turnStatus, teamSlot, footer, restoring = false, botDecor, conn, call }: ChatPanelProps) {
   const c = useChatPanel({ session, messages, phase, models, model, lastEnd, onSend, queue, queueAdd, queueRetarget, queueRemove, queueEdit, queueMove, queueClear, queueRetry, queueRunBg, queueRunNow });
   // Modo iterativo: um refino pedido de dentro de um live preview vira o próximo
   // prompt (o card não tem acesso ao compositor — publica no [[refine-bus]]).
@@ -63,7 +64,7 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, draf
   const focus = useFocusMode(isMobile, keyboardOpen);
 
   const renderRow = (m: ShownMessage, i: number) => (
-    <MessageRow key={m.id} msg={m} caretOnLast={c.streaming && i === shown.length - 1 && m.role === 'assistant'} modelLabel={botDecor ? botDecor.name : m.role === 'assistant' && m.model ? c.labelFor(m.model) : c.modelLabel} avatar={botDecor?.avatar} bit={i === shown.length - 1 && m.role === 'assistant' ? turnBit : undefined} showModelLabel={!!botDecor} thinking={phase !== 'idle' && !c.pendingQuestion && i === shown.length - 1 && m.role === 'assistant'} live={i === shown.length - 1 && m.role === 'assistant' && !c.pendingQuestion ? live : undefined} onEditUser={onEditUser} onQuote={onQuote} onMemorize={onMemorize} answerable={(phase === 'idle' || c.pendingQuestion) && i === shown.length - 1 && m.role === 'assistant'} onAnswer={onPrompt} reviewable={phase === 'idle' && i > lastUserIdx && m.role === 'assistant'} onApproveWorkflow={onApproveWorkflow} onRegenerate={phase === 'idle' && !c.pendingQuestion && i === shown.length - 1 && m.role === 'assistant' ? c.retryLast : undefined} onOpenAttachment={onAttOpen} attThumbs={attThumbs} onAttThumb={onAttThumb} />
+    <MessageRow key={m.id} msg={m} caretOnLast={c.streaming && i === shown.length - 1 && m.role === 'assistant'} modelLabel={botDecor ? botDecor.name : m.role === 'assistant' && m.model ? c.labelFor(m.model) : c.modelLabel} avatar={botDecor?.avatar} bit={i === shown.length - 1 && m.role === 'assistant' ? turnBit : undefined} showModelLabel={!!botDecor} thinking={showsWorking(phase, settled) && !c.pendingQuestion && i === shown.length - 1 && m.role === 'assistant'} live={i === shown.length - 1 && m.role === 'assistant' && !c.pendingQuestion ? live : undefined} onEditUser={onEditUser} onQuote={onQuote} onMemorize={onMemorize} answerable={(phase === 'idle' || c.pendingQuestion) && i === shown.length - 1 && m.role === 'assistant'} onAnswer={onPrompt} reviewable={phase === 'idle' && i > lastUserIdx && m.role === 'assistant'} onApproveWorkflow={onApproveWorkflow} onRegenerate={phase === 'idle' && !c.pendingQuestion && i === shown.length - 1 && m.role === 'assistant' ? c.retryLast : undefined} onOpenAttachment={onAttOpen} attThumbs={attThumbs} onAttThumb={onAttThumb} />
   );
 
   const composer = (
@@ -76,7 +77,7 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, draf
       queued={c.queued} queuedIds={c.queuedIds} queuedAtts={c.queuedAtts} queuedModels={c.queuedModels} onRunQueuedBg={c.runQueuedInBgAt} onRunQueuedNow={c.runQueuedNowAt} onQueue={c.enqueue} onCancelQueueAt={c.cancelQueueAt} onEditQueuedAt={c.editQueuedAt} onMoveQueued={c.moveQueuedItem} history={c.sentHistory} pendingConfirm={c.bannerConfirm} onNew={onNew} onShowHelp={onShowHelp}
       queuePaused={queuePaused} queueReleaseAt={queueReleaseAt} onToggleQueuePause={() => queueSetPaused(!queuePaused)}
       queueHeld={c.queueHeld} onResumeQueue={c.resumeQueue}
-      paused={locked} quotaResetsAt={resetAt} agentOut={agentOut && useAgent ? { name: agentOut.displayName, use: useAgent } : undefined} focusMode={focus} onCall={call.supported ? call.dial : undefined} />
+      paused={locked} capacityFull={capacityFull} quotaResetsAt={resetAt} agentOut={agentOut && useAgent ? { name: agentOut.displayName, use: useAgent } : undefined} focusMode={focus} onCall={call.supported ? call.dial : undefined} />
   );
   const hero = c.isEmpty && phase === 'idle' && !botDecor && !restoring;
 
@@ -99,7 +100,7 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, draf
         fullLoaded={c.fullLoaded} truncated={truncated} onOpenFull={onOpenFull} onLoadOlder={onLoadOlder} onOpenSummary={onOpenSummary}
         beforeGrow={c.captureAnchor}
         setFullLoaded={c.setFullLoaded} onTerminal={onTerminal} terminalRunning={terminalRunning} terminalOpen={terminalOpen} usage={usage} onRename={onRename} onDelete={onDelete}
-        keyboardOpen={keyboardOpen} selectedModel={model} onMenu={isMobile ? onMenu : undefined} teamSlot={teamSlot} restoring={restoring}
+        selectedModel={model} onMenu={isMobile ? onMenu : undefined} teamSlot={teamSlot} restoring={restoring}
         agent={botDecor && { name: botDecor.name, avatar: botDecor.avatar, ...botDecor.header }}
       />
       </FocusCollapse>
@@ -121,7 +122,7 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, draf
             </BotThreadContext.Provider>
             {/* Sem bolha de assistente na cauda (ex: divisor recém-inserido) o turno
                 em voo ficaria sem nenhum sinal — vale pra streaming também. */}
-            {!c.pendingQuestion && (phase !== 'idle' && shown[shown.length - 1]?.role !== 'assistant' || phase === 'idle' && terminalBusy) && <div className="fade-up"><LiveLine live={live} bit={phase === 'idle' ? 'working' : turnBit} avatar={botDecor?.avatar} /></div>}
+            {!c.pendingQuestion && (showsWorking(phase, settled) && shown[shown.length - 1]?.role !== 'assistant' || phase === 'idle' && terminalBusy) && <div className="fade-up"><LiveLine live={live} bit={phase === 'idle' ? 'working' : turnBit} avatar={botDecor?.avatar} /></div>}
           </div>
         )}
       </div>

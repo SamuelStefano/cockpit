@@ -15,6 +15,7 @@ import './sessions/turn-outcome';
 import { setClientSource, broadcast } from './ws/broadcast';
 import { claudeAuthWatch } from './claude-auth-watch';
 import { mcpServerDefsSync, claudeReady } from './admin-ops';
+import { refreshClaudeAiConnectors } from './mcp/claudeai-connectors';
 import { getSlashCommands } from './ws/slash';
 import { startParkedDrainer, resumeOrphanRuns } from './ws/runs';
 import { startTeamMessaging } from './ws/team-deliver';
@@ -432,8 +433,14 @@ export function runAgent(relayUrl: string): void {
   // Backstop relay-agnóstico: se o relay não emitir 'browsers-present' (versão
   // antiga), a reemissão instantânea não dispara — rebroadcasta mcp-servers/slash
   // periodicamente pra o seletor de MCP nunca ficar vazio num browser tardio.
+  void refreshClaudeAiConnectors(fetch, true).then((changed) => {
+    if (changed) broadcast({ t: 'mcp-servers', servers: Object.keys(mcpServerDefsSync()) });
+  });
   const bootstrapTimer = setInterval(() => {
     if (!hasClients()) return;
+    void refreshClaudeAiConnectors().then((changed) => {
+      if (changed) broadcast({ t: 'mcp-servers', servers: Object.keys(mcpServerDefsSync()) });
+    });
     broadcast({ t: 'mcp-servers', servers: Object.keys(mcpServerDefsSync()) });
     const slash = getSlashCommands();
     if (slash.length) broadcast({ t: 'slash-commands', items: slash });

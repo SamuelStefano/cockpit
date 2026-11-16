@@ -1,5 +1,5 @@
 import type { WebSocket } from 'ws';
-import type { ClientMsg, ServerMsg } from '../../shared/protocol';
+import type { ClientMsg, ServerMsg, TeamBot } from '../../shared/protocol';
 import type { Role } from '../auth';
 import { listSessions, listArchived } from '../sessions/index';
 import { searchSessions } from '../sessions/search';
@@ -26,6 +26,7 @@ import { fireCron, type CronFire } from './runs';
 import { getTeam, saveBot, deleteBot } from '../team';
 import { getMemories, saveMemory, deleteMemory, validateMemoryInput, readMemoriesSafe } from '../memories';
 import { botTurnFor, botDenyRules } from '../team-prompt';
+import { refreshAgentSource, removeAgentSource } from '../agent-source';
 import { agentBuilderTurn } from '../engine/triage';
 import { cleanBuildRequest } from './agent-build';
 import { parseTtsText, synthesize, mintSttToken } from '../tts';
@@ -72,11 +73,14 @@ import { requestPlanUsageRefresh, planUsageFrame } from './usage-plan';
 import { requestGrokUsageRefresh, grokUsageFrame } from './usage-grok';
 import { listGraphs, readGraph, buildGraph, deleteGraph, queryGraph, nodeOp } from '../graph';
 import { buildBench } from '../bench';
+import { getPrDetail, getPrsSnapshot, getPrsSnapshotSwr, mergePr, peekPrsSnapshot } from '../github/prs';
+import { getPrDiff } from '../github/pr-diff';
+import { clearSessionPrsCache, getSessionPrs } from '../github/session-prs';
 import { buildCanvas } from '../canvas/index';
 import { withPlain } from '../mission-summary';
 import { readOrchestrator } from '../canvas/orchestrator';
 import { readOrchestratorActivity } from '../canvas/orchestrator-activity';
-import { readBusyElsewhereSessionIds, readBusyHeadlessElsewhereSessionIds, refreshLivenessSnapshot } from '../canvas/cv-liveness';
+import { readBusyElsewhereSessionIds, readBusyHeadlessElsewhereSessionIds, readTmuxPaneSessionIds, refreshLivenessSnapshot } from '../canvas/cv-liveness';
 import { peekSession } from '../sessions/peek';
 import { collectCtxOnly, collectTermStats, hasInteractiveClaude, newCpuSamples, type CpuSamples } from '../canvas/term-stats';
 import {
@@ -87,6 +91,8 @@ import {
 import { activeFlowRuns } from '../canvas/flow-runs';
 import { startCanvasFlows } from '../canvas/flows';
 import { registerCanvasClient, emitCanvasMsg } from './canvas-clients';
+import { registerPlannerClient, emitPlannerMsg } from './planner-clients';
+import { applyMoves, readTasksChained, sanitizeTask, updateTasks, upsertTask } from '../planner/store';
 import { CARD_STATUSES, type CanvasBoard, type CardStatus } from '../../shared/canvas';
 import { updateAreaCacheFromGraph, getAreaOf } from '../canvas/autopause-loop';
 import { areaUsageFromIds } from '../../shared/canvas-budget';
@@ -469,6 +475,35 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       send(ws, { t: 'dfl-task-write', reqId: msg.reqId, ok: true });
       return;
     }
+    case 'planner-get': {
+      registerPlannerClient(ws);
+      send(ws, { t: 'planner-board', tasks: await readTasksChained() });
+      return;
+    }
+    case 'planner-task-save': {
+      const now = Date.now();
+      let rejected = false;
+      const tasks = await updateTasks((list) => {
+        const task = sanitizeTask(msg.task, list.find((x) => x.id === msg.task?.id), now);
+        const next = task ? upsertTask(list, task) : null;
+        rejected = !next;
+        return next ?? list;
+      });
+      if (rejected) send(ws, { t: 'error', message: 'task inválida' });
+      emitPlannerMsg({ t: 'planner-board', tasks });
+      return;
+    }
+    case 'planner-task-delete': {
+      const tasks = await updateTasks((list) => list.filter((x) => x.id !== msg.id));
+      emitPlannerMsg({ t: 'planner-board', tasks });
+      return;
+    }
+    case 'planner-reorder': {
+      const now = Date.now();
+      const tasks = await updateTasks((list) => applyMoves(list, msg.moves, now));
+      emitPlannerMsg({ t: 'planner-board', tasks });
+      return;
+    }
     case 'canvas-card-delete': {
       const board = await updateBoard((b) => removeCard(b, String(msg.id ?? '')));
       send(ws, boardFrame(board));
@@ -509,6 +544,41 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       const res = await buildBench(msg.repo, msg.code);
       if (!res.ok) { send(ws, { t: 'bench-error', buildId: msg.buildId, error: res.error ?? 'falha no build' }); return; }
       send(ws, { t: 'bench-bundle', buildId: msg.buildId, js: res.js ?? '', css: res.css ?? '', ms: res.ms ?? 0 });
+      return;
+    }
+    case 'prs-get': {
+      const { cached, fresh } = getPrsSnapshotSwr(msg.force === true);
+      if (cached) send(ws, { t: 'prs', snapshot: cached, pending: fresh ? true : undefined });
+      if (fresh) send(ws, { t: 'prs', snapshot: await fresh });
+      return;
+    }
+    case 'prs-diff-get': {
+      const url = String(msg.url ?? '');
+      const r = await getPrDiff(url);
+      send(ws, { t: 'prs-diff', url, diff: r.diff, error: r.error });
+      return;
+    }
+    case 'prs-session-get': {
+      send(ws, { t: 'prs-session', session: await getSessionPrs(String(msg.sessionId ?? ''), msg.hydrate === true) });
+      return;
+    }
+    case 'prs-detail-get': {
+      const url = String(msg.url ?? '');
+      const r = await getPrDetail(url);
+      send(ws, { t: 'prs-detail', url, detail: r.detail, error: r.error });
+      return;
+    }
+    case 'prs-merge': {
+      const url = String(msg.url ?? '');
+      const r = await mergePr(url, typeof msg.confirmText === 'string' ? msg.confirmText : undefined);
+      console.log(`[prs] merge ${url} → ${r.ok ? 'ok' : `refused: ${r.message}`}`);
+      send(ws, { t: 'prs-merge-result', reqId: msg.reqId, url, ok: r.ok, message: r.message });
+      if (r.ok) {
+        clearSessionPrsCache();
+        const optimistic = peekPrsSnapshot();
+        if (optimistic) send(ws, { t: 'prs', snapshot: optimistic, pending: true });
+        void getPrsSnapshot(true).then((snapshot) => send(ws, { t: 'prs', snapshot }));
+      }
       return;
     }
     case 'list': {
@@ -897,6 +967,14 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       const r = await saveBot(coerceBotForRole(v.bot, role));
       if (!r.ok) { send(ws, { t: 'error', message: r.error }); return; }
       broadcast({ t: 'team', bots: r.bots });
+      void refreshAndBroadcast(r.bots.find((b) => b.id === v.bot.id));
+      return;
+    }
+    case 'team-sync-source': {
+      if (role !== 'admin') { send(ws, { t: 'error', message: 'só o admin sincroniza agente de repositório' }); return; }
+      const bot = (await getTeam()).find((b) => b.id === msg.id);
+      if (!bot?.source) { send(ws, { t: 'error', message: 'esse agente não vem de um repositório' }); return; }
+      await refreshAndBroadcast(bot, true);
       return;
     }
     case 'tts': {
@@ -931,6 +1009,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     case 'team-delete': {
       if (typeof msg.id !== 'string') { send(ws, { t: 'error', message: 'bot inválido' }); return; }
       broadcast({ t: 'team', bots: await deleteBot(msg.id) });
+      await removeAgentSource(msg.id).catch(() => {});
       clearBotQuestion(msg.id);
       const paused = await pauseBotRoutines(msg.id);
       if (paused) broadcast({ t: 'crons', items: paused });
@@ -1226,7 +1305,9 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     case 'send': {
       // Skills selecionadas pela UI viram regras de negação das NÃO-selecionadas
       // (Skill(id)). Resolvido aqui (async) e passado adiante; vazio = todas ativas.
-      const bot = botTurnFor(await getTeam(), msg.sessionKey, msg.sessionId, role, await readMemoriesSafe());
+      const team = await getTeam();
+      const bot = botTurnFor(team, msg.sessionKey, msg.sessionId, role, await readMemoriesSafe());
+      if (bot?.profile === 'full') await refreshAndBroadcast(team.find((b) => b.id === bot.botId));
       const disallowedSkills = [...new Set([...(await resolveSkillDeny(msg.skills)), ...(await botDenyRules(bot))])];
       // The human's next message in the bot's thread is the answer, picked or typed.
       if (bot && msg.auto !== true) clearBotQuestion(bot.botId);
@@ -1331,6 +1412,16 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
           send(ws, {
             t: 'send-reject', sessionKey: msg.sessionKey, reason: 'live-elsewhere', text: msg.text, msgId: msg.msgId,
             message: 'Essa sessão já tem um turno rodando no outro processo do Deck (deckctl/agente) — espere ele terminar antes de mandar mensagem por aqui.',
+          });
+          return;
+        }
+        // An idle interactive claude in a tmux pane isn't "busy", but a
+        // `--resume` twin beside it still forks the transcript. Refuse.
+        const inPane = await readTmuxPaneSessionIds().catch(() => [] as string[]);
+        if (inPane.includes(target)) {
+          send(ws, {
+            t: 'send-reject', sessionKey: msg.sessionKey, reason: 'live-elsewhere', text: msg.text, msgId: msg.msgId,
+            message: 'Essa sessão está aberta num terminal tmux — mande a mensagem lá; por aqui criaria uma cópia headless que sobrescreve o trabalho.',
           });
           return;
         }
@@ -1531,4 +1622,11 @@ async function claudeImportFrame(path?: string): Promise<Extract<ServerMsg, { t:
   const scan = await scanClaudeImport(path);
   const hint = scan.reason === 'unreadable' ? copyHintCommand(scan.source) : undefined;
   return { t: 'claude-import', scan, hint };
+}
+
+// A failed sync is recorded on the bot (the form shows it); the turn still runs on
+// whatever was synced before.
+async function refreshAndBroadcast(bot: TeamBot | undefined, force = false): Promise<void> {
+  const bots = await refreshAgentSource(bot, force).catch(() => null);
+  if (bots) broadcast({ t: 'team', bots });
 }

@@ -1,5 +1,6 @@
 import type { Effort, MascotShape, PermMode, TeamBot, TeamBotInput, TeamProfile } from './protocol';
 import { isAgentModel } from './agents';
+import { validateAgentSource } from './agent-source';
 import { parsePermissions, parseSkillIds, profileFromPermissions } from './bot-access';
 
 export const MAX_BOTS = 50;
@@ -83,6 +84,11 @@ export function validateBotInput(raw: unknown): BotValidation {
   if (effort) bot.effort = effort;
   if (permissions) bot.permissions = permissions;
   if (skills && skills.length) bot.skills = skills;
+  if (r.source !== undefined && r.source !== null) {
+    const s = validateAgentSource(r.source);
+    if (!s.ok) return { ok: false, error: s.error };
+    bot.source = s.source;
+  }
   return { ok: true, bot };
 }
 

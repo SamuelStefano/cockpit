@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { markAgentRestarting } from './app/restartNotice';
 import type { Session, Message, Block, ToolTodo } from './data/types';
-import type { ClientMsg, ServerMsg, SysStats, PermMode, Effort, ModelInfo, TurnStats, Caps, PlanUsage, ParkedView, BgAgent, ClaudeLoginView, ClaudeAccount } from '../shared/protocol';
+import type { ClientMsg, ServerMsg, SysStats, CapacityInfo, PermMode, Effort, ModelInfo, TurnStats, Caps, PlanUsage, ParkedView, BgAgent, ClaudeLoginView, ClaudeAccount } from '../shared/protocol';
 import { loadPref, savePref, setPref, usePrefListener } from './lib/persist';
 import { MODE_KEY, MODEL_KEY, EFFORT_KEY } from './lib/account-prefs';
 import { persistableModelOverrides } from './cockpit/model-overrides';
@@ -43,6 +43,7 @@ import { useContexts, type Contexts } from './cockpit/useContexts';
 import { useSkills, type Skills } from './cockpit/useSkills';
 import { useMemories, type Memories } from './cockpit/useMemories';
 import { useGraphs, type Graphs } from './cockpit/useGraphs';
+import { usePlanner, type PlannerApi } from './planner/usePlanner';
 import { useCanvas, type CanvasApi } from './cockpit/useCanvas';
 import { buildForkWire, buildSendWire as buildSendWirePure } from './cockpit/send-wire';
 import { MAX_PROMPT_BYTES, MAX_UPLOAD_BYTES, uploadWatchdogMs } from '../shared/limits';
@@ -84,6 +85,7 @@ import type { ConnState } from './components/primitives';
 import { recordClose, recordConnEvent } from './app/connectionTelemetry';
 import { toast } from './components/primitives/toast-bus';
 import { benchDispatch, failAllBenchPending, setBenchSender } from './components/primitives/livepreview/bench-bus';
+import { failAllPrsPending, prsDispatch, setPrsSender } from './routes/prs/prs-bus';
 import type { Phase } from './components/Chat';
 
 // Heartbeat app-level (watchdog de socket meio-aberto). Manda um ping a cada
@@ -100,9 +102,10 @@ const CANVAS_SEND_PENDING_MS = 20_000;
 // A superfície pública dos domínios-folha é a dos próprios hooks, menos os canais
 // internos: `onMsg` (dispatch), `onGraphReconnect`
 // (gancho do socket).
-type LeafApis = Omit<Drops & Vault & Crons & Team & BotFiles & BotComputers & GrokUsage & Points & Contexts & Memories & Skills & Graphs & CanvasApi & Admin, 'onMsg' | 'onGraphReconnect'>;
+type LeafApis = Omit<Drops & Vault & Crons & Team & BotFiles & BotComputers & GrokUsage & Points & Contexts & Memories & Skills & Graphs & CanvasApi & Admin, 'onMsg' | 'onGraphReconnect' | 'onCanvasReconnect'>;
 
 export interface Cockpit extends LeafApis {
+  planner: PlannerApi;
   agents: AgentsApi;
   claudeImport: ClaudeImportApi;
   mcps: Mcps['mcps'];
@@ -145,6 +148,7 @@ export interface Cockpit extends LeafApis {
   sessionTodos?: ToolTodo[];
   allSessionTodos: Record<string, ToolTodo[]>; // every session, for the Base screen
   phase: Phase;
+  settled: boolean;
   running: Set<string>;
   runningAnywhere: Set<string>; // running ∪ live in the other backend process (display only)
   stalled: Set<string>;
@@ -164,6 +168,7 @@ export interface Cockpit extends LeafApis {
   planBlockedUntil: number | null;
   planReadAt: number | null;
   stats: SysStats | null;
+  capacity: CapacityInfo | null;
   mode: PermMode;
   setMode: (m: PermMode) => void;
   caps: Caps | null;
@@ -271,6 +276,11 @@ export function useCockpit(): Cockpit {
   const [threads, setThreads] = useState<Record<string, Message[]>>({});
   const [drafts, setDrafts] = useState<Record<string, string>>(() => loadPref('drafts', {} as Record<string, string>));
   const [phases, setPhases] = useState<Record<string, Phase>>({});
+  // Keys whose CLI already emitted the final result; display-only, cleared on any new activity and on `done`.
+  const [settledKeys, setSettledKeys] = useState<Record<string, boolean>>({});
+  const markSettled = useCallback((key: string, on: boolean) => {
+    setSettledKeys((s) => (!!s[key] === on ? s : { ...s, [key]: on }));
+  }, []);
   const [lastUsageAt, setLastUsageAt] = useState<Record<string, number>>({});
   // Espelho síncrono pro handler do WS (closure estável não enxerga o state).
   const phasesRef = useRef<Record<string, Phase>>({});
@@ -288,6 +298,7 @@ export function useCockpit(): Cockpit {
   const [planNextReadAt, setPlanNextReadAt] = useState<number | null>(null);
   const [marathon, setMarathon] = useState<Set<string>>(new Set());
   const [stats, setStats] = useState<SysStats | null>(null);
+  const [capacity, setCapacity] = useState<CapacityInfo | null>(null);
   const [bgAgents, setBgAgents] = useState<Record<string, BgAgent[]>>({}); // sessionKey -> agentes de fundo ativos
   const [archived, setArchived] = useState<Session[]>([]);
   const [usage, setUsage] = useState<Record<string, number>>({}); // sessionKey -> tokens de contexto
@@ -529,6 +540,7 @@ export function useCockpit(): Cockpit {
   const skillsApi = useSkills(send);
   const graphsApi = useGraphs(send);
   const canvasApi = useCanvas(send);
+  const plannerApi = usePlanner(send);
   const adminApi = useAdmin(send);
   const mcpsApi = useMcps(send);
   const claudeImportApi = useClaudeImport(send);
@@ -544,7 +556,7 @@ export function useCockpit(): Cockpit {
   // O onServer é um callback estável (o socket guarda a 1ª referência); ler os
   // handlers por ref evita recriá-lo — e reabrir o WS — a cada render.
   const leafHandlers = useRef<((m: ServerMsg) => boolean)[]>([]);
-  leafHandlers.current = [dropsApi.onMsg, vaultApi.onMsg, cronsApi.onMsg, teamApi.onMsg, botFilesApi.onMsg, botComputerApi.onMsg, grokUsageApi.onMsg, pointsApi.onMsg, contextsApi.onMsg, memoriesApi.onMsg, skillsApi.onMsg, graphsApi.onMsg, canvasApi.onMsg, adminApi.onMsg, mcpsApi.onMsg, claudeImportApi.onMsg, agentsApi.onMsg, connectionsApi.onMsg, probeApi.onMsg, handleTtsMsg];
+  leafHandlers.current = [dropsApi.onMsg, vaultApi.onMsg, cronsApi.onMsg, teamApi.onMsg, botFilesApi.onMsg, botComputerApi.onMsg, grokUsageApi.onMsg, pointsApi.onMsg, contextsApi.onMsg, memoriesApi.onMsg, skillsApi.onMsg, graphsApi.onMsg, canvasApi.onMsg, plannerApi.onMsg, adminApi.onMsg, mcpsApi.onMsg, claudeImportApi.onMsg, agentsApi.onMsg, connectionsApi.onMsg, probeApi.onMsg, handleTtsMsg];
   // Domínios-folha que também entram na reconciliação de reconnect. Referências
   // estáveis (useCallback sobre `send`), então não recriam o `reconcile`.
   const { onUsageList } = adminApi;
@@ -554,7 +566,10 @@ export function useCockpit(): Cockpit {
   // "sem permissão". Re-runs on every reconnect (conn.ws flips).
   const isRoot = caps?.role === 'root';
   useEffect(() => { if (isRoot && conn.ws === 'connected') onPointsGet(); }, [isRoot, conn.ws, onPointsGet]);
+  const { onPlannerGet } = plannerApi;
+  useEffect(() => { if (teamAllowed && conn.ws === 'connected') onPlannerGet(); }, [teamAllowed, conn.ws, onPlannerGet]);
   const { onGraphReconnect } = graphsApi;
+  const { onCanvasReconnect } = canvasApi;
 
   // Re-abertura automática (reconnect, session-touched, reconciliação de busy):
   // preserva a visão escolhida. Traz sempre a última página; o mergeHistory com
@@ -571,6 +586,7 @@ export function useCockpit(): Cockpit {
 
   // O card do bench vive fundo na árvore do markdown e precisa falar com o WS.
   useEffect(() => { setBenchSender(send); return () => setBenchSender(null); }, [send]);
+  useEffect(() => { setPrsSender(send); return () => setPrsSender(null); }, [send]);
 
   const { term, onTermData, onTermReplay, onTermExit, onTerms, discovered: discoveredTerms, listTerms, reattach } = useTerminals(send);
 
@@ -1042,6 +1058,7 @@ export function useCockpit(): Cockpit {
         // vivo e mudava retroativamente ao trocar de modelo. O 'done' refina pro efetivo.
         updateThread(key, (prev) => [...prev, { id, role: 'assistant', blocks: [], ts: msg.startedAt ?? Date.now(), ...(msg.model ? { model: msg.model } : {}) }]);
         setPhases((p) => ({ ...p, [key]: 'thinking' }));
+        markSettled(key, false);
         // Início do turno: fixa a base de contexto pra medir o gasto AO VIVO deste
         // turno (delta) no indicador estilo terminal. Zera o contador exibido.
         turnBaseRef.current[key] = usageRef.current[key] || 0;
@@ -1117,6 +1134,7 @@ export function useCockpit(): Cockpit {
         serverKey.current[key] = msg.sessionKey;
         lastActivity.current[key] = Date.now();
         if (!stopping.current.has(key)) setPhases((p) => ({ ...p, [key]: 'streaming' }));
+        markSettled(key, false);
         patchRunMsg(key, (b) => appendDelta(b, msg.text));
         bumpLiveTokens(key, msg.text);
         return;
@@ -1126,6 +1144,7 @@ export function useCockpit(): Cockpit {
         serverKey.current[key] = msg.sessionKey;
         lastActivity.current[key] = Date.now();
         if (!stopping.current.has(key)) setPhases((p) => ({ ...p, [key]: 'streaming' }));
+        markSettled(key, false);
         patchRunMsg(key, (b) => appendThinking(b, msg.text));
         bumpLiveTokens(key, msg.text);
         return;
@@ -1231,6 +1250,11 @@ export function useCockpit(): Cockpit {
         setStats(msg.stats);
         return;
       }
+      case 'capacity': {
+        const { live, cap, configCap, availMb } = msg;
+        setCapacity((prev) => (prev && prev.live === live && prev.cap === cap && prev.configCap === configCap ? prev : { live, cap, configCap, availMb }));
+        return;
+      }
       case 'bgAgents': {
         const bgKey = resolveKey(migratedTo.current, msg.sessionKey);
         setBgAgents((b) => {
@@ -1276,6 +1300,14 @@ export function useCockpit(): Cockpit {
       case 'bench-bundle':
       case 'bench-error': {
         benchDispatch(msg);
+        return;
+      }
+      case 'prs':
+      case 'prs-detail':
+      case 'prs-diff':
+      case 'prs-session':
+      case 'prs-merge-result': {
+        prsDispatch(msg);
         return;
       }
       case 'uploaded': {
@@ -1335,6 +1367,11 @@ export function useCockpit(): Cockpit {
         onTermExit(msg.termId);
         return;
       }
+      case 'settled': {
+        const key = resolveKey(migratedTo.current, msg.sessionKey);
+        if (!stopping.current.has(key)) markSettled(key, true);
+        return;
+      }
       case 'done': {
         // `done` duplicado após a migração chega keyed pelo `new-xxx` antigo;
         // redireciona p/ o id real já migrado pra não tocar uma key órfã.
@@ -1344,6 +1381,7 @@ export function useCockpit(): Cockpit {
         const concurrent = inFlight.current.size;
         inFlight.current.delete(key);
         stopping.current.delete(key);
+        markSettled(key, false);
         reconcileTools(key);
         // Carimba o modelo EFETIVO do turno na bolha (revela --fallback-model e
         // evita rotular bolhas antigas com o modelo atual ao trocar mid-thread).
@@ -1492,6 +1530,7 @@ export function useCockpit(): Cockpit {
       thumbPending.current.clear();
       setConn({ ws: 'connected', sse: 'connected' });
       onGraphReconnect();
+      onCanvasReconnect();
       reconcile();
       // Watchdog de socket meio-aberto (o "chat para e só volta com F5"): no desktop,
       // aba visível, um socket que morre sem FIN (relay/NAT/idle-timeout) NÃO dispara
@@ -1530,6 +1569,7 @@ export function useCockpit(): Cockpit {
       // 4400 = the saved box id is not valid for this account: forget it (the key={box} remount redials unbound).
       if (ev.code === 4400 && SUPABASE_ENABLED) boxStore.dropPref();
       failAllBenchPending();
+      failAllPrsPending();
       endHandoff();
       // 4401 = the identity was refused. Loopback: wrong/missing token, show the
       // token gate and stop. Relay: see onAuthClose — refresh and retry slowly.
@@ -1567,7 +1607,7 @@ export function useCockpit(): Cockpit {
     };
     ws.onerror = () => { if (isCurrent()) { try { ws.close(); } catch { /* noop */ } } };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [send, onServer, reattach, onGraphReconnect]);
+  }, [send, onServer, reattach, onGraphReconnect, onCanvasReconnect]);
   connectRef.current = connect;
 
   const scheduleRetry = useCallback(() => {
@@ -2203,6 +2243,7 @@ export function useCockpit(): Cockpit {
 
   const messages = threads[activeId] || [];
   const phase = phases[activeId] || 'idle';
+  const settled = !!settledKeys[activeId];
   // Sessões com run vivo (pra dot pulsante no sidebar) — útil em run noturno
   // multi-sessão: ver de relance quem ainda trabalha sem abrir cada uma.
   // `phases` gets a new object on every streamed token, but the SET of
@@ -2443,5 +2484,5 @@ export function useCockpit(): Cockpit {
 
   const attachmentsView = useMemo(() => markDuplicates(attachments, sentHashes[activeId]), [attachments, sentHashes, activeId]);
 
-  return { ...dropsApi, ...vaultApi, ...cronsApi, ...teamApi, ...botFilesApi, botComputers: botComputerApi.botComputers, onBotComputerGet: botComputerApi.onBotComputerGet, grokUsage: grokUsageApi.grokUsage, onRefreshGrokUsage: grokUsageApi.onRefreshGrokUsage, ...pointsApi, ...contextsApi, ...memoriesApi, ...skillsApi, ...graphsApi, ...canvasApi, ...adminApi, mcps: mcpsApi.mcps, mcpsBusy: mcpsApi.mcpsBusy, onMcpsGet: mcpsApi.onMcpsGet, agents: agentsApi.agents, claudeImport: claudeImportApi, connections: connectionsApi.connections, connectionsLoaded: connectionsApi.loaded, onConnectionsGet: connectionsApi.refresh, probeResult: probeApi.probeResult, probeBusy: probeApi.probeBusy, onProviderProbe: probeApi.onProviderProbe, onProviderProbeReset: probeApi.onProviderProbeReset, sessions, loading, activeId, setActiveId, messages, threads, onLoadThread, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], allSessionTodos: sessionTodos, allBgAgents: bgAgents, running, runningAnywhere, stalled, updated, seen, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, planBlockedUntil, planReadAt, planNextReadAt, stats, archived, contextTokens, contextModel, usageModel, sendCost, liveTurnTokens, turnStartedAt, bgAgents: activeBgAgents, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, interrupted, searchResults, onSearch, marathon, onToggleMarathon, attachments: attachmentsView, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, claudeLogin, claudeAccount, onClaudeAccountGet, onClaudeLogout, onClaudeLoginStart, onClaudeLoginCode, onClaudeLoginCancel, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, onRefreshPlanUsage, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onSendTo, canvasSendError, dismissCanvasSendError, onLaunchFork, canvasForkRuns, pendingSessionIds, onApproveWorkflow, onEditUser: editUser, onStop, onNew, onNewWithDraft, onHandoff, onLaunchAgent, handoffBusy, onFunnel, funnelBusy, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onLoadOlder, onOpenSummary, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueReleaseAt, queueSetPaused, queueRetry, queueRetarget, queueRunBg, queueRunNow, queueForce, resumeOffer: resumeOffers[activeId] ?? null, resumeRun, onOpenBot };
+  return { ...dropsApi, ...vaultApi, ...cronsApi, ...teamApi, ...botFilesApi, botComputers: botComputerApi.botComputers, onBotComputerGet: botComputerApi.onBotComputerGet, grokUsage: grokUsageApi.grokUsage, onRefreshGrokUsage: grokUsageApi.onRefreshGrokUsage, ...pointsApi, ...contextsApi, ...memoriesApi, ...skillsApi, ...graphsApi, ...canvasApi, planner: plannerApi, ...adminApi, mcps: mcpsApi.mcps, mcpsBusy: mcpsApi.mcpsBusy, onMcpsGet: mcpsApi.onMcpsGet, agents: agentsApi.agents, claudeImport: claudeImportApi, connections: connectionsApi.connections, connectionsLoaded: connectionsApi.loaded, onConnectionsGet: connectionsApi.refresh, probeResult: probeApi.probeResult, probeBusy: probeApi.probeBusy, onProviderProbe: probeApi.onProviderProbe, onProviderProbeReset: probeApi.onProviderProbeReset, sessions, loading, activeId, setActiveId, messages, threads, onLoadThread, phase, settled, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], allSessionTodos: sessionTodos, allBgAgents: bgAgents, running, runningAnywhere, stalled, updated, seen, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, planBlockedUntil, planReadAt, planNextReadAt, stats, capacity, archived, contextTokens, contextModel, usageModel, sendCost, liveTurnTokens, turnStartedAt, bgAgents: activeBgAgents, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, interrupted, searchResults, onSearch, marathon, onToggleMarathon, attachments: attachmentsView, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, claudeLogin, claudeAccount, onClaudeAccountGet, onClaudeLogout, onClaudeLoginStart, onClaudeLoginCode, onClaudeLoginCancel, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, onRefreshPlanUsage, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onSendTo, canvasSendError, dismissCanvasSendError, onLaunchFork, canvasForkRuns, pendingSessionIds, onApproveWorkflow, onEditUser: editUser, onStop, onNew, onNewWithDraft, onHandoff, onLaunchAgent, handoffBusy, onFunnel, funnelBusy, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onLoadOlder, onOpenSummary, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueReleaseAt, queueSetPaused, queueRetry, queueRetarget, queueRunBg, queueRunNow, queueForce, resumeOffer: resumeOffers[activeId] ?? null, resumeRun, onOpenBot };
 }

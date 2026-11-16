@@ -7,6 +7,8 @@ import { PassThrough } from 'node:stream';
 
 let managed: Record<string, string> = {};
 let mcpDefs: Record<string, unknown> = {};
+const agentDir = vi.hoisted(() => ({ value: undefined as string | undefined }));
+vi.mock('../agent-dir', async (orig) => ({ ...(await orig<typeof import('../agent-dir')>()), agentCwdSync: () => agentDir.value, agentCloneRootSync: () => (agentDir.value ? '/tmp/bots/abcd1/source' : undefined) }));
 vi.mock('../admin-ops', () => ({ managedEnvSync: () => managed, mcpServerDefsSync: () => mcpDefs }));
 
 // run() writes its MCP config under tmpdir(); keep the ones these tests create out of the real /tmp.
@@ -419,6 +421,11 @@ describe('pickMcpDefs', () => {
   it('ignora nome desconhecido e definição que não é objeto', () => {
     expect(pickMcpDefs(all, ['nada', 'lixo'], 'admin')).toEqual({});
   });
+  it('claude.ai connector loads for admin only', () => {
+    const withConnector = { ...all, 'claude.ai dfl': { type: 'claudeai-proxy', url: 'https://x.example/mcp', id: 'mcpsrv_1' } };
+    expect(Object.keys(pickMcpDefs(withConnector, ['claude.ai dfl'], 'admin'))).toEqual(['claude.ai dfl']);
+    expect(pickMcpDefs(withConnector, ['claude.ai dfl', 'remote'], 'student')).toEqual({ remote: all.remote });
+  });
 });
 
 // "Permitir todos os MCPs" manda o sentinel '*' e o servidor expande no envio —
@@ -777,6 +784,34 @@ describe('restricted bot turn (fatia E)', () => {
       for (const t of TEAM_MCP_TOOLS) expect(allow).toContain(t);
     }
     expect(valAfter(argsOf({ prompt: 'oi' }), '--allowedTools')!.split(' ').some((t) => t.startsWith('mcp__deck-team'))).toBe(false);
+  });
+});
+
+describe('repo agent isolation', () => {
+  afterEach(() => { agentDir.value = undefined; });
+  const go = () => {
+    spawned.child = new FakeChild();
+    run({ prompt: 'oi', botId: 'abcd1', profile: 'full', onEvent: () => {}, onError: () => {}, onClose: () => {} });
+    return spawned.last!;
+  };
+
+  it('a repo agent drops the user setting source and auto-memory but keeps the config dir for auth', () => {
+    agentDir.value = '/tmp/bots/abcd1/source/maria';
+    const { args, opts } = go();
+    expect(opts.cwd).toBe('/tmp/bots/abcd1/source/maria');
+    expect(valAfter(args, '--setting-sources')).toBe('project,local');
+    const ex: string[] = JSON.parse(valAfter(args, '--settings')!).claudeMdExcludes;
+    expect(ex).toEqual(expect.arrayContaining(['/tmp/bots/abcd1/CLAUDE.md', '/tmp/.claude/CLAUDE.md', '/CLAUDE.md']));
+    expect(ex.some((p) => p.startsWith('/tmp/bots/abcd1/source/'))).toBe(false);
+    expect(opts.env?.CLAUDE_CODE_DISABLE_AUTO_MEMORY).toBe('1');
+    expect(opts.env?.CLAUDE_CONFIG_DIR).toBe(join(process.env.HOME ?? '', '.claude'));
+  });
+
+  it('a bot without a repo is unchanged', () => {
+    const { args, opts } = go();
+    expect(args).not.toContain('--setting-sources');
+    expect(args).not.toContain('--settings');
+    expect(opts.env?.CLAUDE_CODE_DISABLE_AUTO_MEMORY).toBeUndefined();
   });
 });
 

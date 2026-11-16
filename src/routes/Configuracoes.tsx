@@ -9,6 +9,7 @@ import { Conta, type AccountProps } from './configuracoes/Conta';
 import { Uso } from './configuracoes/Uso';
 import { Pessoas } from './configuracoes/Pessoas';
 import { Maquina } from './configuracoes/Maquina';
+import { Maquinas } from './configuracoes/Maquinas';
 import { Avancado } from './configuracoes/Avancado';
 import { SECTION_ROUTE, sectionOf, settingsSections } from './configuracoes/sections';
 
@@ -56,6 +57,7 @@ export function Configuracoes({ route, role, nav, isMobile, connected, cockpit: 
               onClaudeLoginStart={c.onClaudeLoginStart} onClaudeLoginCode={c.onClaudeLoginCode} onClaudeLoginCancel={c.onClaudeLoginCancel}
             />
           )}
+          {section === 'maquinas' && <Maquinas userId={account.userId} />}
           {section === 'avancado' && (
             <Avancado
               caps={c.caps} bypass={c.bypass} setBypass={c.setBypass} isRoot={isRoot} isMobile={isMobile} adminOp={c.adminOp}

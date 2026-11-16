@@ -62,6 +62,7 @@ const cvLiveness = vi.hoisted(() => ({
   // grace, minus this process's own threads. Default empty: most tests
   // aren't exercising it.
   readBusyElsewhereSessionIds: vi.fn(async (): Promise<string[]> => []),
+  readTmuxPaneSessionIds: vi.fn(async (): Promise<string[]> => []),
   readBusyHeadlessElsewhereSessionIds: vi.fn(async (): Promise<string[]> => []),
   // FRESH snapshot for the 'canvas-get' cv-live reply, NOT the guard.
   refreshLivenessSnapshot: vi.fn(async () => ({ live: [] as string[], busyElsewhere: [] as string[], idle: [] as string[] })),
@@ -206,6 +207,13 @@ describe('send routing (the #130 role seam)', () => {
   // subtracts THIS process's own threads (server/canvas/cv-liveness.ts), so
   // a match there is by construction a turn live in the OTHER one —
   // starting a `claude --resume` on top of it would fork the transcript.
+  it('refuses (send-reject, live-elsewhere) when the target has an idle interactive claude in a tmux pane', async () => {
+    cvLiveness.readTmuxPaneSessionIds.mockResolvedValueOnce(['s1']);
+    await handle(ws, msg(), 'admin');
+    expect(bc.send).toHaveBeenCalledWith(ws, expect.objectContaining({ t: 'send-reject', reason: 'live-elsewhere', msgId: 'm1' }));
+    expect(runs.startRun).not.toHaveBeenCalled();
+    expect(runs.routeSend).not.toHaveBeenCalled();
+  });
   it('refuses (send-reject, live-elsewhere) when the target session is strictly busy elsewhere and not one of THIS process\'s own threads', async () => {
     cvLiveness.readBusyElsewhereSessionIds.mockResolvedValueOnce(['s1']); // msg().sessionId === 's1'
     await handle(ws, msg(), 'admin');

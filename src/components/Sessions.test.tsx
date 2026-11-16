@@ -14,7 +14,7 @@ const base: SessionsPanelProps = {
 const local: Session = { id: 'new-1', title: 'Nova sessão', relative: 'agora', snippet: 'Sem mensagens ainda', mtime: Date.now(), hasTerminal: false, active: true };
 
 describe('SessionsPanel for a fresh user', () => {
-  it('renders nothing but the box switcher for an empty list', () => {
+  it('renders no machine list for an empty list', () => {
     render(<SessionsPanel {...base} />);
     expect(screen.queryByText('Nenhuma sessão ainda')).toBeNull();
     expect(screen.queryByLabelText('Buscar sessões')).toBeNull();

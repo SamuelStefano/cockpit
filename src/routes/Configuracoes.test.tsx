@@ -48,9 +48,9 @@ describe('Configuracoes', () => {
     expect(screen.queryByText('Conta do Claude')).toBeNull();
   });
 
-  it('student: Conta only, no subnav', () => {
+  it('student: Conta and Máquinas only', () => {
     mount('student');
-    expect(screen.queryByRole('navigation', { name: 'Seções de configurações' })).toBeNull();
+    expect(screen.getByRole('navigation', { name: 'Seções de configurações' }).textContent).toBe('ContaMáquinas');
     for (const l of ['Mostrar ferramentas', 'Agrupar notas do agente', 'Som ao terminar o turno']) expect(screen.getByRole('switch', { name: l })).toBeTruthy();
     expect(screen.getByText('Trocar senha')).toBeTruthy();
     expect(screen.getByText('Desconectar conta')).toBeTruthy();
@@ -62,10 +62,10 @@ describe('Configuracoes', () => {
     expect(nav).toHaveBeenCalledWith('/configuracoes');
   });
 
-  it('admin: four sections, no Pessoas', () => {
+  it('admin: five sections, no Pessoas', () => {
     mount('admin');
     const nav = screen.getByRole('navigation', { name: 'Seções de configurações' });
-    expect(nav.textContent).toBe('ContaUsoMáquinaAvançado');
+    expect(nav.textContent).toBe('ContaUsoMáquinaMáquinasAvançado');
   });
 
   it('root: Avançado holds bypass, terminal and restart', () => {

@@ -1,3 +1,4 @@
+import { currentCapacity } from './capacity';
 import type { WebSocket } from 'ws';
 import type { ClientMsg } from '../../shared/protocol';
 import type { Role } from '../auth';
@@ -9,6 +10,7 @@ import { send } from './broadcast';
 import { CONFIG } from '../config';
 import { capsFor } from '../auth';
 import { claudeReady, mcpServerDefsSync } from '../admin-ops';
+import { refreshClaudeAiConnectors } from '../mcp/claudeai-connectors';
 import { getSlashCommands } from './slash';
 import { handle } from './dispatch';
 import { handleTerm, type TermHandle } from './terminal-handler';
@@ -42,6 +44,9 @@ export function serveConnection(ws: WebSocket, opts: { role: Role; root?: boolea
   // MCP disponíveis (nomes) p/ o seletor por sessão. Default no engine = nenhum
   // carregado (--strict-mcp-config); a sessão liga só o que precisa.
   send(ws, { t: 'mcp-servers', servers: Object.keys(mcpServerDefsSync()) });
+  void refreshClaudeAiConnectors().then((changed) => {
+    if (changed) send(ws, { t: 'mcp-servers', servers: Object.keys(mcpServerDefsSync()) });
+  });
   const slash = getSlashCommands();
   if (slash.length) send(ws, { t: 'slash-commands', items: slash });
   // Estado durável (busy/rate/plan-usage/models) — mesmo helper que o `sync` usa.
@@ -49,6 +54,7 @@ export function serveConnection(ws: WebSocket, opts: { role: Role; root?: boolea
   // second replay loop here: that one sent the same frames again on each connect.
   sendDurableSnapshot(ws);
   collect().then((stats) => send(ws, { t: 'stats', stats })).catch(() => {});
+  send(ws, currentCapacity());
   boxHealth.get().then((h) => send(ws, healthFrame(h))).catch(() => {});
 
   // terminais anexados por ESTA conexão — pra desanexar no disconnect.

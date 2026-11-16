@@ -93,6 +93,19 @@ describe('translate', () => {
     expect(t.numTurns).toBe(3);
   });
 
+  it('broadcasts settled on result only when nothing is pending and not stopped', () => {
+    const t = register();
+    translate(KEY, t, { type: 'result', subtype: 'success' } as never);
+    expect(broadcast).toHaveBeenCalledWith({ t: 'settled', sessionKey: KEY });
+    vi.mocked(broadcast).mockClear();
+    t.pendingBgTasks = [{ task_id: 't1', description: 'x' }];
+    translate(KEY, t, { type: 'result', subtype: 'success' } as never);
+    t.pendingBgTasks = [];
+    t.stopped = true;
+    translate(KEY, t, { type: 'result', subtype: 'success' } as never);
+    expect(broadcast).not.toHaveBeenCalledWith({ t: 'settled', sessionKey: KEY });
+  });
+
   it('tracks the pending background-task list from background_tasks_changed', () => {
     const t = register();
     translate(KEY, t, { type: 'system', subtype: 'background_tasks_changed', tasks: [{ task_id: 't1', description: 'sleep 20' }] } as never);
