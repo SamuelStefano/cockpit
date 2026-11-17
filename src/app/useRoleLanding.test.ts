@@ -36,14 +36,14 @@ describe('useRoleLanding', () => {
   it('admin stays on its own routes', () => {
     expect(mount({ route: '/', capsKnown: true, role: 'admin' }).nav).not.toHaveBeenCalled();
     expect(mount({ route: '/canvas', capsKnown: true, role: 'admin' }).nav).not.toHaveBeenCalled();
-    expect(mount({ route: '/conexoes', capsKnown: true, role: 'admin' }).nav).not.toHaveBeenCalled();
+    expect(mount({ route: '/configuracoes/conexoes', capsKnown: true, role: 'admin' }).nav).not.toHaveBeenCalled();
     expect(mount({ route: '/ds', capsKnown: true, role: 'admin' }).nav).not.toHaveBeenCalled();
   });
   it('admin opening /pontos goes to chat (root only)', () => {
     expect(mount({ route: '/pontos', capsKnown: true, role: 'admin' }).nav).toHaveBeenCalledWith('/');
   });
   it('root is never moved', () => {
-    for (const route of ['/', '/pontos', '/conexoes', '/ds'] as Route[]) {
+    for (const route of ['/', '/pontos', '/configuracoes/conexoes', '/ds'] as Route[]) {
       expect(mount({ route, capsKnown: true, role: 'root' }).nav).not.toHaveBeenCalled();
     }
   });

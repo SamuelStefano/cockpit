@@ -29,6 +29,34 @@ function mount(role: NavRole, route: Route = '/configuracoes', nav: (to: Route) 
 vi.mock('./AdminInventory', () => ({ AdminInventory: () => <div>inventory-panel</div> }));
 const withHealth = { ...(cockpit as object), health: { host: 'h' } } as never;
 
+describe('Configuracoes embedded pages', () => {
+  const pages = { skills: <div>skills-page</div>, conexoes: <div>conexoes-page</div>, docs: <div>docs-page</div> };
+  const at = (role: NavRole, route: Route, nav: (to: Route) => void = noop) => render(
+    <Configuracoes route={route} role={role} nav={nav} isMobile={false} connected cockpit={cockpit} account={{}} usageDock={dock} onOpenSession={noop} onOpenTerminal={noop} pages={pages} />,
+  );
+  it('renders each page for an admin', () => {
+    for (const [route, text] of [['/configuracoes/skills', 'skills-page'], ['/configuracoes/conexoes', 'conexoes-page'], ['/configuracoes/docs', 'docs-page']] as const) {
+      at('admin', route);
+      expect(screen.getByText(text)).toBeTruthy();
+      cleanup();
+    }
+  });
+  it('lists the three sections in the side nav for an admin, not for a student', () => {
+    at('admin', '/configuracoes/skills');
+    const text = screen.getByRole('navigation', { name: 'Seções de configurações' }).textContent ?? '';
+    for (const l of ['Skills', 'Conexões', 'Docs']) expect(text).toContain(l);
+  });
+  it('sends a student away from the moved pages and never renders them', () => {
+    for (const route of ['/configuracoes/skills', '/configuracoes/conexoes', '/configuracoes/docs'] as const) {
+      const nav = vi.fn();
+      at('student', route, nav);
+      expect(nav).toHaveBeenCalledWith('/configuracoes');
+      expect(screen.queryByText(/-page$/)).toBeNull();
+      cleanup();
+    }
+  });
+});
+
 describe('Configuracoes', () => {
   it('Máquina offers the inventory to admin and root, never to a student', () => {
     for (const role of ['admin', 'root'] as const) {
@@ -62,10 +90,10 @@ describe('Configuracoes', () => {
     expect(nav).toHaveBeenCalledWith('/configuracoes');
   });
 
-  it('admin: five sections, no Pessoas', () => {
+  it('admin: eight sections, no Pessoas', () => {
     mount('admin');
     const nav = screen.getByRole('navigation', { name: 'Seções de configurações' });
-    expect(nav.textContent).toBe('ContaUsoMáquinaMáquinasAvançado');
+    expect(nav.textContent).toBe('ContaUsoMáquinaMáquinasSkillsConexõesDocsAvançado');
   });
 
   it('root: Avançado holds bypass, terminal and restart', () => {

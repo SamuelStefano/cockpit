@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import { useRoute } from './useRoute';
+import { useRoute, skillPath, legacyRedirect } from './useRoute';
 
 describe('useRoute', () => {
   beforeEach(() => history.replaceState(null, '', '/'));
@@ -24,10 +24,10 @@ describe('useRoute', () => {
   });
 
   it('abas de Conexões saem de /painel', () => {
-    for (const [from, to] of [['/painel#models', '/conexoes#provedores'], ['/painel#agents', '/conexoes#provedores'], ['/painel#mcps', '/conexoes#ferramentas']]) {
+    for (const [from, to] of [['/painel#models', '/configuracoes/conexoes#provedores'], ['/painel#agents', '/configuracoes/conexoes#provedores'], ['/painel#mcps', '/configuracoes/conexoes#ferramentas']]) {
       history.replaceState(null, '', from);
       const { result, unmount } = renderHook(() => useRoute());
-      expect(result.current.route).toBe('/conexoes');
+      expect(result.current.route).toBe('/configuracoes/conexoes');
       expect(location.pathname + location.hash).toBe(to);
       unmount();
     }
@@ -37,8 +37,8 @@ describe('useRoute', () => {
     history.replaceState(null, '', '/admin#models');
     const before = history.length;
     const { result } = renderHook(() => useRoute());
-    expect(result.current.route).toBe('/conexoes');
-    expect(location.pathname + location.hash).toBe('/conexoes#provedores');
+    expect(result.current.route).toBe('/configuracoes/conexoes');
+    expect(location.pathname + location.hash).toBe('/configuracoes/conexoes#provedores');
     expect(history.length).toBe(before);
   });
 
@@ -76,12 +76,12 @@ describe('useRoute', () => {
   });
 
   it('nav pra rota atual é no-op (não duplica history)', () => {
-    history.replaceState(null, '', '/skills');
+    history.replaceState(null, '', '/configuracoes/skills');
     const { result } = renderHook(() => useRoute());
     const before = history.length;
-    act(() => result.current.nav('/skills'));
+    act(() => result.current.nav('/configuracoes/skills'));
     expect(history.length).toBe(before);
-    expect(result.current.route).toBe('/skills');
+    expect(result.current.route).toBe('/configuracoes/skills');
   });
 
   it('/c/<id> é a view de chat com o id extraído (decodificado)', () => {
@@ -139,7 +139,8 @@ describe('useRoute', () => {
       history.pushState(null, '', '/docs');
       window.dispatchEvent(new PopStateEvent('popstate'));
     });
-    expect(result.current.route).toBe('/docs');
+    expect(result.current.route).toBe('/configuracoes/docs');
+    expect(location.pathname).toBe('/configuracoes/docs');
   });
 
   it('parses /agentes/:id with its tab, and the bare list', () => {
@@ -187,13 +188,69 @@ describe('useRoute', () => {
     expect(result.current.agentId).toBe('loja');
   });
 
-  it('/skills/<id> abre a página da skill', () => {
-    history.replaceState(null, '', '/skills/deck-ops');
+  it('/configuracoes/skills/<id> opens the skill page', () => {
+    history.replaceState(null, '', '/configuracoes/skills/deck-ops');
     const { result } = renderHook(() => useRoute());
-    expect(result.current.route).toBe('/skills');
+    expect(result.current.route).toBe('/configuracoes/skills');
     expect(result.current.skillId).toBe('deck-ops');
     act(() => result.current.navSkill(''));
-    expect(location.pathname).toBe('/skills');
+    expect(location.pathname).toBe('/configuracoes/skills');
     expect(result.current.skillId).toBe('');
+    act(() => result.current.navSkill('a b'));
+    expect(location.pathname).toBe('/configuracoes/skills/a%20b');
+    expect(result.current.skillId).toBe('a b');
+  });
+
+  it('old /skills and /skills/<id> redirect into Configurações without a new history entry', () => {
+    const before = history.length;
+    history.replaceState(null, '', '/skills');
+    const a = renderHook(() => useRoute());
+    expect(a.result.current).toMatchObject({ route: '/configuracoes/skills', skillId: '' });
+    expect(location.pathname).toBe('/configuracoes/skills');
+    a.unmount();
+    history.replaceState(null, '', '/skills/deck-ops?x=1#h');
+    const b = renderHook(() => useRoute());
+    expect(b.result.current).toMatchObject({ route: '/configuracoes/skills', skillId: 'deck-ops' });
+    expect(location.pathname + location.search + location.hash).toBe('/configuracoes/skills/deck-ops?x=1#h');
+    b.unmount();
+    expect(history.length).toBe(before);
+  });
+
+  it('old /conexoes keeps its hash tab and the GitHub install return keeps its query', () => {
+    for (const [from, to] of [
+      ['/conexoes', '/configuracoes/conexoes'],
+      ['/conexoes#aparelhos', '/configuracoes/conexoes#aparelhos'],
+      ['/conexoes#adicionar', '/configuracoes/conexoes#adicionar'],
+      ['/conexoes/github?installation_id=7&code=abc', '/configuracoes/conexoes?installation_id=7&code=abc'],
+    ]) {
+      history.replaceState(null, '', from);
+      const { result, unmount } = renderHook(() => useRoute());
+      expect(result.current.route).toBe('/configuracoes/conexoes');
+      expect(location.pathname + location.search + location.hash).toBe(to);
+      unmount();
+    }
+  });
+
+  it('old /docs redirects to Configurações Docs', () => {
+    history.replaceState(null, '', '/docs');
+    const { result } = renderHook(() => useRoute());
+    expect(result.current.route).toBe('/configuracoes/docs');
+    expect(location.pathname).toBe('/configuracoes/docs');
+  });
+
+  it('skillPath builds the new deep link', () => {
+    expect(skillPath('x')).toBe('/configuracoes/skills/x');
+    expect(skillPath('')).toBe('/configuracoes/skills');
+  });
+});
+
+describe('legacyRedirect', () => {
+  it('maps the moved screens and leaves the rest alone', () => {
+    expect(legacyRedirect('/skills', '', '')).toBe('/configuracoes/skills');
+    expect(legacyRedirect('/skills/a', '', '')).toBe('/configuracoes/skills/a');
+    expect(legacyRedirect('/skillsfoo', '', '')).toBeNull();
+    expect(legacyRedirect('/conexoes/github', '', '?installation_id=1')).toBe('/configuracoes/conexoes?installation_id=1');
+    expect(legacyRedirect('/docs', '#x', '')).toBe('/configuracoes/docs#x');
+    expect(legacyRedirect('/configuracoes/skills', '', '')).toBeNull();
   });
 });
