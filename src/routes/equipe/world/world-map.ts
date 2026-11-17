@@ -182,7 +182,7 @@ export function outsideDoor(h: HouseDef): Point {
 }
 export function insideDoor(h: HouseDef): Point {
   const d = doorTiles(h)[0]!;
-  return h.door === 'east' ? { x: d.x - 2, y: d.y } : h.door === 'west' ? { x: d.x + 2, y: d.y } : { x: d.x, y: d.y - 2 };
+  return h.door === 'east' ? { x: d.x - 1, y: d.y } : h.door === 'west' ? { x: d.x + 1, y: d.y } : { x: d.x, y: d.y - 2 };
 }
 
 export const seatTile = (h: HouseDef, s: Seat): Point => ({ x: h.x + s.x, y: h.y + s.y });
