@@ -2,7 +2,7 @@
 """Composes a 30x18-tile demo from tiles-exterior (via the same builders) and writes
 <outdir>/vila-city-preview.png (2x) and <outdir>/vila-city-anim.gif (6 fps).
 
-Run: python3 scripts/world/demo_city.py /path/to/outdir
+Run: python3 scripts/world-v2/demo_city.py /path/to/outdir
 """
 import os
 import sys
