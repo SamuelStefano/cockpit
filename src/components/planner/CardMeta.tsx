@@ -1,16 +1,24 @@
 import type { PlannerTask } from '../../../shared/planner';
+import type { TeamBot } from '../../../shared/protocol';
+import { Mascot } from '../team/Mascot';
 import { DIFFICULTY_LABELS, linkChipLabel } from '../../planner/planner-logic';
 
 const chip = 'max-w-36 truncate rounded px-1.5 py-px text-[11px] leading-4';
 const MAX_LINKS = 2;
 
-export function CardMeta({ task }: { task: PlannerTask }) {
+export function CardMeta({ task, bots = [] }: { task: PlannerTask; bots?: TeamBot[] }) {
   const { tag, difficulty, links } = task;
+  const owner = task.ownerBotId ? bots.find((b) => b.id === task.ownerBotId) : undefined;
   // Machine refs (placar:<uuid>) are import keys, not something a person reads.
   const ref = task.ref && !task.ref.includes(':') ? task.ref : undefined;
-  if (!ref && !tag && difficulty === 1 && !links.length && task.source !== 'agent') return null;
+  if (!ref && !tag && difficulty === 1 && !links.length && task.source !== 'agent' && !owner) return null;
   return (
     <div className="mt-2 flex flex-wrap items-center gap-1 text-neutral-500">
+      {owner && (
+        <span className="flex items-center" title={`Dono: ${owner.name}`} aria-label={`Dono: ${owner.name}`}>
+          <Mascot mascot={owner.mascot} size={18} name={owner.name} />
+        </span>
+      )}
       {ref && <span className={`${chip} bg-neutral-800/70 font-mono text-neutral-400`} title={ref}>{ref}</span>}
       {tag && <span className={`${chip} border border-neutral-800 text-neutral-400`}>{tag}</span>}
       {difficulty !== 1 && <span className="px-0.5 text-[11px]">{DIFFICULTY_LABELS[difficulty]}</span>}

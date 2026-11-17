@@ -13,6 +13,7 @@ export function finalizeDraft(d: PlannerTask): PlannerTask {
     title: d.title.trim(),
     tag: (d.tag ?? '').trim().slice(0, PLANNER_LIMITS.tag),
     ref: PLANNER_REF_RE.test(ref) ? ref : '',
+    ownerBotId: d.ownerBotId ?? '',
     links: d.links.filter((l) => isHttpUrl(l.url)).map((l) => ({ ...l, url: l.url.trim() })),
   };
 }

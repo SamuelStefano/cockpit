@@ -34,6 +34,13 @@ describe('buildBotIdentity', () => {
     expect(t).toContain('`image`');
     expect(t).toContain('`deadline`');
   });
+  it('teaches team_tasks and team_handoff only when there is a team', () => {
+    const t = buildBotIdentity(team[1], team);
+    expect(t).toContain('`team_tasks`');
+    expect(t).toContain('`team_handoff`');
+    expect(t).toContain('quatro campos');
+    expect(buildBotIdentity(mk('solo1'), [mk('solo1')])).not.toContain('team_handoff');
+  });
   it('omits the roster for a team of one and caps the size', () => {
     const solo = mk('solo1', { instructions: 'z'.repeat(40_000) });
     const t = buildBotIdentity(solo, [solo]);

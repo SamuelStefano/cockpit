@@ -1,4 +1,5 @@
 import type { PlannerTask } from '../../../shared/planner';
+import type { TeamBot } from '../../../shared/protocol';
 import { Button } from '../primitives';
 import { useArmed } from '../primitives/useArmed';
 import { useTaskEditor } from '../../planner/useTaskEditor';
@@ -6,12 +7,13 @@ import { TaskEditorFields } from './TaskEditorFields';
 
 interface TaskEditorProps {
   task: PlannerTask;
+  bots?: TeamBot[];
   onSave: (task: PlannerTask) => void;
   onDelete: (id: string) => void;
   onBack: () => void;
 }
 
-export function TaskEditor({ task, onSave, onDelete, onBack }: TaskEditorProps) {
+export function TaskEditor({ task, bots, onSave, onDelete, onBack }: TaskEditorProps) {
   const ed = useTaskEditor(task, onSave, onBack);
   const del = useArmed();
   return (
@@ -25,7 +27,7 @@ export function TaskEditor({ task, onSave, onDelete, onBack }: TaskEditorProps) 
           <span className="flex-1 text-[13px] font-medium text-neutral-300">Editar task</span>
           <Button variant="ghost" size="sm" square icon="x" aria-label="Fechar editor" title="Fechar (Esc)" onClick={onBack} />
         </div>
-        <TaskEditorFields draft={ed.draft} patch={ed.patch} refInvalid={ed.refInvalid} />
+        <TaskEditorFields draft={ed.draft} patch={ed.patch} refInvalid={ed.refInvalid} bots={bots} />
         <div className="flex items-center gap-2 border-t border-neutral-800/80 px-4 py-3">
           <Button variant="danger" size="sm" icon="trash" onClick={() => del.fire(() => onDelete(task.id))}>{del.armed ? 'Confirmar?' : 'Excluir'}</Button>
           <span className="ml-auto flex items-center gap-2">

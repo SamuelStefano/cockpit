@@ -15,6 +15,7 @@ import type { Role } from '../auth';
 import { isLongContextModel } from '../../shared/long-context';
 import { ALL_MCPS } from '../../shared/mcp';
 import { TEAM_MCP_NAME, TEAM_MCP_TOOLS } from '../../shared/team-messages';
+import { plannerFile } from '../planner/store';
 import { teamFile, teamLogFile, teamOutboxDir, teamPauseFile } from '../team-log';
 import type { TeamProfile } from '../../shared/protocol';
 import { projectSlug } from '../config';
@@ -53,7 +54,7 @@ export interface RunOpts {
   allowWorkflow?: boolean;
   appendSystemPrompt?: string; // Equipe bot identity (--append-system-prompt); never starts with '-' (built server-side)
   deckContext?: string;        // where the session runs (server/deck-context.ts); goes before the bot identity
-  botId?: string;              // a Equipe bot's turn: loads the team MCP (team_list/team_send) as this bot
+  botId?: string;              // a Equipe bot's turn: loads the team MCP (team_list/team_send/team_tasks/team_handoff) as this bot
   teamHop?: number;            // chain depth of the message that started this turn; the MCP stamps hop+1
   forkId?: string;             // roda em cima do transcript do `resumeId` mas GRAVA neste id novo (--fork-session). Sem isto dois processos escreveriam o mesmo JSONL.
   profile?: TeamProfile;       // 'restricted' = profilePermissions() below decides tools, cwd, MCPs and mode
@@ -168,7 +169,7 @@ export function teamMcpDef(botId: string, hop: number): Record<string, unknown> 
   return {
     type: 'stdio',
     command: process.execPath,
-    args: [script, '--bot', botId, '--hop', String(hop), '--team', teamFile(), '--outbox', teamOutboxDir(), '--log', teamLogFile(), '--pause', teamPauseFile()],
+    args: [script, '--bot', botId, '--hop', String(hop), '--team', teamFile(), '--outbox', teamOutboxDir(), '--log', teamLogFile(), '--pause', teamPauseFile(), '--planner', plannerFile()],
   };
 }
 

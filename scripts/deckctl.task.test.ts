@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import type { PlannerTask } from '../shared/planner';
 import {
   findByRef, findDuplicate, formatTaskList, mergeLinks, normalizeTitle, parseColumn, parseDifficulty, parseLinkSpec, parseTaskArgs,
-  sameTaskContent, parseFlags, parseRef, parseTag,
+  sameTaskContent, parseFlags, parseRef, parseTag, parseOwner, resolveBot,
 } from './deckctl.mts';
 import { topOrder } from '../src/planner/planner-logic';
 
@@ -212,5 +212,35 @@ describe('deckctl task against a fake backend', () => {
     const r = await run(['task', 'move', 'exist', 'nowhere'], [existing], () => null);
     expect(r.code).toBe(1);
     expect(r.out).toContain('invalid column');
+  });
+});
+
+describe('task owner', () => {
+  const team = [{ id: 'b1', name: 'Growth-Lead' }, { id: 'b2', name: 'Ativacao' }];
+
+  it('resolves a bot by case-insensitive name or by id', () => {
+    expect(resolveBot(team, 'growth-lead').id).toBe('b1');
+    expect(resolveBot(team, 'b2').name).toBe('Ativacao');
+    expect(() => resolveBot(team, 'ninguem')).toThrow(/no bot "ninguem".*Growth-Lead, Ativacao/);
+  });
+
+  it('parseOwner clears on "none" and resolves otherwise', () => {
+    expect(parseOwner(team, ' None ')).toBeUndefined();
+    expect(parseOwner(team, 'ativacao')).toBe('b2');
+    expect(() => parseOwner(team, 'x')).toThrow();
+  });
+
+  it('parses the handoff flags', () => {
+    const r = parseTaskArgs(['--to', 'Ativacao', '--done', 'a', '--pending', 'b', '--reason', 'c', '--switch', 'd', '--from', 'x', '--owner', 'none']);
+    expect(r.flags).toMatchObject({ to: 'Ativacao', done: 'a', pending: 'b', reason: 'c', switch: 'd', from: 'x', owner: 'none' });
+  });
+
+  it('shows the owner name after the title', () => {
+    const lines = formatTaskList([task({ title: 'Landing', ownerBotId: 'b2' })], { now: NOW, nameOf: (id) => (id === 'b2' ? 'Ativacao' : id) });
+    expect(lines[1]).toContain('Landing @Ativacao');
+  });
+
+  it('counts an owner change as a content change', () => {
+    expect(sameTaskContent(task({}), task({ ownerBotId: 'b1' }))).toBe(false);
   });
 });

@@ -22,9 +22,11 @@ const TEAM = arg('team', '');
 const OUTBOX = arg('outbox', '');
 const LOG = arg('log', '');
 const PAUSE = arg('pause', '');
+const PLANNER = arg('planner', '');
 const WAIT_MS = Math.max(0, Number.parseInt(arg('wait-ms', '5000'), 10) || 0);
 const MAX_HOPS = 6;
 const MAX_TEXT_BYTES = 8 * 1024;
+const MAX_HANDOFF_FIELD = 600;
 const TAIL_BYTES = 256 * 1024;
 
 function readJson(path, fallback) {
@@ -54,7 +56,39 @@ const TOOLS = [
       required: ['to', 'text'],
     },
   },
+  {
+    name: 'team_tasks',
+    description: 'Lista as tarefas do Kanban do humano que são suas (você é o dono) e ainda não foram concluídas: id, título e coluna.',
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'team_handoff',
+    description: 'Passa uma tarefa sua para outro bot (o trabalho está saindo do seu setor). Escreva os quatro campos junto com quem recebe; o recebedor vira o dono e você fica como consultor. Só o dono atual (ou qualquer bot, se a tarefa não tem dono) pode passar.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        taskId: { type: 'string', description: 'id da tarefa (veja team_tasks)' },
+        to: { type: 'string', description: 'nome do bot que passa a ser o dono' },
+        done: { type: 'string', description: 'o que já foi feito' },
+        pending: { type: 'string', description: 'o que falta fazer' },
+        reason: { type: 'string', description: 'por que a tarefa troca de mão' },
+        switchPoint: { type: 'string', description: 'o ponto exato em que a troca acontece' },
+      },
+      required: ['taskId', 'to', 'done', 'pending', 'reason', 'switchPoint'],
+    },
+  },
 ];
+
+function plannerTasks() {
+  const raw = readJson(PLANNER, {});
+  return Array.isArray(raw?.tasks) ? raw.tasks : [];
+}
+
+function myTasks() {
+  const mine = plannerTasks().filter((t) => t && t.ownerBotId === BOT && t.column !== 'done');
+  if (!mine.length) return 'Você não é dono de nenhuma tarefa em aberto.';
+  return mine.map((t) => `- ${t.id} — ${t.title} (${t.column})`).join('\n');
+}
 
 function listTeam() {
   const all = team();
@@ -130,6 +164,34 @@ async function send(args) {
   return text(describe(await awaitOutcome(id), target.name));
 }
 
+async function handoff(args) {
+  if (!BOT || !OUTBOX) return text('Equipe indisponível neste turno.', true);
+  const field = (k) => (typeof args[k] === 'string' ? args[k].trim() : '');
+  const taskId = field('taskId');
+  const to = field('to');
+  const fields = { done: field('done'), pending: field('pending'), reason: field('reason'), switchPoint: field('switchPoint') };
+  for (const [k, v] of Object.entries(fields)) {
+    if (!v) return text(`Campo "${k}" vazio: os quatro campos são obrigatórios.`, true);
+    if (v.length > MAX_HANDOFF_FIELD) return text(`Campo "${k}" passa de ${MAX_HANDOFF_FIELD} caracteres; resuma.`, true);
+  }
+  const target = team().find((b) => b.name.toLowerCase() === to.toLowerCase());
+  if (!target) return text(`Não existe bot "${to}" na equipe. Use team_list.`, true);
+  if (target.id === BOT) return text('Você não pode passar a tarefa para si mesmo.', true);
+  const task = plannerTasks().find((t) => t && t.id === taskId);
+  if (!task) return text(`Não existe a tarefa "${taskId}". Use team_tasks.`, true);
+  if (task.ownerBotId && task.ownerBotId !== BOT) return text('Você não é o dono desta tarefa; só o dono atual pode passá-la.', true);
+  if (task.ownerBotId === target.id) return text(`${target.name} já é o dono desta tarefa.`, true);
+  const hop = HOP + 1;
+  const id = `m${Date.now().toString(36)}${randomBytes(4).toString('hex')}`;
+  mkdirSync(OUTBOX, { recursive: true });
+  const tmp = join(OUTBOX, `.${id}.tmp`);
+  writeFileSync(tmp, JSON.stringify({ id, from: BOT, to: target.id, text: '', handoff: { taskId, ...fields }, hop, ts: Date.now() }));
+  renameSync(tmp, join(OUTBOX, `${id}.json`));
+  if (paused()) return text(describe({ status: 'blocked', reason: 'equipe pausada' }, target.name));
+  if (hop >= MAX_HOPS) return text(describe({ status: 'blocked', reason: `cadeia longa demais (${hop} saltos)` }, target.name));
+  return text(describe(await awaitOutcome(id), target.name));
+}
+
 async function onMessage(msg) {
   if (typeof msg.id === 'undefined') return;
   switch (msg.method) {
@@ -146,6 +208,8 @@ async function onMessage(msg) {
       const args = msg.params?.arguments ?? {};
       try {
         if (name === 'team_list') return reply(msg.id, text(listTeam()));
+        if (name === 'team_tasks') return reply(msg.id, text(myTasks()));
+        if (name === 'team_handoff') return reply(msg.id, await handoff(args));
         if (name === 'team_send') return reply(msg.id, await send(args));
         return reply(msg.id, text(`Tool desconhecida: ${name}`, true));
       } catch (e) {

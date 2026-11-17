@@ -1,11 +1,13 @@
 import type { DragEvent } from 'react';
 import type { PlannerColumn, PlannerTask } from '../../../shared/planner';
+import type { TeamBot } from '../../../shared/protocol';
 import { Icon, tokens } from '../primitives';
 import { CardMeta } from './CardMeta';
 import { CardMoveMenu } from './CardMoveMenu';
 
 interface PlannerCardProps {
   task: PlannerTask;
+  bots?: TeamBot[];
   dragging: boolean;
   coarse: boolean;
   dropBefore: boolean;
@@ -16,7 +18,7 @@ interface PlannerCardProps {
   onDragOver: (e: DragEvent) => void;
 }
 
-export function PlannerCard({ task, dragging, coarse, dropBefore, onOpen, onMoveTo, onDragStart, onDragEnd, onDragOver }: PlannerCardProps) {
+export function PlannerCard({ task, bots, dragging, coarse, dropBefore, onOpen, onMoveTo, onDragStart, onDragEnd, onDragOver }: PlannerCardProps) {
   const done = task.column === 'done';
   return (
     <div className="relative shrink-0" onDragOver={onDragOver}>
@@ -32,7 +34,7 @@ export function PlannerCard({ task, dragging, coarse, dropBefore, onOpen, onMove
           {coarse && <CardMoveMenu column={task.column} onMoveTo={onMoveTo} />}
         </div>
         {task.description && <p className="mt-1 truncate text-[12px] text-neutral-500">{task.description.split('\n').find((l) => l.trim())}</p>}
-        <CardMeta task={task} />
+        <CardMeta task={task} bots={bots} />
       </div>
     </div>
   );

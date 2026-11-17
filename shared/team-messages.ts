@@ -21,7 +21,7 @@ export const MAX_TEAM_MSGS_PER_HOUR = 30;
 export const MAX_TEAM_TEXT_BYTES = 8 * 1024;
 export const TEAM_MSG_ID_RE = /^m[a-z0-9]{6,32}$/;
 export const TEAM_MCP_NAME = 'deck-team';
-export const TEAM_MCP_TOOLS = [`mcp__${TEAM_MCP_NAME}__team_list`, `mcp__${TEAM_MCP_NAME}__team_send`];
+export const TEAM_MCP_TOOLS = [`mcp__${TEAM_MCP_NAME}__team_list`, `mcp__${TEAM_MCP_NAME}__team_send`, `mcp__${TEAM_MCP_NAME}__team_tasks`, `mcp__${TEAM_MCP_NAME}__team_handoff`];
 
 export type TeamVerdict = { ok: true } | { ok: false; reason: string };
 

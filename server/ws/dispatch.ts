@@ -92,6 +92,7 @@ import { activeFlowRuns } from '../canvas/flow-runs';
 import { startCanvasFlows } from '../canvas/flows';
 import { registerCanvasClient, emitCanvasMsg } from './canvas-clients';
 import { registerPlannerClient, emitPlannerMsg } from './planner-clients';
+import { applyHandoff } from '../../shared/task-handoff';
 import { applyMoves, readTasksChained, sanitizeTask, updateTasks, upsertTask } from '../planner/store';
 import { CARD_STATUSES, type CanvasBoard, type CardStatus } from '../../shared/canvas';
 import { updateAreaCacheFromGraph, getAreaOf } from '../canvas/autopause-loop';
@@ -495,6 +496,22 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     }
     case 'planner-task-delete': {
       const tasks = await updateTasks((list) => list.filter((x) => x.id !== msg.id));
+      emitPlannerMsg({ t: 'planner-board', tasks });
+      return;
+    }
+    case 'planner-task-handoff': {
+      const now = Date.now();
+      let error: string | undefined;
+      const team = await getTeam();
+      const tasks = await updateTasks((list) => {
+        const task = list.find((x) => x.id === msg.id);
+        if (!task) { error = 'task não encontrada'; return list; }
+        if (!team.some((b) => b.id === msg.handoff?.toBotId)) { error = 'bot de destino não é da equipe'; return list; }
+        const r = applyHandoff(task, { ...msg.handoff, at: now });
+        if (!r.ok) { error = r.reason; return list; }
+        return list.map((x) => (x.id === task.id ? r.task : x));
+      });
+      if (error) send(ws, { t: 'error', message: error });
       emitPlannerMsg({ t: 'planner-board', tasks });
       return;
     }

@@ -17,7 +17,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import WebSocket from 'ws';
-import type { ClientMsg, ServerMsg, Effort, Message, ToolQuestion } from '../shared/protocol';
+import type { ClientMsg, ServerMsg, Effort, Message, ToolQuestion, TeamBot } from '../shared/protocol';
 import { CARD_ID_RE, CARD_STATUSES, type CanvasCard, type CardStatus } from '../shared/canvas';
 import {
   PLANNER_COLUMNS, PLANNER_LIMITS, PLANNER_REF_RE, type PlannerColumn, type PlannerDifficulty, type PlannerLink, type PlannerTask,
@@ -1331,7 +1331,7 @@ async function cmdTriage(flags: Flags, json: boolean): Promise<void> {
 // --- task commands (personal Kanban planner) ----------------------------
 
 const TASK_BOOL_FLAGS = new Set(['json', 'all', 'force', 'clear-links']);
-const TASK_VALUE_FLAGS = new Set(['col', 'desc', 'diff', 'link', 'title', 'ref', 'tag']);
+const TASK_VALUE_FLAGS = new Set(['col', 'desc', 'diff', 'link', 'title', 'ref', 'tag', 'owner', 'to', 'from', 'done', 'pending', 'reason', 'switch']);
 
 export interface TaskArgs { positional: string[]; flags: Flags; links: string[] }
 
@@ -1384,6 +1384,17 @@ export function parseTag(v: string): string {
   return tag;
 }
 
+export function resolveBot(team: Pick<TeamBot, 'id' | 'name'>[], v: string): Pick<TeamBot, 'id' | 'name'> {
+  const key = v.trim().toLowerCase();
+  const hit = team.find((b) => b.id === v.trim()) ?? team.find((b) => b.name.toLowerCase() === key);
+  if (!hit) throw new Error(`no bot "${v}" in the team${team.length ? ` — one of: ${team.map((b) => b.name).join(', ')}` : ''}`);
+  return hit;
+}
+
+export function parseOwner(team: Pick<TeamBot, 'id' | 'name'>[], v: string): string | undefined {
+  return v.trim().toLowerCase() === 'none' ? undefined : resolveBot(team, v).id;
+}
+
 export function parseColumn(v: string): PlannerColumn {
   if (!(PLANNER_COLUMNS as readonly string[]).includes(v)) throw new Error(`invalid column "${v}" — one of: ${PLANNER_COLUMNS.join(', ')}`);
   return v as PlannerColumn;
@@ -1418,7 +1429,7 @@ export function newTaskIdLocal(): string {
   return randomUUID().replace(/-/g, '').slice(0, 12);
 }
 
-export function formatTaskList(tasks: PlannerTask[], opts: { col?: PlannerColumn; all?: boolean; now: number }): string[] {
+export function formatTaskList(tasks: PlannerTask[], opts: { col?: PlannerColumn; all?: boolean; now: number; nameOf?: (id: string) => string }): string[] {
   const cols = opts.col ? [opts.col] : [...PLANNER_COLUMNS];
   const lines: string[] = [];
   for (const col of cols) {
@@ -1430,7 +1441,7 @@ export function formatTaskList(tasks: PlannerTask[], opts: { col?: PlannerColumn
     for (const t of shown) {
       const n = t.links.length;
       const meta = [t.ref, t.tag && `#${t.tag}`].filter(Boolean).join(' ');
-      lines.push(`  ${shortId(t.id)}  [${t.difficulty}] ${oneLine(t.title, 100)}${meta ? `  ${meta}` : ''}${n ? `  (${n} ${n === 1 ? 'link' : 'links'})` : ''}`);
+      lines.push(`  ${shortId(t.id)}  [${t.difficulty}] ${oneLine(t.title, 100)}${t.ownerBotId ? ` @${opts.nameOf?.(t.ownerBotId) ?? t.ownerBotId}` : ''}${meta ? `  ${meta}` : ''}${n ? `  (${n} ${n === 1 ? 'link' : 'links'})` : ''}`);
       const desc = t.description.split('\n').find((l) => l.trim())?.trim();
       if (desc) lines.push(`      ${oneLine(desc, 120)}`);
       for (const l of t.links) lines.push(`      ${l.url}${l.label ? ` (${l.label})` : ''}`);
@@ -1449,7 +1460,7 @@ export function findTask(tasks: PlannerTask[], idPrefix: string): PlannerTask {
 export function sameTaskContent(a: PlannerTask, b: PlannerTask): boolean {
   return a.id === b.id && a.title === b.title && a.description === b.description && a.difficulty === b.difficulty
     && a.column === b.column && JSON.stringify(a.links) === JSON.stringify(b.links)
-    && (a.ref ?? '') === (b.ref ?? '') && (a.tag ?? '') === (b.tag ?? '');
+    && (a.ref ?? '') === (b.ref ?? '') && (a.tag ?? '') === (b.tag ?? '') && (a.ownerBotId ?? '') === (b.ownerBotId ?? '');
 }
 
 const boardWithTask = (ok: (tasks: PlannerTask[]) => boolean) =>
@@ -1478,25 +1489,32 @@ async function saveTask(client: Client, task: PlannerTask): Promise<void> {
   await mutationAck(client, boardWithTask((list) => list.some((t) => sameTaskContent(t, task))), 'planner-task-save');
 }
 
+async function fetchTeam(client: Client): Promise<TeamBot[]> {
+  client.send({ t: 'team-get' });
+  const m = await client.waitFor(isServerMsg('team'), DEFAULT_TIMEOUT_MS);
+  if (!m) fail('backend did not answer team-get (timeout)');
+  return m.bots;
+}
+
 async function cmdTaskList(args: string[]): Promise<void> {
   const { flags } = orFail(() => parseTaskArgs(args));
   const colRaw = flagStr(flags, 'col');
   const col = colRaw === undefined ? undefined : orFail(() => parseColumn(colRaw));
   const all = flags.all === true;
   const now = Date.now();
-  const tasks = await withTasks(async (_client, t) => t);
+  const { tasks, team } = await withTasks(async (client, t) => ({ tasks: t, team: t.some((x) => x.ownerBotId) ? await fetchTeam(client) : [] }));
   if (flags.json === true) {
     console.log(JSON.stringify((col ? [col] : [...PLANNER_COLUMNS]).flatMap((c) => columnTasks(tasks, c, { showAllDone: all, now })), null, 2));
     return;
   }
-  const lines = formatTaskList(tasks, { col, all, now });
+  const lines = formatTaskList(tasks, { col, all, now, nameOf: (id) => team.find((b) => b.id === id)?.name ?? id });
   console.log(lines.length ? lines.join('\n') : 'no tasks');
 }
 
 async function cmdTaskAdd(args: string[]): Promise<void> {
   const { positional, flags, links } = orFail(() => parseTaskArgs(args));
   const title = positional[0]?.trim().slice(0, PLANNER_LIMITS.title);
-  if (!title) fail('usage: deckctl task add "<title>" [--col today|week|backlog] [--desc D] [--diff 1|2|3] [--ref R] [--tag T] [--link URL[|label]]... [--force]');
+  if (!title) fail('usage: deckctl task add "<title>" [--col today|week|backlog] [--desc D] [--diff 1|2|3] [--ref R] [--tag T] [--owner BOT|none] [--link URL[|label]]... [--force]');
   const column = orFail(() => parseColumn(flagStr(flags, 'col') ?? 'backlog'));
   if (column === 'done') fail('tasks are added to today, week or backlog — use "deckctl task done <id>" to finish one');
   const difficulty = orFail(() => parseDifficulty(flagStr(flags, 'diff') ?? '1'));
@@ -1505,7 +1523,10 @@ async function cmdTaskAdd(args: string[]): Promise<void> {
   const tagRaw = flagStr(flags, 'tag');
   const ref = refRaw === undefined ? undefined : orFail(() => parseRef(refRaw));
   const tag = tagRaw === undefined ? undefined : orFail(() => parseTag(tagRaw));
+  const ownerRaw = flagStr(flags, 'owner');
   await withTasks(async (client, tasks) => {
+    const team = ownerRaw === undefined ? [] : await fetchTeam(client);
+    const ownerBotId = ownerRaw === undefined ? undefined : orFail(() => parseOwner(team, ownerRaw));
     const byRef = findByRef(tasks, ref);
     if (byRef) fail(`a task with ref ${ref} already exists: ${byRef.id} (${COLUMN_LABELS[byRef.column]}) — edit it instead`);
     const dup = findDuplicate(tasks, title);
@@ -1514,7 +1535,7 @@ async function cmdTaskAdd(args: string[]): Promise<void> {
     const task: PlannerTask = {
       id: newTaskIdLocal(), title, description: (flagStr(flags, 'desc') ?? '').slice(0, PLANNER_LIMITS.description),
       links: taskLinks, difficulty, column, order: topOrder(tasks, column), createdAt: now, updatedAt: now, source: 'agent',
-      ...(ref ? { ref } : {}), ...(tag ? { tag } : {}),
+      ...(ref ? { ref } : {}), ...(tag ? { tag } : {}), ...(ownerBotId ? { ownerBotId } : {}),
     };
     await saveTask(client, task);
     console.log(`task created: ${task.id}`);
@@ -1552,17 +1573,23 @@ async function cmdTaskEdit(idPrefix: string, args: string[]): Promise<void> {
   const clear = flags['clear-links'] === true;
   const refRaw = flagStr(flags, 'ref');
   const tagRaw = flagStr(flags, 'tag');
+  const ownerRaw = flagStr(flags, 'owner');
   if (title === '') fail('--title cannot be empty');
-  if (title === undefined && desc === undefined && colRaw === undefined && diffRaw === undefined && refRaw === undefined && tagRaw === undefined && !links.length && !clear) {
-    fail('nothing to change — pass --title, --desc, --diff, --ref, --tag, --link, --clear-links or --col');
+  if (title === undefined && desc === undefined && colRaw === undefined && diffRaw === undefined && refRaw === undefined && tagRaw === undefined && ownerRaw === undefined && !links.length && !clear) {
+    fail('nothing to change — pass --title, --desc, --diff, --ref, --tag, --owner, --link, --clear-links or --col');
   }
   const ref = refRaw === undefined ? undefined : orFail(() => parseRef(refRaw));
   const tag = tagRaw === undefined ? undefined : orFail(() => parseTag(tagRaw));
   const column = colRaw === undefined ? undefined : orFail(() => parseColumn(colRaw));
   const difficulty = diffRaw === undefined ? undefined : orFail(() => parseDifficulty(diffRaw));
   await withTasks(async (client, tasks) => {
+    const team = ownerRaw === undefined || ownerRaw.trim().toLowerCase() === 'none' ? [] : await fetchTeam(client);
     const task = findTask(tasks, idPrefix);
     const next: PlannerTask = { ...task, links: orFail(() => mergeLinks(clear ? [] : task.links, links)) };
+    if (ownerRaw !== undefined) {
+      const owner = orFail(() => parseOwner(team, ownerRaw));
+      if (owner) next.ownerBotId = owner; else delete next.ownerBotId;
+    }
     if (title !== undefined) next.title = title;
     if (desc !== undefined) next.description = desc.slice(0, PLANNER_LIMITS.description);
     if (difficulty !== undefined) next.difficulty = difficulty;
@@ -1578,6 +1605,28 @@ async function cmdTaskEdit(idPrefix: string, args: string[]): Promise<void> {
     }
     await saveTask(client, next);
     console.log(`task ${task.id} updated`);
+  });
+}
+
+async function cmdTaskHandoff(idPrefix: string, args: string[]): Promise<void> {
+  const { flags } = orFail(() => parseTaskArgs(args));
+  const need = (k: string) => {
+    const v = flagStr(flags, k)?.trim();
+    return v || fail(`usage: deckctl task handoff <id> --to BOT --done "..." --pending "..." --reason "..." --switch "..." [--from BOT] (missing --${k})`);
+  };
+  const toRaw = need('to');
+  const fields = { done: need('done'), pending: need('pending'), reason: need('reason'), switchPoint: need('switch') };
+  const fromRaw = flagStr(flags, 'from');
+  await withTasks(async (client, tasks) => {
+    const team = await fetchTeam(client);
+    const task = findTask(tasks, idPrefix);
+    const to = orFail(() => resolveBot(team, toRaw));
+    const from = fromRaw === undefined ? task.ownerBotId : orFail(() => resolveBot(team, fromRaw).id);
+    if (to.id === task.ownerBotId) fail(`${to.name} already owns this task`);
+    client.send({ t: 'planner-task-handoff', id: task.id, handoff: { toBotId: to.id, ...(from ? { fromBotId: from } : {}), ...fields } });
+    const before = task.handoffs?.length ?? 0;
+    await mutationAck(client, boardWithTask((list) => list.some((t) => t.id === task.id && t.ownerBotId === to.id && (t.handoffs?.length ?? 0) > before)), 'planner-task-handoff');
+    console.log(`task ${task.id} handed to ${to.name}`);
   });
 }
 
@@ -1603,14 +1652,18 @@ async function cmdTask(args: string[]): Promise<void> {
     return cmdTaskDone(rest[0], rest.slice(1));
   }
   if (sub === 'edit') {
-    if (!rest[0] || rest[0].startsWith('--')) fail('usage: deckctl task edit <id> [--title T] [--desc D] [--diff N] [--ref R] [--tag T] [--link URL[|label]]... [--clear-links] [--col C]');
+    if (!rest[0] || rest[0].startsWith('--')) fail('usage: deckctl task edit <id> [--title T] [--desc D] [--diff N] [--ref R] [--tag T] [--owner BOT|none] [--link URL[|label]]... [--clear-links] [--col C]');
     return cmdTaskEdit(rest[0], rest.slice(1));
+  }
+  if (sub === 'handoff') {
+    if (!rest[0] || rest[0].startsWith('--')) fail('usage: deckctl task handoff <id> --to BOT --done "..." --pending "..." --reason "..." --switch "..." [--from BOT]');
+    return cmdTaskHandoff(rest[0], rest.slice(1));
   }
   if (sub === 'rm') {
     if (!rest[0]) fail('usage: deckctl task rm <id>');
     return cmdTaskRm(rest[0]);
   }
-  fail(`unknown task subcommand "${sub ?? ''}" — list|add|move|done|edit|rm`);
+  fail(`unknown task subcommand "${sub ?? ''}" — list|add|move|done|edit|handoff|rm`);
 }
 
 // --- main --------------------------------------------------------------
@@ -1639,10 +1692,11 @@ Usage: deckctl <command> [args] [--json]
   card rm <id>                              delete a card
   card run <id> [--fork <parentSessionId>]  run a card (optionally as a fork of an existing session)
   task list [--col C] [--all]               the person's personal Kanban (today|week|backlog|done); done = last 7 days unless --all
-  task add "<title>" [--col C] [--desc D] [--diff 1|2|3] [--ref R] [--tag T] [--link URL[|label]]... [--force]   add to the top of a column (default backlog); refuses an existing ref
+  task add "<title>" [--col C] [--desc D] [--diff 1|2|3] [--ref R] [--tag T] [--owner BOT|none] [--link URL[|label]]... [--force]   add to the top of a column (default backlog); refuses an existing ref
   task move <id> <col>                      move a task (today|week|backlog|done)
   task done <id> [--link URL[|label]]...    finish a task, optionally attaching the PR/result links
-  task edit <id> [--title T] [--desc D] [--diff N] [--ref R] [--tag T] [--link URL]... [--clear-links] [--col C]
+  task edit <id> [--title T] [--desc D] [--diff N] [--ref R] [--tag T] [--owner BOT|none] [--link URL]... [--clear-links] [--col C]
+  task handoff <id> --to BOT --done ".." --pending ".." --reason ".." --switch ".." [--from BOT]   record that ownership moves to another bot
   task rm <id>                              delete a task
   status                                    one-screen overview + alerts (pending questions, hot-context sessions)
   triage [--apply] [--limit N]              score every session KEEP/PURGE/REVIEW (dry-run by default; --apply acts)

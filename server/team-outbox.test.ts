@@ -165,3 +165,37 @@ describe('parseSpool', () => {
     expect(parseSpool(JSON.stringify({ id: 'mabcdef1', from: 'a', to: 'b', text: 'x' }))?.hop).toBe(1);
   });
 });
+
+describe('handoff spool', () => {
+  const handoff = { taskId: 't1', done: 'd', pending: 'p', reason: 'r', switchPoint: 's' };
+
+  it('applies the handoff, then delivers the rendered note and logs it', async () => {
+    const applyHandoff = vi.fn(async () => ({ ok: true as const, text: 'NOTE' }));
+    const deliver = vi.fn(async (): Promise<Delivery> => 'delivered');
+    const id = spool({ text: '', handoff });
+    const [path] = await claimOutbox(outbox, 3001);
+    const m = await processClaimed(path, { ...deps(deliver), applyHandoff });
+    expect(applyHandoff).toHaveBeenCalledOnce();
+    expect(deliver).toHaveBeenCalledWith(expect.objectContaining({ id, text: 'NOTE' }), team);
+    expect(m).toMatchObject({ status: 'delivered', text: 'NOTE' });
+  });
+
+  it('blocks without delivering when the task side refuses', async () => {
+    const deliver = vi.fn(async (): Promise<Delivery> => 'delivered');
+    spool({ text: '', handoff });
+    const [path] = await claimOutbox(outbox, 3002);
+    const m = await processClaimed(path, { ...deps(deliver), applyHandoff: async () => ({ ok: false, reason: 'sem dono' }) });
+    expect(deliver).not.toHaveBeenCalled();
+    expect(m).toMatchObject({ status: 'blocked', reason: 'sem dono' });
+  });
+
+  it('does not touch the task when the brakes cut the message', async () => {
+    setTeamPaused(true);
+    const applyHandoff = vi.fn(async () => ({ ok: true as const, text: 'N' }));
+    spool({ text: '', handoff });
+    const [path] = await claimOutbox(outbox, 3003);
+    const m = await processClaimed(path, { ...deps(), applyHandoff });
+    expect(applyHandoff).not.toHaveBeenCalled();
+    expect(m?.status).toBe('blocked');
+  });
+});
