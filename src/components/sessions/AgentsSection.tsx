@@ -27,7 +27,7 @@ function AgentsSectionImpl({ views, activeId, onOpen, onNew, compact = false }: 
   if (views.length === 0) return null;
   const roster = (list: TeamEntry[]) => (
     <TeamRoster
-      entries={list} activeId={activeId} onOpen={onOpen} phrases={false}
+      entries={list} activeId={activeId} onOpen={onOpen} phrases={!compact}
       rowHeight={compact ? 36 : 40} mascotSize={compact ? 24 : 28} fold={fold}
     />
   );
