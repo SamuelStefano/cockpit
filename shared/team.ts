@@ -18,6 +18,7 @@ const PROFILES: ReadonlySet<TeamProfile> = new Set(['full', 'restricted']);
 const MODES: ReadonlySet<PermMode> = new Set(['plan', 'auto', 'acceptEdits']);
 const EFFORTS: ReadonlySet<Effort> = new Set(['low', 'medium', 'high', 'xhigh', 'max']);
 export const PROJECT_RE = /^[a-z0-9-]{1,32}$/;
+export const SPRITE_RE = /^[a-z0-9-]{1,24}$/;
 const MODEL_RE = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,63}$/;
 
 export const BOT_KEY_PREFIX = 'bot-';
@@ -83,6 +84,7 @@ export function validateBotInput(raw: unknown): BotValidation {
   if (parentId) bot.parentId = parentId;
   if (r.department !== undefined) bot.department = r.department as DepartmentId;
   if (typeof r.project === 'string' && PROJECT_RE.test(r.project)) bot.project = r.project;
+  if (typeof r.sprite === 'string' && SPRITE_RE.test(r.sprite)) bot.sprite = r.sprite;
   if (r.primary === true) bot.primary = true;
   if (model) bot.model = model;
   if (fallbackModel) bot.fallbackModel = fallbackModel;

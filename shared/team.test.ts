@@ -47,6 +47,16 @@ describe('bot project', () => {
   });
 });
 
+describe('bot sprite', () => {
+  it('keeps a valid sprite key and drops anything else', () => {
+    expect(validateBotInput({ ...ok, sprite: 'workers' })).toMatchObject({ ok: true, bot: { sprite: 'workers' } });
+    for (const bad of ['Workers', '../x', '', 'x'.repeat(25), 5, null]) {
+      const r = validateBotInput({ ...ok, sprite: bad });
+      expect(r.ok && 'sprite' in r.bot).toBe(false);
+    }
+  });
+});
+
 describe('wouldCycle', () => {
   const bots = [{ id: 'a' }, { id: 'b', parentId: 'a' }, { id: 'c', parentId: 'b' }];
   it('detects a loop through the chain', () => {
