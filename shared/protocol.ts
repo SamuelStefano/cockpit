@@ -498,6 +498,21 @@ export interface BotComputer {
   termId: string;
   termAlive: boolean;
   preview: string[];
+  live?: AgentLive;
+}
+
+// "Live computer" snapshot of a bot, derived server-side from its tool events.
+// Everything here is already redacted and size-capped on the box.
+export interface AgentLive {
+  at?: number;
+  status?: ToolCall['status'];
+  step?: string;
+  stepIndex?: number;
+  stepTotal?: number;
+  tool?: string;
+  command?: string;
+  file?: { path: string; diff: string; truncated: boolean; hidden?: boolean };
+  terminal?: string[];
 }
 export interface TurnStats { costUsd?: number; durationMs?: number; numTurns?: number; model?: string }
 
