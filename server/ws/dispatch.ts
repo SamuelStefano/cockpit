@@ -977,7 +977,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       return;
     }
     case 'team-state-get': {
-      await sendTeamState(ws, msg);
+      await sendTeamState(ws, msg, role);
       return;
     }
     case 'team-meetings-get': {

@@ -24,6 +24,7 @@ import { cliUpdater, type CliUpdateResult } from '../engine/cli-update';
 import { quotaHold, burnedByQuota } from './quota';
 import { getLastPlanUsage, notePlanUsageChanged } from './usage-plan';
 import { noteGrokUsageChanged } from './usage-grok';
+import { scheduleTeamStatePush } from './team-state-push';
 import {
   ctxVerdict, verdictMessage, costFor, isBigColdStart, acquireCold, releaseCold,
   noteQuotaTransition, inResetCooldown, queueReleaseAt, type Verdict,
@@ -901,6 +902,7 @@ export function startRun(o: StartRunOptions): 'pane' | 'rejected' | undefined {
   let parkedConsumed = false; // o item de fila deste turno já saiu do registro em disco?
   const thread: Thread = { handle: { kill: () => {}, send: () => false }, params, prompt, startedAt: Date.now(), sessionId: forkId ?? resumeId, text: '', thinking: '', tools: [], toolStart: new Map(), taskNotifies: new Map(), tasks: new Map(), taskCreates: new Map(), appTried: new Set(), flowHop };
   threads.set(sessionKey, thread);
+  scheduleTeamStatePush();
   // Any new turn of the bot (a routine, a peer's message) moves its thread past the
   // open question: the card goes read-only, so the roster must stop waiting too.
   if (params.botId && !forkId) clearBotQuestion(params.botId);
@@ -975,6 +977,8 @@ export function startRun(o: StartRunOptions): 'pane' | 'rejected' | undefined {
       if (live && !shouldPreserveLive()) clearRunLive(sessionKey); // fechou: não é mais órfão (salvo no shutdown, onde o boot retoma)
       if (cliHealable(thread)) {
         threads.delete(sessionKey);
+      scheduleTeamStatePush();
+        scheduleTeamStatePush();
         void healOutdatedCli({ sessionKey, thread, resumeId, forkId, queued });
         return;
       }
@@ -1112,7 +1116,7 @@ export function startRun(o: StartRunOptions): 'pane' | 'rejected' | undefined {
     },
   }));
   if ('error' in started) {
-    if (threads.get(sessionKey) === thread) threads.delete(sessionKey);
+    if (threads.get(sessionKey) === thread) { threads.delete(sessionKey); scheduleTeamStatePush(); }
     if (holdsCold) releaseCold(sessionKey);
     if (!epochHolds.has(sessionKey)) clearStopEpoch(sessionKey);
     if (thread.parked) requeueParked(thread.parkedFrom ?? sessionKey, thread.parked);

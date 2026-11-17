@@ -9,7 +9,7 @@ import { broadcast } from './broadcast';
 import { hasInteractiveClaude } from '../canvas/term-stats';
 import { readBusyElsewhereSessionIds } from '../canvas/cv-liveness';
 import { applyBotHandoff } from './team-handoff';
-import { broadcastTeamState } from './team-state-frames';
+import { scheduleTeamStatePush } from './team-state-push';
 import { enqueuePending } from './pending';
 import { addParked } from './parked';
 import { resumableId } from './resume';
@@ -68,6 +68,6 @@ export async function deliverTeamMessage(m: SpoolMessage, team: TeamBot[]): Prom
 export function startTeamMessaging(): void {
   startTeamOutbox({ getTeam, deliver: deliverTeamMessage, applyHandoff: (m, team) => applyBotHandoff(m, team) }, (item) => {
     broadcast({ t: 'team-message', item });
-    void broadcastTeamState();
+    scheduleTeamStatePush();
   });
 }
