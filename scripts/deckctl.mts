@@ -22,6 +22,7 @@ import { CARD_ID_RE, CARD_STATUSES, type CanvasCard, type CardStatus } from '../
 import {
   PLANNER_COLUMNS, PLANNER_LIMITS, PLANNER_REF_RE, type PlannerColumn, type PlannerDifficulty, type PlannerLink, type PlannerTask,
 } from '../shared/planner';
+import { MEETING_LIMITS, type TeamMeeting } from '../shared/team-meeting';
 import { buildTaskPrompt, buildContinuePrompt } from '../shared/canvas-prompt';
 import { ctxWindow } from '../src/routes/canvas/term-stats-view';
 import { mergeBoard } from '../src/routes/canvas/canvas-board';
@@ -1666,6 +1667,78 @@ async function cmdTask(args: string[]): Promise<void> {
   fail(`unknown task subcommand "${sub ?? ''}" — list|add|move|done|edit|handoff|rm`);
 }
 
+// --- meetings -----------------------------------------------------------------
+
+export function parseMeetingStart(team: Pick<TeamBot, 'id' | 'name' | 'primary'>[], flags: Flags): { question: string; participantIds: string[]; moderatorId: string } {
+  const question = flagStr(flags, 'q')?.trim();
+  if (!question) throw new Error('--q "<question>" is required');
+  const names = flagStr(flags, 'with')?.split(',').map((n) => n.trim()).filter(Boolean) ?? [];
+  if (names.length < MEETING_LIMITS.minParticipants || names.length > MEETING_LIMITS.maxParticipants) {
+    throw new Error(`--with needs ${MEETING_LIMITS.minParticipants} to ${MEETING_LIMITS.maxParticipants} bots, comma separated`);
+  }
+  const participantIds = names.map((n) => resolveBot(team, n).id);
+  const mod = flagStr(flags, 'moderator');
+  const moderatorId = mod ? resolveBot(team, mod).id : (team.find((b) => b.primary && participantIds.includes(b.id))?.id ?? participantIds[0]);
+  return { question, participantIds, moderatorId };
+}
+
+export function formatMeetingList(items: TeamMeeting[], nameOf: (id: string) => string): string[] {
+  if (!items.length) return ['no meetings yet'];
+  return [...items].sort((a, b) => b.createdAt - a.createdAt).map((m) =>
+    `${shortId(m.id)}  ${m.status.padEnd(7)}  ${fmtBrt(m.createdAt)}  ${m.participantIds.map(nameOf).join(', ')}  ${oneLine(m.question, 50)}`);
+}
+
+export function formatMeeting(m: TeamMeeting, nameOf: (id: string) => string): string[] {
+  const out = [`${m.id}  ${m.status}  ${fmtBrt(m.createdAt)}`, `Q: ${m.question}`, `moderator: ${nameOf(m.moderatorId)}`];
+  for (const round of [1, 2] as const) {
+    const rows = m.answers.filter((a) => a.round === round);
+    if (!rows.length && m.status !== 'round1' && round === 1) continue;
+    out.push('', `-- round ${round}${round === 1 && m.status === 'round1' ? ' (sealed)' : ''}`);
+    for (const a of rows) out.push(a.text ? `[${nameOf(a.botId)}]\n${a.text}` : `[${nameOf(a.botId)}] delivered, sealed`);
+  }
+  if (m.minutes) out.push('', '-- minutes', m.minutes);
+  if (m.error) out.push('', `error: ${m.error}`);
+  return out;
+}
+
+async function meetingContext(client: Client): Promise<(id: string) => string> {
+  const team = await fetchTeam(client);
+  return (id) => team.find((b) => b.id === id)?.name ?? id;
+}
+
+async function fetchMeetings(client: Client): Promise<TeamMeeting[]> {
+  client.send({ t: 'team-meetings-get' });
+  const m = await client.waitFor(isServerMsg('team-meetings'), DEFAULT_TIMEOUT_MS, { fresh: true });
+  if (!m) fail('backend did not answer team-meetings-get (timeout)');
+  return m.items;
+}
+
+async function cmdMeeting(positional: string[], flags: Flags, json: boolean): Promise<void> {
+  const [sub, ...rest] = positional;
+  if (sub !== 'start' && sub !== 'list' && sub !== 'show') fail(`unknown meeting subcommand "${sub ?? ''}" — start|list|show`);
+  if (sub === 'show' && !rest[0]) fail('usage: deckctl meeting show <id>');
+  const client = await connect();
+  try {
+    if (sub === 'start') {
+      const team = await fetchTeam(client);
+      const req = orFail(() => parseMeetingStart(team, flags));
+      client.send({ t: 'team-meeting-start', ...req });
+      const ack = await mutationAck(client, (m): m is Extract<ServerMsg, { t: 'team-meeting' }> => m.t === 'team-meeting' && m.item.question === req.question, 'team-meeting-start');
+      console.log(json ? JSON.stringify(ack.item, null, 2) : `meeting ${ack.item.id} started (${ack.item.status}) — follow with: deckctl meeting show ${shortId(ack.item.id)}`);
+      return;
+    }
+    const items = await fetchMeetings(client);
+    const nameOf = await meetingContext(client);
+    if (sub === 'list') {
+      console.log(json ? JSON.stringify(items, null, 2) : formatMeetingList(items, nameOf).join('\n'));
+      return;
+    }
+    const hits = items.filter((m) => m.id.startsWith(rest[0]));
+    if (hits.length !== 1) fail(hits.length ? `ambiguous meeting id "${rest[0]}"` : `no meeting "${rest[0]}"`);
+    console.log(json ? JSON.stringify(hits[0], null, 2) : formatMeeting(hits[0], nameOf).join('\n'));
+  } finally { client.close(); }
+}
+
 // --- main --------------------------------------------------------------
 
 const HELP = `deckctl — orchestrate the Deck canvas from a terminal
@@ -1698,6 +1771,8 @@ Usage: deckctl <command> [args] [--json]
   task edit <id> [--title T] [--desc D] [--diff N] [--ref R] [--tag T] [--owner BOT|none] [--link URL]... [--clear-links] [--col C]
   task handoff <id> --to BOT --done ".." --pending ".." --reason ".." --switch ".." [--from BOT]   record that ownership moves to another bot
   task rm <id>                              delete a task
+  meeting start --q "<question>" --with a,b,c [--moderator x]   blind two-round meeting between bots, ends in minutes (ata)
+  meeting list | meeting show <id>          meetings, newest first / one meeting (round 1 stays sealed until it closes)
   status                                    one-screen overview + alerts (pending questions, hot-context sessions)
   triage [--apply] [--limit N]              score every session KEEP/PURGE/REVIEW (dry-run by default; --apply acts)
 
@@ -1781,6 +1856,7 @@ async function main(): Promise<void> {
       return;
     }
     case 'task': return cmdTask(rest);
+    case 'meeting': return cmdMeeting(positional, flags, json);
     case 'status': return cmdStatus();
     case 'triage': return cmdTriage(flags, json);
     default:
