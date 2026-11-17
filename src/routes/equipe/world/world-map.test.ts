@@ -99,12 +99,12 @@ describe('world map', () => {
     expect(Math.abs(end.x - h.x)).toBeLessThanOrEqual(4);
   });
 
-  it('keeps the blocked tiles and seats of the original five buildings', () => {
+  it('keeps every originally blocked tile and every seat of the original five buildings (interiors may only gain furniture)', () => {
     for (const [id, old] of Object.entries(OLD)) {
       const h = HOUSES.find((x) => x.id === id)!;
       const blocked: string[] = [];
       for (let y = h.y; y < h.y + h.h; y++) for (let x = h.x; x < h.x + h.w; x++) if (isBlocked(x, y)) blocked.push(`${x},${y}`);
-      expect(blocked, id).toEqual(old.blocked);
+      expect(blocked, id).toEqual(expect.arrayContaining(old.blocked));
       expect(h.seats.map((s) => `${seatTile(h, s).x},${seatTile(h, s).y},${s.face}`), id).toEqual(old.seats);
     }
   });
