@@ -13,13 +13,15 @@ interface TeamRosterProps {
   rowHeight?: number;
   indent?: boolean;
   phrases?: boolean;
+  // false: a working bot shows its static task line instead of the rotating phrase (dense lists).
+  livePhrase?: boolean;
   mascotSize?: number;
   // Leads with hidden-able workers: `counts` is how many each has, `open` the expanded ones.
   fold?: { counts: Record<string, number>; open: readonly string[]; onToggle: (id: string) => void };
 }
 
 // The roster rows shared by the expanded rail and the team sheet: mascot, name, star, live phrase.
-export function TeamRoster({ entries, activeId, onOpen, rowHeight = 44, indent = true, phrases = true, mascotSize = 32, fold }: TeamRosterProps) {
+export function TeamRoster({ entries, activeId, onOpen, rowHeight = 44, indent = true, phrases = true, livePhrase = true, mascotSize = 32, fold }: TeamRosterProps) {
   return (
     <>
       {entries.map(({ view, depth }) => {
@@ -43,7 +45,7 @@ export function TeamRoster({ entries, activeId, onOpen, rowHeight = 44, indent =
                 {bot.primary && <Icon name="star" size={11} className="shrink-0 fill-orange-400 text-orange-400" />}
                 {count > 0 && !expanded && <span className="shrink-0 text-[11px] font-normal text-neutral-500">· +{count}</span>}
               </span>
-              {phrases && (live
+              {phrases && (live && livePhrase
                 ? <LivingPhrase active startedAt={view.startedAt} className="text-[12px] text-neutral-500" />
                 : preview && <span className="block truncate text-[12px] text-neutral-500">{preview}</span>)}
             </span>

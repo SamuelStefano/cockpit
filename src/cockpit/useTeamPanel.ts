@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { ClientMsg, ServerMsg } from '../../shared/protocol';
 import type { TeamPanelPayload } from '../../shared/team-panel';
 import { usePersisted } from '../lib/persist';
-import { TEAM_PANEL_OPEN_DEFAULT, TEAM_PANEL_OPEN_KEY, TEAM_PANEL_RECORDING_DEFAULT, TEAM_PANEL_RECORDING_KEY } from '../lib/prefs';
+import { RECORDING_MODE_DEFAULT, RECORDING_MODE_KEY, TEAM_PANEL_OPEN_DEFAULT, TEAM_PANEL_OPEN_KEY } from '../lib/prefs';
 
 export interface TeamPanelApi {
   panel: TeamPanelPayload | null;
@@ -13,11 +13,12 @@ export interface TeamPanelApi {
   onMsg: (msg: ServerMsg) => boolean;
 }
 
-// The recording flag only travels to the server, which redacts; nothing is filtered here.
+// Shares the global recording mode with the team home, so one toggle hides both.
+// The flag only travels to the server, which redacts; nothing is filtered here.
 export function useTeamPanel(send: (m: ClientMsg) => boolean, enabled = true): TeamPanelApi {
   const [panel, setPanel] = useState<TeamPanelPayload | null>(null);
   const [open, setOpen] = usePersisted(TEAM_PANEL_OPEN_KEY, TEAM_PANEL_OPEN_DEFAULT);
-  const [recording, setRecording] = usePersisted(TEAM_PANEL_RECORDING_KEY, TEAM_PANEL_RECORDING_DEFAULT);
+  const [recording, setRecording] = usePersisted<boolean>(RECORDING_MODE_KEY, RECORDING_MODE_DEFAULT);
 
   useEffect(() => {
     if (!enabled || !open) return;

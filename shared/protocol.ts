@@ -462,6 +462,9 @@ export interface TeamBot {
   mascot: TeamMascot;
   parentId?: string;
   department?: DepartmentId;
+  // Project house the bot works in on the team world (a project id, e.g. 'itera').
+  project?: string;
+  sprite?: string;
   primary?: boolean;
   sessionId?: string;
   profile: TeamProfile;

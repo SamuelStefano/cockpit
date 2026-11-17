@@ -18,6 +18,11 @@ export function opensNewChat({ path, navType, hiddenAt, now }: Entry): boolean {
   return path === '/' && navType !== 'reload';
 }
 
+// Root/admin opening the bare URL (not a reload, not a pasted /c/<id>) land on the Equipe home.
+export function landsOnTeamHome({ path, navType }: Pick<Entry, 'path' | 'navType'>): boolean {
+  return path === '/' && navType !== 'reload';
+}
+
 function readEntry(): Entry {
   const nav = performance.getEntriesByType?.('navigation')[0] as PerformanceNavigationTiming | undefined;
   const raw = sessionStorage.getItem(HIDDEN_AT_KEY);
@@ -35,3 +40,5 @@ export function trackTabHidden(): void {
 
 // Read once at boot: the URL and the hidden mark both change right after.
 export const entryOpensNewChat: boolean = typeof window !== 'undefined' && opensNewChat(readEntry());
+
+export const entryLandsOnTeamHome: boolean = typeof window !== 'undefined' && landsOnTeamHome(readEntry());

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { useWidthTransition } from './useWidthTransition';
-import { Button, IconButton, Tooltip, type ConnState } from '../../primitives';
+import { IconButton, Tooltip, type ConnState } from '../../primitives';
 import { Bit } from '../../bit/Bit';
 import { useLogoBit } from '../../bit/useLogoBit';
 import { BIT_STATE_LABEL, type BitState } from '../../bit/bit-state';
@@ -61,15 +61,10 @@ export function Sidebar({ route, nav, role, navCounts, onNew, onPalette, bitStat
         {!drawer && !expanded && <IconButton icon="panelLeft" label={toggleLabel} side="right" aria-expanded={expanded} onClick={toggle} />}
         {expanded && <span className="flex-1" />}
         {!drawer && !expanded && <IconButton icon="squarePen" label="Nova conversa" side="right" onClick={onNew} />}
-        {!expanded && <IconButton icon="search" label={`Comandos (${k})`} tip={`Buscar · ${k}`} side="right" onClick={onPalette} />}
+        {expanded && <IconButton icon="squarePen" label="Nova conversa" side="bottom" onClick={onNew} />}
+        <IconButton icon="search" label={`Comandos (${k})`} tip={`Buscar · ${k}`} side={expanded ? 'bottom' : 'right'} onClick={onPalette} />
         {(expanded || drawer) && <IconButton icon={drawer ? 'x' : 'panelLeft'} label={drawer ? 'Fechar menu' : toggleLabel} side="bottom" aria-expanded={expanded} onClick={drawer ? drawer.onClose : toggle} />}
       </div>
-
-      {(drawer || expanded) && (
-        <div className="shrink-0 px-2 pb-2">
-          <Button icon="plus" onClick={onNew} className="press-spring w-full">Nova conversa</Button>
-        </div>
-      )}
 
       {!expanded && (rail ?? <div className="flex-1" />)}
 

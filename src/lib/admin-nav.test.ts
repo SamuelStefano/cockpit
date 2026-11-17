@@ -9,12 +9,12 @@ describe('admin-nav', () => {
     expect(connectionsTabFromHash('')).toBeNull();
   });
 
-  it('pushes /conexoes#tab and emits popstate so useRoute switches view', () => {
+  it('pushes /configuracoes/conexoes#tab and emits popstate so useRoute switches view', () => {
     const onPop = vi.fn();
     window.addEventListener('popstate', onPop);
     openAdminTab('models');
     window.removeEventListener('popstate', onPop);
-    expect(location.pathname + location.hash).toBe('/conexoes#provedores');
+    expect(location.pathname + location.hash).toBe('/configuracoes/conexoes#provedores');
     expect(onPop).toHaveBeenCalledOnce();
     openAdminTab('mcps');
     expect(location.hash).toBe('#ferramentas');
