@@ -186,15 +186,15 @@ describe('world.tmj', () => {
   it('reports two seats on the same tile', () => {
     const m = fresh();
     const objs = m.layers.filter((l) => l.type === 'objectgroup').flatMap((l) => l.objects!);
-    const c1 = objs.find((o) => o.name === 'sala-chair-1')!;
-    const c5 = objs.find((o) => o.name === 'sala-chair-5')!;
+    const c1 = objs.find((o) => o.name === 'sala-chair-2')!;
+    const c5 = objs.find((o) => o.name === 'sala-chair-3')!;
     c5.x = c1.x;
     c5.y = c1.y;
-    expect(validateWorldMap(m)).toContain('chair "sala-chair-5" and chair "sala-chair-1" are on the same tile 33,18');
+    expect(validateWorldMap(m)).toContain('chair "sala-chair-3" and chair "sala-chair-2" are on the same tile 31,18');
     const d = objs.find((o) => o.name === 'itera-desk-0')!;
     c1.x = d.x;
     c1.y = d.y;
-    expect(validateWorldMap(m).some((e) => e.includes('"itera-desk-0"') && e.includes('"sala-chair-1"') && e.includes('same tile'))).toBe(true);
+    expect(validateWorldMap(m).some((e) => e.includes('"itera-desk-0"') && e.includes('"sala-chair-2"') && e.includes('same tile'))).toBe(true);
   });
 
   it('the real map has no seats sharing a tile', () => {
