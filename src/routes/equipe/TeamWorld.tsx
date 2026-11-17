@@ -6,8 +6,10 @@ import { MeetingPanel } from './MeetingPanel';
 import { navigateTo } from '../../lib/route-nav';
 import { agentPath } from '../../useRoute';
 import { demoMeeting, initialWorldUi, isDemo, parseInitialMode, worldUiReducer, type CameraMode } from './world/camera-mode';
-import { DEMO_BOTS, DEMO_COUNTS, DEMO_MEETING, DEMO_PROJECTS, demoTeamState } from './world/demo-data';
+import { DEMO_BOTS, DEMO_COUNTS, DEMO_MEETING, DEMO_PROJECTS, demoMergedCounts, demoTeamState } from './world/demo-data';
 import { deriveWorld } from './world/world-state';
+import { useCelebrate } from './world/useCelebrate';
+import type { MergedCounts } from './world/world-celebrate';
 import { WORLD_ERROR } from './world/world-map';
 import type { WorldHandle } from './world/world-scene';
 
@@ -19,6 +21,8 @@ interface TeamWorldProps {
   meetings: TeamMeeting[];
   onMeetingsGet: () => void;
   onMeetingStart: (input: MeetingInput) => void;
+  // Merged PR count per bot id. Not wired to a real source yet; a rise triggers the celebration.
+  mergedCounts?: MergedCounts;
 }
 
 const DEMO_TEAM: TeamBot[] = DEMO_BOTS.map((b) => ({ id: b.id, name: b.name, label: '', instructions: '', mascot: { shape: 'blob', color: '#3fd17f' }, profile: 'full', createdAt: 0, updatedAt: 0 }));
@@ -32,7 +36,7 @@ const chipOn = 'border-emerald-400/40 bg-emerald-500/20 text-emerald-200';
 
 // 2D team world: bots as NPCs on a plaza, projects as houses on a street. The
 // canvas only ever receives names, states and counts (see world-state.ts).
-export function TeamWorld({ state, connected, onRefresh, bots, meetings, onMeetingsGet, onMeetingStart }: TeamWorldProps) {
+export function TeamWorld({ state, connected, onRefresh, bots, meetings, onMeetingsGet, onMeetingStart, mergedCounts }: TeamWorldProps) {
   const demo = useMemo(() => isDemo(location.search), []);
   const [ui, dispatch] = useReducer(worldUiReducer, location.search, (s) => initialWorldUi(parseInitialMode(s)));
   const [ready, setReady] = useState(false);
@@ -59,9 +63,12 @@ export function TeamWorld({ state, connected, onRefresh, bots, meetings, onMeeti
     return () => clearInterval(id);
   }, [demo]);
 
+  const merged = useMemo(() => (demo ? demoMergedCounts(tick) : mergedCounts), [demo, tick, mergedCounts]);
+  const celebrate = useCelebrate(merged);
+
   const view = useMemo(
-    () => (demo ? deriveWorld(demoTeamState(Date.now(), tick), { counts: DEMO_COUNTS, projects: DEMO_PROJECTS, meeting }) : deriveWorld(state, { meeting })),
-    [demo, state, tick, meeting],
+    () => (demo ? deriveWorld(demoTeamState(Date.now(), tick), { counts: DEMO_COUNTS, projects: DEMO_PROJECTS, meeting, celebrate }) : deriveWorld(state, { meeting, celebrate })),
+    [demo, state, tick, meeting, celebrate],
   );
   const viewRef = useRef(view);
   viewRef.current = view;
