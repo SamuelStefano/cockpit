@@ -32,6 +32,9 @@ const GITHUB_RETURN = '/conexoes/github';
 export type AgentTab = 'perfil' | 'rotinas' | 'arquivos' | 'computador';
 const AGENT_TABS: readonly AgentTab[] = ['perfil', 'rotinas', 'arquivos', 'computador'];
 const AGENTS = '/agentes/';
+// Reserved agent ids: they are pages under /agentes, never a bot (real ids come from newBotId).
+export const AGENT_NEW = 'novo';
+export const AGENT_STORE = 'loja';
 const SKILLS = '/skills/';
 
 export interface RouteState { route: Route; chatId: string; agentId: string; agentTab: AgentTab; skillId: string }
