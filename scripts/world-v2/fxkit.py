@@ -180,3 +180,17 @@ def components(mask):
                     stack.append((yy, xx))
         out.append((np.array(ys), np.array(xs)))
     return out
+
+
+def clear_baked(img):
+    """drop translucent shadow pixels that touch an opaque one (keeps shadows a separate, clean ring)"""
+    a = np.array(img)
+    tr = (a[..., 3] > 0) & (a[..., 3] < 255) & np.all(a[..., :3] == rgb("ol0"), axis=-1)
+    op = a[..., 3] == 255
+    nb = np.zeros_like(op)
+    nb[1:] |= op[:-1]
+    nb[:-1] |= op[1:]
+    nb[:, 1:] |= op[:, :-1]
+    nb[:, :-1] |= op[:, 1:]
+    a[tr & nb] = 0
+    return Image.fromarray(a, "RGBA")

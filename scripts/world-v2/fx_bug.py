@@ -11,7 +11,7 @@ import numpy as np
 from PIL import Image
 
 from pixkit import C, rgb, blank, put, grid, m_poly, Part, render_parts
-from fxkit import stack_alpha, flip
+from fxkit import stack_alpha, flip, clear_baked
 
 BODY = ["h1", "h2", "h3", "y1"]
 BELLY = ["h2", "y0", "y1", "y2"]
@@ -231,7 +231,7 @@ def jump_frames():
         if f == 7:
             for dx_, dy_ in ((-4, -3), (3, -4), (0, -6), (5, -1), (-5, -1), (1, -2)):
                 put(im, int(xs1 - 1 + dx_), SURF + dy_, C("wh" if dy_ < -3 else "a3"))
-        out.append(im)
+        out.append(clear_baked(im))
     return out
 
 
