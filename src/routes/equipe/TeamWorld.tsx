@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import type { Cron, TeamBot } from '../../../shared/protocol';
 import type { TeamState } from '../../../shared/team-state';
+import { isRunning, type MeetingInput, type TeamMeeting } from '../../../shared/team-meeting';
+import { MeetingPanel } from './MeetingPanel';
 import { navigateTo } from '../../lib/route-nav';
 import { agentPath } from '../../useRoute';
-import { initialWorldUi, isDemo, parseInitialMode, worldUiReducer, type CameraMode } from './world/camera-mode';
-import { DEMO_COUNTS, DEMO_PROJECTS, demoTeamState } from './world/demo-data';
+import { demoMeeting, initialWorldUi, isDemo, parseInitialMode, worldUiReducer, type CameraMode } from './world/camera-mode';
+import { DEMO_BOTS, DEMO_COUNTS, DEMO_MEETING, DEMO_PROJECTS, demoTeamState } from './world/demo-data';
 import { deriveWorld } from './world/world-state';
 import type { WorldHandle } from './world/world-scene';
 
@@ -11,7 +14,14 @@ interface TeamWorldProps {
   state: TeamState | null;
   connected: boolean;
   onRefresh: () => void;
+  bots: TeamBot[];
+  meetings: TeamMeeting[];
+  onMeetingsGet: () => void;
+  onMeetingStart: (input: MeetingInput) => void;
+  onCronSave: (cron: Cron) => void;
 }
+
+const DEMO_TEAM: TeamBot[] = DEMO_BOTS.map((b) => ({ id: b.id, name: b.name, label: '', instructions: '', mascot: { shape: 'blob', color: '#3fd17f' }, profile: 'full', createdAt: 0, updatedAt: 0 }));
 
 const DEMO_TICK_MS = 7000;
 const isCoarse = (): boolean => typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
@@ -22,18 +32,26 @@ const chipOn = 'border-emerald-400/40 bg-emerald-500/20 text-emerald-200';
 
 // 2D team world: bots as NPCs on a plaza, projects as houses on a street. The
 // canvas only ever receives names, states and counts (see world-state.ts).
-export function TeamWorld({ state, connected, onRefresh }: TeamWorldProps) {
+export function TeamWorld({ state, connected, onRefresh, bots, meetings, onMeetingsGet, onMeetingStart, onCronSave }: TeamWorldProps) {
   const demo = useMemo(() => isDemo(location.search), []);
   const [ui, dispatch] = useReducer(worldUiReducer, location.search, (s) => initialWorldUi(parseInitialMode(s)));
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
   const [tick, setTick] = useState(0);
+  const [panel, setPanel] = useState(false);
+  const [demoMeet, setDemoMeet] = useState(() => demoMeeting(location.search));
   const host = useRef<HTMLDivElement>(null);
   const world = useRef<WorldHandle | null>(null);
   const modeRef = useRef<CameraMode>(ui.mode);
   modeRef.current = ui.mode;
 
-  useEffect(() => { if (connected && !demo) onRefresh(); }, [connected, demo, onRefresh]);
+  useEffect(() => { if (connected && !demo) { onRefresh(); onMeetingsGet(); } }, [connected, demo, onRefresh, onMeetingsGet]);
+  // Only ids reach the world: never the question, answers or minutes.
+  const live = useMemo(() => meetings.find(isRunning), [meetings]);
+  const meeting = useMemo(
+    () => (demo ? (demoMeet ? { participantIds: DEMO_MEETING } : null) : live ? { participantIds: [...new Set([...live.participantIds, live.moderatorId])] } : null),
+    [demo, demoMeet, live],
+  );
   useEffect(() => {
     if (!demo) return;
     const id = setInterval(() => setTick((t) => t + 1), DEMO_TICK_MS);
@@ -41,7 +59,7 @@ export function TeamWorld({ state, connected, onRefresh }: TeamWorldProps) {
   }, [demo]);
 
   const view = useMemo(
-    () => (demo ? deriveWorld(demoTeamState(Date.now(), tick), { counts: DEMO_COUNTS, projects: DEMO_PROJECTS }) : deriveWorld(state)),
+    () => (demo ? deriveWorld(demoTeamState(Date.now(), tick), { counts: DEMO_COUNTS, projects: DEMO_PROJECTS, meeting }) : deriveWorld(state)),
     [demo, state, tick],
   );
   const viewRef = useRef(view);

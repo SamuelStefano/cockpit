@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { AVATAR_SPAWN, HOUSES, MAP_H, MAP_W, PLAZA_CENTER, doorTiles, findPath, isBlocked, nearestFree, plazaSlots } from './world-map';
+import { AVATAR_SPAWN, HOUSES, MAP_H, MAP_W, PLAZA_CENTER, doorTiles, insideDoor, outsideDoor, seatTile, findPath, isBlocked, nearestFree, plazaSlots } from './world-map';
 
 describe('world map', () => {
   it('blocks the borders and house walls but not the door gap', () => {
@@ -22,8 +22,7 @@ describe('world map', () => {
 
   it('walks from the plaza through a door into each house', () => {
     for (const h of HOUSES) {
-      const d = doorTiles(h)[0]!;
-      const inside = { x: d.x, y: d.y - 2 };
+      const inside = insideDoor(h);
       expect(isBlocked(inside.x, inside.y)).toBe(false);
       const path = findPath(AVATAR_SPAWN, inside);
       expect(path.length).toBeGreaterThan(0);
@@ -63,6 +62,26 @@ describe('world map', () => {
         expect(i.y).toBeGreaterThan(0);
         expect(i.y).toBeLessThan(h.h - 1);
       }
+    }
+  });
+
+  it('puts every seat on a free, reachable tile inside its building', () => {
+    for (const h of HOUSES) {
+      expect(h.seats.length).toBeGreaterThanOrEqual(4);
+      for (const seat of h.seats) {
+        const t = seatTile(h, seat);
+        expect(isBlocked(t.x, t.y)).toBe(false);
+        expect(findPath(outsideDoor(h), t).length).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it('opens the doors toward the plaza', () => {
+    for (const id of ['escritorio', 'sala']) {
+      const h = HOUSES.find((x) => x.id === id)!;
+      const o = outsideDoor(h);
+      expect(isBlocked(o.x, o.y)).toBe(false);
+      expect(findPath(AVATAR_SPAWN, o).length).toBeGreaterThan(0);
     }
   });
 

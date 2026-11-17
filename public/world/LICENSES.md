@@ -9,5 +9,6 @@ https://creativecommons.org/publicdomain/zero/1.0/ - no attribution required, gi
 | dungeon.png | Tiny Dungeon (tilemap_packed.png) | https://kenney.nl/assets/tiny-dungeon | CC0 |
 | indoor.png | Roguelike Indoors (roguelikeIndoor_transparent.png) | https://kenney.nl/assets/roguelike-indoors | CC0 |
 
-Only these three sheets are kept; nothing else from the downloaded archives is shipped.
+Only these sheets are kept; nothing else from the downloaded archives is shipped.
 | kenney-mini-square.ttf | Kenney Fonts (Kenney Mini Square) | https://kenney.nl/assets/kenney-fonts | CC0 |
+| urban.png | RPG Urban Pack (tilemap_packed.png): people, pool, props | https://kenney.nl/assets/rpg-urban-pack | CC0 |

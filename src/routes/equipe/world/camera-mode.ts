@@ -57,3 +57,5 @@ export function parseFocus(search: string): { house: string; zoom: number } | nu
 }
 
 export const isDemo = (search: string): boolean => new URLSearchParams(search).get('demo') === '1';
+
+export const demoMeeting = (search: string): boolean => new URLSearchParams(search).get('meeting') === '1';

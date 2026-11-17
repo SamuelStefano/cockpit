@@ -1,8 +1,10 @@
 import Phaser from 'phaser';
 import {
   AVATAR_SPAWN, FLOWER_BEDS, HOUSES, MAP_H, MAP_W, PLAZA, PLAZA_ITEMS, ROAD, STREET, STREET_SIGN, TILE, TREES,
-  doorTiles, findPath, isBlocked, plazaSlots, tf, tileCenter, toTile, type HouseDef, type Item, type Point, type Sheet,
+  doorTiles, findPath, inf, isBlocked, tf, tileCenter, toTile, type Face, type HouseDef, type Item, type Point, type Sheet,
 } from './world-map';
+import { assignSpots, type Spot } from './world-layout';
+import { nudgePills } from './pill-layout';
 import { clampZoom, initialZoom, parseFocus, stepZoom, wheelStep, type CameraMode } from './camera-mode';
 import { npcSprite, type Flight, type NpcView, type WorldView } from './world-state';
 
@@ -16,23 +18,28 @@ const F = {
   grass: 0, flowerA: 1, flowerB: 2, dirt: tf(1, 2), stone: tf(7, 3), floor: tf(1, 9),
   wallTL: tf(0, 8), wallT: tf(1, 8), wallTR: tf(2, 8), wallL: tf(0, 9), wallR: tf(2, 9), wallBL: tf(0, 10), wallB: tf(1, 10), wallBR: tf(2, 10),
   treeTop: tf(4, 0), treeBase: tf(4, 1), autumnTop: tf(3, 0), autumnBase: tf(3, 1), bush: tf(5, 0),
-  hammer: tf(9, 9), potion: tf(8, 9),
+  potion: tf(8, 9),
 };
 
-// Distinct Tiny Dungeon characters for the bots; the avatar has its own.
-const NPC_FRAMES = [tf(0, 7), tf(1, 7), tf(2, 7), tf(3, 7), tf(4, 7), tf(0, 8), tf(1, 8), tf(2, 8), tf(4, 8), tf(4, 9), tf(1, 9)];
-const AVATAR_FRAME = tf(3, 8);
+// Office people from the RPG Urban Pack: 6 characters x (idle, walk A, walk B) rows, 4 facing columns.
+const FACE_COL: Record<Face, number> = { left: 23, down: 24, up: 25, right: 26 };
+const charFrame = (k: number, row: number, face: Face): number => inf(FACE_COL[face], k * 3 + row);
+const NPC_CHARS = [0, 1, 2, 4, 5];
+const NPC_TINTS = [0xffffff, 0xd2e4ff, 0xffe2cc];
+const AVATAR_CHAR = 3;
+const WALK_SPEED = 46;
 
 const GREEN = 0x3fd17f;
 const GREY = 0x8d8a85;
 const AMBER = 0xf5a524;
+const MEET = 0xa78bfa;
 const INK = 0x0a0908;
 const PILL = 0x14110f;
 const PILL_LINE = 0x39342e;
 const AVATAR_SPEED = 72;
 const FOCUS_W = (PLAZA.x1 - PLAZA.x0 + 3) * TILE;
 
-const modeColor = (m: NpcView['mode']): number => (m === 'working' ? GREEN : m === 'waiting' ? AMBER : GREY);
+const modeColor = (m: NpcView['mode'], meeting = false): number => (meeting ? MEET : m === 'working' ? GREEN : m === 'waiting' ? AMBER : GREY);
 
 export async function loadWorldFont(): Promise<void> {
   if (typeof FontFace === 'undefined') return;
@@ -66,6 +73,7 @@ interface Pill {
   badge: Phaser.GameObjects.Text | null;
   anchor: 'center' | 'left';
   h: number;
+  w: number;
 }
 
 interface Npc {
@@ -75,9 +83,14 @@ interface Npc {
   extras: Phaser.GameObjects.GameObject[];
   tweens: Phaser.Tweens.Tween[];
   mode: NpcView['mode'] | null;
-  slot: Point;
+  spot: Spot;
   index: number;
   busyUntil: number;
+  route: Point[];
+  walking: boolean;
+  char: number;
+  tint: number;
+  face: Face;
 }
 
 // Multiply each RGB channel, for the alternate tiles of a checker floor.
@@ -99,6 +112,7 @@ class WorldScene extends Phaser.Scene {
   private avatar!: Phaser.GameObjects.Sprite;
   private avatarPill!: Pill;
   private route: Point[] = [];
+  private avatarFace: Face = 'down';
   private marker!: Phaser.GameObjects.Ellipse;
   private keys!: Record<'W' | 'A' | 'S' | 'D' | 'UP' | 'DOWN' | 'LEFT' | 'RIGHT', Phaser.Input.Keyboard.Key>;
   private downAt = new Map<number, Point>();
@@ -118,6 +132,7 @@ class WorldScene extends Phaser.Scene {
     const sheet = { frameWidth: TILE, frameHeight: TILE };
     this.load.spritesheet('town', `${BASE}world/town.png`, sheet);
     this.load.spritesheet('dungeon', `${BASE}world/dungeon.png`, sheet);
+    this.load.spritesheet('urban', `${BASE}world/urban.png`, sheet);
     this.load.spritesheet('indoor', `${BASE}world/indoor.png`, { ...sheet, spacing: 1 });
   }
 
@@ -125,6 +140,7 @@ class WorldScene extends Phaser.Scene {
     const cam = this.cameras.main;
     cam.setBackgroundColor(INK);
     cam.roundPixels = true;
+    this.makeGlow();
     this.buildGround();
     this.buildStreet();
     this.buildPlaza();
@@ -144,11 +160,15 @@ class WorldScene extends Phaser.Scene {
 
   sync(view: WorldView): void {
     if (!this.ready) { this.pendingView = view; return; }
-    for (const h of HOUSES) this.setPillBadge(this.housePills.get(h.id)!, view.projects[h.id] ?? null);
-    const slots = plazaSlots(view.npcs.length);
+    for (const h of HOUSES) {
+      const meet = h.id === 'sala' && view.meetingSize > 0;
+      const p = this.housePills.get(h.id)!;
+      this.drawPill(p, p.text.text, meet ? MEET : null, meet ? 'em reunião' : (view.projects[h.id] ?? null));
+    }
+    const spots = assignSpots(view.npcs);
     const live = new Set(view.npcs.map((n) => n.id));
     for (const [id, npc] of this.npcs) if (!live.has(id)) this.removeNpc(id, npc);
-    view.npcs.forEach((v, i) => this.upsertNpc(v, slots[i]!, i));
+    view.npcs.forEach((v, i) => this.upsertNpc(v, spots.get(v.id)!, i));
     for (const f of view.flights) {
       if (this.seenFlights.has(f.key)) continue;
       this.seenFlights.add(f.key);
@@ -181,6 +201,19 @@ class WorldScene extends Phaser.Scene {
     return this.add.rectangle(x, y, w, h, color, alpha).setOrigin(0, 0).setDepth(depth);
   }
 
+  // Stepped (pixel) radial light, drawn once and reused as an additive sprite.
+  private makeGlow(): void {
+    const g = this.make.graphics({ x: 0, y: 0 }, false);
+    for (const [r, a] of [[30, 0.07], [23, 0.09], [16, 0.12], [9, 0.16]] as const) { g.fillStyle(0xffffff, a); g.fillCircle(32, 32, r); }
+    g.generateTexture('glow', 64, 64);
+    g.destroy();
+  }
+
+  private glowAt(x: number, y: number, k: number, tint = 0xffc66b): void {
+    const s = this.add.image(x, y, 'glow').setTint(tint).setBlendMode(Phaser.BlendModes.ADD).setDepth(8).setAlpha(0.75 * k).setScale(k);
+    this.tweens.add({ targets: s, alpha: 0.55 * k, duration: 1600 + ((x * 7 + y * 3) % 900), yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+  }
+
   private buildGround(): void {
     for (let y = 0; y < MAP_H; y++) {
       for (let x = 0; x < MAP_W; x++) {
@@ -200,7 +233,12 @@ class WorldScene extends Phaser.Scene {
     // Curbs and sidewalk edges.
     this.rect(STREET.x0 * TILE, ROAD.y0 * TILE - 1, (STREET.x1 - STREET.x0 + 1) * TILE, 2, 0x2f2a25, 0.9, 2);
     this.rect(STREET.x0 * TILE, (ROAD.y1 + 1) * TILE - 1, (STREET.x1 - STREET.x0 + 1) * TILE, 2, 0x2f2a25, 0.9, 2);
-    for (const h of HOUSES) for (const d of doorTiles(h)) this.img('town', F.floor, d.x, d.y + 1, 1, 0xd9d3c6);
+    for (const h of HOUSES) {
+      for (const d of doorTiles(h)) {
+        const o = h.door === 'east' ? { x: d.x + 1, y: d.y } : h.door === 'west' ? { x: d.x - 1, y: d.y } : { x: d.x, y: d.y + 1 };
+        this.img('town', F.floor, o.x, o.y, 1, 0xd9d3c6);
+      }
+    }
     this.label(STREET_SIGN);
   }
 
@@ -235,6 +273,15 @@ class WorldScene extends Phaser.Scene {
       const img = this.img(i.s, i.f, x, y, depth);
       if (layer === 'top') img.y -= 4;
       if (i.block && layer !== 'top') this.rect(x * TILE + 1, (y + 1) * TILE, 14, 3, INK, 0.3, 5);
+      if (i.s === 'indoor' && i.f === inf(20, 4)) this.glowAt(x * TILE + 8, y * TILE + 6, 1);
+      if (i.s === 'dungeon' && i.f === tf(7, 4)) {
+        // A lit screen on the tile's dark panel.
+        const sx = x * TILE + 4;
+        const sy = y * TILE + 5 - (layer === 'top' ? 4 : 0);
+        const on = this.add.rectangle(sx, sy, 8, 5, hash(x, y) % 2 === 0 ? 0x7fd0ff : 0x9cffc0, 0.55).setOrigin(0, 0).setDepth(8).setBlendMode(Phaser.BlendModes.ADD);
+        this.tweens.add({ targets: on, alpha: 0.35, duration: 900 + hash(x, y) * 8, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+        this.glowAt(x * TILE + 8, y * TILE + 8, 0.35, 0x7fd0ff);
+      }
     }
   }
 
@@ -285,7 +332,7 @@ class WorldScene extends Phaser.Scene {
     const text = this.add.text(0, 0, o.text, { fontFamily: `${FONT}, monospace`, fontSize: '16px', color: '#ffffff' }).setOrigin(0, 0.5);
     const icon = o.icon ? this.add.image(0, 0, o.icon.s, o.icon.f).setOrigin(0, 0.5) : null;
     const c = this.add.container(0, 0, [g, ...(icon ? [icon] : []), text]).setDepth(10_000);
-    const pill: Pill = { c, text, g, icon, badge: null, anchor: o.anchor, h: 22 };
+    const pill: Pill = { c, text, g, icon, badge: null, anchor: o.anchor, h: 22, w: 0 };
     this.pills.push(pill);
     this.drawPill(pill, o.text, o.dot, o.badge ?? null);
     c.setScale(this.labelScale);
@@ -327,6 +374,7 @@ class WorldScene extends Phaser.Scene {
       p.badge.setPosition(bx + bw / 2, -h / 2 + 1);
     }
     p.h = h;
+    p.w = w;
   }
 
   private setPillBadge(p: Pill, badge: string | null): void {
@@ -341,7 +389,6 @@ class WorldScene extends Phaser.Scene {
     if (!force && Math.abs(s - this.labelScale) < 0.001) return;
     this.labelScale = s;
     for (const p of this.pills) p.c.setScale(s);
-    for (const n of this.npcs.values()) this.placeNpcLabels(n);
   }
 
   // ---- NPCs ----
@@ -350,34 +397,71 @@ class WorldScene extends Phaser.Scene {
     return { x: tileCenter(p.x), y: (p.y + 1) * TILE - 1 };
   }
 
-  private upsertNpc(v: NpcView, slot: Point, index: number): void {
+  private upsertNpc(v: NpcView, spot: Spot, index: number): void {
     let npc = this.npcs.get(v.id);
-    const f = this.feet(slot);
+    const f = this.feet(spot.tile);
     if (!npc) {
-      const sprite = this.add.sprite(f.x, f.y, 'dungeon', NPC_FRAMES[index % NPC_FRAMES.length]).setOrigin(0.5, 1);
-      const pill = this.makePill({ text: v.name, anchor: 'center', dot: modeColor(v.mode), icon: null, badge: v.badge });
-      npc = { view: v, sprite, pill, extras: [], tweens: [], mode: null, slot, index, busyUntil: 0 };
+      const char = NPC_CHARS[index % NPC_CHARS.length]!;
+      const tint = NPC_TINTS[Math.floor(index / NPC_CHARS.length) % NPC_TINTS.length]!;
+      const sprite = this.add.sprite(f.x, f.y, 'urban', charFrame(char, 0, spot.face)).setOrigin(0.5, 1).setTint(tint);
+      const pill = this.makePill({ text: v.name, anchor: 'center', dot: modeColor(v.mode, v.meeting), icon: null, badge: v.badge });
+      npc = { view: v, sprite, pill, extras: [], tweens: [], mode: null, spot, index, busyUntil: 0, route: [], walking: false, char, tint, face: spot.face };
       this.npcs.set(v.id, npc);
+    } else if (npc.spot.tile.x !== spot.tile.x || npc.spot.tile.y !== spot.tile.y) {
+      // Walk from where the bot stands now: out of its house, across the street or plaza, into the next one.
+      const from = { x: toTile(npc.sprite.x), y: toTile(npc.sprite.y - 1) };
+      npc.route = findPath(from, spot.tile);
     }
+    const changed = npc.mode !== v.mode || npc.view.meeting !== v.meeting;
     npc.view = v;
-    npc.slot = slot;
+    npc.spot = spot;
     npc.index = index;
-    npc.sprite.setPosition(f.x, f.y).setDepth(100 + f.y);
+    if (npc.route.length === 0 && !npc.walking) npc.sprite.setPosition(f.x, f.y);
+    npc.sprite.setDepth(100 + npc.sprite.y);
     this.repaintNpcPill(npc);
-    if (npc.mode !== v.mode) this.applyNpcMode(npc, v.mode);
-    this.placeNpcLabels(npc);
+    if (changed) this.applyNpcMode(npc, v.mode);
   }
 
   private repaintNpcPill(n: Npc): void {
-    const dot = this.time.now < n.busyUntil ? AMBER : modeColor(n.view.mode);
+    const dot = this.time.now < n.busyUntil ? AMBER : modeColor(n.view.mode, n.view.meeting);
     this.drawPill(n.pill, n.view.name, dot, n.view.badge);
   }
 
-  private placeNpcLabels(n: Npc): void {
-    const { x, y } = n.sprite;
-    // Neighbours are closer than a pill is wide: odd slots sit one pill higher.
-    const lift = n.index % 2 === 1 ? (n.pill.h + 1) * this.labelScale : 0;
-    n.pill.c.setPosition(x, y - 17 - lift);
+  // Pills sit above the head; when two would touch, the later one is lifted (pill-layout).
+  private layoutPills(): void {
+    const boxes = [...this.npcs.values()].map((n) => ({
+      id: n.view.id, x: n.sprite.x, y: n.sprite.y - 17 - (n.pill.h * this.labelScale) / 2,
+      w: n.pill.w * this.labelScale, h: n.pill.h * this.labelScale,
+    }));
+    const lifts = nudgePills(boxes);
+    for (const n of this.npcs.values()) n.pill.c.setPosition(Math.round(n.sprite.x), Math.round(n.sprite.y - 17 - (lifts.get(n.view.id) ?? 0)));
+  }
+
+  private moveNpcs(dt: number): void {
+    const now = this.time.now;
+    for (const n of this.npcs.values()) {
+      const sp = n.sprite;
+      const next = n.route[0];
+      if (next) {
+        const tx = tileCenter(next.x);
+        const ty = (next.y + 1) * TILE - 1;
+        const dx = tx - sp.x;
+        const dy = ty - sp.y;
+        const dist = Math.hypot(dx, dy);
+        const step = (WALK_SPEED * dt) / 1000;
+        if (dist <= step) { sp.setPosition(tx, ty); n.route.shift(); } else { sp.x += (dx / dist) * step; sp.y += (dy / dist) * step; }
+        n.face = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 'left' : 'right') : (dy < 0 ? 'up' : 'down');
+        n.walking = true;
+        sp.setFrame(charFrame(n.char, 1 + (Math.floor(now / 140) % 2), n.face));
+      } else if (n.walking) {
+        n.walking = false;
+        const f = this.feet(n.spot.tile);
+        sp.setPosition(f.x, f.y);
+        n.face = n.spot.face;
+        sp.setFrame(charFrame(n.char, 0, n.face));
+      }
+      sp.setDepth(100 + sp.y);
+    }
   }
 
   private applyNpcMode(n: Npc, mode: NpcView['mode']): void {
@@ -386,29 +470,35 @@ class WorldScene extends Phaser.Scene {
     n.tweens = [];
     n.extras = [];
     n.mode = mode;
-    const baseY = n.sprite.y;
     n.sprite.setAngle(0).setScale(1);
-    n.sprite.y = baseY;
     const s = npcSprite(mode);
-    const { x } = n.sprite;
-    if (s.anim === 'work') {
-      n.tweens.push(this.tweens.add({ targets: n.sprite, y: baseY - 2, duration: 240 + (n.view.id.length % 4) * 30, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' }));
+    const meeting = n.view.meeting;
+    // Seated workers "type": a tiny stretch. Standing bots breathe. No tween moves the sprite, so walking stays exact.
+    if (s.anim === 'work' || meeting) {
+      n.tweens.push(this.tweens.add({ targets: n.sprite, scaleY: 1.04, duration: 320 + (n.view.id.length % 4) * 40, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' }));
     } else if (s.anim === 'idle') {
       n.tweens.push(this.tweens.add({ targets: n.sprite, scaleY: 1.05, duration: 1400, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' }));
     } else {
-      n.tweens.push(this.tweens.add({ targets: n.sprite, angle: 4, duration: 420, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' }));
+      n.tweens.push(this.tweens.add({ targets: n.sprite, angle: 3, duration: 420, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' }));
     }
-    if (s.tool) {
-      const tool = this.add.sprite(x + 8, baseY - 7, 'dungeon', F.hammer).setScale(0.7).setDepth(100 + baseY + 1);
-      n.extras.push(tool);
-      n.tweens.push(this.tweens.add({ targets: tool, angle: { from: -40, to: 25 }, duration: 260, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' }));
-    }
-    if (s.bubble) {
-      const b = this.add.text(x + 11, baseY - 3, s.bubble, {
+    if (s.bubble && !meeting) {
+      // Beside the body, never on the name tag above the head.
+      const b = this.add.text(0, 0, s.bubble, {
         fontFamily: `${FONT}, monospace`, fontSize: '16px', color: s.bubble === 'zz' ? '#bcd7ff' : '#ffd166', stroke: '#0a0908', strokeThickness: 3,
-      }).setOrigin(0.5, 1).setScale(0.5).setDepth(10_000);
+      }).setOrigin(0, 1).setScale(0.5).setDepth(10_000);
+      b.setData('bubble', true);
       n.extras.push(b);
-      n.tweens.push(this.tweens.add({ targets: b, y: b.y - 4, alpha: { from: 1, to: s.bubble === 'zz' ? 0.35 : 1 }, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' }));
+    }
+  }
+
+  private placeBubbles(): void {
+    const t = this.time.now / 900;
+    for (const n of this.npcs.values()) {
+      for (const e of n.extras) {
+        const b = e as Phaser.GameObjects.Text;
+        if (!b.getData('bubble')) continue;
+        b.setPosition(Math.round(n.sprite.x + 7), Math.round(n.sprite.y - 8 - Math.sin(t) * 2)).setAlpha(0.7 + Math.sin(t) * 0.3);
+      }
     }
   }
 
@@ -426,8 +516,8 @@ class WorldScene extends Phaser.Scene {
     const to = this.npcs.get(f.to);
     if (!to) return;
     const from = f.from ? this.npcs.get(f.from) : undefined;
-    const a = from ? { x: from.sprite.x, y: this.feet(from.slot).y - 8 } : { x: tileCenter(PLAZA.x0 + 7), y: PLAZA.y0 * TILE };
-    const b = { x: to.sprite.x, y: this.feet(to.slot).y - 10 };
+    const a = from ? { x: from.sprite.x, y: from.sprite.y - 8 } : { x: tileCenter(PLAZA.x0 + 7), y: PLAZA.y0 * TILE };
+    const b = { x: to.sprite.x, y: to.sprite.y - 10 };
     const item = this.add.sprite(a.x, a.y, 'dungeon', F.potion).setDepth(9_000).setScale(0.75);
     const dist = Math.hypot(b.x - a.x, b.y - a.y);
     const duration = 700 + dist * 7;
@@ -450,7 +540,7 @@ class WorldScene extends Phaser.Scene {
 
   private buildAvatar(): void {
     const f = this.feet(AVATAR_SPAWN);
-    this.avatar = this.add.sprite(f.x, f.y, 'dungeon', AVATAR_FRAME).setOrigin(0.5, 1).setDepth(100 + f.y);
+    this.avatar = this.add.sprite(f.x, f.y, 'urban', charFrame(AVATAR_CHAR, 0, 'down')).setOrigin(0.5, 1).setDepth(100 + f.y);
     this.avatarPill = this.makePill({ text: 'Deck', anchor: 'center', dot: GREEN, icon: null });
     this.marker = this.add.ellipse(0, 0, 10, 5, GREEN, 0.5).setStrokeStyle(1, GREEN).setDepth(3).setVisible(false);
   }
@@ -502,7 +592,7 @@ class WorldScene extends Phaser.Scene {
     let best: string | null = null;
     let bestD = Infinity;
     for (const [id, n] of this.npcs) {
-      const f = this.feet(n.slot);
+      const f = { x: n.sprite.x, y: n.sprite.y };
       if (Math.abs(wx - f.x) <= 9 && wy >= f.y - 20 && wy <= f.y + 3) {
         const d = Math.hypot(wx - f.x, wy - (f.y - 8));
         if (d < bestD) { best = id; bestD = d; }
@@ -550,10 +640,10 @@ class WorldScene extends Phaser.Scene {
       const ny = a.y + (vy / len) * step;
       if (!this.blockedAt(nx, a.y)) a.x = nx;
       if (!this.blockedAt(a.x, ny)) a.y = ny;
-      if (vx !== 0) a.setFlipX(vx < 0);
-      a.setAngle(Math.sin(this.time.now / 70) * 6);
+      this.avatarFace = Math.abs(vx) > Math.abs(vy) ? (vx < 0 ? 'left' : 'right') : (vy < 0 ? 'up' : 'down');
+      a.setFrame(charFrame(AVATAR_CHAR, 1 + (Math.floor(this.time.now / 130) % 2), this.avatarFace));
     } else {
-      a.setAngle(0);
+      a.setFrame(charFrame(AVATAR_CHAR, 0, this.avatarFace));
     }
     a.setDepth(100 + a.y);
     this.avatarPill.c.setPosition(Math.round(a.x), Math.round(a.y) - 17);
@@ -584,7 +674,10 @@ class WorldScene extends Phaser.Scene {
 
   update(_t: number, dt: number): void {
     this.stepAvatar(dt);
+    this.moveNpcs(dt);
     this.applyLabelScale();
+    this.layoutPills();
+    this.placeBubbles();
     this.pinch();
   }
 
