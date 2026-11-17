@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Builds v2/tiles-exterior.png + .tsx + .json (32px exterior tileset). Deterministic.
 
-Run from anywhere: python3 public/world/v2/src/exterior.py
+Run from anywhere: python3 scripts/world/exterior.py
 """
 import os
 import sys
