@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import {
-  AVATAR_SPAWN, FLOWER_BEDS, HOUSES, MAP_H, MAP_W, PLAZA, PLAZA_ITEMS, ROAD, STREET, STREET_SIGN, TILE, TREES,
-  doorTiles, findPath, inf, isBlocked, tf, tileCenter, toTile, type Face, type HouseDef, type Item, type Point, type Sheet,
+  AVATAR_SPAWN, FLOWER_BEDS, HOUSES, MAP_H, MAP_W, PLAZA, ROAD, STREET, TILE, TREES, WORLD,
+  doorTiles, findPath, inf, isBlocked, tf, tileCenter, toTile, type Face, type HouseDef, type Point, type Sheet,
 } from './world-map';
 import { assignSpots, type Spot } from './world-layout';
 import { nudgePills } from './pill-layout';
@@ -15,11 +15,15 @@ const BASE = import.meta.env.BASE_URL;
 const FONT = 'KenneyMini';
 
 const F = {
-  grass: 0, flowerA: 1, flowerB: 2, dirt: tf(1, 2), stone: tf(7, 3), floor: tf(1, 9),
-  wallTL: tf(0, 8), wallT: tf(1, 8), wallTR: tf(2, 8), wallL: tf(0, 9), wallR: tf(2, 9), wallBL: tf(0, 10), wallB: tf(1, 10), wallBR: tf(2, 10),
-  treeTop: tf(4, 0), treeBase: tf(4, 1), autumnTop: tf(3, 0), autumnBase: tf(3, 1), bush: tf(5, 0),
+  flowerB: tf(2, 0), treeTop: tf(4, 0), treeBase: tf(4, 1), autumnTop: tf(3, 0), autumnBase: tf(3, 1), bush: tf(5, 0),
   potion: tf(8, 9),
 };
+const TILESETS = ['town', 'dungeon', 'indoor', 'urban'] as const;
+const DOOR_TINT = 0xb59a74;
+const SIDEWALK_TINT = 0xd9d3c6;
+// Decor tiles pick their depth from the tile property `layer`; "top" sits on a desk, drawn 4px up.
+const DECOR = { floor: { depth: 3, dy: 0 }, wall: { depth: 4, dy: 0 }, top: { depth: 7, dy: -4 }, other: { depth: 6, dy: 0 } } as const;
+type DecorGroup = keyof typeof DECOR;
 
 // Office people from the RPG Urban Pack: 6 characters x (idle, walk A, walk B) rows, 4 facing columns.
 const FACE_COL: Record<Face, number> = { left: 23, down: 24, up: 25, right: 26 };
@@ -139,6 +143,7 @@ class WorldScene extends Phaser.Scene {
     this.load.spritesheet('dungeon', `${BASE}world/dungeon.png`, sheet);
     this.load.spritesheet('urban', `${BASE}world/urban.png`, sheet);
     this.load.spritesheet('indoor', `${BASE}world/indoor.png`, { ...sheet, spacing: 1 });
+    this.load.tilemapTiledJSON('world', `${BASE}world/world.tmj`);
   }
 
   create(): void {
@@ -146,7 +151,7 @@ class WorldScene extends Phaser.Scene {
     cam.setBackgroundColor(INK);
     cam.roundPixels = true;
     this.makeGlow();
-    this.buildGround();
+    this.buildTiles();
     this.buildStreet();
     this.buildPlaza();
     for (const h of HOUSES) this.buildHouse(h);
@@ -224,43 +229,96 @@ class WorldScene extends Phaser.Scene {
     this.tweens.add({ targets: s, alpha: 0.4 * k, duration: 1600 + ((x * 7 + y * 3) % 900), yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
   }
 
-  private buildGround(): void {
-    for (let y = 0; y < MAP_H; y++) {
-      for (let x = 0; x < MAP_W; x++) {
-        const h = hash(x, y);
-        this.img('town', h < 5 ? F.flowerA : h < 8 ? F.flowerB : F.grass, x, y, 0);
+  private buildTiles(): void {
+    const map = this.make.tilemap({ key: 'world' });
+    const sets = TILESETS.map((n) => map.addTilesetImage(n, n)!);
+    const props = (index: number): Record<string, unknown> => map.tilesets.find((t) => t.containsTileIndex(index))?.getTileProperties(index) ?? {};
+    const ground = map.createLayer('ground', sets, 0, 0)!.setDepth(0);
+    this.tintGround(ground, props);
+    map.createLayer('walls', sets, 0, 0)!.setDepth(5);
+    map.createLayer('furniture', sets, 0, 0)!.setDepth(6);
+    this.buildDecor(map, sets, props);
+    for (const name of ['walls', 'furniture']) {
+      for (const row of map.getLayer(name)!.data) {
+        for (const t of row) {
+          if (t.index < 0) continue;
+          const p = props(t.index);
+          if (name === 'furniture' && p.block) this.rect(t.x * TILE + 1, (t.y + 1) * TILE, 14, 3, INK, 0.3, 5);
+          this.tileEffects(p, t.x, t.y, 0);
+        }
       }
     }
   }
 
+  // The decor layer is split by the `layer` tile property into one blank layer per depth group.
+  private buildDecor(map: Phaser.Tilemaps.Tilemap, sets: Phaser.Tilemaps.Tileset[], props: (i: number) => Record<string, unknown>): void {
+    const groups = new Map<DecorGroup, Phaser.Tilemaps.TilemapLayer>();
+    for (const row of map.getLayer('decor')!.data) {
+      for (const t of row) {
+        if (t.index < 0) continue;
+        const p = props(t.index);
+        const g: DecorGroup = p.layer === 'floor' || p.layer === 'wall' || p.layer === 'top' ? p.layer : 'other';
+        let layer = groups.get(g);
+        if (!layer) {
+          layer = map.createBlankLayer(`decor-${g}`, sets, 0, DECOR[g].dy, map.width, map.height)!.setDepth(DECOR[g].depth);
+          groups.set(g, layer);
+        }
+        layer.putTileAt(t.index, t.x, t.y);
+        this.tileEffects(p, t.x, t.y, DECOR[g].dy);
+      }
+    }
+  }
+
+  // Tile properties `glow` (warm lamp) and `screen` (animated monitor).
+  private tileEffects(p: Record<string, unknown>, x: number, y: number, dy: number): void {
+    if (p.glow) this.glowAt(x * TILE + 8, y * TILE + 6, 1);
+    if (!p.screen) return;
+    const on = this.add.rectangle(x * TILE + 4, y * TILE + 5 + dy, 8, 5, hash(x, y) % 2 === 0 ? 0x7fd0ff : 0x9cffc0, 0.55).setOrigin(0, 0).setDepth(8).setBlendMode(Phaser.BlendModes.ADD);
+    this.tweens.add({ targets: on, alpha: 0.35, duration: 900 + hash(x, y) * 8, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    this.glowAt(x * TILE + 8, y * TILE + 8, 0.35, 0x7fd0ff);
+  }
+
+  // Floor tiles (tile property `floor`) take their tint from the zone they sit in: plaza, street, house interior, doors.
+  private tintGround(ground: Phaser.Tilemaps.TilemapLayer, props: (i: number) => Record<string, unknown>): void {
+    const inside = (r: { x0: number; x1: number; y0: number; y1: number }, x: number, y: number): boolean => x >= r.x0 && x <= r.x1 && y >= r.y0 && y <= r.y1;
+    const doors = new Set<string>();
+    const outside = new Set<string>();
+    for (const h of HOUSES) {
+      for (const d of doorTiles(h)) {
+        doors.add(`${d.x},${d.y}`);
+        const o = h.door === 'east' ? { x: d.x + 1, y: d.y } : h.door === 'west' ? { x: d.x - 1, y: d.y } : { x: d.x, y: d.y + 1 };
+        outside.add(`${o.x},${o.y}`);
+      }
+    }
+    ground.forEachTile((t) => {
+      if (t.index < 0) return;
+      const p = props(t.index);
+      if (typeof p.tint === 'string') { t.tint = parseInt(p.tint.slice(-6), 16); return; }
+      if (!p.floor) return;
+      const k = `${t.x},${t.y}`;
+      const house = HOUSES.find((h) => t.x > h.x && t.x < h.x + h.w - 1 && t.y > h.y && t.y < h.y + h.h - 1);
+      if (doors.has(k)) t.tint = DOOR_TINT;
+      else if (outside.has(k)) t.tint = SIDEWALK_TINT;
+      else if (house) t.tint = (t.x + t.y) % 2 === 0 ? house.tint : shade(house.tint, 0.93);
+      else if (inside(PLAZA, t.x, t.y)) t.tint = (t.x + t.y) % 2 === 0 ? PLAZA.tint : PLAZA.tint2;
+      else if (inside(STREET, t.x, t.y)) t.tint = STREET.tint;
+    });
+  }
+
   private buildStreet(): void {
     for (let x = STREET.x0; x <= STREET.x1; x++) {
-      this.img('town', F.floor, x, STREET.y0, 1, 0xd9d3c6);
-      this.img('town', F.floor, x, STREET.y1, 1, 0xd9d3c6);
-      for (let y = ROAD.y0; y <= ROAD.y1; y++) this.img('town', F.dirt, x, y, 1, 0x9b8e84);
       if (x % 2 === 0) this.rect(x * TILE + 3, (ROAD.y0 + 1) * TILE - 1, 10, 2, 0xf2ead8, 0.65, 2);
     }
     // Curbs and sidewalk edges.
     this.rect(STREET.x0 * TILE, ROAD.y0 * TILE - 1, (STREET.x1 - STREET.x0 + 1) * TILE, 2, 0x2f2a25, 0.9, 2);
     this.rect(STREET.x0 * TILE, (ROAD.y1 + 1) * TILE - 1, (STREET.x1 - STREET.x0 + 1) * TILE, 2, 0x2f2a25, 0.9, 2);
-    for (const h of HOUSES) {
-      for (const d of doorTiles(h)) {
-        const o = h.door === 'east' ? { x: d.x + 1, y: d.y } : h.door === 'west' ? { x: d.x - 1, y: d.y } : { x: d.x, y: d.y + 1 };
-        this.img('town', F.floor, o.x, o.y, 1, 0xd9d3c6);
-      }
+    for (const sign of WORLD.signs) {
+      const pill = this.makePill({ text: sign.label, anchor: 'left', dot: null, icon: null });
+      pill.c.setPosition(sign.x * TILE, sign.y * TILE - 2);
     }
-    this.label(STREET_SIGN);
-  }
-
-  private label(p: Point): void {
-    const pill = this.makePill({ text: 'Rua dos Projetos', anchor: 'left', dot: null, icon: null });
-    pill.c.setPosition(p.x * TILE, p.y * TILE - 2);
   }
 
   private buildPlaza(): void {
-    for (let y = PLAZA.y0; y <= PLAZA.y1; y++) {
-      for (let x = PLAZA.x0; x <= PLAZA.x1; x++) this.img('town', F.floor, x, y, 1, (x + y) % 2 === 0 ? 0xe6d9bb : 0xdacdae);
-    }
     const w = (PLAZA.x1 - PLAZA.x0 + 1) * TILE;
     const h = (PLAZA.y1 - PLAZA.y0 + 1) * TILE;
     this.add.rectangle(PLAZA.x0 * TILE, PLAZA.y0 * TILE, w, h).setOrigin(0, 0).setStrokeStyle(1, 0x2f2a25, 0.8).setDepth(2);
@@ -271,54 +329,14 @@ class WorldScene extends Phaser.Scene {
         for (let y = 0; y < bed.h; y++) this.img('town', F.flowerB, bed.x + x, bed.y + y, 2, tints[(x * 3 + y * 5 + bed.x) % tints.length]);
       }
     }
-    this.drawItems(PLAZA_ITEMS, 0, 0);
-  }
-
-  private drawItems(items: Item[], ox: number, oy: number): void {
-    for (const i of items) {
-      const x = ox + i.x;
-      const y = oy + i.y;
-      const layer = i.layer;
-      const depth = layer === 'floor' ? 3 : layer === 'wall' ? 4 : layer === 'top' ? 7 : 6;
-      const img = this.img(i.s, i.f, x, y, depth);
-      if (layer === 'top') img.y -= 4;
-      if (i.block && layer !== 'top') this.rect(x * TILE + 1, (y + 1) * TILE, 14, 3, INK, 0.3, 5);
-      if (i.s === 'indoor' && i.f === inf(20, 4)) this.glowAt(x * TILE + 8, y * TILE + 6, 1);
-      if (i.s === 'dungeon' && i.f === tf(7, 4)) {
-        // A lit screen on the tile's dark panel.
-        const sx = x * TILE + 4;
-        const sy = y * TILE + 5 - (layer === 'top' ? 4 : 0);
-        const on = this.add.rectangle(sx, sy, 8, 5, hash(x, y) % 2 === 0 ? 0x7fd0ff : 0x9cffc0, 0.55).setOrigin(0, 0).setDepth(8).setBlendMode(Phaser.BlendModes.ADD);
-        this.tweens.add({ targets: on, alpha: 0.35, duration: 900 + hash(x, y) * 8, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
-        this.glowAt(x * TILE + 8, y * TILE + 8, 0.35, 0x7fd0ff);
-      }
-    }
   }
 
   private buildHouse(h: HouseDef): void {
-    const doors = new Set(doorTiles(h).map((d) => `${d.x},${d.y}`));
-    for (let dx = 0; dx < h.w; dx++) {
-      for (let dy = 0; dy < h.h; dy++) {
-        const x = h.x + dx;
-        const y = h.y + dy;
-        const top = dy === 0;
-        const bottom = dy === h.h - 1;
-        const left = dx === 0;
-        const right = dx === h.w - 1;
-        if (doors.has(`${x},${y}`)) { this.img('town', F.floor, x, y, 2, 0xb59a74); continue; }
-        if (!top && !bottom && !left && !right) { this.img('town', F.floor, x, y, 2, (x + y) % 2 === 0 ? h.tint : shade(h.tint, 0.93)); continue; }
-        const frame = top ? (left ? F.wallTL : right ? F.wallTR : F.wallT)
-          : bottom ? (left ? F.wallBL : right ? F.wallBR : F.wallB)
-            : left ? F.wallL : F.wallR;
-        this.img('town', frame, x, y, 5);
-      }
-    }
     // Depth: shade under the back wall, along the side walls and below the house.
     this.rect((h.x + 1) * TILE, (h.y + 1) * TILE, (h.w - 2) * TILE, 6, INK, 0.2, 3);
     this.rect((h.x + 1) * TILE, (h.y + 1) * TILE, 3, (h.h - 2) * TILE, INK, 0.12, 3);
     this.rect((h.x + h.w - 1) * TILE - 3, (h.y + 1) * TILE, 3, (h.h - 2) * TILE, INK, 0.12, 3);
     this.rect(h.x * TILE, (h.y + h.h) * TILE, h.w * TILE, 4, INK, 0.25, 1);
-    this.drawItems(h.items, h.x, h.y);
     const pill = this.makePill({ text: h.label, anchor: 'center', dot: null, icon: h.icon });
     pill.c.setPosition((h.x + h.w / 2) * TILE, h.y * TILE - 3);
     this.housePills.set(h.id, pill);

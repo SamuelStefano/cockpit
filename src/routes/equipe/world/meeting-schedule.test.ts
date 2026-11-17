@@ -2,11 +2,11 @@ import { describe, it, expect } from 'vitest';
 import { meetingCommand, meetingCron, parseTime } from './meeting-schedule';
 
 const input = { question: "what's next for Itera?", participantIds: ['a', 'b'], moderatorId: 'a' };
-const names = { a: 'Téo', b: 'Davi' };
+const names = { a: 'Luffy', b: 'Zoro' };
 
 describe('meeting schedule', () => {
   it('builds the deckctl command with shell-safe quoting', () => {
-    expect(meetingCommand(input, names)).toBe(`deckctl meeting start --q 'what'\\''s next for Itera?' --with 'Téo,Davi' --moderator 'Téo'`);
+    expect(meetingCommand(input, names)).toBe(`deckctl meeting start --q 'what'\\''s next for Itera?' --with 'Luffy,Zoro' --moderator 'Luffy'`);
   });
 
   it('parses a time of day', () => {

@@ -8,7 +8,7 @@ const state = (over: Partial<TeamState> = {}): TeamState => ({
   bots: [
     { id: 'a', name: 'Íris', role: 'cargo', status: 'working', task: 'secret task text', lastSend: { to: 'b', at: 1, preview: 'secret preview' } },
     { id: 'b', name: 'Otto', role: 'cargo', status: 'idle' },
-    { id: 'c', name: 'Téo', role: 'cargo', status: 'waiting' },
+    { id: 'c', name: 'Luffy', role: 'cargo', status: 'waiting' },
   ],
   handoffs: [],
   followUps: [],
@@ -43,7 +43,7 @@ describe('deriveWorld', () => {
     expect(w.npcs).toEqual([
       { id: 'a', name: 'Íris', mode: 'working', badge: '3', project: 'escritorio', meeting: false },
       { id: 'b', name: 'Otto', mode: 'idle', badge: null, project: 'escritorio', meeting: false },
-      { id: 'c', name: 'Téo', mode: 'waiting', badge: null, project: 'itera', meeting: false },
+      { id: 'c', name: 'Luffy', mode: 'waiting', badge: null, project: 'itera', meeting: false },
     ]);
     const dump = JSON.stringify(w);
     expect(dump).not.toContain('secret');
@@ -72,13 +72,14 @@ describe('deriveWorld', () => {
 
 describe('projectOf', () => {
   it('uses the TL mapping, then task keywords, then the shared office', () => {
-    expect(projectOf('Téo')).toBe('itera');
-    expect(projectOf('Davi', 'Corte Radar')).toBe('dfl');
-    expect(projectOf('Caio', 'ajustar Corte Radar')).toBe('corte-radar');
-    expect(projectOf('Lina', 'Itera lesson')).toBe('itera');
+    expect(projectOf('Luffy')).toBe('itera');
+    expect(projectOf('Goku')).toBe('deck');
+    expect(projectOf('Zoro', 'Corte Radar')).toBe('dfl');
+    expect(projectOf('Anderson', 'ajustar Corte Radar')).toBe('corte-radar');
+    expect(projectOf('Lara', 'Itera lesson')).toBe('itera');
     expect(projectOf('Ada', 'DFL invoice')).toBe('dfl');
-    expect(projectOf('Rita', 'something else')).toBe('escritorio');
-    expect(projectOf('Rita')).toBe('escritorio');
+    expect(projectOf('Raquel', 'something else')).toBe('escritorio');
+    expect(projectOf('Raquel')).toBe('escritorio');
   });
 });
 

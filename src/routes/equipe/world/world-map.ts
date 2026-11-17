@@ -1,71 +1,18 @@
-// Pure layout of the team world: tile coordinates, furniture, blocked tiles and
-// path-finding. No Phaser here, so it is unit-testable and stays out of the lazy chunk.
+// Pure layout of the team world, read from the Tiled map in public/world/world.tmj.
+// No Phaser here, so it is unit-testable and stays out of the lazy chunk.
+import worldRaw from '../../../../public/world/world.tmj?raw';
 
 export const TILE = 16;
-export const MAP_W = 40;
-export const MAP_H = 25;
 
 export interface Point { x: number; y: number }
-
-export type Sheet = 'town' | 'dungeon' | 'indoor' | 'urban';
-
-// Frame = row * columns + column. Town and dungeon sheets have 12 columns, indoor 27.
+// Frame = row * columns + column. Town and dungeon sheets have 12 columns, indoor and urban 27.
 export const tf = (c: number, r: number): number => r * 12 + c;
 export const inf = (c: number, r: number): number => r * 27 + c;
-export const urf = inf;
-
-export interface Item {
-  s: Sheet;
-  f: number;
-  x: number;
-  y: number;
-  // Blocks walking (and gets a drop shadow).
-  block?: boolean;
-  // 'floor' sits under the furniture (rugs); 'top' sits on a desk (monitors).
-  layer?: 'floor' | 'top' | 'wall';
-}
-
-const it = (s: Sheet, f: number, x: number, y: number, block = false, layer?: Item['layer']): Item => ({ s, f, x, y, block, layer });
-const ind = (f: number, x: number, y: number, block = false, layer?: Item['layer']) => it('indoor', f, x, y, block, layer);
-const dun = (f: number, x: number, y: number, block = false, layer?: Item['layer']) => it('dungeon', f, x, y, block, layer);
-
-const FRAMES = {
-  counter: inf(0, 12), counter2: inf(4, 12), stove: [inf(14, 14), inf(15, 14), inf(14, 15), inf(15, 15)],
-  deskTop: [inf(4, 2), inf(5, 2), inf(6, 2)], deskFront: [inf(4, 3), inf(5, 3), inf(6, 3)],
-  chair: inf(0, 2), plant: inf(16, 0), plant2: inf(17, 0), lampTop: inf(20, 4), lampBase: inf(20, 5),
-  frameOrange: inf(19, 13), frameGreen: inf(19, 12), frameTeal: inf(19, 14), clock: inf(22, 11),
-  rugOrange: [inf(16, 8), inf(17, 8), inf(18, 8), inf(16, 9), inf(17, 9), inf(18, 9)],
-  rugGreen: [inf(16, 10), inf(17, 10), inf(18, 10), inf(16, 11), inf(17, 11), inf(18, 11)],
-  roundTable: [inf(3, 0), inf(4, 0), inf(3, 1), inf(4, 1)], sofa: [inf(10, 6), inf(11, 6)],
-  console: [inf(23, 8), inf(24, 8)], bench: [inf(10, 3), inf(11, 3)],
-  monitor: tf(7, 4), shelfA: tf(3, 5), shelfB: tf(3, 6), sign: tf(11, 6),
-};
-
-function rug(frames: number[], x: number, y: number): Item[] {
-  return frames.map((f, i) => ind(f, x + (i % 3), y + Math.floor(i / 3), false, 'floor'));
-}
-function block2x2(s: Sheet, frames: number[], x: number, y: number, block = true): Item[] {
-  return frames.map((f, i) => it(s, f, x + (i % 2), y + Math.floor(i / 2), block));
-}
-const lamp = (x: number, y: number): Item[] => [ind(FRAMES.lampTop, x, y, true), ind(FRAMES.lampBase, x, y + 1, true)];
-const desk = (x: number, y: number, w: number, monitors = true): Item[] => {
-  const out: Item[] = [];
-  for (let i = 0; i < w; i++) {
-    out.push(ind(FRAMES.deskTop[Math.min(i, 2)]!, x + i, y, true), ind(FRAMES.deskFront[Math.min(i, 2)]!, x + i, y + 1, true));
-    if (monitors) out.push(dun(FRAMES.monitor, x + i, y, false, 'top'));
-  }
-  return out;
-};
-const shelf = (x: number, y: number): Item[] => [dun(FRAMES.shelfA, x, y, true), dun(FRAMES.shelfB, x, y + 1, true)];
-// Back wall decor on the first interior row, plus the kitchen corner (top right).
-const kitchen = (): Item[] => [
-  ind(FRAMES.counter, 6, 1, true), ...block2x2('indoor', FRAMES.stove, 7, 1),
-];
-
+export type Sheet = 'town' | 'dungeon' | 'indoor' | 'urban';
 export type Face = 'left' | 'down' | 'up' | 'right';
 export interface Seat { x: number; y: number; face: Face }
-
-export type BuildingId = 'itera' | 'dfl' | 'corte-radar' | 'escritorio' | 'sala';
+export type BuildingId = string;
+export type Door = 'bottom' | 'east' | 'west';
 
 export interface HouseDef {
   id: BuildingId;
@@ -75,99 +22,194 @@ export interface HouseDef {
   w: number;
   h: number;
   tint: number;
-  door: 'bottom' | 'east' | 'west';
-  // Frame in the town/dungeon sheet used as the pixel icon on the house sign.
+  door: Door;
+  // Frame in a sheet used as the pixel icon on the house sign.
   icon: { s: Sheet; f: number };
-  items: Item[];
-  // Where a bot sits (relative tiles); the order is the order seats are given out.
+  // Where a bot sits (tiles relative to the house); the order is the order seats are given out.
   seats: Seat[];
 }
 
-const HOUSE_Y = 2;
-const HOUSE_W = 10;
-const HOUSE_H = 9;
-const plant = (x: number, y: number, two = false): Item => ind(two ? FRAMES.plant2 : FRAMES.plant, x, y, true);
-const chair = (x: number, y: number): Item => ind(FRAMES.chair, x, y);
+export interface Tree { x: number; y: number; kind: string }
+export interface Rect { x0: number; x1: number; y0: number; y1: number }
+export interface Bed { x: number; y: number; w: number; h: number }
+export interface Sign { x: number; y: number; label: string }
 
-export const HOUSES: readonly HouseDef[] = [
-  {
-    id: 'itera', label: 'Itera', x: 2, y: HOUSE_Y, w: HOUSE_W, h: HOUSE_H, tint: 0xd2f0de, door: 'bottom', icon: { s: 'town', f: tf(5, 1) },
-    items: [
-      ...rug(FRAMES.rugGreen, 2, 4), ...rug(FRAMES.rugOrange, 5, 2),
-      ...shelf(1, 1), ...shelf(2, 1), ...shelf(3, 1), ...shelf(1, 4),
-      ind(FRAMES.frameOrange, 4, 1, false, 'wall'), ind(FRAMES.clock, 5, 1, false, 'wall'),
-      ...kitchen(),
-      ...desk(3, 4, 2, false), ...desk(6, 4, 2, false),
-      chair(3, 6), chair(4, 6), chair(6, 6), chair(7, 6),
-      ...lamp(8, 3), plant(8, 7), plant(1, 7, true), plant(1, 3, true), plant(8, 5),
-    ],
-    seats: [{ x: 3, y: 6, face: 'up' }, { x: 7, y: 6, face: 'up' }, { x: 4, y: 6, face: 'up' }, { x: 6, y: 6, face: 'up' }],
-  },
-  {
-    id: 'dfl', label: 'DFL', x: 15, y: HOUSE_Y, w: HOUSE_W, h: HOUSE_H, tint: 0xdcdcf7, door: 'bottom', icon: { s: 'dungeon', f: tf(9, 9) },
-    items: [
-      ...rug(FRAMES.rugOrange, 5, 6), ...rug(FRAMES.rugGreen, 1, 6),
-      ind(FRAMES.frameTeal, 4, 1, false, 'wall'), ind(FRAMES.clock, 5, 1, false, 'wall'), ind(FRAMES.frameGreen, 2, 1, false, 'wall'),
-      ...kitchen(),
-      ...desk(1, 2, 2), ...desk(1, 4, 2),
-      chair(3, 2), chair(3, 4),
-      ...block2x2('indoor', FRAMES.roundTable, 6, 6),
-      chair(5, 6), chair(8, 6), chair(6, 5),
-      ...lamp(3, 6), plant(8, 7), plant(1, 7, true), plant(8, 3, true), plant(5, 3),
-    ],
-    seats: [{ x: 3, y: 2, face: 'left' }, { x: 3, y: 4, face: 'left' }, { x: 5, y: 6, face: 'right' }, { x: 8, y: 6, face: 'left' }],
-  },
-  {
-    id: 'corte-radar', label: 'Corte Radar', x: 28, y: HOUSE_Y, w: HOUSE_W, h: HOUSE_H, tint: 0xf5d9d2, door: 'bottom', icon: { s: 'town', f: tf(11, 7) },
-    items: [
-      ...rug(FRAMES.rugOrange, 5, 5), ...rug(FRAMES.rugGreen, 1, 6),
-      dun(FRAMES.monitor, 1, 1, false, 'wall'), dun(FRAMES.monitor, 2, 1, false, 'wall'), dun(FRAMES.monitor, 3, 1, false, 'wall'),
-      ind(FRAMES.frameOrange, 4, 1, false, 'wall'), ind(FRAMES.clock, 5, 1, false, 'wall'),
-      ...kitchen(),
-      ...desk(1, 3, 3), ind(FRAMES.console[0]!, 4, 3, true), ind(FRAMES.console[1]!, 5, 3, true),
-      chair(1, 5), chair(2, 5), chair(3, 5), chair(4, 5),
-      ind(FRAMES.sofa[0]!, 6, 6, true), ind(FRAMES.sofa[1]!, 7, 6, true),
-      ...lamp(8, 4), plant(8, 7), plant(1, 7, true), plant(8, 3, true),
-    ],
-    seats: [{ x: 1, y: 5, face: 'up' }, { x: 2, y: 5, face: 'up' }, { x: 3, y: 5, face: 'up' }, { x: 4, y: 5, face: 'up' }],
-  },
-  {
-    id: 'escritorio', label: 'Escritório', x: 3, y: 16, w: 9, h: 8, tint: 0xf1e6c8, door: 'east', icon: { s: 'indoor', f: FRAMES.plant },
-    items: [
-      ...rug(FRAMES.rugGreen, 2, 5), ...rug(FRAMES.rugOrange, 4, 1),
-      ...shelf(1, 1), ind(FRAMES.frameGreen, 2, 1, false, 'wall'), ind(FRAMES.clock, 3, 1, false, 'wall'), ind(FRAMES.frameOrange, 4, 1, false, 'wall'),
-      ind(FRAMES.counter, 5, 1, true), ...block2x2('indoor', FRAMES.stove, 6, 1),
-      ...desk(1, 3, 2), ...desk(4, 3, 2),
-      chair(1, 5), chair(2, 5), chair(4, 5), chair(5, 5),
-      ...lamp(7, 5), plant(1, 6, true),
-    ],
-    seats: [{ x: 1, y: 5, face: 'up' }, { x: 4, y: 5, face: 'up' }, { x: 2, y: 5, face: 'up' }, { x: 5, y: 5, face: 'up' }],
-  },
-  {
-    id: 'sala', label: 'Sala de Reunião', x: 28, y: 16, w: 9, h: 8, tint: 0xe6dff5, door: 'west', icon: { s: 'indoor', f: FRAMES.roundTable[0]! },
-    items: [
-      ...rug(FRAMES.rugOrange, 1, 5), ...rug(FRAMES.rugOrange, 4, 5), ...rug(FRAMES.rugGreen, 3, 3),
-      ind(FRAMES.frameOrange, 2, 1, false, 'wall'),
-      dun(FRAMES.monitor, 3, 1, false, 'wall'), dun(FRAMES.monitor, 4, 1, false, 'wall'), dun(FRAMES.monitor, 5, 1, false, 'wall'),
-      ind(FRAMES.counter, 6, 1, true), ind(FRAMES.counter2, 7, 1, true),
-      ...desk(2, 3, 5, false),
-      ...[2, 3, 4, 5, 6].flatMap((x) => [chair(x, 2), chair(x, 5)]),
-      ...lamp(7, 3), plant(1, 1, true), plant(1, 6), plant(7, 6, true),
-    ],
-    seats: [
-      { x: 3, y: 2, face: 'down' }, { x: 5, y: 2, face: 'down' }, { x: 3, y: 5, face: 'up' }, { x: 5, y: 5, face: 'up' },
-      { x: 2, y: 2, face: 'down' }, { x: 6, y: 2, face: 'down' }, { x: 2, y: 5, face: 'up' }, { x: 6, y: 5, face: 'up' },
-      { x: 4, y: 2, face: 'down' }, { x: 4, y: 5, face: 'up' },
-    ],
-  },
-];
+export interface WorldMap {
+  width: number;
+  height: number;
+  houses: HouseDef[];
+  blocked: Set<number>;
+  trees: Tree[];
+  flowerBeds: Bed[];
+  signs: Sign[];
+  street: Rect & { tint: number };
+  road: Rect;
+  plaza: Rect & { tint: number; tint2: number };
+  plazaCenter: Point;
+  plazaRadius: { rx: number; ry: number };
+  avatarSpawn: Point;
+}
 
-export const STREET = { x0: 1, x1: 38, y0: 12, y1: 15 } as const;
-export const ROAD = { y0: 13, y1: 14 } as const;
-export const PLAZA = { x0: 13, x1: 26, y0: 16, y1: 23 } as const;
-export const PLAZA_CENTER: Point = { x: 20, y: 20 };
-export const STREET_SIGN: Point = { x: 1, y: 12 };
-export const AVATAR_SPAWN: Point = { x: 20, y: 22 };
+type PropValue = string | number | boolean;
+interface TiledProp { name: string; type?: string; value: PropValue }
+interface TiledObject { id: number; name?: string; x: number; y: number; width: number; height: number; point?: boolean; properties?: TiledProp[] }
+interface TiledTileset { firstgid: number; name: string; tilecount: number; tiles?: { id: number; properties?: TiledProp[] }[] }
+interface TiledLayer { name: string; type: string; width?: number; height?: number; data?: number[]; objects?: TiledObject[] }
+export interface TiledMap { width: number; height: number; tilewidth: number; tileheight: number; tilesets: TiledTileset[]; layers: TiledLayer[] }
+
+const SHEETS: readonly Sheet[] = ['town', 'dungeon', 'indoor', 'urban'];
+const DOORS: readonly string[] = ['bottom', 'east', 'west'];
+const FACES: readonly string[] = ['left', 'down', 'up', 'right'];
+const BLOCKING_LAYERS = ['walls', 'furniture', 'decor'];
+
+type Props = Record<string, PropValue>;
+const propsOf = (o: { properties?: TiledProp[] }): Props => Object.fromEntries((o.properties ?? []).map((p) => [p.name, p.value]));
+const nameOf = (o: TiledObject, p: Props, key: string): string => o.name || (typeof p[key] === 'string' ? (p[key] as string) : `#${o.id}`);
+
+// '#AARRGGBB' (Tiled color property) or '#RRGGBB' to 0xRRGGBB.
+export function parseColor(v: PropValue | undefined): number | null {
+  if (typeof v !== 'string') return null;
+  const m = /^#([0-9a-f]{2})?([0-9a-f]{6})$/i.exec(v);
+  return m ? parseInt(m[2]!, 16) : null;
+}
+
+export function parseIcon(v: PropValue | undefined): { s: Sheet; f: number } | null {
+  if (typeof v !== 'string') return null;
+  const [s, f] = v.split(':');
+  return SHEETS.includes(s as Sheet) && /^\d+$/.test(f ?? '') ? { s: s as Sheet, f: Number(f) } : null;
+}
+
+const objectsOf = (m: TiledMap): TiledObject[] => m.layers.filter((l) => l.type === 'objectgroup').flatMap((l) => l.objects ?? []);
+const tileX = (o: TiledObject): number => Math.floor(o.x / TILE);
+const tileY = (o: TiledObject): number => Math.floor(o.y / TILE);
+
+// Every message names the offending object, e.g. `house "dfl" is missing prop "label"`.
+export function validateWorldMap(m: TiledMap): string[] {
+  const errs: string[] = [];
+  const need = (what: string, name: string, p: Props, keys: string[]): void => {
+    for (const k of keys) if (p[k] === undefined || p[k] === '') errs.push(`${what} "${name}" is missing prop "${k}"`);
+  };
+  const objs = objectsOf(m);
+  const houses = new Set<string>();
+  let meeting: string | null = null;
+  for (const o of objs.filter((x) => !x.point)) {
+    const p = propsOf(o);
+    if (p.kind !== 'house' && p.kind !== 'meeting') continue;
+    const isMeeting = p.kind === 'meeting';
+    const what = isMeeting ? 'meeting room' : 'house';
+    const name = nameOf(o, p, isMeeting ? 'id' : 'project');
+    need(what, name, p, [isMeeting ? 'id' : 'project', 'label', 'door', 'tint', 'icon']);
+    if (typeof p.door === 'string' && !DOORS.includes(p.door)) errs.push(`${what} "${name}" has invalid door "${p.door}"`);
+    if (p.tint !== undefined && parseColor(p.tint) === null) errs.push(`${what} "${name}" has invalid tint "${String(p.tint)}"`);
+    if (p.icon !== undefined && p.icon !== '' && !parseIcon(p.icon)) errs.push(`${what} "${name}" has invalid icon "${String(p.icon)}"`);
+    if (isMeeting) meeting = String(p.id ?? name); else if (typeof p.project === 'string') houses.add(p.project);
+  }
+  if (meeting === null) errs.push('meeting room is missing (a rectangle with prop kind=meeting)');
+  const seen = new Set<string>();
+  let chairs = 0;
+  for (const o of objs.filter((x) => x.point)) {
+    const p = propsOf(o);
+    if (p.room !== undefined) {
+      const name = nameOf(o, p, 'room');
+      need('chair', name, p, ['room', 'seat', 'face']);
+      if (typeof p.face === 'string' && !FACES.includes(p.face)) errs.push(`chair "${name}" has invalid face "${p.face}"`);
+      if (meeting !== null && p.room !== meeting) errs.push(`chair "${name}" belongs to unknown room "${String(p.room)}"`);
+      chairs++;
+    } else if (p.kind === undefined) {
+      const name = nameOf(o, p, 'project');
+      need('desk', name, p, ['project', 'seat', 'face']);
+      if (typeof p.face === 'string' && !FACES.includes(p.face)) errs.push(`desk "${name}" has invalid face "${p.face}"`);
+      if (typeof p.project === 'string' && !houses.has(p.project)) errs.push(`desk "${name}" points to unknown project "${p.project}"`);
+      const dup = `${String(p.project)}#${String(p.seat)}`;
+      if (p.project !== undefined && p.seat !== undefined && seen.has(dup)) errs.push(`desk "${name}" repeats seat ${String(p.seat)} of "${String(p.project)}"`);
+      seen.add(dup);
+    } else if (p.kind === 'tree') need('tree', nameOf(o, p, 'variant'), p, ['variant']);
+    else if (p.kind === 'sign') need('sign', nameOf(o, p, 'label'), p, ['label']);
+  }
+  if (meeting !== null && chairs === 0) errs.push(`meeting room "${meeting}" has no chairs (points with prop room=${meeting})`);
+  for (const kind of ['street', 'road', 'plaza']) {
+    if (!objs.some((o) => !o.point && propsOf(o).kind === kind)) errs.push(`${kind} is missing (a rectangle with prop kind=${kind})`);
+  }
+  for (const role of ['avatar', 'center']) {
+    if (!objs.some((o) => o.point && propsOf(o).kind === 'plaza-spawn' && propsOf(o).role === role)) errs.push(`plaza spawn "${role}" is missing (a point with kind=plaza-spawn, role=${role})`);
+  }
+  for (const name of ['ground', 'walls', 'furniture', 'decor']) {
+    if (!m.layers.some((l) => l.type === 'tilelayer' && l.name === name)) errs.push(`tile layer "${name}" is missing`);
+  }
+  return errs;
+}
+
+export const key = (x: number, y: number, w: number = MAP_W): number => y * w + x;
+
+export function parseWorldMap(m: TiledMap): WorldMap {
+  const errs = validateWorldMap(m);
+  if (errs.length > 0) throw new Error(`invalid world map: ${errs.join('; ')}`);
+  const W = m.width;
+  const objs = objectsOf(m);
+  const rects = (kind: string) => objs.filter((o) => !o.point && propsOf(o).kind === kind);
+  const toRect = (o: TiledObject): Rect => ({ x0: tileX(o), x1: Math.floor((o.x + o.width) / TILE) - 1, y0: tileY(o), y1: Math.floor((o.y + o.height) / TILE) - 1 });
+
+  const houses: HouseDef[] = [];
+  const seatsOf = (pick: (p: Props) => boolean) => objs.filter((o) => o.point && pick(propsOf(o)))
+    .sort((a, b) => Number(propsOf(a).seat) - Number(propsOf(b).seat));
+  for (const o of objs.filter((x) => !x.point)) {
+    const p = propsOf(o);
+    if (p.kind !== 'house' && p.kind !== 'meeting') continue;
+    const id = String(p.kind === 'meeting' ? p.id : p.project);
+    const hx = tileX(o);
+    const hy = tileY(o);
+    const seats = seatsOf((q) => (p.kind === 'meeting' ? q.room === id : q.room === undefined && q.kind === undefined && q.project === id))
+      .map((s): Seat => ({ x: tileX(s) - hx, y: tileY(s) - hy, face: propsOf(s).face as Face }));
+    houses.push({
+      id, label: String(p.label), x: hx, y: hy, w: Math.round(o.width / TILE), h: Math.round(o.height / TILE),
+      tint: parseColor(p.tint)!, door: p.door as Door, icon: parseIcon(p.icon)!, seats,
+    });
+  }
+
+  const blocked = new Set<number>();
+  for (let x = 0; x < W; x++) { blocked.add(key(x, 0, W)); blocked.add(key(x, m.height - 1, W)); }
+  for (let y = 0; y < m.height; y++) { blocked.add(key(0, y, W)); blocked.add(key(W - 1, y, W)); }
+  const blockGids = new Set<number>();
+  for (const ts of m.tilesets) for (const t of ts.tiles ?? []) if (propsOf(t).block === true) blockGids.add(ts.firstgid + t.id);
+  for (const l of m.layers) {
+    if (l.type !== 'tilelayer' || !BLOCKING_LAYERS.includes(l.name)) continue;
+    (l.data ?? []).forEach((g, i) => { if (g && blockGids.has(g)) blocked.add(i); });
+  }
+  const trees = objs.filter((o) => o.point && propsOf(o).kind === 'tree').map((o): Tree => ({ x: tileX(o), y: tileY(o), kind: String(propsOf(o).variant) }));
+  for (const t of trees) blocked.add(key(t.x, t.y, W));
+  const flowerBeds = rects('flowerbed').map((o): Bed => ({ x: tileX(o), y: tileY(o), w: Math.round(o.width / TILE), h: Math.round(o.height / TILE) }));
+  for (const b of flowerBeds) for (let x = 0; x < b.w; x++) for (let y = 0; y < b.h; y++) blocked.add(key(b.x + x, b.y + y, W));
+
+  const street = rects('street')[0]!;
+  const plaza = rects('plaza')[0]!;
+  const spawn = (role: string) => objs.find((o) => o.point && propsOf(o).kind === 'plaza-spawn' && propsOf(o).role === role)!;
+  const center = spawn('center');
+  const cp = propsOf(center);
+  return {
+    width: W, height: m.height, houses, blocked, trees, flowerBeds,
+    signs: objs.filter((o) => o.point && propsOf(o).kind === 'sign').map((o) => ({ x: tileX(o), y: tileY(o), label: String(propsOf(o).label) })),
+    street: { ...toRect(street), tint: parseColor(propsOf(street).tint) ?? 0xffffff },
+    road: toRect(rects('road')[0]!),
+    plaza: { ...toRect(plaza), tint: parseColor(propsOf(plaza).tint) ?? 0xffffff, tint2: parseColor(propsOf(plaza).tint2) ?? parseColor(propsOf(plaza).tint) ?? 0xffffff },
+    plazaCenter: { x: tileX(center), y: tileY(center) },
+    plazaRadius: { rx: Number(cp.rx ?? 6), ry: Number(cp.ry ?? 3) },
+    avatarSpawn: { x: tileX(spawn('avatar')), y: tileY(spawn('avatar')) },
+  };
+}
+
+export const WORLD: WorldMap = parseWorldMap(JSON.parse(worldRaw) as TiledMap);
+
+export const MAP_W = WORLD.width;
+export const MAP_H = WORLD.height;
+export const HOUSES: readonly HouseDef[] = WORLD.houses;
+export const TREES: readonly Tree[] = WORLD.trees;
+export const FLOWER_BEDS: readonly Bed[] = WORLD.flowerBeds;
+export const STREET = WORLD.street;
+export const ROAD = WORLD.road;
+export const PLAZA = WORLD.plaza;
+export const PLAZA_CENTER: Point = WORLD.plazaCenter;
+export const PLAZA_RADIUS = WORLD.plazaRadius;
+export const AVATAR_SPAWN: Point = WORLD.avatarSpawn;
 
 export function doorTiles(h: HouseDef): Point[] {
   if (h.door === 'east') return [{ x: h.x + h.w - 1, y: h.y + 3 }, { x: h.x + h.w - 1, y: h.y + 4 }];
@@ -188,60 +230,12 @@ export function insideDoor(h: HouseDef): Point {
 export const seatTile = (h: HouseDef, s: Seat): Point => ({ x: h.x + s.x, y: h.y + s.y });
 export const buildingById = (id: BuildingId): HouseDef => HOUSES.find((h) => h.id === id)!;
 
-export interface Tree { x: number; y: number; kind: 'tall' | 'autumn' | 'bush' }
-export const TREES: readonly Tree[] = [
-  { x: 12, y: 5, kind: 'tall' }, { x: 13, y: 8, kind: 'autumn' }, { x: 14, y: 5, kind: 'tall' },
-  { x: 25, y: 5, kind: 'tall' }, { x: 26, y: 8, kind: 'tall' }, { x: 27, y: 5, kind: 'autumn' },
-  { x: 12, y: 10, kind: 'bush' }, { x: 13, y: 10, kind: 'bush' }, { x: 14, y: 10, kind: 'bush' },
-  { x: 25, y: 10, kind: 'bush' }, { x: 26, y: 10, kind: 'bush' }, { x: 27, y: 10, kind: 'bush' },
-  { x: 1, y: 6, kind: 'tall' }, { x: 38, y: 6, kind: 'tall' }, { x: 1, y: 9, kind: 'autumn' }, { x: 38, y: 9, kind: 'tall' },
-  { x: 1, y: 22, kind: 'tall' }, { x: 38, y: 22, kind: 'autumn' }, { x: 12, y: 22, kind: 'bush' }, { x: 27, y: 22, kind: 'bush' },
-  { x: 37, y: 18, kind: 'bush' }, { x: 2, y: 18, kind: 'bush' },
-];
-
-// Plaza and street furniture (absolute tiles).
-export const FLOWER_BEDS: readonly { x: number; y: number; w: number; h: number }[] = [
-  { x: 15, y: 16, w: 2, h: 1 }, { x: 23, y: 16, w: 2, h: 1 }, { x: 37, y: 20, w: 2, h: 2 }, { x: 1, y: 19, w: 2, h: 2 },
-];
-export const PLAZA_ITEMS: Item[] = [
-  ...[[11, 6], [12, 6], [11, 7], [12, 7]].map(([c, r], i) => it('urban', urf(c!, r!), 19 + (i % 2), 19 + Math.floor(i / 2), true)),
-  ind(FRAMES.bench[0]!, 14, 23, true), ind(FRAMES.bench[1]!, 15, 23, true), ind(FRAMES.bench[0]!, 24, 23, true), ind(FRAMES.bench[1]!, 25, 23, true),
-  ...lamp(13, 17), ...lamp(26, 17), ...lamp(13, 21), ...lamp(26, 21),
-  ...lamp(13, 11), ...lamp(26, 11),
-  it('town', FRAMES.sign, STREET_SIGN.x, STREET_SIGN.y, true),
-];
-
-export const key = (x: number, y: number): number => y * MAP_W + x;
-
-function buildBlocked(): Set<number> {
-  const b = new Set<number>();
-  for (let x = 0; x < MAP_W; x++) { b.add(key(x, 0)); b.add(key(x, MAP_H - 1)); }
-  for (let y = 0; y < MAP_H; y++) { b.add(key(0, y)); b.add(key(MAP_W - 1, y)); }
-  for (const h of HOUSES) {
-    const doors = new Set(doorTiles(h).map((d) => key(d.x, d.y)));
-    for (let dx = 0; dx < h.w; dx++) {
-      for (let dy = 0; dy < h.h; dy++) {
-        const edge = dx === 0 || dy === 0 || dx === h.w - 1 || dy === h.h - 1;
-        const k = key(h.x + dx, h.y + dy);
-        if (edge && !doors.has(k)) b.add(k);
-      }
-    }
-    for (const f of h.items) if (f.block) b.add(key(h.x + f.x, h.y + f.y));
-  }
-  for (const f of PLAZA_ITEMS) if (f.block) b.add(key(f.x, f.y));
-  for (const t of TREES) b.add(key(t.x, t.y));
-  for (const bed of FLOWER_BEDS) for (let x = 0; x < bed.w; x++) for (let y = 0; y < bed.h; y++) b.add(key(bed.x + x, bed.y + y));
-  return b;
-}
-
-const BLOCKED = buildBlocked();
-
 export function inBounds(x: number, y: number): boolean {
   return x >= 0 && y >= 0 && x < MAP_W && y < MAP_H;
 }
 
 export function isBlocked(x: number, y: number): boolean {
-  return !inBounds(x, y) || BLOCKED.has(key(x, y));
+  return !inBounds(x, y) || WORLD.blocked.has(key(x, y));
 }
 
 export const toTile = (px: number): number => Math.floor(px / TILE);
@@ -253,7 +247,7 @@ export function plazaSlots(n: number): Point[] {
   const out: Point[] = [];
   for (let i = 0; i < n; i++) {
     const a = (i / Math.max(1, n)) * Math.PI * 2 - Math.PI / 2;
-    const p = { x: Math.round(PLAZA_CENTER.x + Math.cos(a) * 6), y: Math.round(PLAZA_CENTER.y + Math.sin(a) * 3) };
+    const p = { x: Math.round(PLAZA_CENTER.x + Math.cos(a) * PLAZA_RADIUS.rx), y: Math.round(PLAZA_CENTER.y + Math.sin(a) * PLAZA_RADIUS.ry) };
     out.push(isBlocked(p.x, p.y) ? (nearestFree(p) ?? p) : p);
   }
   return out;

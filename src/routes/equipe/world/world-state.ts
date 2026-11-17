@@ -1,7 +1,7 @@
 import type { TeamState, TeamBotStatus } from '../../../../shared/team-state';
 import type { BuildingId } from './world-map';
 
-export type ProjectId = 'itera' | 'dfl' | 'corte-radar' | 'escritorio';
+export type ProjectId = 'itera' | 'dfl' | 'corte-radar' | 'escritorio' | 'deck';
 
 // What the world is allowed to know about a bot: name, state, counts. The snapshot
 // also carries task titles and message previews; they are dropped here on purpose,
@@ -35,7 +35,7 @@ const norm = (s: string): string => s.normalize('NFD').replace(/[\u0300-\u036f]/
 
 // The TL's fixed mapping, by first name. The task text is only read to pick a project
 // (a keyword match); it is never stored or drawn.
-const TL_PROJECT: Record<string, ProjectId> = { teo: 'itera', davi: 'dfl' };
+const TL_PROJECT: Record<string, ProjectId> = { luffy: 'itera', zoro: 'dfl', goku: 'deck' };
 
 export function projectOf(name: string, task?: string): ProjectId {
   const fixed = TL_PROJECT[norm(name)];
