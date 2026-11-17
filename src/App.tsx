@@ -331,7 +331,7 @@ function CockpitBody() {
           </div>
 
           <RouteContent
-            route={viewRoute} agentRoute={{ id: agentId, tab: agentTab, open: navAgent }} isMobile={isMobile} isAdmin={isAdmin} isRoot={isRoot} connected={conn.ws === 'connected'}
+            route={viewRoute} agentRoute={{ id: agentId, tab: agentTab, open: navAgent }} isMobile={isMobile} isAdmin={isAdmin} capsKnown={!!caps} isRoot={isRoot} connected={conn.ws === 'connected'}
             cockpit={cockpit} chatProps={chatWithTeam} termProps={termProps}
             onOpenSession={selectSession} agent={agent}
             layout={{ rowRef }}

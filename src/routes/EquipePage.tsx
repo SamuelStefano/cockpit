@@ -36,6 +36,7 @@ interface EquipePageProps {
   bots: TeamBot[];
   onOpenChat: (id: string) => void;
   onGo: (to: '/' | '/equipe/rotinas' | '/equipe/memoria' | '/equipe/mundo') => void;
+  capsKnown?: boolean;
 }
 
 export function EquipePage(p: EquipePageProps) {
@@ -44,8 +45,10 @@ export function EquipePage(p: EquipePageProps) {
   // Rotinas and Memória are admin tools; /equipe/memoria has no tab for anyone else.
   const canSeeWorld = isAdmin && !!p.onTeamStateGet;
   const tab: Tab = p.tab === 'memoria' && canSeeMemory ? 'memoria' : p.tab === 'mundo' && canSeeWorld ? 'mundo' : 'rotinas';
-  useEffect(() => { if ((p.tab === 'memoria' && !canSeeMemory) || (p.tab === 'mundo' && !canSeeWorld)) onGo('/'); }, [p.tab, canSeeMemory, canSeeWorld, onGo]);
+  const capsKnown = p.capsKnown !== false;
+  useEffect(() => { if (capsKnown && ((p.tab === 'memoria' && !canSeeMemory) || (p.tab === 'mundo' && !canSeeWorld))) onGo('/'); }, [capsKnown, p.tab, canSeeMemory, canSeeWorld, onGo]);
   const r = useRotinas({ ...p.cron, bots: p.bots, connected });
+  if (!capsKnown && (p.tab === 'memoria' || p.tab === 'mundo')) return <div className="flex min-h-0 flex-1" />;
   const items: TabItem<Tab>[] = [
     { id: 'rotinas', label: 'Rotinas', count: p.cron.loaded ? p.cron.crons.length : undefined },
     ...(canSeeMemory && p.memory ? [{ id: 'memoria' as const, label: 'Memória', count: p.memory.loaded ? p.memory.memories.length : undefined }] : []),

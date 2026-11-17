@@ -21,6 +21,21 @@ const base = () => ({
   onGo: vi.fn(),
 });
 
+describe('EquipePage before caps arrive', () => {
+  it('does not bounce a direct /equipe/mundo or /equipe/memoria load to the chat', () => {
+    for (const tab of ['mundo', 'memoria'] as const) {
+      const p = { ...base(), isAdmin: false, capsKnown: false, tab };
+      render(<EquipePage {...p} />);
+      expect(p.onGo).not.toHaveBeenCalled();
+    }
+  });
+  it('still sends a known non-admin away', () => {
+    const p = { ...base(), isAdmin: false, capsKnown: true, tab: 'mundo' as const };
+    render(<EquipePage {...p} />);
+    expect(p.onGo).toHaveBeenCalledWith('/');
+  });
+});
+
 describe('EquipePage', () => {
   it('routes the Rotinas tab to /equipe/rotinas and Memória to the existing screen', () => {
     const p = base();
