@@ -35,7 +35,7 @@ describe('badgeText', () => {
 
 describe('deriveWorld', () => {
   it('returns an empty world without a snapshot', () => {
-    expect(deriveWorld(null)).toEqual({ npcs: [], flights: [], projects: {}, meetingSize: 0 });
+    expect(deriveWorld(null)).toEqual({ npcs: [], flights: [], projects: {}, meetingSize: 0, celebrate: [] });
   });
 
   it('keeps only name, mode and badge per bot', () => {
@@ -121,5 +121,14 @@ describe('stationOf', () => {
     const w = deriveWorld(state(), { meeting: { participantIds: ['a', 'zzz'] } });
     expect(w.meetingSize).toBe(1);
     expect(w.npcs.map((n) => n.meeting)).toEqual([true, false, false]);
+  });
+});
+
+describe('deriveWorld celebrate', () => {
+  it('passes known ids only', () => {
+    const w = deriveWorld(state(), { celebrate: ['a', 'ghost'] });
+    expect(w.celebrate).toEqual(['a']);
+    const list = ['a'];
+    expect(deriveWorld(state(), { celebrate: list }).celebrate).toBe(list);
   });
 });

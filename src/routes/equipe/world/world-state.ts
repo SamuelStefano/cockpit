@@ -29,6 +29,8 @@ export interface WorldView {
   projects: Record<string, string>;
   // Number of bots in the running meeting (0 = none).
   meetingSize: number;
+  // Bot ids whose PR just merged (ids only). The scene plays each array once, by identity.
+  celebrate: string[];
 }
 
 export type NpcAnim = 'work' | 'idle' | 'wait';
@@ -77,10 +79,15 @@ export interface DeriveOptions {
   now?: number;
   // The running meeting (existing meeting state), by participant ids only.
   meeting?: { participantIds: string[] } | null;
+  celebrate?: string[];
 }
 
+const NO_IDS: string[] = [];
+// Same array back when every id is known, so the scene can tell a new celebration from a re-render.
+const knownIds = (list: string[] | undefined, ids: Set<string>): string[] => (!list || list.length === 0 ? NO_IDS : list.every((id) => ids.has(id)) ? list : list.filter((id) => ids.has(id)));
+
 export function deriveWorld(state: TeamState | null, opts: DeriveOptions = {}): WorldView {
-  if (!state) return { npcs: [], flights: [], projects: {}, meetingSize: 0 };
+  if (!state) return { npcs: [], flights: [], projects: {}, meetingSize: 0, celebrate: [] };
   const now = opts.now ?? state.at;
   const ids = new Set(state.bots.map((b) => b.id));
   const inMeeting = new Set((opts.meeting?.participantIds ?? []).filter((id) => ids.has(id)));
@@ -93,5 +100,5 @@ export function deriveWorld(state: TeamState | null, opts: DeriveOptions = {}): 
     .map((h): Flight => ({ key: `${h.taskId}:${h.at}`, from: h.from && ids.has(h.from) ? h.from : null, to: h.to }));
   const projects: Record<string, string> = {};
   for (const [id, n] of Object.entries(opts.projects ?? {})) { const t = badgeText(n); if (t) projects[id] = t; }
-  return { npcs, flights, projects, meetingSize: inMeeting.size };
+  return { npcs, flights, projects, meetingSize: inMeeting.size, celebrate: knownIds(opts.celebrate, ids) };
 }
