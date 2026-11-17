@@ -15,7 +15,7 @@ import { registerTeamStateClient } from './team-state-push';
 const clients = new Map<WebSocket, boolean>();
 let poll: ReturnType<typeof setInterval> | null = null;
 
-async function build(): Promise<TeamPanel> {
+export async function build(): Promise<TeamPanel> {
   const [team, state] = await Promise.all([getTeam(), teamStateSnapshot()]);
   return teamPanelSnapshot({ team, state, pending: readPendingQuestions() });
 }

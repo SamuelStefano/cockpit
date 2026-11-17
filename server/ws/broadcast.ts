@@ -24,7 +24,16 @@ export function setClientSource(s: ClientSource | null) { source = s; }
 export const BACKPRESSURE_BYTES = 4 * 1024 * 1024;
 const DROPPABLE: ReadonlySet<string> = new Set(['delta', 'thinking', 'stats', 'bgAgents', 'team-state', 'team-panel']);
 
+// Read-only observers of every broadcast frame (the team talk dialog re-emits a bot's
+// stream per socket, redacted on the server). A throwing observer never breaks the fan-out.
+const taps = new Set<(msg: ServerMsg) => void>();
+export function addBroadcastTap(fn: (msg: ServerMsg) => void): () => void {
+  taps.add(fn);
+  return () => { taps.delete(fn); };
+}
+
 export function broadcast(msg: ServerMsg) {
+  for (const t of taps) { try { t(msg); } catch { /* observer failure is its own problem */ } }
   if (!source) return;
   const payload = JSON.stringify(msg);
   const droppable = DROPPABLE.has(msg.t);

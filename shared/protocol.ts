@@ -17,6 +17,7 @@ import type { TeamMessage } from './team-messages';
 import type { TeamMeeting } from './team-meeting';
 import type { TeamState } from './team-state';
 import type { TeamPanelPayload } from './team-panel';
+import type { TalkChunkPayload, TalkPayload } from './team-talk';
 import type { PrDetail, PrDiff, PrsSnapshot, SessionPrs } from './prs';
 import type { BoxHealth, SmokeResult } from './box-health';
 import type { VersionKind, VersionMeta } from './versions';
@@ -861,6 +862,8 @@ export type ClientMsg =
   | { t: 'team-meetings-get' }
   | { t: 'team-state-get'; followUpHours?: number }
   | { t: 'team-panel-get'; recording?: boolean }
+  | { t: 'team-talk-get'; botId: string; recording?: boolean }
+  | { t: 'team-talk-send'; botId: string; text: string; msgId: string; recording?: boolean }
   | { t: 'team-files-get'; botId: string }
   | { t: 'team-file-get'; botId: string; path: string }
   | { t: 'team-computer-get'; botId: string }
@@ -1079,6 +1082,8 @@ export type ServerMsg =
   | { t: 'team-meetings'; items: TeamMeeting[] }
   | { t: 'team-state'; state: TeamState }
   | { t: 'team-panel'; panel: TeamPanelPayload }
+  | { t: 'team-talk'; talk: TalkPayload }
+  | { t: 'team-talk-chunk'; botId: string; msgId?: string; chunk: TalkChunkPayload }
   | { t: 'team-meeting'; item: TeamMeeting }
   | { t: 'team-pending'; items: TeamPendingQuestion[] }
   | { t: 'team-files'; botId: string; items: BotFile[]; error?: string }

@@ -34,6 +34,7 @@ import { parseTtsText, synthesize, mintSttToken } from '../tts';
 import { sendTeamMessages, sendTeamPaused, setTeamPause } from './team-frames';
 import { sendTeamState } from './team-state-frames';
 import { sendTeamPanel } from './team-panel-frames';
+import { sendTalk, sendTalkMessage } from './team-talk';
 import { clearBotQuestion, sendTeamPending } from './team-pending-frames';
 import { sendBotComputer, sendBotFile, sendBotFiles } from './team-files-frames';
 import { validateBotInput } from '../../shared/team';
@@ -979,6 +980,14 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     }
     case 'team-state-get': {
       await sendTeamState(ws, msg, role);
+      return;
+    }
+    case 'team-talk-get': {
+      await sendTalk(ws, msg, role);
+      return;
+    }
+    case 'team-talk-send': {
+      await sendTalkMessage(ws, msg, role, handle);
       return;
     }
     case 'team-panel-get': {
