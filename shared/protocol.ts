@@ -5,7 +5,7 @@
 import type { AreaBudget, AreaId, CanvasBoard, CanvasCard, CanvasFlow, CanvasFlowRun, CanvasGraph, CanvasPos, CardPlain, CardStatus, OrchestratorActivity, OrchestratorInfo, SessionPeek, TermStats } from './canvas';
 import type { DepartmentId } from './departments';
 import type { AreaUsage } from './canvas-budget';
-import type { PlannerMove, PlannerTask } from './planner';
+import type { PlannerMove, PlannerTask, TaskHandoff } from './planner';
 import type { DflDraft, DraftOp } from './dfl-drafts';
 import type { McpsState } from './mcps';
 import type { Connection } from './connections';
@@ -946,6 +946,7 @@ export type ClientMsg =
   | { t: 'planner-task-save'; task: PlannerTask }
   | { t: 'planner-task-delete'; id: string }
   | { t: 'planner-reorder'; moves: PlannerMove[] }
+  | { t: 'planner-task-handoff'; id: string; handoff: Omit<TaskHandoff, 'at'> }
   // Kanban session item (src/routes/canvas/kanban-items.ts): user override on
   // a session's derived status — drag onto a column or "marcar completo".
   | { t: 'canvas-session-status'; sessionId: string; status: CardStatus }

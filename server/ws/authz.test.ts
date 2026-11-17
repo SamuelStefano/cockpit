@@ -73,7 +73,7 @@ describe('authorize', () => {
   });
 
   it('planner é admin-only', () => {
-    for (const t of ['planner-get', 'planner-task-save', 'planner-task-delete', 'planner-reorder'] as const) {
+    for (const t of ['planner-get', 'planner-task-save', 'planner-task-delete', 'planner-reorder', 'planner-task-handoff'] as const) {
       expect(authorize('student', t)).toBe(false);
       expect(authorize('admin', t)).toBe(true);
     }
