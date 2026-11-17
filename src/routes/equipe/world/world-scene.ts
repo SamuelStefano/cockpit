@@ -232,7 +232,7 @@ class WorldScene extends Phaser.Scene {
   private buildTiles(): void {
     const map = this.make.tilemap({ key: 'world' });
     const sets = TILESETS.map((n) => map.addTilesetImage(n, n)!);
-    const props = (index: number): Record<string, unknown> => map.tilesets.find((t) => t.containsTileIndex(index))?.getTileProperties(index) ?? {};
+    const props = (index: number): Record<string, unknown> => (map.tilesets.find((t) => t.containsTileIndex(index))?.getTileProperties(index) as Record<string, unknown> | undefined) ?? {};
     const ground = map.createLayer('ground', sets, 0, 0)!.setDepth(0);
     this.tintGround(ground, props);
     map.createLayer('walls', sets, 0, 0)!.setDepth(5);
