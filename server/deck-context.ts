@@ -96,7 +96,7 @@ export function buildDeckContext(input: DeckContextInput): string {
       ? '- `deckctl` is installed here: it drives this box\'s Deck from the shell (`deckctl sessions`, `read`, `new`, `send`, `wait`, `board`, `card`, `task`, `queue`, `status`). Run `deckctl` with no arguments for the full list.'
       : '- `deckctl` is not installed on this box, so you cannot list or start Deck sessions from the shell here.',
     input.bot
-      ? '- You are an Equipe bot: the `deck-team` MCP gives you `team_list` and `team_send` to message the other bots of this box\'s team.'
+      ? '- You are an Equipe bot: the `deck-team` MCP gives you `team_list` and `team_send` to message the other bots of this box\'s team, `team_tasks` to list the Kanban tasks you own and `team_handoff` to pass one to another bot.'
       : '- The `deck-team` MCP (team_list/team_send) only loads in Equipe bot turns; this session does not have it.',
     '- There is no way yet to message a session or bot on another box. If asked, say so plainly; the person can switch box in the sidebar.',
     ...(input.deckGuide && !input.repoAgent ? ['- For how-to questions about the Deck itself (setup, boxes, crons, drops, models), use the `deck-guide` skill.'] : []),

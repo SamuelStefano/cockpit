@@ -8,6 +8,7 @@ import { getTeam } from '../team';
 import { broadcast } from './broadcast';
 import { hasInteractiveClaude } from '../canvas/term-stats';
 import { readBusyElsewhereSessionIds } from '../canvas/cv-liveness';
+import { applyBotHandoff } from './team-handoff';
 import { enqueuePending } from './pending';
 import { addParked } from './parked';
 import { resumableId } from './resume';
@@ -64,5 +65,5 @@ export async function deliverTeamMessage(m: SpoolMessage, team: TeamBot[]): Prom
 // Both Deck processes run this: the rename claim picks who delivers, and each
 // process broadcasts from the shared log so every tab sees every message.
 export function startTeamMessaging(): void {
-  startTeamOutbox({ getTeam, deliver: deliverTeamMessage }, (item) => broadcast({ t: 'team-message', item }));
+  startTeamOutbox({ getTeam, deliver: deliverTeamMessage, applyHandoff: (m, team) => applyBotHandoff(m, team) }, (item) => broadcast({ t: 'team-message', item }));
 }

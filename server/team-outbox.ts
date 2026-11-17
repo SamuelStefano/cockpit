@@ -6,13 +6,17 @@ import { appendTeamLog, hasLogged, isTeamPaused, readTeamLog, readTeamLogSince, 
 import { withFileLockAsync } from './ws/file-lock';
 
 // What team-mcp.mjs drops in the outbox, one file per message.
-export interface SpoolMessage { id: string; from: string; to: string; text: string; hop: number; ts: number }
+export interface SpoolHandoff { taskId: string; done: string; pending: string; reason: string; switchPoint: string }
+export interface SpoolMessage { id: string; from: string; to: string; text: string; hop: number; ts: number; handoff?: SpoolHandoff }
+
+export type HandoffOutcome = { ok: true; text: string } | { ok: false; reason: string };
 
 export type Delivery = 'delivered' | 'queued' | 'failed';
 
 export interface OutboxDeps {
   getTeam: () => Promise<TeamBot[]>;
   deliver: (m: SpoolMessage, team: TeamBot[]) => Promise<Delivery>;
+  applyHandoff?: (m: SpoolMessage & { handoff: SpoolHandoff }, team: TeamBot[]) => Promise<HandoffOutcome>;
   emit?: (m: TeamMessage) => void;
   now?: () => number;
 }
@@ -61,13 +65,22 @@ export async function recoverStale(dir = teamOutboxDir(), log?: TeamMessage[]): 
   }
 }
 
+function parseHandoff(raw: unknown): SpoolHandoff | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const r = raw as Record<string, unknown>;
+  const keys = ['taskId', 'done', 'pending', 'reason', 'switchPoint'] as const;
+  if (!keys.every((k) => typeof r[k] === 'string')) return undefined;
+  return { taskId: r.taskId as string, done: r.done as string, pending: r.pending as string, reason: r.reason as string, switchPoint: r.switchPoint as string };
+}
+
 export function parseSpool(raw: string): SpoolMessage | null {
   try {
     const r = JSON.parse(raw) as Record<string, unknown>;
     if (typeof r.id !== 'string' || !TEAM_MSG_ID_RE.test(r.id)) return null;
     if (typeof r.from !== 'string' || typeof r.to !== 'string' || typeof r.text !== 'string') return null;
+    const handoff = parseHandoff(r.handoff);
     const hop = Number.isInteger(r.hop) && (r.hop as number) > 0 ? (r.hop as number) : 1;
-    return { id: r.id, from: r.from, to: r.to, text: r.text, hop, ts: typeof r.ts === 'number' ? r.ts : Date.now() };
+    return { id: r.id, from: r.from, to: r.to, text: r.text, hop, ts: typeof r.ts === 'number' ? r.ts : Date.now(), ...(handoff ? { handoff } : {}) };
   } catch { return null; }
 }
 
@@ -75,14 +88,36 @@ function invalid(m: SpoolMessage, team: TeamBot[]): string | undefined {
   if (!team.some((b) => b.id === m.from)) return 'remetente não é da equipe';
   if (!team.some((b) => b.id === m.to)) return 'destinatário não é da equipe';
   if (m.from === m.to) return 'um bot não manda mensagem pra si mesmo';
-  if (!m.text.trim()) return 'mensagem vazia';
+  if (!m.handoff && !m.text.trim()) return 'mensagem vazia';
   if (Buffer.byteLength(m.text) > MAX_TEAM_TEXT_BYTES) return 'mensagem passa de 8KB';
   return undefined;
 }
 
+async function resolveHandoff(spool: SpoolMessage, team: TeamBot[], deps: OutboxDeps): Promise<HandoffOutcome | null> {
+  if (!spool.handoff) return null;
+  if (!deps.applyHandoff) return { ok: false, reason: 'passagem de tarefa indisponível' };
+  try { return await deps.applyHandoff({ ...spool, handoff: spool.handoff }, team); }
+  catch (e) { return { ok: false, reason: (e as Error).message.slice(0, 200) }; }
+}
+
+async function judgeAndDeliver(spool: SpoolMessage, team: TeamBot[], log: TeamMessage[], deps: OutboxDeps, nowMs: number): Promise<{ status: TeamMessageStatus; reason?: string; text: string }> {
+  const bad = invalid(spool, team);
+  if (bad) return { status: 'blocked', reason: bad, text: spool.text };
+  const verdict = judgeTeamMessage({ paused: isTeamPaused(), hop: spool.hop, sentLastHour: sentSince(log, spool.from, nowMs - HOUR_MS) });
+  if (!verdict.ok) return { status: 'blocked', reason: verdict.reason, text: spool.text };
+  const handoff = await resolveHandoff(spool, team, deps);
+  if (handoff && !handoff.ok) return { status: 'blocked', reason: handoff.reason, text: spool.text };
+  const msg = handoff?.ok ? { ...spool, text: handoff.text } : spool;
+  try {
+    const status = await deps.deliver(msg, team);
+    return { status, text: msg.text, ...(status === 'failed' ? { reason: 'não consegui entregar' } : {}) };
+  } catch (e) { return { status: 'failed', reason: (e as Error).message.slice(0, 200), text: msg.text }; }
+}
+
 // Judge, deliver and log one claimed message under the log's lock: the hourly
 // budget is counted from the log, and two processes counting at once would both
-// see room for the 30th message.
+// see room for the 30th message. A handoff applies to the task between the
+// brakes and the delivery, so a blocked one changes nothing.
 export async function processClaimed(path: string, deps: OutboxDeps): Promise<TeamMessage | null> {
   const raw = await readFile(path, 'utf8').catch(() => null);
   const spool = raw === null ? null : parseSpool(raw);
@@ -91,21 +126,9 @@ export async function processClaimed(path: string, deps: OutboxDeps): Promise<Te
   const entry = await withFileLockAsync(teamLogFile(), async (): Promise<TeamMessage | null> => {
     const log = await readTeamLog();
     if (hasLogged(log, spool.id)) return null;
-    const team = await deps.getTeam();
-    let status: TeamMessageStatus;
-    let reason = invalid(spool, team);
-    if (reason) status = 'blocked';
-    else {
-      const verdict = judgeTeamMessage({ paused: isTeamPaused(), hop: spool.hop, sentLastHour: sentSince(log, spool.from, now() - HOUR_MS) });
-      if (!verdict.ok) { status = 'blocked'; reason = verdict.reason; }
-      else {
-        try { status = await deps.deliver(spool, team); }
-        catch (e) { status = 'failed'; reason = (e as Error).message.slice(0, 200); }
-        if (status === 'failed' && !reason) reason = 'não consegui entregar';
-      }
-    }
-    const m: TeamMessage = { id: spool.id, from: spool.from, to: spool.to, text: spool.text.slice(0, MAX_TEAM_TEXT_BYTES * 2), ts: now(), status, hop: spool.hop };
-    if (reason) m.reason = reason;
+    const out = await judgeAndDeliver(spool, await deps.getTeam(), log, deps, now());
+    const m: TeamMessage = { id: spool.id, from: spool.from, to: spool.to, text: out.text.slice(0, MAX_TEAM_TEXT_BYTES * 2), ts: now(), status: out.status, hop: spool.hop };
+    if (out.reason) m.reason = out.reason;
     await appendTeamLog(m);
     return m;
   });

@@ -6,7 +6,7 @@ import { join } from 'node:path';
 
 const SCRIPT = join(__dirname, 'team-mcp.mjs');
 let dir = '';
-const paths = () => ({ team: join(dir, 'team.json'), outbox: join(dir, 'outbox'), log: join(dir, 'log.jsonl'), pause: join(dir, 'paused.json') });
+const paths = () => ({ team: join(dir, 'team.json'), outbox: join(dir, 'outbox'), log: join(dir, 'log.jsonl'), pause: join(dir, 'paused.json'), planner: join(dir, 'planner.json') });
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'deck-team-mcp-'));
@@ -14,11 +14,17 @@ beforeEach(() => {
     { id: 'lead1', name: 'growth-lead', label: 'lead', primary: true },
     { id: 'ativ1', name: 'growth-ativacao', label: 'ativação', parentId: 'lead1' },
   ]));
+  writeFileSync(paths().planner, JSON.stringify({ tasks: [
+    { id: 'mine', title: 'Minha', column: 'today', ownerBotId: 'lead1' },
+    { id: 'fin', title: 'Feita', column: 'done', ownerBotId: 'lead1' },
+    { id: 'theirs', title: 'Dele', column: 'week', ownerBotId: 'ativ1' },
+    { id: 'free', title: 'Livre', column: 'backlog' },
+  ] }));
 });
 
 function argv(hop = 0, waitMs = 0): string[] {
   const p = paths();
-  return [SCRIPT, '--bot', 'lead1', '--hop', String(hop), '--team', p.team, '--outbox', p.outbox, '--log', p.log, '--pause', p.pause, '--wait-ms', String(waitMs)];
+  return [SCRIPT, '--bot', 'lead1', '--hop', String(hop), '--team', p.team, '--outbox', p.outbox, '--log', p.log, '--pause', p.pause, '--planner', p.planner, '--wait-ms', String(waitMs)];
 }
 
 function talk(frames: unknown[], args = argv(), onSpawn?: () => void): Promise<any[]> {
@@ -40,13 +46,13 @@ const textOf = (frame: any): string => frame.result.content[0].text;
 const spooled = () => (existsSync(paths().outbox) ? readdirSync(paths().outbox).filter((f) => f.endsWith('.json')) : []);
 
 describe('team-mcp', () => {
-  it('handshakes and lists its two tools', async () => {
+  it('handshakes and lists its four tools', async () => {
     const [init, list] = await talk([
       { jsonrpc: '2.0', id: 0, method: 'initialize', params: { protocolVersion: '2025-06-18' } },
       { jsonrpc: '2.0', id: 1, method: 'tools/list' },
     ]);
     expect(init.result.serverInfo.name).toBe('deck-team');
-    expect(list.result.tools.map((t: any) => t.name)).toEqual(['team_list', 'team_send']);
+    expect(list.result.tools.map((t: any) => t.name)).toEqual(['team_list', 'team_send', 'team_tasks', 'team_handoff']);
   });
 
   it('team_list names the team, the boss and who the caller is', async () => {
@@ -96,5 +102,38 @@ describe('team-mcp', () => {
   it('tells the model a chain at hop 6 is cut', async () => {
     const [r] = await talk([call('team_send', { to: 'growth-ativacao', text: 'x' })], argv(5));
     expect(textOf(r)).toMatch(/cadeia longa demais \(6 saltos\)/);
+  });
+
+  it('team_tasks lists only the caller\'s open tasks', async () => {
+    const [r] = await talk([call('team_tasks')]);
+    expect(textOf(r)).toBe('- mine — Minha (today)');
+  });
+
+  const ho = { taskId: 'mine', to: 'growth-ativacao', done: 'd', pending: 'p', reason: 'r', switchPoint: 's' };
+
+  it('team_handoff spools the handoff as the server-side caller, ignoring any from in input', async () => {
+    const [r] = await talk([call('team_handoff', { ...ho, from: 'ativ1' })]);
+    expect(textOf(r)).toMatch(/enfileirada/i);
+    const [f] = spooled();
+    const body = JSON.parse(readFileSync(join(paths().outbox, f), 'utf8'));
+    expect(body).toMatchObject({ from: 'lead1', to: 'ativ1', text: '', hop: 1, handoff: { taskId: 'mine', done: 'd', pending: 'p', reason: 'r', switchPoint: 's' } });
+  });
+
+  it('team_handoff refuses a task owned by someone else, an unknown task and empty fields', async () => {
+    const rs = await talk([
+      call('team_handoff', { ...ho, taskId: 'theirs' }, 2),
+      call('team_handoff', { ...ho, taskId: 'nope' }, 3),
+      call('team_handoff', { ...ho, done: ' ' }, 4),
+      call('team_handoff', { ...ho, to: 'growth-lead' }, 5),
+    ]);
+    expect(rs.every((r) => r.result.isError)).toBe(true);
+    expect(textOf(rs[0])).toMatch(/não é o dono/);
+    expect(spooled()).toEqual([]);
+  });
+
+  it('team_handoff accepts an unowned task', async () => {
+    const [r] = await talk([call('team_handoff', { ...ho, taskId: 'free' })]);
+    expect(r.result.isError).toBeUndefined();
+    expect(spooled()).toHaveLength(1);
   });
 });

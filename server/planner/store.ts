@@ -9,7 +9,7 @@ import {
 import { sanitizeHandoffs } from '../../shared/task-handoff';
 import { withFileLockAsync } from '../ws/file-lock';
 
-function plannerFile(): string {
+export function plannerFile(): string {
   return process.env.COCKPIT_PLANNER ?? join(homedir(), '.cockpit', 'planner.json');
 }
 
