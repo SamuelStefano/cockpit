@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Message, ToolQuestion, ToolTodo } from '../../data/types';
 import type { CanvasBoard, CanvasCard, CanvasGraph, SessionPeek, TermStats } from '../../../shared/canvas';
-import type { BgAgent, Cron, SysStats } from '../../../shared/protocol';
+import type { BgAgent, Cron, SysStats, TeamBot } from '../../../shared/protocol';
 import type { Session } from '../../data/types';
 import { adaptLive, emptyPlacement, type LiveAction, type LiveFloor, type Placement } from './liveAdapter';
 
@@ -21,6 +21,7 @@ export interface LiveSource {
   stats: SysStats | null;
   crons: Cron[] | null;
   mcpServers: string[] | null;
+  bots?: TeamBot[];
   onCtxStats: (ids: string[]) => void;
   onPeek: (id: string) => void;
   onLoadThread: (id: string) => void;
@@ -66,12 +67,12 @@ export function useLiveFeed(s: LiveSource): { live: LiveFloor; actions: LiveActi
     for (const x of s.sessions) bgRunning[x.id] = runningAgents(s.bgAgents?.[x.id]);
     const r = adaptLive({
       sessions: s.sessions, running: s.running, termStats: s.termStats, threads: s.threads, tails, prs, teamQuestions: s.teamQuestions, areas,
-      cards: s.boardLoaded ? s.board.cards : null, stats: s.stats, crons: s.crons, mcpServers: s.mcpServers?.length ?? null, answered, bgRunning, now: Date.now(),
+      cards: s.boardLoaded ? s.board.cards : null, stats: s.stats, crons: s.crons, mcpServers: s.mcpServers?.length ?? null, answered, bgRunning, bots: s.bots, now: Date.now(),
     }, placement.current);
     placement.current = r.placement;
     return r;
     // `tick` ages sessions out of the 24h window even when nothing else changes.
-  }, [s.sessions, s.running, s.termStats, s.threads, s.peeks, s.teamQuestions, s.graph, s.board, s.boardLoaded, s.stats, s.crons, s.mcpServers, s.bgAgents, answered, tick]);
+  }, [s.sessions, s.running, s.termStats, s.threads, s.peeks, s.teamQuestions, s.graph, s.board, s.boardLoaded, s.stats, s.crons, s.mcpServers, s.bgAgents, s.bots, answered, tick]);
 
   const shownKey = live.shown.join(','), missingKey = live.missingThreads.join(',');
   const { connected, onCtxStats, onPeek, onLoadThread, onCanvasGet, onCronsGet } = s;

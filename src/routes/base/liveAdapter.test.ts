@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Message } from '../../data/types';
 import type { CanvasCard } from '../../../shared/canvas';
+import type { TeamBot } from '../../../shared/protocol';
 import { pickSessions, adaptLive, quietLabel, silentFor, SILENT_MS, emptyPlacement, familyOf, LIVE_AGENT_CAP, nextCronRun, placeSessions, projectOf, type LiveInput } from './liveAdapter';
 
 const NOW = 1_800_000_000_000;
@@ -32,6 +33,34 @@ describe('placeSessions', () => {
     expect(b.slots.x['2']).toBe(a.slots.x['2']);
     expect(b.slots.x['4']).toBe(a.slots.x['1']);
     expect(b.order).toEqual(['x', 'y']);
+  });
+});
+
+const bot = (id: string, over: Partial<TeamBot> = {}) => ({ id, name: `Bot ${id}`, label: 'Role', instructions: '', mascot: { shape: 'cube', color: '#fff' }, profile: {}, ...over }) as unknown as TeamBot;
+
+describe('adaptLive team', () => {
+  it('puts bot sessions in department wings first, in catalog order, with name and colour', () => {
+    const bots = [bot('bfin1', { department: 'finance', sessionId: 's-fin' }), bot('beng1', { department: 'engineering', sessionId: 's-eng' }), bot('bnone', { sessionId: 's-none' })];
+    const r = adaptLive(input({ bots, sessions: [sess('plain'), sess('s-none'), sess('s-fin'), sess('s-eng')], running: new Set(['plain', 's-fin', 's-eng', 's-none']) }), emptyPlacement());
+    expect(r.floor.wings.map((w) => w.name)).toEqual(['Engenharia', 'Finanças', 'Equipe', 'Deck']);
+    expect(r.floor.wings[0].rug).toBe(0x3b82f6);
+    expect(r.floor.wings[1].rug).toBe(0x22c55e);
+    const by = Object.fromEntries(r.floor.agents.map((a) => [a.sessionId, a]));
+    expect(by['s-eng']).toMatchObject({ name: 'Bot beng1', wingId: 'dept:engineering' });
+    expect(by['s-eng'].monitor).toMatchObject({ title: 'Deck: s-eng' });
+    expect(by['s-none'].wingId).toBe('dept:none');
+    expect(by.plain).toMatchObject({ name: 'Deck: plain', wingId: 'deck' });
+  });
+
+  it('resolves a session key through the bot thread key', () => {
+    const r = adaptLive(input({ bots: [bot('babcd', { department: 'growth' })], sessions: [sess('bot-babcd')] }), emptyPlacement());
+    expect(r.floor.agents[0]).toMatchObject({ name: 'Bot babcd', wingId: 'dept:growth' });
+  });
+
+  it('leaves non-bot sessions untouched', () => {
+    const a = adaptLive(input({ sessions: [sess('x'), sess('y')] }), emptyPlacement());
+    const b = adaptLive(input({ bots: [bot('bzzzz', { sessionId: 'other' })], sessions: [sess('x'), sess('y')] }), emptyPlacement());
+    expect(b.floor).toEqual(a.floor);
   });
 });
 

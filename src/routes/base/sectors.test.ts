@@ -13,6 +13,19 @@ describe('layoutWings', () => {
     expect(wings.reduce((n, w) => n + w.count, 0)).toBe(18);
     expect(Object.values(folded).every((v) => v === OTHER_WING_ID)).toBe(true);
   });
+  it('never folds a pinned wing while a project wing can still fold', () => {
+    const groups = [{ id: 'd1', name: 'D1', count: 1, pinned: true }, { id: 'd2', name: 'D2', count: 1, pinned: true }, ...Array.from({ length: 12 }, (_, i) => ({ id: `p${i}`, name: `P${i}`, count: 1 }))];
+    const { wings, folded } = layoutWings(groups);
+    expect(wings.slice(0, 2).map((w) => w.id)).toEqual(['d1', 'd2']);
+    expect(folded.d1).toBeUndefined();
+    expect(folded.d2).toBeUndefined();
+    expect(wings.reduce((n, w) => n + w.cols, 0)).toBeLessThanOrEqual(MAX_COLS);
+  });
+  it('uses the group colour and falls back to the palette', () => {
+    const { wings } = layoutWings([{ id: 'a', name: 'A', count: 1, rug: 0x3b82f6 }, { id: 'b', name: 'B', count: 1 }]);
+    expect(wings[0].rug).toBe(0x3b82f6);
+    expect(wings[1].rug).not.toBe(0x3b82f6);
+  });
 });
 
 describe('slotPosition', () => {
