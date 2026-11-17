@@ -128,5 +128,7 @@ describe('deriveWorld celebrate', () => {
   it('passes known ids only', () => {
     const w = deriveWorld(state(), { celebrate: ['a', 'ghost'] });
     expect(w.celebrate).toEqual(['a']);
+    const list = ['a'];
+    expect(deriveWorld(state(), { celebrate: list }).celebrate).toBe(list);
   });
 });

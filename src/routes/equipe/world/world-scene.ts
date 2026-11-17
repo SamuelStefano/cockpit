@@ -8,6 +8,9 @@ import { nudgePills } from './pill-layout';
 import { clampZoom, initialZoom, parseFocus, stepZoom, wheelStep, type CameraMode } from './camera-mode';
 import { sheetFrame, spriteKey, spritePath, textureKey } from './bot-sprite';
 import { npcSprite, type Flight, type NpcView, type WorldView } from './world-state';
+import { pickWanderTile, tileKey, wanderDelay, wanderTiles } from './world-wander';
+import { planCarry } from './world-carry';
+import { ParticleSim, jumpLift, stepPhase, walkBob, type Particle } from './world-juice';
 
 // Phaser lives only in this module, loaded with a dynamic import from TeamWorld.tsx.
 // Art: Kenney CC0 sheets and font in /world (see LICENSES.md). 16px tiles, whole zoom only.
@@ -67,6 +70,7 @@ export interface WorldHandle {
   setMode: (mode: CameraMode) => void;
   setRecording: (recording: boolean) => void;
   setSelection: (selecting: boolean, ids: string[]) => void;
+  celebrate: (id: string) => void;
   refresh: () => void;
   destroy: () => void;
 }
@@ -99,7 +103,22 @@ interface Npc {
   own: string | null;
   tint: number;
   face: Face;
+  shadow: Phaser.GameObjects.Image;
+  // A tile the bot walked to on its own (wander or handover); wins over spot.tile until the spot changes.
+  stand: Point | null;
+  nextWander: number;
+  wanderN: number;
+  phase: number;
+  dust: number;
+  lift: number;
+  jumpAt: number;
+  carry: Carry | null;
 }
+
+interface Carry { phase: 'go' | 'back'; receiver: string; box: Phaser.GameObjects.Image; prevStand: Point | null }
+
+const JUMP_MS = 760;
+const SPARK_TINTS = [0x3fd17f, 0xffd166, 0xffffff, 0xb69cff];
 
 // Multiply each RGB channel, for the alternate tiles of a checker floor.
 const shade = (c: number, k: number): number => ((((c >> 16) & 255) * k) << 16) | ((((c >> 8) & 255) * k) << 8) | Math.round((c & 255) * k);
@@ -132,6 +151,10 @@ class WorldScene extends Phaser.Scene {
   private selecting = false;
   private selected = new Set<string>();
   private rings = new Map<string, Phaser.GameObjects.Ellipse>();
+  private sim = new ParticleSim();
+  private fx: Phaser.GameObjects.Image[] = [];
+  private wanderPool: Point[] = [];
+  private lastCelebrate: string[] | null = null;
 
   constructor(opts: WorldOptions) {
     super('world');
@@ -179,12 +202,15 @@ class WorldScene extends Phaser.Scene {
     cam.setBackgroundColor(INK);
     cam.roundPixels = true;
     this.makeGlow();
+    this.makeTextures();
+    this.wanderPool = wanderTiles();
     this.buildTiles();
     this.buildStreet();
     this.buildPlaza();
     for (const h of HOUSES) this.buildHouse(h);
     this.buildTrees();
     this.buildAvatar();
+    this.buildParticles();
     this.bindInput();
     this.scale.on('resize', () => { if (this.mode === 'god' && !this.userMoved) this.applyMode(false); });
     this.ready = true;
@@ -210,8 +236,10 @@ class WorldScene extends Phaser.Scene {
     for (const f of view.flights) {
       if (this.seenFlights.has(f.key)) continue;
       this.seenFlights.add(f.key);
-      this.fly(f);
+      if (!this.startCarry(f)) this.fly(f);
     }
+    if (view.celebrate.length > 0 && view.celebrate !== this.lastCelebrate) for (const id of view.celebrate) this.celebrate(id);
+    this.lastCelebrate = view.celebrate;
     if (this.seenFlights.size > 200) this.seenFlights = new Set([...this.seenFlights].slice(-100));
   }
 
@@ -225,6 +253,22 @@ class WorldScene extends Phaser.Scene {
   setRecording(recording: boolean): void {
     this.recording = recording;
     if (this.marker) this.marker.setVisible(false);
+  }
+
+  celebrate(id: string): void {
+    const n = this.npcs.get(id);
+    if (!n || !this.ready) return;
+    n.jumpAt = this.time.now;
+    const burst = (count: number): void => {
+      if (!this.npcs.has(id)) return;
+      for (let i = 0; i < count; i++) {
+        const a = -Math.PI / 2 + (i / count - 0.5) * Math.PI * 1.6;
+        const v = 28 + ((i * 37) % 22);
+        this.emit('spark', n.sprite.x, n.sprite.y - 12 - n.lift, Math.cos(a) * v, Math.sin(a) * v - 10, 650);
+      }
+    };
+    burst(12);
+    this.time.delayedCall(JUMP_MS / 2, () => burst(6));
   }
 
   setSelection(selecting: boolean, ids: string[]): void {
@@ -250,6 +294,49 @@ class WorldScene extends Phaser.Scene {
     for (const [r, a] of [[30, 0.03], [23, 0.04], [16, 0.06], [9, 0.09]] as const) { g.fillStyle(0xffffff, a); g.fillCircle(32, 32, r); }
     g.generateTexture('glow', 64, 64);
     g.destroy();
+  }
+
+  // Small code-made textures: handover box, soft shadow, dust puff, star spark.
+  private makeTextures(): void {
+    const g = this.make.graphics({ x: 0, y: 0 }, false);
+    g.fillStyle(0x8a5a2b, 1).fillRect(0, 1, 8, 6);
+    g.fillStyle(0xb98245, 1).fillRect(0, 1, 8, 2);
+    g.fillStyle(0xf2ead8, 1).fillRect(3, 1, 2, 6);
+    g.lineStyle(1, 0x2f1d0e, 1).strokeRect(0.5, 1.5, 7, 5);
+    g.generateTexture('box', 8, 8);
+    g.clear();
+    g.fillStyle(0x000000, 0.18).fillEllipse(8, 3, 16, 6);
+    g.fillStyle(0x000000, 0.22).fillEllipse(8, 3, 11, 4);
+    g.generateTexture('shadow', 16, 6);
+    g.clear();
+    g.fillStyle(0xe8dcc4, 0.35).fillCircle(4, 4, 4);
+    g.fillStyle(0xe8dcc4, 0.5).fillCircle(4, 4, 2);
+    g.generateTexture('dust', 8, 8);
+    g.clear();
+    g.fillStyle(0xffffff, 1).fillRect(3, 0, 1, 7).fillRect(0, 3, 7, 1).fillRect(2, 2, 3, 3);
+    g.generateTexture('spark', 7, 7);
+    g.destroy();
+  }
+
+  private buildParticles(): void {
+    for (let i = 0; i < this.sim.cap; i++) this.fx.push(this.add.image(0, 0, 'dust').setDepth(9_500).setVisible(false));
+  }
+
+  private emit(kind: Particle['kind'], x: number, y: number, vx: number, vy: number, life: number): void {
+    this.sim.spawn(kind, x, y, vx, vy, life);
+  }
+
+  private renderParticles(dt: number): void {
+    this.sim.step(dt);
+    for (const p of this.sim.particles) {
+      const img = this.fx[p.slot]!;
+      if (!p.alive) { if (img.visible) img.setVisible(false); continue; }
+      const k = p.age / p.life;
+      if (img.texture.key !== p.kind) img.setTexture(p.kind);
+      img.setVisible(true).setPosition(Math.round(p.x), Math.round(p.y)).setAlpha(1 - k);
+      if (p.kind === 'dust') img.setScale(0.5 + k * 0.7).clearTint();
+      else img.setScale(1 - k * 0.5).setTint(SPARK_TINTS[p.slot % SPARK_TINTS.length]!);
+    }
   }
 
   private glowAt(x: number, y: number, k: number, tint = 0xffb347): void {
@@ -466,18 +553,27 @@ class WorldScene extends Phaser.Scene {
         ? this.add.sprite(f.x, f.y, textureKey(own!), sheetFrame(0, spot.face)).setOrigin(0.5, 1)
         : this.add.sprite(f.x, f.y, 'urban', charFrame(char, 0, spot.face)).setOrigin(0.5, 1).setTint(tint);
       const pill = this.makePill({ text: v.name, anchor: 'center', dot: modeColor(v.mode, v.meeting), icon: null, badge: v.badge });
-      npc = { view: v, sprite, pill, extras: [], tweens: [], mode: null, spot, index, busyUntil: 0, route: [], walking: false, char, own, tint, face: spot.face };
+      const shadow = this.add.image(f.x, f.y - 1, 'shadow').setDepth(100 + f.y - 0.5);
+      npc = {
+        view: v, sprite, pill, extras: [], tweens: [], mode: null, spot, index, busyUntil: 0, route: [], walking: false, char, own, tint, face: spot.face,
+        shadow, stand: null, nextWander: this.time.now + wanderDelay(v.id, 0), wanderN: 0, phase: 0, dust: 0, lift: 0, jumpAt: -1e9, carry: null,
+      };
       this.npcs.set(v.id, npc);
     } else if (npc.spot.tile.x !== spot.tile.x || npc.spot.tile.y !== spot.tile.y) {
       // Walk from where the bot stands now: out of its house, across the street or plaza, into the next one.
-      const from = { x: toTile(npc.sprite.x), y: toTile(npc.sprite.y - 1) };
-      npc.route = findPath(from, spot.tile);
+      this.cancelCarry(npc);
+      npc.stand = null;
+      npc.route = findPath(this.tileOf(npc), spot.tile);
+      npc.nextWander = this.time.now + wanderDelay(v.id, npc.wanderN);
+    } else if (npc.stand && (v.mode !== 'idle' || v.meeting)) {
+      npc.stand = null;
+      npc.route = findPath(this.tileOf(npc), spot.tile);
     }
     const changed = npc.mode !== v.mode || npc.view.meeting !== v.meeting;
     npc.view = v;
     npc.spot = spot;
     npc.index = index;
-    if (npc.route.length === 0 && !npc.walking) npc.sprite.setPosition(f.x, f.y);
+    if (npc.route.length === 0 && !npc.walking) { const t = this.feet(this.target(npc)); npc.sprite.setPosition(t.x, t.y); }
     npc.sprite.setDepth(100 + npc.sprite.y);
     this.repaintNpcPill(npc);
     if (changed) this.applyNpcMode(npc, v.mode);
@@ -495,7 +591,33 @@ class WorldScene extends Phaser.Scene {
       w: n.pill.w * this.labelScale, h: n.pill.h * this.labelScale,
     }));
     const lifts = nudgePills(boxes);
-    for (const n of this.npcs.values()) n.pill.c.setPosition(Math.round(n.sprite.x), Math.round(n.sprite.y - 17 - (lifts.get(n.view.id) ?? 0)));
+    for (const n of this.npcs.values()) n.pill.c.setPosition(Math.round(n.sprite.x), Math.round(n.sprite.y - 17 - n.lift - (n.carry?.phase === 'go' ? 9 : 0) - (lifts.get(n.view.id) ?? 0)));
+  }
+
+  private tileOf(n: Npc): Point {
+    return { x: toTile(n.sprite.x), y: toTile(n.sprite.y - 1) };
+  }
+
+  private target(n: Npc): Point {
+    return n.stand ?? n.spot.tile;
+  }
+
+  private canWander(n: Npc): boolean {
+    return n.view.mode === 'idle' && !n.view.meeting && n.spot.station === 'plaza' && !n.carry && n.route.length === 0 && !n.walking;
+  }
+
+  private maybeWander(n: Npc, now: number): void {
+    if (now < n.nextWander || !this.canWander(n)) return;
+    const occupied = new Set<string>();
+    for (const o of this.npcs.values()) { occupied.add(tileKey(o.spot.tile)); occupied.add(tileKey(this.target(o))); occupied.add(tileKey(this.tileOf(o))); }
+    const to = pickWanderTile(n.view.id, n.wanderN, this.tileOf(n), this.wanderPool, occupied);
+    n.wanderN++;
+    const route = to ? findPath(this.tileOf(n), to) : [];
+    const last = route[route.length - 1];
+    if (!to || !last || last.x !== to.x || last.y !== to.y) { n.nextWander = now + wanderDelay(n.view.id, n.wanderN); return; }
+    n.stand = to;
+    n.route = route;
+    n.nextWander = now + wanderDelay(n.view.id, n.wanderN) + (route.length * TILE * 1000) / WALK_SPEED;
   }
 
   private moveNpcs(dt: number): void {
@@ -503,26 +625,100 @@ class WorldScene extends Phaser.Scene {
     for (const n of this.npcs.values()) {
       const sp = n.sprite;
       const next = n.route[0];
+      let bob = { lift: 0, sx: 1, sy: 1 };
       if (next) {
         const tx = tileCenter(next.x);
         const ty = (next.y + 1) * TILE - 1;
         const dx = tx - sp.x;
         const dy = ty - sp.y;
         const dist = Math.hypot(dx, dy);
-        const step = (WALK_SPEED * dt) / 1000;
+        const step = Math.min(dist, (WALK_SPEED * dt) / 1000);
         if (dist <= step) { sp.setPosition(tx, ty); n.route.shift(); } else { sp.x += (dx / dist) * step; sp.y += (dy / dist) * step; }
         n.face = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 'left' : 'right') : (dy < 0 ? 'up' : 'down');
         n.walking = true;
+        n.phase += stepPhase(step);
+        bob = walkBob(n.phase);
+        n.dust += step;
+        if (n.dust >= 7) { n.dust = 0; this.emit('dust', sp.x + (Math.random() - 0.5) * 4, sp.y - 1, (Math.random() - 0.5) * 8, -6, 420); }
         sp.setFrame(this.frameOf(n, 1 + (Math.floor(now / 140) % 2)));
+        sp.setScale(bob.sx, bob.sy);
       } else if (n.walking) {
         n.walking = false;
-        const f = this.feet(n.spot.tile);
+        n.phase = 0;
+        const f = this.feet(this.target(n));
         sp.setPosition(f.x, f.y);
-        n.face = n.spot.face;
+        if (!n.stand) n.face = n.spot.face;
+        sp.setScale(1, sp.scaleY);
         sp.setFrame(this.frameOf(n, 0));
       }
+      this.stepCarry(n);
+      this.maybeWander(n, now);
+      const jk = (now - n.jumpAt) / JUMP_MS;
+      n.lift = bob.lift + (jk >= 0 && jk < 1 ? jumpLift(jk) : 0);
+      sp.setOrigin(0.5, 1 + n.lift / TILE);
       sp.setDepth(100 + sp.y);
+      const seatedStill = n.spot.seated && !n.stand && !n.walking && !n.carry;
+      n.shadow.setVisible(!seatedStill).setPosition(Math.round(sp.x), Math.round(sp.y) - 1).setDepth(sp.depth - 0.5).setScale(Math.max(0.5, 1 - n.lift * 0.06));
+      if (n.carry?.phase === 'go') n.carry.box.setPosition(Math.round(sp.x), Math.round(sp.y - 15 - n.lift)).setDepth(sp.depth + 1);
     }
+  }
+
+  // ---- handover on foot ----
+
+  // The sender walks to the receiver with a box over its head. false = fall back to the flying item.
+  private startCarry(f: Flight): boolean {
+    const from = f.from ? this.npcs.get(f.from) : undefined;
+    const to = this.npcs.get(f.to);
+    if (!from || !to || from === to) return false;
+    if (from.carry || from.walking || from.route.length > 0 || to.walking || to.route.length > 0) return false;
+    const taken = new Set<string>();
+    for (const o of this.npcs.values()) if (o !== to) { taken.add(tileKey(this.target(o))); taken.add(tileKey(this.tileOf(o))); }
+    const plan = planCarry(this.tileOf(from), this.tileOf(to), (p) => !isBlocked(p.x, p.y) && !taken.has(tileKey(p)), findPath);
+    if (!plan) return false;
+    const box = this.add.image(from.sprite.x, from.sprite.y - 15, 'box').setOrigin(0.5, 1).setDepth(9_000);
+    from.carry = { phase: 'go', receiver: to.view.id, box, prevStand: from.stand };
+    from.stand = plan.adjacent;
+    from.route = plan.go;
+    const ms = 1500 + plan.go.length * ((TILE * 1000) / WALK_SPEED);
+    for (const n of [from, to]) { n.busyUntil = this.time.now + ms; this.repaintNpcPill(n); }
+    this.time.delayedCall(ms + 100, () => { for (const n of [from, to]) if (this.npcs.has(n.view.id)) this.repaintNpcPill(n); });
+    return true;
+  }
+
+  private stepCarry(n: Npc): void {
+    const c = n.carry;
+    if (!c || n.route.length > 0 || n.walking) return;
+    if (c.phase === 'back') { n.carry = null; return; }
+    const r = this.npcs.get(c.receiver);
+    if (!r) { this.cancelCarry(n); return; }
+    const dx = r.sprite.x - n.sprite.x;
+    const dy = r.sprite.y - n.sprite.y;
+    n.face = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 'left' : 'right') : (dy < 0 ? 'up' : 'down');
+    n.sprite.setFrame(this.frameOf(n, 0));
+    const box = c.box;
+    const a = { x: box.x, y: box.y };
+    n.carry = { ...c, phase: 'back', box };
+    this.tweens.addCounter({
+      from: 0, to: 1, duration: 380, ease: 'Sine.easeInOut',
+      onUpdate: (tw) => {
+        const k = tw.getValue() ?? 0;
+        box.setPosition(Math.round(a.x + (r.sprite.x - a.x) * k), Math.round(a.y + (r.sprite.y - 15 - r.lift - a.y) * k - Math.sin(k * Math.PI) * 10)).setDepth(9_000);
+      },
+      onComplete: () => {
+        this.tweens.add({ targets: r.sprite, scaleX: 1.2, scaleY: 1.2, duration: 110, yoyo: true });
+        box.setPosition(Math.round(r.sprite.x), Math.round(r.sprite.y - 15));
+        this.tweens.add({ targets: box, alpha: 0, y: box.y - 6, delay: 500, duration: 400, onComplete: () => box.destroy() });
+      },
+    });
+    n.stand = c.prevStand;
+    n.route = findPath(this.tileOf(n), this.target(n));
+    if (n.route.length === 0) n.carry = null;
+  }
+
+  private cancelCarry(n: Npc): void {
+    if (!n.carry) return;
+    if (n.carry.phase === 'go') n.carry.box.destroy();
+    n.carry = null;
   }
 
   private applyNpcMode(n: Npc, mode: NpcView['mode']): void {
@@ -576,6 +772,8 @@ class WorldScene extends Phaser.Scene {
   }
 
   private removeNpc(id: string, n: Npc): void {
+    this.cancelCarry(n);
+    n.shadow.destroy();
     for (const t of n.tweens) t.stop();
     for (const e of n.extras) e.destroy();
     this.pills = this.pills.filter((p) => p !== n.pill);
@@ -748,6 +946,7 @@ class WorldScene extends Phaser.Scene {
   update(_t: number, dt: number): void {
     this.stepAvatar(dt);
     this.moveNpcs(dt);
+    this.renderParticles(dt);
     this.applyLabelScale();
     this.layoutPills();
     this.placeBubbles();
@@ -794,6 +993,7 @@ export function createWorld(opts: WorldOptions): WorldHandle {
     setMode: (m) => scene.setMode(m),
     setRecording: (r) => scene.setRecording(r),
     setSelection: (s, ids) => scene.setSelection(s, ids),
+    celebrate: (id) => scene.celebrate(id),
     refresh: () => game.scale.refresh(),
     destroy: () => game.destroy(true),
   };

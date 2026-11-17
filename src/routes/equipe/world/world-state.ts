@@ -82,6 +82,10 @@ export interface DeriveOptions {
   celebrate?: string[];
 }
 
+const NO_IDS: string[] = [];
+// Same array back when every id is known, so the scene can tell a new celebration from a re-render.
+const knownIds = (list: string[] | undefined, ids: Set<string>): string[] => (!list || list.length === 0 ? NO_IDS : list.every((id) => ids.has(id)) ? list : list.filter((id) => ids.has(id)));
+
 export function deriveWorld(state: TeamState | null, opts: DeriveOptions = {}): WorldView {
   if (!state) return { npcs: [], flights: [], projects: {}, meetingSize: 0, celebrate: [] };
   const now = opts.now ?? state.at;
@@ -96,5 +100,5 @@ export function deriveWorld(state: TeamState | null, opts: DeriveOptions = {}): 
     .map((h): Flight => ({ key: `${h.taskId}:${h.at}`, from: h.from && ids.has(h.from) ? h.from : null, to: h.to }));
   const projects: Record<string, string> = {};
   for (const [id, n] of Object.entries(opts.projects ?? {})) { const t = badgeText(n); if (t) projects[id] = t; }
-  return { npcs, flights, projects, meetingSize: inMeeting.size, celebrate: (opts.celebrate ?? []).filter((id) => ids.has(id)) };
+  return { npcs, flights, projects, meetingSize: inMeeting.size, celebrate: knownIds(opts.celebrate, ids) };
 }
