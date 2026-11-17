@@ -58,3 +58,7 @@ export const GAME_CRT_KEY = 'game.crt';
 // nova. Ligado por padrão; prefers-reduced-motion desliga de qualquer jeito.
 export const BIT_PLAYFUL_KEY = 'bit.playful';
 export const BIT_PLAYFUL_DEFAULT = true;
+
+// Recording mode: the team home hides task text and previews so the screen can be filmed.
+export const RECORDING_MODE_KEY = 'team.recordingMode';
+export const RECORDING_MODE_DEFAULT = false;

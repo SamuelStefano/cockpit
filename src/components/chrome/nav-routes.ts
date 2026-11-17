@@ -28,6 +28,7 @@ export interface NavItem {
 
 export const NAV: NavItem[] = [
   { to: '/', label: 'Chat', icon: 'message', student: true },
+  { to: '/equipe', label: 'Equipe', icon: 'users' },
   { to: '/canvas', label: 'Canvas', icon: 'grip', side: true, tile: 'bg-amber-500/20 text-amber-300' },
   { to: '/base', label: 'Base', icon: 'layers' },
   { to: '/prs', label: 'Pull requests', icon: 'gitPullRequest', root: true, side: true, tile: 'bg-orange-500/20 text-orange-300' },
@@ -54,6 +55,9 @@ export function navFor(role: NavRole) {
   if (role === 'admin') return NAV.filter((n) => !n.root);
   return NAV.filter((n) => n.student);
 }
+
+// Where root/admin land when the app opens on the bare URL.
+export const TEAM_HOME: Route = '/equipe';
 
 export const STUDENT_HOME: Route = '/';
 

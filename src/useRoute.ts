@@ -2,12 +2,12 @@ import { useState, useEffect, useCallback } from 'react';
 
 // Router minúsculo (sem dep): só troca a VIEW principal. useCockpit fica ACIMA
 // deste switch no App, então o WebSocket/terminais nunca desmontam ao navegar.
-export type Route = '/' | '/equipe/memoria' | '/skills' | '/pontos' | '/equipe/rotinas' | '/configuracoes' | '/configuracoes/uso' | '/configuracoes/pessoas' | '/configuracoes/maquina' | '/configuracoes/maquinas' | '/configuracoes/avancado' | '/graph' | '/canvas' | '/conexoes' | '/docs' | '/ds' | '/onboarding' | '/agentes' | '/base' | '/arcade' | '/prs';
+export type Route = '/' | '/equipe' | '/equipe/memoria' | '/skills' | '/pontos' | '/equipe/rotinas' | '/configuracoes' | '/configuracoes/uso' | '/configuracoes/pessoas' | '/configuracoes/maquina' | '/configuracoes/maquinas' | '/configuracoes/avancado' | '/graph' | '/canvas' | '/conexoes' | '/docs' | '/ds' | '/onboarding' | '/agentes' | '/base' | '/arcade' | '/prs';
 
-const ROUTES: Route[] = ['/', '/equipe/memoria', '/skills', '/pontos', '/equipe/rotinas', '/configuracoes', '/configuracoes/uso', '/configuracoes/pessoas', '/configuracoes/maquina', '/configuracoes/maquinas', '/configuracoes/avancado', '/graph', '/canvas', '/conexoes', '/docs', '/ds', '/onboarding', '/agentes', '/base', '/arcade', '/prs'];
+const ROUTES: Route[] = ['/', '/equipe', '/equipe/memoria', '/skills', '/pontos', '/equipe/rotinas', '/configuracoes', '/configuracoes/uso', '/configuracoes/pessoas', '/configuracoes/maquina', '/configuracoes/maquinas', '/configuracoes/avancado', '/graph', '/canvas', '/conexoes', '/docs', '/ds', '/onboarding', '/agentes', '/base', '/arcade', '/prs'];
 
 // Old URLs (bookmarks, deep links) keep working; the retired screens fall back to chat.
-const LEGACY: Record<string, string> = { '/notas': '/', '/play': '/', '/sala': '/', '/placar': '/', '/harness': '/', '/equipe': '/', '/contextos': '/equipe/memoria', '/crons': '/equipe/rotinas', '/uso': '/configuracoes/uso' };
+const LEGACY: Record<string, string> = { '/notas': '/', '/play': '/', '/sala': '/', '/placar': '/', '/harness': '/', '/contextos': '/equipe/memoria', '/crons': '/equipe/rotinas', '/uso': '/configuracoes/uso' };
 
 // /painel is gone: its tabs moved to Configurações (Máquina, Pessoas) and Conexões.
 const PAINEL_TO: Record<string, string> = { overview: '/configuracoes/maquina', host: '/configuracoes/maquina', accounts: '/configuracoes/pessoas', mcps: '/conexoes#ferramentas', agents: '/conexoes#provedores', models: '/conexoes#provedores' };
