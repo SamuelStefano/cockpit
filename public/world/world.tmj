@@ -11,7 +11,7 @@
  "tilewidth": 16,
  "tileheight": 16,
  "nextlayerid": 6,
- "nextobjectid": 73,
+ "nextobjectid": 81,
  "tilesets": [
   {
    "firstgid": 1,
@@ -4123,7 +4123,7 @@
     281,
     0,
     319,
-    0,
+    319,
     319,
     0,
     281,
@@ -4315,7 +4315,7 @@
     282,
     0,
     319,
-    0,
+    319,
     319,
     0,
     282,
@@ -7184,11 +7184,11 @@
      ]
     },
     {
-     "id": 67,
+     "id": 73,
      "name": "sala-chair-0",
      "type": "",
-     "x": 504,
-     "y": 296,
+     "x": 552,
+     "y": 328,
      "width": 0,
      "height": 0,
      "point": true,
@@ -7208,15 +7208,15 @@
       {
        "name": "face",
        "type": "string",
-       "value": "down"
+       "value": "left"
       }
      ]
     },
     {
-     "id": 68,
+     "id": 74,
      "name": "sala-chair-1",
      "type": "",
-     "x": 536,
+     "x": 520,
      "y": 296,
      "width": 0,
      "height": 0,
@@ -7242,11 +7242,11 @@
      ]
     },
     {
-     "id": 69,
+     "id": 75,
      "name": "sala-chair-2",
      "type": "",
      "x": 504,
-     "y": 360,
+     "y": 296,
      "width": 0,
      "height": 0,
      "point": true,
@@ -7266,16 +7266,16 @@
       {
        "name": "face",
        "type": "string",
-       "value": "up"
+       "value": "down"
       }
      ]
     },
     {
-     "id": 70,
+     "id": 76,
      "name": "sala-chair-3",
      "type": "",
      "x": 536,
-     "y": 360,
+     "y": 296,
      "width": 0,
      "height": 0,
      "point": true,
@@ -7295,16 +7295,16 @@
       {
        "name": "face",
        "type": "string",
-       "value": "up"
+       "value": "down"
       }
      ]
     },
     {
-     "id": 71,
+     "id": 77,
      "name": "sala-chair-4",
      "type": "",
-     "x": 488,
-     "y": 328,
+     "x": 504,
+     "y": 360,
      "width": 0,
      "height": 0,
      "point": true,
@@ -7324,16 +7324,16 @@
       {
        "name": "face",
        "type": "string",
-       "value": "right"
+       "value": "up"
       }
      ]
     },
     {
-     "id": 72,
+     "id": 78,
      "name": "sala-chair-5",
      "type": "",
-     "x": 552,
-     "y": 328,
+     "x": 520,
+     "y": 360,
      "width": 0,
      "height": 0,
      "point": true,
@@ -7353,7 +7353,65 @@
       {
        "name": "face",
        "type": "string",
-       "value": "left"
+       "value": "up"
+      }
+     ]
+    },
+    {
+     "id": 79,
+     "name": "sala-chair-6",
+     "type": "",
+     "x": 536,
+     "y": 360,
+     "width": 0,
+     "height": 0,
+     "point": true,
+     "rotation": 0,
+     "visible": true,
+     "properties": [
+      {
+       "name": "room",
+       "type": "string",
+       "value": "sala"
+      },
+      {
+       "name": "seat",
+       "type": "int",
+       "value": 6
+      },
+      {
+       "name": "face",
+       "type": "string",
+       "value": "up"
+      }
+     ]
+    },
+    {
+     "id": 80,
+     "name": "sala-chair-7",
+     "type": "",
+     "x": 488,
+     "y": 328,
+     "width": 0,
+     "height": 0,
+     "point": true,
+     "rotation": 0,
+     "visible": true,
+     "properties": [
+      {
+       "name": "room",
+       "type": "string",
+       "value": "sala"
+      },
+      {
+       "name": "seat",
+       "type": "int",
+       "value": 7
+      },
+      {
+       "name": "face",
+       "type": "string",
+       "value": "right"
       }
      ]
     }
