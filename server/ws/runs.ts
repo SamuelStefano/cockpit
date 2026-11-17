@@ -977,7 +977,6 @@ export function startRun(o: StartRunOptions): 'pane' | 'rejected' | undefined {
       if (live && !shouldPreserveLive()) clearRunLive(sessionKey); // fechou: não é mais órfão (salvo no shutdown, onde o boot retoma)
       if (cliHealable(thread)) {
         threads.delete(sessionKey);
-      scheduleTeamStatePush();
         scheduleTeamStatePush();
         void healOutdatedCli({ sessionKey, thread, resumeId, forkId, queued });
         return;
@@ -1082,6 +1081,7 @@ export function startRun(o: StartRunOptions): 'pane' | 'rejected' | undefined {
       });
       if (thread.sessionId && !thread.stopped && !unattended) void summarize(thread.sessionId);
       threads.delete(sessionKey);
+      scheduleTeamStatePush();
       // época só vive enquanto há turno/triagem; senão vaza monotônico. A triage
       // or quick answer still waiting on this key needs it: clearing it back to 0
       // made a stop pressed during triage look like no stop at all.
