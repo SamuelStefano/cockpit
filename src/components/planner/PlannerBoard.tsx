@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { PlannerColumn as Column, PlannerTask } from '../../../shared/planner';
 import { PLANNER_COLUMNS } from '../../../shared/planner';
+import type { TeamBot } from '../../../shared/protocol';
 import { Tabs } from '../primitives';
 import { useCoarse } from '../primitives/useCoarse';
 import { COLUMN_LABELS, columnTasks, hiddenDoneCount } from '../../planner/planner-logic';
@@ -9,6 +10,7 @@ import { PlannerColumn } from './PlannerColumn';
 
 interface PlannerBoardProps {
   tasks: PlannerTask[];
+  bots?: TeamBot[];
   visible: PlannerTask[];
   filtering: boolean;
   now: number;
@@ -19,7 +21,7 @@ interface PlannerBoardProps {
   onMove: (id: string, column: Column, index: number) => void;
 }
 
-export function PlannerBoard({ tasks, visible, filtering, now, showAllDone, onToggleAllDone, onAdd, onOpen, onMove }: PlannerBoardProps) {
+export function PlannerBoard({ tasks, bots, visible, filtering, now, showAllDone, onToggleAllDone, onAdd, onOpen, onMove }: PlannerBoardProps) {
   const coarse = useCoarse();
   const [mobile, setMobile] = useState<Column>('today');
   const dnd = usePlannerDnd(tasks, visible, showAllDone, onMove);
@@ -31,7 +33,7 @@ export function PlannerBoard({ tasks, visible, filtering, now, showAllDone, onTo
       <div className="flex min-h-0 flex-1 gap-2 px-3 pb-3 pt-2 max-md:p-2">
         {PLANNER_COLUMNS.map((c) => (
           <PlannerColumn
-            key={c} column={c} tasks={lists[c]} filtering={filtering} coarse={coarse} hiddenDone={hiddenDoneCount(visible, now)} showAllDone={showAllDone}
+            key={c} column={c} tasks={lists[c]} bots={bots} filtering={filtering} coarse={coarse} hiddenDone={hiddenDoneCount(visible, now)} showAllDone={showAllDone}
             className={c === mobile ? '' : 'max-md:hidden'} onToggleAllDone={onToggleAllDone}
             onAdd={(title) => onAdd(c, title)} onOpen={onOpen} onMove={onMove}
             dnd={{

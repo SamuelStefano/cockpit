@@ -1,5 +1,6 @@
 import type { DragEvent } from 'react';
 import type { PlannerColumn as Column, PlannerTask } from '../../../shared/planner';
+import type { TeamBot } from '../../../shared/protocol';
 import { Button } from '../primitives';
 import { COLUMN_DOT, COLUMN_LABELS } from '../../planner/planner-logic';
 import { useColumnPage } from '../../planner/useColumnPage';
@@ -19,6 +20,7 @@ export interface ColumnDnd {
 interface PlannerColumnProps {
   column: Column;
   tasks: PlannerTask[];
+  bots?: TeamBot[];
   filtering: boolean;
   coarse: boolean;
   hiddenDone: number;
@@ -33,7 +35,7 @@ interface PlannerColumnProps {
 
 const EMPTY: Record<Column, string> = { today: 'Nada para hoje.', week: 'Semana livre.', backlog: 'Sem pendências.', done: 'Nada feito ainda.' };
 
-export function PlannerColumn({ column, tasks, filtering, coarse, hiddenDone, showAllDone, dnd, className = '', onToggleAllDone, onAdd, onOpen, onMove }: PlannerColumnProps) {
+export function PlannerColumn({ column, tasks, bots, filtering, coarse, hiddenDone, showAllDone, dnd, className = '', onToggleAllDone, onAdd, onOpen, onMove }: PlannerColumnProps) {
   const page = useColumnPage(tasks);
   const over = dnd.overIndex !== null;
   return (
@@ -51,7 +53,7 @@ export function PlannerColumn({ column, tasks, filtering, coarse, hiddenDone, sh
         {tasks.length === 0 && <p className="px-2 py-3 text-[12px] text-neutral-600">{filtering ? 'Nada encontrado.' : EMPTY[column]}</p>}
         {page.shown.map((t, i) => (
           <PlannerCard
-            key={t.id} task={t} dragging={dnd.dragId === t.id} coarse={coarse} dropBefore={dnd.overIndex === i}
+            key={t.id} task={t} bots={bots} dragging={dnd.dragId === t.id} coarse={coarse} dropBefore={dnd.overIndex === i}
             onOpen={() => onOpen(t.id)} onMoveTo={(to) => onMove(t.id, to, 0)}
             onDragStart={(e) => dnd.startDrag(e, t.id)} onDragEnd={dnd.reset} onDragOver={(e) => dnd.overCard(e, i)}
           />

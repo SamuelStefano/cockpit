@@ -1,10 +1,11 @@
 import { useState } from 'react';
+import type { TeamBot } from '../../../shared/protocol';
 import { Badge, Icon } from '../primitives';
 import { todayPendingCount } from '../../planner/planner-logic';
 import type { PlannerApi } from '../../planner/usePlanner';
 import { KanbanModal } from './KanbanModal';
 
-export function KanbanButton({ planner }: { planner: PlannerApi }) {
+export function KanbanButton({ planner, bots }: { planner: PlannerApi; bots?: TeamBot[] }) {
   const [open, setOpen] = useState(false);
   const pending = todayPendingCount(planner.tasks);
   return (
@@ -18,7 +19,7 @@ export function KanbanButton({ planner }: { planner: PlannerApi }) {
         <span className="max-md:hidden">Kanban</span>
         {pending > 0 && <Badge tone="orange" className="max-md:absolute max-md:-right-0.5 max-md:-top-0.5">{pending}</Badge>}
       </button>
-      <KanbanModal open={open} onClose={() => setOpen(false)} planner={planner} />
+      <KanbanModal open={open} onClose={() => setOpen(false)} planner={planner} bots={bots} />
     </>
   );
 }

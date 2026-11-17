@@ -1,13 +1,16 @@
 import type { ReactNode } from 'react';
 import type { PlannerColumn, PlannerDifficulty, PlannerTask } from '../../../shared/planner';
 import { PLANNER_COLUMNS, PLANNER_LIMITS } from '../../../shared/planner';
+import type { TeamBot } from '../../../shared/protocol';
 import { Input, Segmented } from '../primitives';
 import { COLUMN_LABELS, DIFFICULTY_LABELS, isLockedRef } from '../../planner/planner-logic';
 import { isHttpUrl } from '../../planner/useTaskEditor';
+import { TaskHandoffsView } from './TaskHandoffsView';
+import { TaskOwnerField } from './TaskOwnerField';
 import { TaskLinksEditor } from './TaskLinksEditor';
 import { TaskLinksView } from './TaskLinksView';
 
-interface Props { draft: PlannerTask; patch: (p: Partial<PlannerTask>) => void; refInvalid: boolean }
+interface Props { draft: PlannerTask; patch: (p: Partial<PlannerTask>) => void; refInvalid: boolean; bots?: TeamBot[] }
 
 const diffItems = ([1, 2, 3] as const).map((n) => ({ id: String(n), label: DIFFICULTY_LABELS[n] }));
 const colItems = PLANNER_COLUMNS.map((c) => ({ id: c, label: COLUMN_LABELS[c] }));
@@ -21,7 +24,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-export function TaskEditorFields({ draft, patch, refInvalid }: Props) {
+export function TaskEditorFields({ draft, patch, refInvalid, bots = [] }: Props) {
   const locked = isLockedRef(draft.ref);
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain px-4 py-4">
@@ -51,6 +54,8 @@ export function TaskEditorFields({ draft, patch, refInvalid }: Props) {
           />
         </Field>
       </div>
+      {bots.length > 0 && <TaskOwnerField bots={bots} value={draft.ownerBotId} onChange={(ownerBotId) => patch({ ownerBotId })} />}
+      <TaskHandoffsView handoffs={draft.handoffs} bots={bots} />
       <div className="flex flex-col gap-1.5"><span className="text-[12px] text-neutral-500">Links</span>
         <TaskLinksEditor links={draft.links} onChange={(links) => patch({ links })} />
         <TaskLinksView links={draft.links.filter((l) => isHttpUrl(l.url))} />

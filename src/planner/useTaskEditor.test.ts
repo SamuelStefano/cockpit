@@ -11,6 +11,11 @@ describe('finalizeDraft', () => {
     expect(finalizeDraft({ ...base, ref: 'bad ref' }).ref).toBe('');
   });
 
+  it('sends an empty owner to clear it and keeps a set one', () => {
+    expect(finalizeDraft(base).ownerBotId).toBe('');
+    expect(finalizeDraft({ ...base, ownerBotId: 'b1' }).ownerBotId).toBe('b1');
+  });
+
   it('drops non-http links', () => {
     const out = finalizeDraft({ ...base, links: [{ url: ' https://a.dev ' }, { url: 'nope' }] });
     expect(out.links).toEqual([{ url: 'https://a.dev' }]);
