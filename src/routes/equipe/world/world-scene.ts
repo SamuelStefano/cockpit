@@ -80,6 +80,9 @@ interface Npc {
   busyUntil: number;
 }
 
+// Multiply each RGB channel, for the alternate tiles of a checker floor.
+const shade = (c: number, k: number): number => ((((c >> 16) & 255) * k) << 16) | ((((c >> 8) & 255) * k) << 8) | Math.round((c & 255) * k);
+
 const hash = (x: number, y: number): number => Math.abs((x * 73856093) ^ (y * 19349663)) % 100;
 
 class WorldScene extends Phaser.Scene {
@@ -246,7 +249,7 @@ class WorldScene extends Phaser.Scene {
         const left = dx === 0;
         const right = dx === h.w - 1;
         if (doors.has(`${x},${y}`)) { this.img('town', F.floor, x, y, 2, 0xb59a74); continue; }
-        if (!top && !bottom && !left && !right) { this.img('town', F.floor, x, y, 2, h.tint); continue; }
+        if (!top && !bottom && !left && !right) { this.img('town', F.floor, x, y, 2, (x + y) % 2 === 0 ? h.tint : shade(h.tint, 0.93)); continue; }
         const frame = top ? (left ? F.wallTL : right ? F.wallTR : F.wallT)
           : bottom ? (left ? F.wallBL : right ? F.wallBR : F.wallB)
             : left ? F.wallL : F.wallR;
