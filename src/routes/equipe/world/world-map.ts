@@ -204,22 +204,27 @@ export function plazaSlots(n: number): Point[] {
 const NEIGHBOURS: readonly (readonly [number, number])[] = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
 
 // Breadth-first search on the tile grid, 8 directions, no corner cutting. A blocked
-// goal resolves to the nearest free tile so tapping a wall still moves the avatar.
+// goal resolves to the reachable tile closest to it, so tapping a wall or a desk
+// still walks the avatar next to it (never into a room it cannot enter).
 export function findPath(from: Point, to: Point): Point[] {
   if (!inBounds(from.x, from.y) || !inBounds(to.x, to.y)) return [];
-  const goal = isBlocked(to.x, to.y) ? nearestFree(to) : to;
-  if (!goal) return [];
-  if (goal.x === from.x && goal.y === from.y) return [];
   const prev = new Map<number, number>();
   const start = key(from.x, from.y);
   prev.set(start, -1);
   const queue: number[] = [start];
-  const goalKey = key(goal.x, goal.y);
+  const goalKey = key(to.x, to.y);
+  const blockedGoal = isBlocked(to.x, to.y);
+  let best = start;
+  let bestD = Math.hypot(from.x - to.x, from.y - to.y);
   for (let head = 0; head < queue.length; head++) {
     const cur = queue[head]!;
-    if (cur === goalKey) break;
+    if (cur === goalKey) { best = cur; break; }
     const cx = cur % MAP_W;
     const cy = Math.floor(cur / MAP_W);
+    if (blockedGoal) {
+      const d = Math.hypot(cx - to.x, cy - to.y);
+      if (d < bestD) { bestD = d; best = cur; }
+    }
     for (const [dx, dy] of NEIGHBOURS) {
       const nx = cx + dx;
       const ny = cy + dy;
@@ -231,9 +236,9 @@ export function findPath(from: Point, to: Point): Point[] {
       queue.push(nk);
     }
   }
-  if (!prev.has(goalKey)) return [];
+  if (best === start) return [];
   const path: Point[] = [];
-  for (let k = goalKey; k !== start && k !== -1; k = prev.get(k)!) path.push({ x: k % MAP_W, y: Math.floor(k / MAP_W) });
+  for (let k = best; k !== start && k !== -1; k = prev.get(k)!) path.push({ x: k % MAP_W, y: Math.floor(k / MAP_W) });
   return path.reverse();
 }
 
