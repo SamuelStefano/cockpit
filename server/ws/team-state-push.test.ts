@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventEmitter } from 'node:events';
 import type { WebSocket } from 'ws';
 
+import type { ServerMsg } from '../../shared/protocol';
 const sent = vi.hoisted(() => ({ send: vi.fn() }));
 vi.mock('./broadcast', () => ({ send: sent.send, broadcast: vi.fn() }));
 const frames = vi.hoisted(() => ({ pushTeamState: vi.fn() }));
@@ -10,7 +11,7 @@ vi.mock('./team-state-frames', () => ({ pushTeamState: frames.pushTeamState }));
 import { _resetTeamStateClients, emitTeamState, registerTeamStateClient, scheduleTeamStatePush, teamStateWindows } from './team-state-push';
 
 const sock = () => new EventEmitter() as unknown as WebSocket;
-const frame = { t: 'team-state', state: { at: 1, followUpHours: 4, bots: [], handoffs: [], followUps: [] } } as const;
+const frame = { t: 'team-state', state: { at: 1, followUpHours: 4, bots: [], handoffs: [], followUps: [] } } satisfies ServerMsg;
 
 beforeEach(() => { vi.clearAllMocks(); vi.useFakeTimers(); _resetTeamStateClients(); });
 afterEach(() => vi.useRealTimers());
