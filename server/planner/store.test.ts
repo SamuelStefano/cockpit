@@ -152,39 +152,66 @@ describe('sanitizeTask owner and handoffs', () => {
 
 describe('village fields', () => {
   const claim = { botId: 'bob', at: 5 };
+  const human = { humanConfirmed: true };
+  const trusted = { trusted: true };
 
-  it('round-trips ready, unsafe, ownerSector and claim from disk', () => {
-    const t = sanitizeTask({ ...base, ready: true, unsafe: true, ownerSector: 'growth', ownerBotId: 'bob', claim }, undefined, 1)!;
+  it('round-trips ready, unsafe, ownerSector and claim from disk (trusted)', () => {
+    const t = sanitizeTask({ ...base, ready: true, unsafe: true, ownerSector: 'growth', ownerBotId: 'bob', claim }, undefined, 1, trusted)!;
     expect(t).toMatchObject({ ready: true, unsafe: true, ownerSector: 'growth', ownerBotId: 'bob', claim });
   });
 
   it('drops invalid values', () => {
-    const t = sanitizeTask({ ...base, ready: 'yes', unsafe: 1, ownerSector: 'sales', claim: { botId: 'bad id', at: 5 } }, undefined, 1)!;
+    const t = sanitizeTask({ ...base, ready: 'yes', unsafe: 1, ownerSector: 'sales', claim: { botId: 'bad id', at: 5 } }, undefined, 1, trusted)!;
     expect(t.ready).toBeUndefined();
     expect(t.unsafe).toBeUndefined();
     expect(t.ownerSector).toBeUndefined();
     expect(t.claim).toBeUndefined();
-    expect(sanitizeTask({ ...base, claim: { botId: 'bob', at: -1 } }, undefined, 1)!.claim).toBeUndefined();
+    expect(sanitizeTask({ ...base, claim: { botId: 'bob', at: -1 } }, undefined, 1, trusted)!.claim).toBeUndefined();
   });
 
-  it('keeps stored values when an edit omits them and clears on explicit false', () => {
-    const prev = sanitizeTask({ ...base, ready: true, unsafe: true, ownerSector: 'growth', claim }, undefined, 1)!;
-    const kept = sanitizeTask({ ...base }, prev, 2)!;
-    expect(kept).toMatchObject({ ready: true, unsafe: true, ownerSector: 'growth', claim });
-    const cleared = sanitizeTask({ ...base, ready: false, unsafe: false, ownerSector: null }, prev, 2)!;
-    expect(cleared.ready).toBeUndefined();
-    expect(cleared.unsafe).toBeUndefined();
-    expect(cleared.ownerSector).toBeUndefined();
-  });
-
-  it('never takes a claim from a client edit of an existing task', () => {
+  it('never takes a claim from a client, for new or existing tasks', () => {
+    expect(sanitizeTask({ ...base, claim }, undefined, 1)!.claim).toBeUndefined();
+    expect(sanitizeTask({ ...base, claim }, undefined, 1, human)!.claim).toBeUndefined();
     const prev = sanitizeTask({ ...base }, undefined, 1)!;
-    expect(sanitizeTask({ ...base, claim }, prev, 2)!.claim).toBeUndefined();
+    expect(sanitizeTask({ ...base, claim }, prev, 2, human)!.claim).toBeUndefined();
+  });
+
+  it('keeps the stored claim on an unrelated edit but clears it when owner or sector changes', () => {
+    const prev = sanitizeTask({ ...base, ownerBotId: 'bob', ownerSector: 'growth', claim }, undefined, 1, trusted)!;
+    expect(sanitizeTask({ ...base }, prev, 2)!.claim).toEqual(claim);
+    expect(sanitizeTask({ ...base, ownerBotId: 'alice' }, prev, 2)!.claim).toBeUndefined();
+    expect(sanitizeTask({ ...base, ownerBotId: 'none!' }, prev, 2)!.claim).toBeUndefined();
+    expect(sanitizeTask({ ...base, ownerSector: 'engineering' }, prev, 2)!.claim).toBeUndefined();
+    expect(sanitizeTask({ ...base, ownerSector: null }, prev, 2)!.claim).toBeUndefined();
+  });
+
+  it('a client may set unsafe and unset ready freely', () => {
+    const prev = sanitizeTask({ ...base, ready: true }, undefined, 1, trusted)!;
+    const t = sanitizeTask({ ...base, ready: false, unsafe: true }, prev, 2)!;
+    expect(t.ready).toBeUndefined();
+    expect(t.unsafe).toBe(true);
+  });
+
+  it('ready=true and unsafe=false need the human confirmation', () => {
+    expect(sanitizeTask({ ...base, ready: true }, undefined, 1)!.ready).toBeUndefined();
+    const prev = sanitizeTask({ ...base }, undefined, 1)!;
+    expect(sanitizeTask({ ...base, ready: true }, prev, 2)!.ready).toBeUndefined();
+    expect(sanitizeTask({ ...base, ready: true }, prev, 2, human)!.ready).toBe(true);
+    const sealed = sanitizeTask({ ...base, unsafe: true }, prev, 2)!;
+    expect(sanitizeTask({ ...base, unsafe: false }, sealed, 3)!.unsafe).toBe(true);
+    expect(sanitizeTask({ ...base, unsafe: false }, sealed, 3, human)!.unsafe).toBeUndefined();
+    expect(sanitizeTask({ ...base }, sealed, 3)!.unsafe).toBe(true);
+  });
+
+  it('keeps ready when an edit omits it and clears sector on null', () => {
+    const prev = sanitizeTask({ ...base, ready: true, ownerSector: 'growth' }, undefined, 1, trusted)!;
+    expect(sanitizeTask({ ...base }, prev, 2)).toMatchObject({ ready: true, ownerSector: 'growth' });
+    expect(sanitizeTask({ ...base, ownerSector: null }, prev, 2)!.ownerSector).toBeUndefined();
   });
 
   it('completing a task clears claim and ready, by save and by move', () => {
-    const prev = sanitizeTask({ ...base, ready: true, claim }, undefined, 1)!;
-    const done = sanitizeTask({ ...base, column: 'done', ready: true, claim }, prev, 2)!;
+    const prev = sanitizeTask({ ...base, ready: true, claim }, undefined, 1, trusted)!;
+    const done = sanitizeTask({ ...base, column: 'done', ready: true }, prev, 2, human)!;
     expect(done.claim).toBeUndefined();
     expect(done.ready).toBeUndefined();
     const moved = applyMoves([prev], [{ id: 't1', column: 'done', order: 1 }], 3)[0];

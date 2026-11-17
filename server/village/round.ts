@@ -4,11 +4,11 @@ import { join } from 'node:path';
 import type { TeamBot } from '../../shared/protocol';
 import { PLANNER_LIMITS, type PlannerTask } from '../../shared/planner';
 import type { TeamMessage } from '../../shared/team-messages';
-import { VILLAGE_DEFAULT_DAILY_CAP, type VillageState } from '../../shared/village';
+import { VILLAGE_DEFAULT_DAILY_CAP, type VillagePlanView, type VillageState } from '../../shared/village';
 import { readTasksChained, updateTasks } from '../planner/store';
 import { getTeam } from '../team';
 import { isTeamPaused, readTeamLog, teamOutboxDir } from '../team-log';
-import { addTurn, readVillage, recordEvent, turnsToday, updateVillage } from './store';
+import { addTurn, appendVillageLog, readVillage, recordEvent, turnsToday, updateVillage } from './store';
 
 export const CLAIM_STALE_MS = 30 * 60_000;
 const COLUMN_RANK = { today: 0, week: 1, backlog: 2, done: 3 } as const;
@@ -167,14 +167,29 @@ async function dropClaim(c: RoundClaim, restore: PlannerTask | null, now: number
   }));
 }
 
+export async function dryRound(deps?: Pick<RoundDeps, 'now' | 'isPaused' | 'getTeam' | 'running'>): Promise<VillagePlanView> {
+  const d = deps ?? await defaultDeps();
+  const state = await readVillage();
+  if (d.isPaused()) return { claims: [], releases: [], blocked: 'paused' };
+  if (!state.enabled) return { claims: [], releases: [], blocked: 'disabled' };
+  const tasks = await readTasksChained();
+  const team = await d.getTeam();
+  const plan = planRound({
+    tasks, team, state, now: d.now(), config: { dailyCap: state.dailyCap || VILLAGE_DEFAULT_DAILY_CAP },
+    running: d.running(team), paused: false, log: tasks.some((t) => t.claim) ? await readTeamLog() : [],
+  });
+  return { claims: plan.claims, releases: plan.releases.map(({ taskId, botId }) => ({ taskId, botId })) };
+}
+
 export async function runRound(deps?: RoundDeps): Promise<RoundResult> {
   const d = deps ?? await defaultDeps();
   if (d.isPaused()) return none();
+  const state = await readVillage();
+  if (!state.enabled) return none();
   const tasks = await readTasksChained();
   if (!tasks.some((t) => t.claim || isClaimable(t))) return none();
   const team = await d.getTeam();
   const now = d.now();
-  const state = await readVillage();
   const plan = planRound({
     tasks, team, state, now, config: { dailyCap: state.dailyCap || VILLAGE_DEFAULT_DAILY_CAP },
     running: d.running(team), paused: false, log: tasks.some((t) => t.claim) ? await readTeamLog() : [],
@@ -183,15 +198,25 @@ export async function runRound(deps?: RoundDeps): Promise<RoundResult> {
   for (const r of plan.releases) {
     const board = await dropClaim(r, null, now);
     await updateVillage((s) => recordEvent(s, { at: now, type: 'release', botId: r.botId, taskId: r.taskId, reason: r.reason }));
+    await appendVillageLog({ at: now, event: 'release', taskId: r.taskId, botId: r.botId, reason: r.reason });
     d.onBoard(board);
     result.released.push(r);
   }
   for (const c of plan.claims) {
+    if (d.isPaused() || !(await readVillage()).enabled) {
+      await appendVillageLog({ at: now, event: 'skip', taskId: c.taskId, botId: c.botId, reason: 'kill switch' });
+      break;
+    }
     const sender = senderFor(team, c.botId);
     const task = sender ? await setClaim(c, now) : null;
     if (!task || !sender) continue;
     const original = tasks.find((t) => t.id === task.id) ?? null;
     d.onBoard(await readTasksChained());
+    if (d.isPaused()) {
+      d.onBoard(await dropClaim(c, original, now));
+      await appendVillageLog({ at: now, event: 'skip', taskId: c.taskId, botId: c.botId, reason: 'kill switch' });
+      break;
+    }
     let delivered = false;
     try {
       const m = await d.deliver(await spool(sender, c.botId, claimMessage(task), now));
@@ -199,10 +224,12 @@ export async function runRound(deps?: RoundDeps): Promise<RoundResult> {
     } catch { delivered = false; }
     if (delivered) {
       await updateVillage((s) => recordEvent(addTurn(s, c.botId, now), { at: now, type: 'claim', botId: c.botId, taskId: c.taskId }));
+      await appendVillageLog({ at: now, event: 'claim', taskId: c.taskId, botId: c.botId });
       result.claimed.push(c);
     } else {
       d.onBoard(await dropClaim(c, original, now));
       await updateVillage((s) => recordEvent(s, { at: now, type: 'release', botId: c.botId, taskId: c.taskId, reason: 'delivery failed' }));
+      await appendVillageLog({ at: now, event: 'release', taskId: c.taskId, botId: c.botId, reason: 'delivery failed' });
       result.failed.push(c);
     }
   }

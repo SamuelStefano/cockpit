@@ -38,10 +38,19 @@ describe('village frames', () => {
   });
 
   it('validates dailyCap 1..24', async () => {
-    for (const bad of [0, 25, 1.5, '3', null]) await setVillageConfig(ws, bad);
+    for (const bad of [0, 25, 1.5, '3', null]) await setVillageConfig(ws, { dailyCap: bad });
     expect(sent.every((m) => (m as { t: string }).t === 'error')).toBe(true);
     sent.length = 0;
-    await setVillageConfig(ws, 10);
+    await setVillageConfig(ws, { dailyCap: 10 });
     expect((sent[0] as { village: { dailyCap: number } }).village.dailyCap).toBe(10);
+  });
+
+  it('is disabled by default and toggles only with a boolean', async () => {
+    expect((await villageView()).enabled).toBe(false);
+    await setVillageConfig(ws, { enabled: 'yes' });
+    expect((sent[0] as { t: string }).t).toBe('error');
+    sent.length = 0;
+    await setVillageConfig(ws, { enabled: true });
+    expect((sent[0] as { village: { enabled: boolean } }).village.enabled).toBe(true);
   });
 });

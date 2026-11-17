@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import {
@@ -20,13 +20,14 @@ export function brtDate(now: number): string {
 }
 
 export function emptyState(): VillageState {
-  return { dailyCap: VILLAGE_DEFAULT_DAILY_CAP, turns: {}, events: [] };
+  return { enabled: false, dailyCap: VILLAGE_DEFAULT_DAILY_CAP, turns: {}, events: [] };
 }
 
 export function sanitizeState(raw: unknown): VillageState {
   const r = raw as Partial<VillageState> | null | undefined;
   const out = emptyState();
   if (!r || typeof r !== 'object') return out;
+  out.enabled = r.enabled === true;
   out.dailyCap = clampDailyCap(r.dailyCap) ?? VILLAGE_DEFAULT_DAILY_CAP;
   if (r.turns && typeof r.turns === 'object') {
     for (const [day, bots] of Object.entries(r.turns)) {
@@ -89,4 +90,20 @@ export function addTurn(s: VillageState, botId: string, now: number): VillageSta
   return { ...s, turns };
 }
 
-export const setDailyCap = (cap: number) => updateVillage((s) => ({ ...s, dailyCap: cap }));
+export const setVillageSettings = (p: { enabled?: boolean; dailyCap?: number }) =>
+  updateVillage((s) => ({ ...s, ...(p.enabled !== undefined ? { enabled: p.enabled } : {}), ...(p.dailyCap !== undefined ? { dailyCap: p.dailyCap } : {}) }));
+
+export function villageLogFile(): string {
+  return process.env.COCKPIT_VILLAGE_LOG ?? join(homedir(), '.cockpit', 'village-log.jsonl');
+}
+
+export interface VillageLogEntry { at: number; event: 'claim' | 'release' | 'skip' | 'confirm'; taskId: string; botId?: string; reason?: string }
+
+export async function appendVillageLog(e: VillageLogEntry): Promise<void> {
+  try {
+    const f = villageLogFile();
+    await mkdir(dirname(f), { recursive: true });
+    const line = { at: e.at, event: e.event, taskId: e.taskId, ...(e.botId ? { botId: e.botId } : {}), ...(e.reason ? { reason: e.reason.slice(0, 120) } : {}) };
+    await appendFile(f, `${JSON.stringify(line)}\n`, 'utf8');
+  } catch { /* logging must never break the round */ }
+}

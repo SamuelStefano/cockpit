@@ -1332,7 +1332,7 @@ async function cmdTriage(flags: Flags, json: boolean): Promise<void> {
 
 // --- task commands (personal Kanban planner) ----------------------------
 
-const TASK_BOOL_FLAGS = new Set(['json', 'all', 'force', 'clear-links', 'ready', 'no-ready', 'unsafe', 'safe']);
+const TASK_BOOL_FLAGS = new Set(['json', 'all', 'force', 'clear-links', 'ready', 'no-ready', 'unready', 'unsafe', 'safe', 'confirm-human']);
 const TASK_VALUE_FLAGS = new Set(['col', 'desc', 'diff', 'link', 'title', 'ref', 'tag', 'owner', 'to', 'from', 'done', 'pending', 'reason', 'switch', 'sector']);
 
 export interface TaskArgs { positional: string[]; flags: Flags; links: string[] }
@@ -1397,16 +1397,21 @@ export function parseOwner(team: Pick<TeamBot, 'id' | 'name'>[], v: string): str
   return v.trim().toLowerCase() === 'none' ? undefined : resolveBot(team, v).id;
 }
 
-export interface TaskSeal { ready?: boolean; unsafe?: boolean }
+export interface TaskSeal { ready?: boolean; unsafe?: boolean; confirmHuman?: boolean }
 
 export function parseSeal(flags: Flags): TaskSeal {
-  if (flags.ready === true && flags['no-ready'] === true) throw new Error('--ready and --no-ready conflict');
+  const unready = flags['no-ready'] === true || flags.unready === true;
+  if (flags.ready === true && unready) throw new Error('--ready and --unready conflict');
   if (flags.unsafe === true && flags.safe === true) throw new Error('--unsafe and --safe conflict');
   const seal: TaskSeal = {};
   if (flags.ready === true) seal.ready = true;
-  if (flags['no-ready'] === true) seal.ready = false;
+  if (unready) seal.ready = false;
   if (flags.unsafe === true) seal.unsafe = true;
   if (flags.safe === true) seal.unsafe = false;
+  if (flags['confirm-human'] === true) seal.confirmHuman = true;
+  if ((seal.ready === true || seal.unsafe === false) && !seal.confirmHuman) {
+    throw new Error('--ready and --safe widen what the village may pick up: only a human may use them, with --confirm-human');
+  }
   return seal;
 }
 
@@ -1514,8 +1519,8 @@ function orFail<T>(fn: () => T): T {
   try { return fn(); } catch (e) { return fail((e as Error).message); }
 }
 
-async function saveTask(client: Client, task: PlannerTask): Promise<void> {
-  client.send({ t: 'planner-task-save', task: { ...task, updatedAt: Date.now() } });
+async function saveTask(client: Client, task: PlannerTask, confirmHuman = false): Promise<void> {
+  client.send({ t: 'planner-task-save', task: { ...task, updatedAt: Date.now() }, ...(confirmHuman ? { confirmHuman: true } : {}) });
   await mutationAck(client, boardWithTask((list) => list.some((t) => sameTaskContent(t, task))), 'planner-task-save');
 }
 
@@ -1544,7 +1549,7 @@ async function cmdTaskList(args: string[]): Promise<void> {
 async function cmdTaskAdd(args: string[]): Promise<void> {
   const { positional, flags, links } = orFail(() => parseTaskArgs(args));
   const title = positional[0]?.trim().slice(0, PLANNER_LIMITS.title);
-  if (!title) fail('usage: deckctl task add "<title>" [--col today|week|backlog] [--desc D] [--diff 1|2|3] [--ref R] [--tag T] [--owner BOT|none] [--ready] [--unsafe] [--sector DEPT|none] [--link URL[|label]]... [--force]');
+  if (!title) fail('usage: deckctl task add "<title>" [--col today|week|backlog] [--desc D] [--diff 1|2|3] [--ref R] [--tag T] [--owner BOT|none] [--ready --confirm-human] [--unsafe] [--sector DEPT|none] [--link URL[|label]]... [--force]');
   const column = orFail(() => parseColumn(flagStr(flags, 'col') ?? 'backlog'));
   if (column === 'done') fail('tasks are added to today, week or backlog — use "deckctl task done <id>" to finish one');
   const difficulty = orFail(() => parseDifficulty(flagStr(flags, 'diff') ?? '1'));
@@ -1571,7 +1576,7 @@ async function cmdTaskAdd(args: string[]): Promise<void> {
       ...(ref ? { ref } : {}), ...(tag ? { tag } : {}), ...(ownerBotId ? { ownerBotId } : {}),
     };
     applySeal(task, seal, sector);
-    await saveTask(client, task);
+    await saveTask(client, task, seal.confirmHuman === true);
     console.log(`task created: ${task.id}`);
   });
 }
@@ -1642,7 +1647,7 @@ async function cmdTaskEdit(idPrefix: string, args: string[]): Promise<void> {
       next.column = column;
       next.order = topOrder(tasks.filter((t) => t.id !== task.id), column);
     }
-    await saveTask(client, next);
+    await saveTask(client, next, seal.confirmHuman === true);
     console.log(`task ${task.id} updated`);
   });
 }
@@ -1777,6 +1782,45 @@ async function cmdMeeting(positional: string[], flags: Flags, json: boolean): Pr
   } finally { client.close(); }
 }
 
+export function formatVillageStatus(v: { enabled: boolean; dailyCap: number; paused: boolean; claimed: { botId: string; taskId: string }[] }, nameOf: (id: string) => string = (id) => id): string[] {
+  return [
+    `village: ${v.enabled ? 'ON' : 'off'}${v.paused ? ' (team paused: kill switch on)' : ''}`,
+    `daily cap per bot: ${v.dailyCap}`,
+    `claimed: ${v.claimed.length}${v.claimed.length ? ' — ' + v.claimed.map((c) => `${shortId(c.taskId)}@${nameOf(c.botId)}`).join(', ') : ''}`,
+  ];
+}
+
+async function cmdVillage(positional: string[], flags: Flags, json: boolean): Promise<void> {
+  const [sub, ...rest] = positional;
+  const dry = flags.dry === true;
+  if (sub !== 'status' && sub !== 'on' && sub !== 'off' && sub !== 'round') fail(`unknown village subcommand "${sub ?? ''}" — status|on|off|round --dry`);
+  if (sub === 'round' && !dry) fail('village round only supports --dry here; the hourly loop runs the real round');
+  if (rest.length) fail(`unexpected argument "${rest[0]}"`);
+  const client = await connect();
+  try {
+    if (sub === 'round') {
+      client.send({ t: 'village-dry' });
+      const m = await client.waitFor(isServerMsg('village-plan'), DEFAULT_TIMEOUT_MS);
+      if (!m) fail('backend did not answer village-dry (timeout; admin only)');
+      const team = await fetchTeam(client);
+      const nameOf = (id: string) => team.find((b) => b.id === id)?.name ?? id;
+      if (json) { console.log(JSON.stringify(m.plan, null, 2)); return; }
+      if (m.plan.blocked) { console.log(`nothing would happen: ${m.plan.blocked}`); return; }
+      console.log(`would claim: ${m.plan.claims.length}`);
+      for (const c of m.plan.claims) console.log(`  ${shortId(c.taskId)} -> ${nameOf(c.botId)}`);
+      console.log(`would release: ${m.plan.releases.length}`);
+      for (const r of m.plan.releases) console.log(`  ${shortId(r.taskId)} (${nameOf(r.botId)})`);
+      return;
+    }
+    if (sub === 'on' || sub === 'off') client.send({ t: 'village-config', enabled: sub === 'on' });
+    else client.send({ t: 'village-get' });
+    const m = await client.waitFor(isServerMsg('village'), DEFAULT_TIMEOUT_MS);
+    if (!m) fail('backend did not answer village (timeout; admin only)');
+    const team = await fetchTeam(client);
+    console.log(json ? JSON.stringify(m.village, null, 2) : formatVillageStatus(m.village, (id) => team.find((b) => b.id === id)?.name ?? id).join('\n'));
+  } finally { client.close(); }
+}
+
 // --- main --------------------------------------------------------------
 
 const HELP = `deckctl — orchestrate the Deck canvas from a terminal
@@ -1806,9 +1850,11 @@ Usage: deckctl <command> [args] [--json]
   task add "<title>" [--col C] [--desc D] [--diff 1|2|3] [--ref R] [--tag T] [--owner BOT|none] [--ready] [--unsafe] [--sector DEPT|none] [--link URL[|label]]... [--force]   add to the top of a column (default backlog); refuses an existing ref
   task move <id> <col>                      move a task (today|week|backlog|done)
   task done <id> [--link URL[|label]]...    finish a task, optionally attaching the PR/result links
-  task edit <id> [--title T] [--desc D] [--diff N] [--ref R] [--tag T] [--owner BOT|none] [--ready|--no-ready] [--unsafe|--safe] [--sector DEPT|none] [--link URL]... [--clear-links] [--col C]
+  task edit <id> [--title T] [--desc D] [--diff N] [--ref R] [--tag T] [--owner BOT|none] [--ready|--unready] [--unsafe|--safe] [--confirm-human] [--sector DEPT|none] [--link URL]... [--clear-links] [--col C]
   task handoff <id> --to BOT --done ".." --pending ".." --reason ".." --switch ".." [--from BOT]   record that ownership moves to another bot
   task rm <id>                              delete a task
+  village status|on|off                     the self-sustaining village (admin): enabled flag, daily cap, who holds a claim
+  village round --dry                       print what the next round WOULD pick; wakes nobody
   meeting start --q "<question>" --with a,b,c [--moderator x]   blind two-round meeting between bots, ends in minutes (ata)
   meeting list | meeting show <id>          meetings, newest first / one meeting (round 1 stays sealed until it closes)
   status                                    one-screen overview + alerts (pending questions, hot-context sessions)
@@ -1895,6 +1941,7 @@ async function main(): Promise<void> {
     }
     case 'task': return cmdTask(rest);
     case 'meeting': return cmdMeeting(positional, flags, json);
+    case 'village': return cmdVillage(positional, flags, json);
     case 'status': return cmdStatus();
     case 'triage': return cmdTriage(flags, json);
     default:

@@ -61,7 +61,9 @@ function sanitizeClaim(v: unknown): TaskClaim | undefined {
   return { botId: c.botId, at: c.at };
 }
 
-export function sanitizeTask(raw: unknown, prev: PlannerTask | undefined, now: number): PlannerTask | null {
+export interface SanitizeOpts { trusted?: boolean; humanConfirmed?: boolean }
+
+export function sanitizeTask(raw: unknown, prev: PlannerTask | undefined, now: number, opts: SanitizeOpts = {}): PlannerTask | null {
   const r = raw as Partial<PlannerTask> | null | undefined;
   if (!r || typeof r !== 'object' || typeof r.id !== 'string' || !PLANNER_ID_RE.test(r.id)) return null;
   const title = typeof r.title === 'string' ? r.title.trim().slice(0, PLANNER_LIMITS.title) : '';
@@ -86,15 +88,19 @@ export function sanitizeTask(raw: unknown, prev: PlannerTask | undefined, now: n
   const ownerBotId = 'ownerBotId' in r ? sanitizeOwner(r.ownerBotId) : prev?.ownerBotId;
   if (ownerBotId) task.ownerBotId = ownerBotId;
   if (column !== 'done') {
-    const ready = 'ready' in r ? r.ready === true : prev?.ready === true;
-    if (ready) task.ready = true;
-    const unsafe = 'unsafe' in r ? r.unsafe === true : prev?.unsafe === true;
-    if (unsafe) task.unsafe = true;
-    const claim = prev ? prev.claim : sanitizeClaim(r.claim);
-    if (claim) task.claim = claim;
+    const open = opts.trusted || opts.humanConfirmed;
+    const wantReady = 'ready' in r ? r.ready === true : prev?.ready === true;
+    if (wantReady && (open || prev?.ready === true)) task.ready = true;
+    const wantUnsafe = 'unsafe' in r ? r.unsafe === true : prev?.unsafe === true;
+    if (wantUnsafe || (prev?.unsafe === true && !open)) task.unsafe = true;
   }
   const ownerSector = 'ownerSector' in r ? (isDepartmentId(r.ownerSector) ? r.ownerSector : undefined) : prev?.ownerSector;
   if (ownerSector) task.ownerSector = ownerSector;
+  if (column !== 'done') {
+    const claim = opts.trusted ? sanitizeClaim(r.claim) : prev?.claim;
+    const ownerMoved = !!prev && (task.ownerBotId !== prev.ownerBotId || task.ownerSector !== prev.ownerSector);
+    if (claim && !(ownerMoved && !opts.trusted)) task.claim = claim;
+  }
   const handoffs = prev ? prev.handoffs ?? [] : sanitizeHandoffs(r.handoffs);
   if (handoffs.length) task.handoffs = handoffs;
   if (column === 'done') task.doneAt = prev?.column === 'done' && prev.doneAt ? prev.doneAt : finite(r.doneAt) && r.doneAt > 0 ? r.doneAt : now;
@@ -134,7 +140,7 @@ export async function readTasks(): Promise<PlannerTask[]> {
   const list = Array.isArray(parsed.tasks) ? parsed.tasks : [];
   const now = Date.now();
   return list
-    .map((t) => sanitizeTask(t, undefined, (t as PlannerTask)?.updatedAt ?? now))
+    .map((t) => sanitizeTask(t, undefined, (t as PlannerTask)?.updatedAt ?? now, { trusted: true }))
     .filter((t): t is PlannerTask => !!t)
     .slice(0, PLANNER_LIMITS.tasks);
 }

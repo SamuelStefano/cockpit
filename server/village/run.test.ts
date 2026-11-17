@@ -1,11 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
+import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { TeamBot } from '../../shared/protocol';
 import type { PlannerTask } from '../../shared/planner';
 import { readTasks, updateTasks } from '../planner/store';
-import { readVillage } from './store';
+import { readVillage, setVillageSettings } from './store';
 import { runRound, type RoundDeps } from './round';
 
 const bot = (id: string, o: Partial<TeamBot> = {}): TeamBot => ({ id, name: id, label: '', instructions: '', mascot: { shape: 'blob', color: '#fff' }, profile: 'full', createdAt: 0, updatedAt: 0, ...o });
@@ -18,9 +19,11 @@ beforeEach(async () => {
   process.env.COCKPIT_VILLAGE = join(dir, 'village.json');
   process.env.COCKPIT_PLANNER = join(dir, 'planner.json');
   process.env.COCKPIT_TEAM_OUTBOX = join(dir, 'outbox');
+  process.env.COCKPIT_VILLAGE_LOG = join(dir, 'village-log.jsonl');
+  await setVillageSettings({ enabled: true });
 });
 afterEach(async () => {
-  for (const k of ['COCKPIT_VILLAGE', 'COCKPIT_PLANNER', 'COCKPIT_TEAM_OUTBOX']) delete process.env[k];
+  for (const k of ['COCKPIT_VILLAGE', 'COCKPIT_PLANNER', 'COCKPIT_TEAM_OUTBOX', 'COCKPIT_VILLAGE_LOG']) delete process.env[k];
   await rm(dir, { recursive: true, force: true });
 });
 
@@ -76,6 +79,33 @@ describe('runRound', () => {
     const r = await runRound({ ...deps('delivered', calls), isPaused: () => true });
     expect(r.claimed).toEqual([]);
     expect(calls).toEqual([]);
+  });
+
+  it('does nothing while disabled, which is the default', async () => {
+    await setVillageSettings({ enabled: false });
+    await updateTasks(() => [task({ ready: true, ownerBotId: 'bob' })]);
+    const calls: string[] = [];
+    expect(await runRound(deps('delivered', calls))).toEqual({ claimed: [], released: [], failed: [] });
+    expect(calls).toEqual([]);
+    expect((await readTasks())[0].claim).toBeUndefined();
+  });
+
+  it('re-checks the kill switch right before delivering and drops the claim', async () => {
+    await updateTasks(() => [task({ ready: true, ownerBotId: 'bob' })]);
+    const calls: string[] = [];
+    let n = 0;
+    const r = await runRound({ ...deps('delivered', calls), isPaused: () => ++n > 2 });
+    expect(calls).toEqual([]);
+    expect(r.claimed).toEqual([]);
+    expect((await readTasks())[0].claim).toBeUndefined();
+  });
+
+  it('writes the log line for a claim without any prompt text', async () => {
+    await updateTasks(() => [task({ ready: true, ownerBotId: 'bob', description: 'topsecret body' })]);
+    await runRound(deps('delivered'));
+    const log = await readFile(process.env.COCKPIT_VILLAGE_LOG!, 'utf8');
+    expect(JSON.parse(log.trim())).toMatchObject({ event: 'claim', taskId: 't1', botId: 'bob' });
+    expect(log).not.toContain('topsecret');
   });
 
   it('releases a stale claim and records the event', async () => {

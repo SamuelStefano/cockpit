@@ -247,15 +247,18 @@ describe('task owner', () => {
 
 describe('village flags', () => {
   it('parses ready/unsafe toggles and sector', () => {
-    const r = parseTaskArgs(['--ready', '--unsafe', '--sector', 'growth', 'Title']);
+    const r = parseTaskArgs(['--ready', '--unsafe', '--confirm-human', '--sector', 'growth', 'Title']);
     expect(r.positional).toEqual(['Title']);
-    expect(parseSeal(r.flags)).toEqual({ ready: true, unsafe: true });
-    expect(parseSeal(parseTaskArgs(['--no-ready', '--safe']).flags)).toEqual({ ready: false, unsafe: false });
+    expect(parseSeal(r.flags)).toEqual({ ready: true, unsafe: true, confirmHuman: true });
+    expect(parseSeal(parseTaskArgs(['--unready', '--unsafe']).flags)).toEqual({ ready: false, unsafe: true });
+    expect(parseSeal(parseTaskArgs(['--safe', '--confirm-human']).flags)).toEqual({ unsafe: false, confirmHuman: true });
     expect(parseSeal(parseTaskArgs([]).flags)).toEqual({});
   });
 
   it('rejects conflicting toggles and a missing sector value', () => {
     expect(() => parseSeal(parseTaskArgs(['--ready', '--no-ready']).flags)).toThrow(/conflict/);
+    expect(() => parseSeal(parseTaskArgs(['--ready']).flags)).toThrow(/confirm-human/);
+    expect(() => parseSeal(parseTaskArgs(['--safe']).flags)).toThrow(/confirm-human/);
     expect(() => parseSeal(parseTaskArgs(['--unsafe', '--safe']).flags)).toThrow(/conflict/);
     expect(() => parseTaskArgs(['--sector'])).toThrow(/needs a value/);
   });

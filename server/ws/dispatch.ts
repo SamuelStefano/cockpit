@@ -32,7 +32,8 @@ import { sendMeetings, startMeetingFrame } from './team-meeting-frames';
 import { cleanBuildRequest } from './agent-build';
 import { parseTtsText, synthesize, mintSttToken } from '../tts';
 import { sendTeamMessages, sendTeamPaused, setTeamPause } from './team-frames';
-import { sendVillage, setVillageConfig } from './village-frames';
+import { appendVillageLog } from '../village/store';
+import { sendVillage, sendVillagePlan, setVillageConfig } from './village-frames';
 import { sendTeamState } from './team-state-frames';
 import { sendTeamPanel } from './team-panel-frames';
 import { clearBotQuestion, sendTeamPending } from './team-pending-frames';
@@ -489,7 +490,12 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       const now = Date.now();
       let rejected = false;
       const tasks = await updateTasks((list) => {
-        const task = sanitizeTask(msg.task, list.find((x) => x.id === msg.task?.id), now);
+        const prev = list.find((x) => x.id === msg.task?.id);
+        const humanConfirmed = msg.confirmHuman === true;
+        const task = sanitizeTask(msg.task, prev, now, { humanConfirmed });
+        if (task && humanConfirmed && ((task.ready === true && prev?.ready !== true) || (prev?.unsafe === true && task.unsafe !== true))) {
+          void appendVillageLog({ at: now, event: 'confirm', taskId: task.id, reason: `${task.ready === true && prev?.ready !== true ? 'ready' : ''}${prev?.unsafe === true && task.unsafe !== true ? ' safe' : ''}`.trim() });
+        }
         const next = task ? upsertTask(list, task) : null;
         rejected = !next;
         return next ?? list;
@@ -1003,7 +1009,11 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       return;
     }
     case 'village-config': {
-      await setVillageConfig(ws, msg.dailyCap);
+      await setVillageConfig(ws, msg);
+      return;
+    }
+    case 'village-dry': {
+      await sendVillagePlan(ws);
       return;
     }
     case 'team-save': {

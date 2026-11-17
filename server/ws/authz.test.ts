@@ -162,7 +162,7 @@ describe('authorize', () => {
 
 describe('village frames', () => {
   it('are admin-only and denied to students by default', () => {
-    for (const t of ['village-get', 'village-config'] as const) {
+    for (const t of ['village-get', 'village-config', 'village-dry'] as const) {
       expect(authorize('admin', t)).toBe(true);
       expect(authorize('student', t)).toBe(false);
     }

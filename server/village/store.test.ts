@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { addTurn, brtDate, emptyState, readVillage, recordEvent, sanitizeState, setDailyCap, turnsToday, updateVillage } from './store';
+import { addTurn, brtDate, emptyState, readVillage, recordEvent, sanitizeState, setVillageSettings, turnsToday, updateVillage } from './store';
 
 let dir: string;
 beforeEach(async () => { dir = await mkdtemp(join(tmpdir(), 'village-')); process.env.COCKPIT_VILLAGE = join(dir, 'village.json'); });
@@ -33,7 +33,7 @@ describe('village store', () => {
       for (let i = 0; i < 60; i++) n = recordEvent(n, { at: i, type: 'claim', botId: 'b', taskId: `t${i}` });
       return n;
     });
-    const s = await setDailyCap(3);
+    const s = await setVillageSettings({ dailyCap: 3 });
     expect(s.events).toHaveLength(50);
     expect(s.events[0].taskId).toBe('t10');
     expect((await readVillage()).dailyCap).toBe(3);
