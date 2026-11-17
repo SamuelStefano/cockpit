@@ -8,7 +8,7 @@ import type { Role } from './auth';
 
 const MAX_IDENTITY_BYTES = 16 * 1024;
 
-const EXECUTOR_RULE = (name: string) => `Trabalho pesado (suíte de testes, build, e2e, render) nunca roda nesta máquina. Rode no executor: \`deckctl heavy run <repo> <branch> --as ${name} --wait -- <comando>\`. Se o executor estiver desligado, o job espera na fila: avise o humano em vez de rodar localmente.`;
+const EXECUTOR_RULE = (name: string) => `Trabalho pesado (suíte de testes, build, e2e, render) nunca roda nesta máquina. Rode no executor: \`deckctl heavy run <repo> <branch> --as ${/\s/.test(name) ? JSON.stringify(name) : name} --wait -- <comando>\`. Se o executor estiver desligado, o job espera na fila: avise o humano em vez de rodar localmente.`;
 
 function rosterLine(b: TeamBot, byId: Map<string, TeamBot>, team: TeamBot[]): string {
   const parts = [`- ${b.name}${b.primary ? ' (principal)' : ''}${b.label ? ` — ${b.label}` : ''}`];
