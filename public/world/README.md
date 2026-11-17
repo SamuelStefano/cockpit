@@ -189,3 +189,5 @@ Why this tint: night lowers value and shifts every colour toward blue, but it mu
 ### Palette
 
 Opaque pixels are the 48 palette colours; translucent pixels (glows, rain, water marks, halos, the surface shadow under Bug's jump) also use palette RGB values with alpha. `fx.py` prints the audit for every sheet: off-palette opaque pixels, translucent pixels with a non-palette RGB, and translucent `ol0` (shadow) pixels touching an opaque one (a baked shadow).
+
+`fx/porto-sign.png` (96x64, 3x2 tiles) is the wooden PORTO sign for the dock (two posts, two planks, lettering, anchor and waves) with its soft shadow in `fx/porto-sign-shadow.png`; built by `scripts/world-v2/porto_sign.py`. It marks where deploys become boats.

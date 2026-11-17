@@ -671,6 +671,26 @@
    ],
    "blend": "normal",
    "loop": true
+  },
+  "porto_sign": {
+   "sheet": "porto-sign.png",
+   "x": 0,
+   "y": 0,
+   "frame_w": 96,
+   "frame_h": 64,
+   "frames": 1,
+   "fps": 0,
+   "anchor": [
+    48,
+    62
+   ],
+   "blend": "normal",
+   "loop": false,
+   "note": "wooden PORTO sign for the dock, static; place at the dock entrance, its shadow overlay is porto-sign-shadow.png (96x16, drawn under, anchor top-left at y+56)",
+   "tiles": [
+    3,
+    2
+   ]
   }
  }
 }
