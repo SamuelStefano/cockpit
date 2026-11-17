@@ -11,7 +11,7 @@ from PIL import Image
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-OUT = os.path.dirname(HERE)
+OUT = os.path.join(os.path.dirname(os.path.dirname(HERE)), 'public', 'world', 'v2')
 
 from pixkit import T, Atlas, PALETTE, blank, audit, mixed_alpha_tiles, labelled_sheet  # noqa: E402
 import terrain as tr  # noqa: E402
