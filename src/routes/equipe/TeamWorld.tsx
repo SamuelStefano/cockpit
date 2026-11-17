@@ -38,8 +38,7 @@ const chipOn = 'border-emerald-400/40 bg-emerald-500/20 text-emerald-200';
 
 // 2D team world: bots as NPCs on a plaza, projects as houses on a street. The
 // canvas only ever receives names, states and counts (see world-state.ts).
-export function TeamWorld({ state, connected, onRefresh, bots, meetings, onMeetingsGet, onMeetingStart, mergedCounts }: TeamWorldProps) {
-export function TeamWorld({ state, connected, onRefresh, bots, meetings, onMeetingsGet, onMeetingStart, paused = false, onPauseSet }: TeamWorldProps) {
+export function TeamWorld({ state, connected, onRefresh, bots, meetings, onMeetingsGet, onMeetingStart, mergedCounts, paused = false, onPauseSet }: TeamWorldProps) {
   const demo = useMemo(() => isDemo(location.search), []);
   const [ui, dispatch] = useReducer(worldUiReducer, location.search, (s) => initialWorldUi(parseInitialMode(s)));
   const [ready, setReady] = useState(false);
