@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Builds v2/tiles-interior.png + .tsx + .json and v2/pc.png + pc.json (32px interiors). Deterministic.
 
-Run from anywhere: python3 scripts/world/interior.py [labelled-sheet.png]
+Run from anywhere: python3 scripts/world-v2/interior.py [labelled-sheet.png]
 """
 import json
 import os
