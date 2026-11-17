@@ -78,7 +78,7 @@ def jet(im, f):
     ph = 2 * math.pi * f / N
     top = 9 + round(2.5 * math.sin(ph))          # jet height above the nozzle (6..12)
     for t in range(top):
-        put(im, 47, 22 - t, C("a3" if (t + f) % 3 else "wh"))
+        put(im, 47, 22 - t, C("a3" if (t - f) % 4 else "wh"))
         put(im, 48, 22 - t, C("a2"))
     # crown at the top of the jet
     put(im, 46, 22 - top, C("a3"))
@@ -91,7 +91,7 @@ def jet(im, f):
             u = t / 21
             x = 48 + side * (2 + u * 12)
             y = 22 - lift * math.sin(math.pi * u * 0.9) + u * 10
-            c = "a3" if (t + f) % 6 else "wh"
+            c = "a3" if (t - f) % 8 else "wh"
             put(im, int(x) - (1 if side < 0 else 0), int(y), C(c))
 
 

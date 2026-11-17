@@ -97,7 +97,7 @@ def night():
     S.add("fountain_underglow", fn.fountain_underglow(), 4, (48, 54), blend="add", layer="light",
           note="same top-left as the fountain")
     lights, glows = fn.string_lights()
-    S.add("string_lights", lights, 2, (0, 3), layer="above", note="64 px segment, wire ends at y=3 on both edges")
+    S.add("string_lights", lights, 2, (0, 3), layer="emissive", note="64 px segment, wire ends at y=3 on both edges")
     S.add("string_lights_glow", glows, 2, (0, 3), blend="add", layer="light", note="draw on top of string_lights")
     heads = fn.emissive_heads()
     S.add("lamp_head", [heads["lamp_head"]], 0, (16, 63), layer="emissive",

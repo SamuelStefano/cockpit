@@ -27,8 +27,8 @@ def _streak(al, colours, x, y, length, alpha, col, period):
 
 def rain_frames():
     near_rnd, far_rnd = lcg(31), lcg(57)
-    near = [(near_rnd() * 64, near_rnd() * 64) for _ in range(9)]
-    far = [(far_rnd() * 32, far_rnd() * 32) for _ in range(5)]
+    near = [(near_rnd() * 64, near_rnd() * 64) for _ in range(13)]
+    far = [(far_rnd() * 32, far_rnd() * 32) for _ in range(4)]
     frames = []
     for f in range(NR):
         al = np.zeros((RW, RW))
@@ -37,14 +37,14 @@ def rain_frames():
         fal = np.zeros((32, 32))
         fcol = np.zeros((32, 32), int)
         for (x, y) in far:
-            _streak(fal, fcol, x - 8 * f, y + 24 * f, 4, 70, 0, 32)
+            _streak(fal, fcol, x - 8 * f, y + 24 * f, 4, 95, 0, 32)
         al[:] = np.tile(fal, (2, 2))
         col[:] = np.tile(fcol, (2, 2))
         for (x, y) in near:
-            _streak(al, col, x - 16 * f, y + 48 * f, 7, 120, 1, 64)
+            _streak(al, col, x - 16 * f, y + 48 * f, 8, 165, 1, 64)
             # white head pixel
-            hy, hx = int(round(y + 48 * f + 6)) % 64, int(round(x - 16 * f - 2)) % 64
-            al[hy, hx] = 150
+            hy, hx = int(round(y + 48 * f + 7)) % 64, int(round(x - 16 * f - 7 / 3.0)) % 64
+            al[hy, hx] = 200
             col[hy, hx] = 2
         layers = []
         for k, c in enumerate(("a2", "a3", "wh")):
@@ -58,13 +58,13 @@ def splash_frames(W=32, H=16):
     out = []
     cx, cy = 16, 12
     specs = [
-        [(0, 0, "wh", 200), (-1, 0, "a3", 140), (1, 0, "a3", 140)],
-        [(-2, -1, "a3", 170), (2, -1, "a3", 170), (-1, -2, "wh", 190), (1, -2, "wh", 190), (-3, 0, "a3", 120),
-         (3, 0, "a3", 120), (0, 0, "a3", 90)],
-        [(-4, -3, "a3", 150), (4, -3, "a3", 150), (-2, -4, "wh", 160), (2, -4, "wh", 160), (-4, 0, "a3", 80),
-         (4, 0, "a3", 80), (-3, 1, "a3", 60), (3, 1, "a3", 60)],
-        [(-5, -1, "a3", 110), (5, -1, "a3", 110), (-5, 0, "a3", 60), (5, 0, "a3", 60), (-4, 1, "a3", 50),
-         (4, 1, "a3", 50), (-2, 1, "a3", 40), (2, 1, "a3", 40)],
+        [(0, 0, "wh", 230), (-1, 0, "wh", 160), (1, 0, "wh", 160), (0, -1, "a3", 150)],
+        [(-2, -1, "wh", 200), (2, -1, "wh", 200), (-1, -2, "wh", 220), (1, -2, "wh", 220), (-3, 0, "a3", 170),
+         (3, 0, "a3", 170), (0, 0, "a3", 130), (-1, 0, "a3", 110), (1, 0, "a3", 110)],
+        [(-4, -3, "wh", 190), (4, -3, "wh", 190), (-2, -4, "wh", 200), (2, -4, "wh", 200), (-4, 0, "a3", 140),
+         (4, 0, "a3", 140), (-3, 1, "a3", 110), (3, 1, "a3", 110), (-2, 1, "a3", 80), (2, 1, "a3", 80)],
+        [(-5, -1, "wh", 150), (5, -1, "wh", 150), (-5, 0, "a3", 110), (5, 0, "a3", 110), (-4, 1, "a3", 90),
+         (4, 1, "a3", 90), (-2, 1, "a3", 70), (2, 1, "a3", 70), (0, 1, "a3", 50)],
     ]
     for sp in specs:
         al = {c: np.zeros((H, W)) for c in ("a3", "wh")}

@@ -475,7 +475,7 @@
    "blend": "normal",
    "loop": true,
    "note": "64 px segment, wire ends at y=3 on both edges",
-   "layer": "above"
+   "layer": "emissive"
   },
   "string_lights_glow": {
    "sheet": "night.png",

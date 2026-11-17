@@ -4,8 +4,8 @@ Night transform (also used to build the LUT): an affine colour map, so recolouri
 gives the same result as blending recoloured pixels (shadows and alpha edges stay consistent):
 
     lum = 0.30 R + 0.59 G + 0.11 B
-    c'  = 0.75 c + 0.25 lum                 (a quarter desaturated)
-    out = c' * (0.42, 0.48, 0.70) + (14, 16, 38)
+    c'  = 0.65 c + 0.35 lum                 (about a third desaturated)
+    out = c' * (0.30, 0.36, 0.56) + (12, 14, 34)
 
 Lower value, blue shifted, whites land on a soft lavender-blue, darks on a deep navy instead of black.
 """
@@ -20,9 +20,9 @@ import buildings as bd
 import props as pr
 
 EXTRA = {"c0": "#7d62b8", "c1": "#c3b1ec"}   # the bots' lilac pair (gen-bots palette)
-MUL = (0.42, 0.48, 0.70)
-ADD = (14, 16, 38)
-DESAT = 0.25
+MUL = (0.30, 0.36, 0.56)
+ADD = (12, 14, 34)
+DESAT = 0.35
 
 
 def night_rgb(c):
@@ -65,7 +65,12 @@ def lamp_glows():
     """3 radii (24, 40, 56 px), 2 frames each (steady, slightly dimmer) for a lamp flicker"""
     out = {}
     for name, r in (("s", 24), ("m", 40), ("l", 56)):
-        out[name] = [stack_alpha([(stepped_radial(2 * r, 2 * r, r, r, r, r, 92 * k), "y2")]) for k in (1.0, 0.86)]
+        frames = []
+        for k in (1.0, 0.86):
+            outer = stepped_radial(2 * r, 2 * r, r, r, r, r, 88 * k)
+            core = stepped_radial(2 * r, 2 * r, r, r, r * 0.4, r * 0.4, 64 * k, steps=2)
+            frames.append(stack_alpha([(outer, "y1"), (core, "y2")]))
+        out[name] = frames
     return out
 
 

@@ -156,3 +156,27 @@ def save_gif(frames, path, fps=8, scale=4):
 
 def ease(u):
     return 0.5 - 0.5 * math.cos(math.pi * max(0.0, min(1.0, u)))
+
+
+def components(mask):
+    """4-connected components of a bool mask -> list of (ys, xs) index arrays"""
+    h, w = mask.shape
+    seen = np.zeros_like(mask)
+    out = []
+    for y0, x0 in zip(*np.nonzero(mask)):
+        if seen[y0, x0]:
+            continue
+        stack = [(y0, x0)]
+        seen[y0, x0] = True
+        ys, xs = [], []
+        while stack:
+            y, x = stack.pop()
+            ys.append(y)
+            xs.append(x)
+            for dy, dx in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                yy, xx = y + dy, x + dx
+                if 0 <= yy < h and 0 <= xx < w and mask[yy, xx] and not seen[yy, xx]:
+                    seen[yy, xx] = True
+                    stack.append((yy, xx))
+        out.append((np.array(ys), np.array(xs)))
+    return out

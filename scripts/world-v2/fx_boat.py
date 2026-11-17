@@ -139,15 +139,16 @@ def rope(im, state, dy=0):
 
 
 # ---------------------------------------------------------------- water bits (translucent)
-def foam_layer(phase, length, bow=True, churn=0, lap=True, flipx=False):
+def foam_layer(phase, length, bow=True, churn=0, lap=True, flipx=False, m=6):
     """wake trail behind the stern (towards x=0), bow wave, prop churn and the waterline lap"""
     al = {"a3": np.zeros((H, W)), "wh": np.zeros((H, W))}
     rnd = lcg(5)
     if lap:
         for x in range(31, 84):
-            if (x + phase) % 5 != 0:
+            # moduli divide the loop length so every row loops seamlessly
+            if (x + phase) % m != 0:
                 al["a3"][WL + 1, x] = 110
-            if (x + phase * 2) % 9 == 0:
+            if (x + phase * 2) % (2 * m) == 0:
                 al["wh"][WL + 1, x] = 160
     if churn:
         for k in range(6 + churn * 3):
@@ -163,7 +164,7 @@ def foam_layer(phase, length, bow=True, churn=0, lap=True, flipx=False):
                 if 0 <= yy < H and (x + phase * 3 + yy) % 6 not in (0, 1):
                     a = max(70, 220 - d * 4)
                     al["wh" if (x + phase * 3) % 6 == 2 else "a3"][yy, x] = a
-            if (x * 7 + phase * 3) % 11 == 0:
+            if (x * 7 + phase * 6) % 12 == 0:
                 al["wh"][WL + 1 + (d % 3), x] = max(50, 190 - d * 4)
     if bow:
         b = [(85, 45), (87, 44), (89, 45), (91, 46), (86, 47), (90, 47), (93, 47)]
@@ -244,9 +245,9 @@ def return_frames():
         # deck smoke: 3 staggered black-grey puffs from the cabin roof, drifting back (left before the flip)
         for k in range(3):
             u = ((f + k * 2) % 6) / 6
-            x = 68 - u * 14
-            y = 15 + dy - u * 14
-            r = 3 + u * 5
+            x = 54 - u * 16
+            y = 18 + dy - u * 15
+            r = 3 + u * 4.5
             engine_puff(im, x, y, r, ("ol0", "m0", "m1", "m2"), erode=0 if u < 0.6 else (1 if u < 0.8 else 2))
         out.append(flip(im))
     return out
@@ -258,7 +259,7 @@ def docked_frames():
     for f in range(4):
         boat = draw_boat(bob[f], light=False, flag=2)
         boat = rope(boat, 0, bob[f])
-        foam = foam_layer(f, 0, bow=False, churn=0)
+        foam = foam_layer(f, 0, bow=False, churn=0, m=4)
         out.append(compose(boat, foam))
     return out
 
