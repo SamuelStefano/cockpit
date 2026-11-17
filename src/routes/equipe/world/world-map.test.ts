@@ -183,6 +183,24 @@ describe('world.tmj', () => {
     expect(validateWorldMap(m)).toContain('house "dfl" has invalid department "nope"');
   });
 
+  it('reports two seats on the same tile', () => {
+    const m = fresh();
+    const objs = m.layers.filter((l) => l.type === 'objectgroup').flatMap((l) => l.objects!);
+    const c1 = objs.find((o) => o.name === 'sala-chair-1')!;
+    const c5 = objs.find((o) => o.name === 'sala-chair-5')!;
+    c5.x = c1.x;
+    c5.y = c1.y;
+    expect(validateWorldMap(m)).toContain('chair "sala-chair-5" and chair "sala-chair-1" are on the same tile 33,18');
+    const d = objs.find((o) => o.name === 'itera-desk-0')!;
+    c1.x = d.x;
+    c1.y = d.y;
+    expect(validateWorldMap(m).some((e) => e.includes('"itera-desk-0"') && e.includes('"sala-chair-1"') && e.includes('same tile'))).toBe(true);
+  });
+
+  it('the real map has no seats sharing a tile', () => {
+    expect(validateWorldMap(fresh()).filter((e) => e.includes('same tile'))).toEqual([]);
+  });
+
   it('reports a meeting room without chairs', () => {
     const broken = fresh();
     const m = broken.layers.find((l) => l.type === 'objectgroup')!;
