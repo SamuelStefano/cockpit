@@ -92,6 +92,9 @@ export function deriveWorld(state: TeamState | null, opts: DeriveOptions = {}): 
     .filter((h) => ids.has(h.to) && now - h.at <= FLIGHT_WINDOW_MS)
     .map((h): Flight => ({ key: `${h.taskId}:${h.at}`, from: h.from && ids.has(h.from) ? h.from : null, to: h.to }));
   const projects: Record<string, string> = {};
-  for (const [id, n] of Object.entries(opts.projects ?? {})) { const t = badgeText(n); if (t) projects[id] = t; }
+  // Without an explicit count, a house shows how many bots are working there now.
+  const counted: Record<string, number> = opts.projects ?? {};
+  if (!opts.projects) for (const n of npcs) if (n.mode === 'working' && !n.meeting && n.project !== 'escritorio') counted[n.project] = (counted[n.project] ?? 0) + 1;
+  for (const [id, n] of Object.entries(counted)) { const t = badgeText(n); if (t) projects[id] = t; }
   return { npcs, flights, projects, meetingSize: inMeeting.size };
 }

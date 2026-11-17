@@ -53,6 +53,7 @@ export interface WorldOptions {
   mode: CameraMode;
   coarse: boolean;
   onOpenBot: (id: string) => void;
+  onToggleBot: (id: string) => void;
   onReady?: () => void;
 }
 
@@ -60,6 +61,7 @@ export interface WorldHandle {
   update: (view: WorldView) => void;
   setMode: (mode: CameraMode) => void;
   setRecording: (recording: boolean) => void;
+  setSelection: (selecting: boolean, ids: string[]) => void;
   refresh: () => void;
   destroy: () => void;
 }
@@ -121,6 +123,9 @@ class WorldScene extends Phaser.Scene {
   private wheelAcc = 0;
   private pinching = false;
   private userMoved = false;
+  private selecting = false;
+  private selected = new Set<string>();
+  private rings = new Map<string, Phaser.GameObjects.Ellipse>();
 
   constructor(opts: WorldOptions) {
     super('world');
@@ -187,6 +192,11 @@ class WorldScene extends Phaser.Scene {
   setRecording(recording: boolean): void {
     this.recording = recording;
     if (this.marker) this.marker.setVisible(false);
+  }
+
+  setSelection(selecting: boolean, ids: string[]): void {
+    this.selecting = selecting;
+    this.selected = new Set(ids);
   }
 
   // ---- map ----
@@ -491,6 +501,18 @@ class WorldScene extends Phaser.Scene {
     }
   }
 
+  // A violet ring under each bot picked for a meeting.
+  private placeRings(): void {
+    for (const [id, r] of this.rings) if (!this.selected.has(id) || !this.npcs.has(id)) { r.destroy(); this.rings.delete(id); }
+    for (const id of this.selected) {
+      const n = this.npcs.get(id);
+      if (!n) continue;
+      let r = this.rings.get(id);
+      if (!r) { r = this.add.ellipse(0, 0, 14, 6, MEET, 0.35).setStrokeStyle(1, MEET); this.rings.set(id, r); }
+      r.setPosition(Math.round(n.sprite.x), Math.round(n.sprite.y) - 1).setDepth(n.sprite.depth - 0.5);
+    }
+  }
+
   private placeBubbles(): void {
     const t = this.time.now / 900;
     for (const n of this.npcs.values()) {
@@ -571,7 +593,7 @@ class WorldScene extends Phaser.Scene {
       if (Math.hypot(p.x - d.x, p.y - d.y) > 8) return;
       p.updateWorldPoint(this.cameras.main);
       const hit = this.npcAt(p.worldX, p.worldY);
-      if (hit) { this.opts.onOpenBot(hit); return; }
+      if (hit) { if (this.selecting) this.opts.onToggleBot(hit); else this.opts.onOpenBot(hit); return; }
       if (this.mode === 'avatar') this.moveTo(p.worldX, p.worldY);
     });
     this.input.on('wheel', (_p: unknown, _o: unknown, _dx: number, dy: number) => {
@@ -678,6 +700,7 @@ class WorldScene extends Phaser.Scene {
     this.applyLabelScale();
     this.layoutPills();
     this.placeBubbles();
+    this.placeRings();
     this.pinch();
   }
 
@@ -719,6 +742,7 @@ export function createWorld(opts: WorldOptions): WorldHandle {
     update: (view) => scene.sync(view),
     setMode: (m) => scene.setMode(m),
     setRecording: (r) => scene.setRecording(r),
+    setSelection: (s, ids) => scene.setSelection(s, ids),
     refresh: () => game.scale.refresh(),
     destroy: () => game.destroy(true),
   };

@@ -7,6 +7,8 @@ import { meetingCron } from './world/meeting-schedule';
 interface MeetingPanelProps {
   bots: TeamBot[];
   running: boolean;
+  picked: string[];
+  onPick: (ids: string[]) => void;
   onStart: (input: MeetingInput) => void;
   onSchedule: (cron: Cron) => void;
   onClose: () => void;
@@ -16,8 +18,7 @@ const btn = 'rounded-md border px-3 py-1.5 text-xs font-medium disabled:opacity-
 
 // Convocar = the same `team-meeting-start` frame `deckctl meeting start` sends.
 // Agendar = a daily cron (existing crons) whose prompt runs that same command.
-export function MeetingPanel({ bots, running, onStart, onSchedule, onClose }: MeetingPanelProps) {
-  const [picked, setPicked] = useState<string[]>([]);
+export function MeetingPanel({ bots, running, picked, onPick, onStart, onSchedule, onClose }: MeetingPanelProps) {
   const [question, setQuestion] = useState('');
   const [time, setTime] = useState('09:00');
   const [note, setNote] = useState<string | null>(null);
@@ -25,7 +26,7 @@ export function MeetingPanel({ bots, running, onStart, onSchedule, onClose }: Me
   const names = useMemo(() => Object.fromEntries(bots.map((b) => [b.id, b.name])), [bots]);
   const moderatorId = picked.includes(defaultModeratorId(eligible)) ? defaultModeratorId(eligible) : (picked[0] ?? '');
   const check = validateMeetingInput({ question, participantIds: picked, moderatorId }, bots);
-  const toggle = (id: string) => setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : p.length >= MEETING_LIMITS.maxParticipants ? p : [...p, id]));
+  const toggle = (id: string) => onPick(picked.includes(id) ? picked.filter((x) => x !== id) : picked.length >= MEETING_LIMITS.maxParticipants ? picked : [...picked, id]);
   const start = () => { if (check.ok) { onStart(check.input); setNote('Reunião convocada'); } };
   const schedule = () => {
     if (!check.ok) return;
@@ -39,7 +40,7 @@ export function MeetingPanel({ bots, running, onStart, onSchedule, onClose }: Me
         <button type="button" aria-label="Fechar" className="px-1 text-neutral-400 hover:text-white" onClick={onClose}>×</button>
       </div>
       <fieldset className="flex flex-wrap gap-1.5">
-        <legend className="mb-1 text-neutral-400">Participantes ({picked.length} de {MEETING_LIMITS.minParticipants} a {MEETING_LIMITS.maxParticipants})</legend>
+        <legend className="mb-1 text-neutral-400">Clique nos bots no mundo ou aqui · ({picked.length} de {MEETING_LIMITS.minParticipants} a {MEETING_LIMITS.maxParticipants})</legend>
         {eligible.map((b) => {
           const on = picked.includes(b.id);
           return (

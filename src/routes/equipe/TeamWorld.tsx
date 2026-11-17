@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import type { Cron, TeamBot } from '../../../shared/protocol';
 import type { TeamState } from '../../../shared/team-state';
-import { isRunning, type MeetingInput, type TeamMeeting } from '../../../shared/team-meeting';
+import { isRunning, MEETING_LIMITS, type MeetingInput, type TeamMeeting } from '../../../shared/team-meeting';
 import { MeetingPanel } from './MeetingPanel';
 import { navigateTo } from '../../lib/route-nav';
 import { agentPath } from '../../useRoute';
@@ -39,6 +39,7 @@ export function TeamWorld({ state, connected, onRefresh, bots, meetings, onMeeti
   const [failed, setFailed] = useState(false);
   const [tick, setTick] = useState(0);
   const [panel, setPanel] = useState(false);
+  const [picked, setPicked] = useState<string[]>([]);
   const [demoMeet, setDemoMeet] = useState(() => demoMeeting(location.search));
   const host = useRef<HTMLDivElement>(null);
   const world = useRef<WorldHandle | null>(null);
@@ -78,6 +79,7 @@ export function TeamWorld({ state, connected, onRefresh, bots, meetings, onMeeti
         mode: modeRef.current,
         coarse: isCoarse(),
         onOpenBot: (id) => { if (!demo) navigateTo(agentPath(id, 'computador')); },
+        onToggleBot: (id) => setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : p.length >= MEETING_LIMITS.maxParticipants ? p : [...p, id])),
         onReady: () => { setReady(true); h.update(viewRef.current); },
       });
       world.current = h;
@@ -89,6 +91,7 @@ export function TeamWorld({ state, connected, onRefresh, bots, meetings, onMeeti
 
   useEffect(() => { world.current?.update(view); }, [view]);
   useEffect(() => { world.current?.setMode(ui.mode); }, [ui.mode]);
+  useEffect(() => { world.current?.setSelection(panel, picked); }, [panel, picked, ready]);
   useEffect(() => {
     world.current?.setRecording(ui.recording);
     window.dispatchEvent(new Event('resize'));
@@ -119,7 +122,7 @@ export function TeamWorld({ state, connected, onRefresh, bots, meetings, onMeeti
           </div>
           {panel && (
             <MeetingPanel
-              bots={demo ? DEMO_TEAM : bots} running={!!meeting} onClose={() => setPanel(false)}
+              bots={demo ? DEMO_TEAM : bots} running={!!meeting} picked={picked} onPick={setPicked} onClose={() => setPanel(false)}
               onStart={(i) => { if (demo) setDemoMeet(true); else onMeetingStart(i); }}
               onSchedule={(c) => { if (!demo) onCronSave(c); }}
             />
