@@ -6,6 +6,7 @@ import {
   PLANNER_COLUMNS, PLANNER_ID_RE, PLANNER_LIMITS, PLANNER_REF_RE,
   type PlannerColumn, type PlannerDifficulty, type PlannerLink, type PlannerMove, type PlannerTask,
 } from '../../shared/planner';
+import { sanitizeHandoffs } from '../../shared/task-handoff';
 import { withFileLockAsync } from '../ws/file-lock';
 
 function plannerFile(): string {
@@ -47,6 +48,12 @@ function sanitizeTag(v: unknown): string | undefined {
   return tag || undefined;
 }
 
+function sanitizeOwner(v: unknown): string | undefined {
+  if (typeof v !== 'string') return undefined;
+  const id = v.trim();
+  return PLANNER_ID_RE.test(id) ? id : undefined;
+}
+
 export function sanitizeTask(raw: unknown, prev: PlannerTask | undefined, now: number): PlannerTask | null {
   const r = raw as Partial<PlannerTask> | null | undefined;
   if (!r || typeof r !== 'object' || typeof r.id !== 'string' || !PLANNER_ID_RE.test(r.id)) return null;
@@ -69,6 +76,10 @@ export function sanitizeTask(raw: unknown, prev: PlannerTask | undefined, now: n
   if (ref) task.ref = ref;
   const tag = 'tag' in r ? sanitizeTag(r.tag) : prev?.tag;
   if (tag) task.tag = tag;
+  const ownerBotId = 'ownerBotId' in r ? sanitizeOwner(r.ownerBotId) : prev?.ownerBotId;
+  if (ownerBotId) task.ownerBotId = ownerBotId;
+  const handoffs = prev ? prev.handoffs ?? [] : sanitizeHandoffs(r.handoffs);
+  if (handoffs.length) task.handoffs = handoffs;
   if (column === 'done') task.doneAt = prev?.column === 'done' && prev.doneAt ? prev.doneAt : finite(r.doneAt) && r.doneAt > 0 ? r.doneAt : now;
   return task;
 }

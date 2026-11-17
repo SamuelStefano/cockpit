@@ -127,3 +127,25 @@ describe('file persistence', () => {
     expect((await readTasks()).map((t) => t.id).sort()).toEqual(['a', 'b', 'c']);
   });
 });
+
+describe('sanitizeTask owner and handoffs', () => {
+  const ho = { at: 5, toBotId: 'b', done: 'd', pending: 'p', reason: 'r', switchPoint: 's' };
+
+  it('keeps a valid owner, drops a malformed one, clears on empty', () => {
+    expect(sanitizeTask({ ...base, ownerBotId: 'bot-1' }, undefined, 1)!.ownerBotId).toBe('bot-1');
+    expect(sanitizeTask({ ...base, ownerBotId: 'a b' }, undefined, 1)!.ownerBotId).toBeUndefined();
+    const prev = sanitizeTask({ ...base, ownerBotId: 'bot-1' }, undefined, 1)!;
+    expect(sanitizeTask(base, prev, 2)!.ownerBotId).toBe('bot-1');
+    expect(sanitizeTask({ ...base, ownerBotId: '' }, prev, 2)!.ownerBotId).toBeUndefined();
+  });
+
+  it('drops malformed handoffs and unknown fields when parsing without history', () => {
+    const t = sanitizeTask({ ...base, handoffs: [{ ...ho, extra: 1 }, { ...ho, done: '' }, 'x'] }, undefined, 1)!;
+    expect(t.handoffs).toEqual([ho]);
+  });
+
+  it('never lets a client frame rewrite existing history', () => {
+    const prev = sanitizeTask({ ...base, handoffs: [ho] }, undefined, 1)!;
+    expect(sanitizeTask({ ...base, handoffs: [] }, prev, 2)!.handoffs).toEqual([ho]);
+  });
+});

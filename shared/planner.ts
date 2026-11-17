@@ -4,6 +4,16 @@ export type PlannerDifficulty = 1 | 2 | 3;
 
 export interface PlannerLink { url: string; label?: string }
 
+export interface TaskHandoff {
+  at: number;
+  fromBotId?: string;
+  toBotId: string;
+  done: string;
+  pending: string;
+  reason: string;
+  switchPoint: string;
+}
+
 export interface PlannerTask {
   id: string;
   title: string;
@@ -18,6 +28,8 @@ export interface PlannerTask {
   source?: 'agent';
   ref?: string;
   tag?: string;
+  ownerBotId?: string;
+  handoffs?: TaskHandoff[];
 }
 
 export interface PlannerMove { id: string; column: PlannerColumn; order: number }
@@ -31,6 +43,8 @@ export const PLANNER_LIMITS = {
   linkLabel: 80,
   ref: 80,
   tag: 24,
+  handoffs: 20,
+  handoffText: 600,
 } as const;
 
 export const PLANNER_ID_RE = /^[A-Za-z0-9_-]{1,80}$/;
