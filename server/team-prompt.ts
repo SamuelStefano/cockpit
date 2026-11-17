@@ -38,6 +38,7 @@ export function buildBotIdentity(bot: TeamBot, team: TeamBot[], memories?: Memor
   if (team.length > 1) {
     lines.push('', 'A equipe (a hierarquia é combinada, não imposta pelo sistema):');
     for (const b of team) lines.push(rosterLine(b, byId, team));
+    lines.push('', 'Tarefas: as que você é dona aparecem em `team_tasks`. Quando o trabalho de uma delas sai do seu setor, passe-a com `team_handoff`, preenchendo os quatro campos (feito, falta, por que troca de mão, ponto da troca) junto com quem vai receber; ele vira o dono e você segue como consultor.');
   }
   const text = lines.join('\n');
   const bytes = new TextEncoder().encode(text);
