@@ -315,17 +315,25 @@ GLYPHS = {
 }
 
 
+# Portuguese accents: base glyph + extra pixels (row -1 stays empty so the acute never touches the letter)
+ACUTE = [(1, -2), (2, -3)]
+MARKED = {"Á": ("A", ACUTE), "É": ("E", ACUTE), "Ú": ("U", ACUTE), "Ç": ("C", [(1, 5), (0, 6)])}
+
+
+def glyph_pixels(ch):
+    base, marks = MARKED.get(ch, (ch, []))
+    px = [(gx, gy) for gy, row in enumerate(GLYPHS[base]) for gx, v in enumerate(row) if v == "1"]
+    return px + marks
+
+
 def text_width(s):
     return len(s) * 4 - 1
 
 
 def draw_text(img, x, y, s, name):
     for i, ch in enumerate(s.upper()):
-        g = GLYPHS[ch]
-        for gy, row in enumerate(g):
-            for gx, v in enumerate(row):
-                if v == "1":
-                    put(img, x + i * 4 + gx, y + gy, C(name))
+        for gx, gy in glyph_pixels(ch):
+            put(img, x + i * 4 + gx, y + gy, C(name))
 
 
 # ---------------------------------------------------------------- tileable noise
