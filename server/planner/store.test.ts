@@ -149,3 +149,46 @@ describe('sanitizeTask owner and handoffs', () => {
     expect(sanitizeTask({ ...base, handoffs: [] }, prev, 2)!.handoffs).toEqual([ho]);
   });
 });
+
+describe('village fields', () => {
+  const claim = { botId: 'bob', at: 5 };
+
+  it('round-trips ready, unsafe, ownerSector and claim from disk', () => {
+    const t = sanitizeTask({ ...base, ready: true, unsafe: true, ownerSector: 'growth', ownerBotId: 'bob', claim }, undefined, 1)!;
+    expect(t).toMatchObject({ ready: true, unsafe: true, ownerSector: 'growth', ownerBotId: 'bob', claim });
+  });
+
+  it('drops invalid values', () => {
+    const t = sanitizeTask({ ...base, ready: 'yes', unsafe: 1, ownerSector: 'sales', claim: { botId: 'bad id', at: 5 } }, undefined, 1)!;
+    expect(t.ready).toBeUndefined();
+    expect(t.unsafe).toBeUndefined();
+    expect(t.ownerSector).toBeUndefined();
+    expect(t.claim).toBeUndefined();
+    expect(sanitizeTask({ ...base, claim: { botId: 'bob', at: -1 } }, undefined, 1)!.claim).toBeUndefined();
+  });
+
+  it('keeps stored values when an edit omits them and clears on explicit false', () => {
+    const prev = sanitizeTask({ ...base, ready: true, unsafe: true, ownerSector: 'growth', claim }, undefined, 1)!;
+    const kept = sanitizeTask({ ...base }, prev, 2)!;
+    expect(kept).toMatchObject({ ready: true, unsafe: true, ownerSector: 'growth', claim });
+    const cleared = sanitizeTask({ ...base, ready: false, unsafe: false, ownerSector: null }, prev, 2)!;
+    expect(cleared.ready).toBeUndefined();
+    expect(cleared.unsafe).toBeUndefined();
+    expect(cleared.ownerSector).toBeUndefined();
+  });
+
+  it('never takes a claim from a client edit of an existing task', () => {
+    const prev = sanitizeTask({ ...base }, undefined, 1)!;
+    expect(sanitizeTask({ ...base, claim }, prev, 2)!.claim).toBeUndefined();
+  });
+
+  it('completing a task clears claim and ready, by save and by move', () => {
+    const prev = sanitizeTask({ ...base, ready: true, claim }, undefined, 1)!;
+    const done = sanitizeTask({ ...base, column: 'done', ready: true, claim }, prev, 2)!;
+    expect(done.claim).toBeUndefined();
+    expect(done.ready).toBeUndefined();
+    const moved = applyMoves([prev], [{ id: 't1', column: 'done', order: 1 }], 3)[0];
+    expect(moved.claim).toBeUndefined();
+    expect(moved.ready).toBeUndefined();
+  });
+});

@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import type { PlannerTask } from '../shared/planner';
 import {
   findByRef, findDuplicate, formatTaskList, mergeLinks, normalizeTitle, parseColumn, parseDifficulty, parseLinkSpec, parseTaskArgs,
-  sameTaskContent, parseFlags, parseRef, parseTag, parseOwner, resolveBot,
+  sameTaskContent, parseFlags, parseSeal, parseSector, applySeal, parseRef, parseTag, parseOwner, resolveBot,
 } from './deckctl.mts';
 import { topOrder } from '../src/planner/planner-logic';
 
@@ -242,5 +242,47 @@ describe('task owner', () => {
 
   it('counts an owner change as a content change', () => {
     expect(sameTaskContent(task({}), task({ ownerBotId: 'b1' }))).toBe(false);
+  });
+});
+
+describe('village flags', () => {
+  it('parses ready/unsafe toggles and sector', () => {
+    const r = parseTaskArgs(['--ready', '--unsafe', '--sector', 'growth', 'Title']);
+    expect(r.positional).toEqual(['Title']);
+    expect(parseSeal(r.flags)).toEqual({ ready: true, unsafe: true });
+    expect(parseSeal(parseTaskArgs(['--no-ready', '--safe']).flags)).toEqual({ ready: false, unsafe: false });
+    expect(parseSeal(parseTaskArgs([]).flags)).toEqual({});
+  });
+
+  it('rejects conflicting toggles and a missing sector value', () => {
+    expect(() => parseSeal(parseTaskArgs(['--ready', '--no-ready']).flags)).toThrow(/conflict/);
+    expect(() => parseSeal(parseTaskArgs(['--unsafe', '--safe']).flags)).toThrow(/conflict/);
+    expect(() => parseTaskArgs(['--sector'])).toThrow(/needs a value/);
+  });
+
+  it('validates the sector id and accepts none', () => {
+    expect(parseSector('Growth')).toBe('growth');
+    expect(parseSector('none')).toBeNull();
+    expect(() => parseSector('sales')).toThrow(/invalid sector/);
+  });
+
+  it('applySeal writes explicit values so the server can clear them', () => {
+    const t = task({ ready: true, ownerSector: 'growth' });
+    applySeal(t, { ready: false }, null);
+    expect(t.ready).toBe(false);
+    expect(t.ownerSector).toBeNull();
+    applySeal(t, {}, undefined);
+    expect(t.ready).toBe(false);
+  });
+
+  it('sameTaskContent notices the new fields', () => {
+    expect(sameTaskContent(task({ ready: true }), task({}))).toBe(false);
+    expect(sameTaskContent(task({}), task({ ready: false as unknown as true }))).toBe(true);
+  });
+
+  it('formatTaskList shows ready mark and sector', () => {
+    const out = formatTaskList([task({ column: 'today', ready: true, ownerSector: 'growth' })], { now: NOW }).join('\n');
+    expect(out).toContain('READY');
+    expect(out).toContain('sector:growth');
   });
 });

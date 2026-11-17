@@ -63,7 +63,8 @@ export function planRound(i: RoundInput): RoundPlan {
     const { botId, at } = t.claim;
     if (i.now - at > CLAIM_STALE_MS && !i.running.has(botId) && !sentSinceClaim(i.log ?? [], botId, at)) {
       plan.releases.push({ taskId: t.id, botId, reason: 'no sign of life for 30 min' });
-    } else busy.add(botId);
+    }
+    busy.add(botId);
   }
   const open = i.tasks
     .filter(isClaimable)
