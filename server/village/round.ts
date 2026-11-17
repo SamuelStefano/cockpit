@@ -42,7 +42,7 @@ export interface RoundInput {
 }
 
 export function isClaimable(t: PlannerTask): boolean {
-  return t.ready === true && t.unsafe !== true && !t.claim && t.column !== 'done' && !matchesUnsafeNet(t);
+  return t.ready === true && t.source !== 'agent' && t.unsafe !== true && !t.claim && t.column !== 'done' && !matchesUnsafeNet(t);
 }
 
 function candidates(t: PlannerTask, team: RoundInput['team']): string[] {

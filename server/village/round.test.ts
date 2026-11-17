@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { PlannerTask } from '../../shared/planner';
-import { CLAIM_STALE_MS, matchesUnsafeNet, planRound, type RoundInput } from './round';
+import { CLAIM_STALE_MS, isClaimable, matchesUnsafeNet, planRound, type RoundInput } from './round';
 
 const NOW = Date.UTC(2026, 10, 17, 15);
 const task = (o: Partial<PlannerTask>): PlannerTask => ({
@@ -115,5 +115,9 @@ describe('planRound', () => {
     const plan = planRound(input({ tasks: [stale, next] }));
     expect(plan.releases).toHaveLength(1);
     expect(plan.claims).toEqual([]);
+  });
+
+  it('never claims a task an agent created, even when it is marked ready', () => {
+    expect(isClaimable(task({ ready: true, source: 'agent' }))).toBe(false);
   });
 });
