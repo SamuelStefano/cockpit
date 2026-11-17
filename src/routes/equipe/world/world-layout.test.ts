@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { assignSpots } from './world-layout';
+import { assignSpots, roomEdgeTiles } from './world-layout';
 import { buildingById, seatTile } from './world-map';
 import type { NpcView } from './world-state';
 
@@ -35,5 +35,30 @@ describe('assignSpots', () => {
     expect(spots.get('a')?.station).toBe('sala');
     expect(spots.get('b')?.station).toBe('sala');
     expect(spots.get('c')?.station).toBe('plaza');
+  });
+});
+
+describe('meeting overflow', () => {
+  it('seats up to the chairs and stands the rest at the room edge, never overlapping', () => {
+    const sala = buildingById('sala');
+    const ids = Array.from({ length: sala.seats.length + 3 }, (_, i) => `m${i}`);
+    const spots = assignSpots(ids.map((id) => npc(id, { meeting: true })));
+    const all = ids.map((id) => spots.get(id)!);
+    expect(all.every((s) => s.station === 'sala')).toBe(true);
+    expect(all.filter((s) => s.seated).length).toBe(sala.seats.length);
+    expect(new Set(all.map((s) => `${s.tile.x},${s.tile.y}`)).size).toBe(ids.length);
+    for (const s of all.filter((x) => !x.seated)) {
+      expect(s.tile.x > sala.x && s.tile.x < sala.x + sala.w - 1 && s.tile.y > sala.y && s.tile.y < sala.y + sala.h - 1).toBe(true);
+    }
+  });
+});
+
+describe('roomEdgeTiles', () => {
+  it('skips seats and door fronts', () => {
+    const sala = buildingById('sala');
+    const tiles = roomEdgeTiles(sala);
+    const seats = new Set(sala.seats.map((s) => `${sala.x + s.x},${sala.y + s.y}`));
+    expect(tiles.some((t) => seats.has(`${t.x},${t.y}`))).toBe(false);
+    for (const d of sala.doors) expect(tiles.some((t) => Math.abs(t.x - (d.x + 1)) <= 1 && Math.abs(t.y - d.y) <= 1)).toBe(false);
   });
 });
