@@ -30,15 +30,15 @@ export function StoreCard({ entry, hired, skillCount, block, onHire, onOpen }: S
           <span className="mt-0.5 line-clamp-2 block text-[12.5px] leading-snug text-neutral-400">{entry.tagline}</span>
         </span>
       </button>
-      <div className="flex min-h-4 flex-wrap items-center gap-x-3 gap-y-1 text-[11.5px] text-neutral-500">
-        {lead && <span>responde a {lead.name}</span>}
-        {skillCount > 0 && <span>{skillsLabel(skillCount)}</span>}
-      </div>
-      <div className="mt-auto flex flex-col gap-1.5">
-        <Button variant={hired ? 'secondary' : 'primary'} size="sm" icon="plus" disabled={block !== null} className="w-full" onClick={(e) => { e.stopPropagation(); onHire(); }}>
+      <div className="mt-auto flex items-end justify-between gap-3">
+        <div className="flex min-w-0 flex-col gap-0.5 text-[11.5px] text-neutral-500">
+          {lead && <span className="truncate">responde a {lead.name}</span>}
+          {skillCount > 0 && <span>{skillsLabel(skillCount)}</span>}
+          {block && <span>{block}</span>}
+        </div>
+        <Button variant={hired ? 'secondary' : 'primary'} size="sm" icon="plus" disabled={block !== null} className="shrink-0" onClick={(e) => { e.stopPropagation(); onHire(); }}>
           {hireLabel(hired)}
         </Button>
-        {block && <span className="text-[11.5px] text-neutral-500">{block}</span>}
       </div>
     </article>
   );

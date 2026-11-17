@@ -31,7 +31,7 @@ export function AgentsHome({ tab, onTab, views, bots, skills, connected, canEdit
       <Tabs items={TABS} active={tab} onChange={onTab} />
       {tab === 'loja'
         ? <AgentStore bots={bots} skills={skills} canEdit={canEdit} onSave={onSave} onHired={(firstId, count) => (count === 1 ? onProfile(firstId) : onTab('escritorio'))} />
-        : <Office views={views} onOpen={onOpen} onNew={onNew} />}
+        : <Office views={views} onOpen={onOpen} onNew={onNew} heading={false} />}
     </div>
   );
 }
