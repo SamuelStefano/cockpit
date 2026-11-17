@@ -1,5 +1,6 @@
 import type { PlannerTask } from '../../../shared/planner';
 import type { TeamBot } from '../../../shared/protocol';
+import { isUnsafeTask } from '../../../shared/village-risk';
 import { Mascot } from '../team/Mascot';
 import { DIFFICULTY_LABELS, linkChipLabel } from '../../planner/planner-logic';
 
@@ -11,7 +12,9 @@ export function CardMeta({ task, bots = [] }: { task: PlannerTask; bots?: TeamBo
   const owner = task.ownerBotId ? bots.find((b) => b.id === task.ownerBotId) : undefined;
   // Machine refs (placar:<uuid>) are import keys, not something a person reads.
   const ref = task.ref && !task.ref.includes(':') ? task.ref : undefined;
-  if (!ref && !tag && difficulty === 1 && !links.length && task.source !== 'agent' && !owner) return null;
+  const unsafe = task.column !== 'done' && isUnsafeTask(task);
+  const seal = task.ready ? 'pronta' : task.wantReady ? 'quer-pronta' : null;
+  if (!ref && !tag && difficulty === 1 && !links.length && task.source !== 'agent' && !owner && !unsafe && !seal && !task.claim) return null;
   return (
     <div className="mt-2 flex flex-wrap items-center gap-1 text-neutral-500">
       {owner && (
@@ -19,6 +22,10 @@ export function CardMeta({ task, bots = [] }: { task: PlannerTask; bots?: TeamBo
           <Mascot mascot={owner.mascot} size={18} name={owner.name} />
         </span>
       )}
+      {task.claim && <span className={`${chip} bg-sky-900/40 text-sky-300`} title="A vila entregou a um bot">fazendo</span>}
+      {seal === 'pronta' && <span className={`${chip} bg-emerald-900/40 text-emerald-300`} title="Marcada pronta por um humano">pronta</span>}
+      {seal === 'quer-pronta' && <span className={`${chip} bg-amber-900/40 text-amber-300`} title={`${task.wantReady!.by}: ${task.wantReady!.reason}`}>quer-pronta</span>}
+      {unsafe && <span className={`${chip} bg-red-900/40 text-red-300`} title="Insegura: a vila nunca pega">insegura</span>}
       {ref && <span className={`${chip} bg-neutral-800/70 font-mono text-neutral-400`} title={ref}>{ref}</span>}
       {tag && <span className={`${chip} border border-neutral-800 text-neutral-400`}>{tag}</span>}
       {difficulty !== 1 && <span className="px-0.5 text-[11px]">{DIFFICULTY_LABELS[difficulty]}</span>}

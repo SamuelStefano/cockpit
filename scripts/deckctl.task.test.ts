@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import type { PlannerTask } from '../shared/planner';
 import {
   findByRef, findDuplicate, formatTaskList, mergeLinks, normalizeTitle, parseColumn, parseDifficulty, parseLinkSpec, parseTaskArgs,
-  sameTaskContent, parseFlags, parseRef, parseTag, parseOwner, resolveBot,
+  sameTaskContent, parseSeal, parseFlags, parseRef, parseTag, parseOwner, resolveBot,
 } from './deckctl.mts';
 import { topOrder } from '../src/planner/planner-logic';
 
@@ -242,5 +242,14 @@ describe('task owner', () => {
 
   it('counts an owner change as a content change', () => {
     expect(sameTaskContent(task({}), task({ ownerBotId: 'b1' }))).toBe(false);
+  });
+});
+
+describe('village flags', () => {
+  it('want-ready takes a one-line reason up to 140 chars; ready is not a flag', () => {
+    expect(parseSeal({ 'want-ready': 'small and safe' }).wantReady).toBe('small and safe');
+    expect(() => parseSeal({ 'want-ready': 'a\nb' })).toThrow();
+    expect(() => parseSeal({ 'want-ready': 'x'.repeat(141) })).toThrow();
+    expect(() => parseTaskArgs(['add', 't', '--ready'])).toThrow(/unknown flag/);
   });
 });

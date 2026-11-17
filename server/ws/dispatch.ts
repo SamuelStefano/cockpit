@@ -96,7 +96,7 @@ import { startCanvasFlows } from '../canvas/flows';
 import { registerCanvasClient, emitCanvasMsg } from './canvas-clients';
 import { registerPlannerClient, emitPlannerMsg } from './planner-clients';
 import { applyHandoff } from '../../shared/task-handoff';
-import { applyMoves, readTasksChained, sanitizeTask, updateTasks, upsertTask } from '../planner/store';
+import { applyMoves, readTasksChained, readyForbidden, sanitizeTask, setReady, updateTasks, upsertTask } from '../planner/store';
 import { CARD_STATUSES, type CanvasBoard, type CardStatus } from '../../shared/canvas';
 import { updateAreaCacheFromGraph, getAreaOf } from '../canvas/autopause-loop';
 import { areaUsageFromIds } from '../../shared/canvas-budget';
@@ -487,13 +487,28 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     case 'planner-task-save': {
       const now = Date.now();
       let rejected = false;
+      let readyRefused = false;
       const tasks = await updateTasks((list) => {
-        const task = sanitizeTask(msg.task, list.find((x) => x.id === msg.task?.id), now);
+        const prev = list.find((x) => x.id === msg.task?.id);
+        if (readyForbidden(msg.task, prev)) { readyRefused = true; return list; }
+        const task = sanitizeTask(msg.task, prev, now);
         const next = task ? upsertTask(list, task) : null;
         rejected = !next;
         return next ?? list;
       });
-      if (rejected) send(ws, { t: 'error', message: 'task inválida' });
+      if (readyRefused) send(ws, { t: 'error', message: 'só o humano marca "pronta", pela UI do quadro' });
+      else if (rejected) send(ws, { t: 'error', message: 'task inválida' });
+      emitPlannerMsg({ t: 'planner-board', tasks });
+      return;
+    }
+    case 'planner-ready-set': {
+      let missing = false;
+      const tasks = await updateTasks((list) => {
+        const next = typeof msg.id === 'string' && typeof msg.ready === 'boolean' ? setReady(list, msg.id, msg.ready, Date.now()) : null;
+        missing = !next;
+        return next ?? list;
+      });
+      if (missing) send(ws, { t: 'error', message: 'task não encontrada ou já concluída' });
       emitPlannerMsg({ t: 'planner-board', tasks });
       return;
     }

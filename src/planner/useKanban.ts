@@ -4,7 +4,7 @@ import { newTaskId, topOrder } from './planner-logic';
 import type { PlannerApi } from './usePlanner';
 
 export function useKanban(api: PlannerApi) {
-  const { tasks, onPlannerSave, onPlannerMove, onPlannerDelete } = api;
+  const { tasks, onPlannerSave, onPlannerMove, onPlannerDelete, onPlannerReady } = api;
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showAllDone, setShowAllDone] = useState(false);
 
@@ -30,5 +30,5 @@ export function useKanban(api: PlannerApi) {
     setEditingId(null);
   }, [onPlannerDelete]);
 
-  return { editingId, setEditingId, showAllDone, setShowAllDone, move, add, save, remove };
+  return { editingId, setEditingId, showAllDone, setShowAllDone, move, add, save, remove, ready: onPlannerReady };
 }
