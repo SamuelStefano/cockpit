@@ -56,3 +56,16 @@ Doors are 2 tiles: `bottom` = columns 4-5 of the bottom row, `east`/`west` = row
 Nothing about bots is in code. A bot is placed by, in order: its `project` field (set in the bot config, must equal a house `project` id), a keyword in its current task (`itera`, `dfl`, `radar`), its department matching a house `department` prop, then `escritorio`. Set Luffy to `itera`, Zoro to `dfl` and Goku to `deck` in the bot config (`project`, a slug `[a-z0-9-]{1,32}`), not in TypeScript.
 
 Badges and house counts shown today are demo-only (`?demo`); the real data source is a separate PR.
+
+## Chibi characters and effects (original art)
+
+`chibi.png` and `chibi-shirt.png` share one grid: frame 16x22 px, origin bottom centre (feet on the last row but one), 24 columns by 8 rows. Frame index = `variant * 24 + dir * 6 + anim`.
+
+- `variant` 0-7: skin, hair colour and hair style (pick by a hash of the bot id).
+- `dir`: 0 left, 1 down, 2 up, 3 right.
+- `anim`: 0 idle, 1 idle stretch (breathing: alternate 0 and 1 about every 600 ms), 2 walk contact A (squash), 3 walk up (stretch), 4 walk contact B (squash), 5 walk up. Walk cycle 2-3-4-5 at about 130 ms per frame.
+- `chibi-shirt.png` has only the shirt, in white and grey shading: draw it over `chibi.png` with the bot's mascot colour as a tint (the signature colour). Without the overlay the base sheet shows a green shirt.
+
+`fx.png`: 16x16 frames. 0-3 dust puff (spawn at the feet while walking), 4-7 sparkle (play when a PR merges), 8 soft shadow (14x5), 9 small shadow (for jumps).
+
+The Sala de Reunião seats six: a round table with two chairs north, two south, one west, one east.
