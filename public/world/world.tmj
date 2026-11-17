@@ -11,7 +11,7 @@
  "tilewidth": 16,
  "tileheight": 16,
  "nextlayerid": 6,
- "nextobjectid": 67,
+ "nextobjectid": 73,
  "tilesets": [
   {
    "firstgid": 1,
@@ -673,6 +673,111 @@
     },
     {
      "id": 201,
+     "properties": [
+      {
+       "name": "block",
+       "type": "bool",
+       "value": true
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "firstgid": 1237,
+   "name": "props",
+   "image": "props.png",
+   "imagewidth": 64,
+   "imageheight": 64,
+   "tilewidth": 16,
+   "tileheight": 16,
+   "tilecount": 16,
+   "columns": 4,
+   "margin": 0,
+   "spacing": 0,
+   "tiles": [
+    {
+     "id": 0,
+     "properties": [
+      {
+       "name": "block",
+       "type": "bool",
+       "value": true
+      }
+     ]
+    },
+    {
+     "id": 1,
+     "properties": [
+      {
+       "name": "block",
+       "type": "bool",
+       "value": true
+      }
+     ]
+    },
+    {
+     "id": 2,
+     "properties": [
+      {
+       "name": "block",
+       "type": "bool",
+       "value": true
+      }
+     ]
+    },
+    {
+     "id": 4,
+     "properties": [
+      {
+       "name": "block",
+       "type": "bool",
+       "value": true
+      }
+     ]
+    },
+    {
+     "id": 5,
+     "properties": [
+      {
+       "name": "block",
+       "type": "bool",
+       "value": true
+      }
+     ]
+    },
+    {
+     "id": 6,
+     "properties": [
+      {
+       "name": "block",
+       "type": "bool",
+       "value": true
+      }
+     ]
+    },
+    {
+     "id": 8,
+     "properties": [
+      {
+       "name": "block",
+       "type": "bool",
+       "value": true
+      }
+     ]
+    },
+    {
+     "id": 9,
+     "properties": [
+      {
+       "name": "block",
+       "type": "bool",
+       "value": true
+      }
+     ]
+    },
+    {
+     "id": 10,
      "properties": [
       {
        "name": "block",
@@ -4015,13 +4120,13 @@
     420,
     0,
     0,
+    281,
     0,
     319,
-    319,
-    319,
-    319,
+    0,
     319,
     0,
+    281,
     0,
     0,
     0,
@@ -4064,12 +4169,12 @@
     0,
     0,
     0,
-    323,
-    324,
-    325,
-    325,
-    325,
-    393,
+    0,
+    1237,
+    1238,
+    1239,
+    0,
+    0,
     0,
     0,
     0,
@@ -4112,12 +4217,12 @@
     0,
     0,
     0,
-    350,
-    351,
-    352,
-    352,
-    352,
-    420,
+    319,
+    1241,
+    1242,
+    1243,
+    319,
+    0,
     0,
     0,
     0,
@@ -4160,11 +4265,11 @@
     0,
     0,
     0,
-    319,
-    319,
-    319,
-    319,
-    319,
+    0,
+    1245,
+    1246,
+    1247,
+    0,
     0,
     0,
     0,
@@ -4207,11 +4312,11 @@
     420,
     0,
     0,
-    281,
+    282,
     0,
+    319,
     0,
-    0,
-    0,
+    319,
     0,
     282,
     0,
@@ -5278,6 +5383,76 @@
     0,
     0,
     0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
     551,
     552,
     553,
@@ -5348,9 +5523,6 @@
     0,
     0,
     0,
-    551,
-    552,
-    553,
     0,
     0,
     0,
@@ -5359,73 +5531,6 @@
     0,
     0,
     0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    497,
-    498,
-    499,
-    497,
-    498,
-    499,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    578,
-    579,
-    580,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    524,
-    525,
-    526,
-    524,
-    525,
-    526,
     0,
     0,
     0,
@@ -6270,296 +6375,6 @@
      ]
     },
     {
-     "id": 23,
-     "name": "sala-chair-0",
-     "type": "",
-     "x": 504,
-     "y": 296,
-     "width": 0,
-     "height": 0,
-     "point": true,
-     "rotation": 0,
-     "visible": true,
-     "properties": [
-      {
-       "name": "room",
-       "type": "string",
-       "value": "sala"
-      },
-      {
-       "name": "seat",
-       "type": "int",
-       "value": 0
-      },
-      {
-       "name": "face",
-       "type": "string",
-       "value": "down"
-      }
-     ]
-    },
-    {
-     "id": 24,
-     "name": "sala-chair-1",
-     "type": "",
-     "x": 536,
-     "y": 296,
-     "width": 0,
-     "height": 0,
-     "point": true,
-     "rotation": 0,
-     "visible": true,
-     "properties": [
-      {
-       "name": "room",
-       "type": "string",
-       "value": "sala"
-      },
-      {
-       "name": "seat",
-       "type": "int",
-       "value": 1
-      },
-      {
-       "name": "face",
-       "type": "string",
-       "value": "down"
-      }
-     ]
-    },
-    {
-     "id": 25,
-     "name": "sala-chair-2",
-     "type": "",
-     "x": 504,
-     "y": 344,
-     "width": 0,
-     "height": 0,
-     "point": true,
-     "rotation": 0,
-     "visible": true,
-     "properties": [
-      {
-       "name": "room",
-       "type": "string",
-       "value": "sala"
-      },
-      {
-       "name": "seat",
-       "type": "int",
-       "value": 2
-      },
-      {
-       "name": "face",
-       "type": "string",
-       "value": "up"
-      }
-     ]
-    },
-    {
-     "id": 26,
-     "name": "sala-chair-3",
-     "type": "",
-     "x": 536,
-     "y": 344,
-     "width": 0,
-     "height": 0,
-     "point": true,
-     "rotation": 0,
-     "visible": true,
-     "properties": [
-      {
-       "name": "room",
-       "type": "string",
-       "value": "sala"
-      },
-      {
-       "name": "seat",
-       "type": "int",
-       "value": 3
-      },
-      {
-       "name": "face",
-       "type": "string",
-       "value": "up"
-      }
-     ]
-    },
-    {
-     "id": 27,
-     "name": "sala-chair-4",
-     "type": "",
-     "x": 488,
-     "y": 296,
-     "width": 0,
-     "height": 0,
-     "point": true,
-     "rotation": 0,
-     "visible": true,
-     "properties": [
-      {
-       "name": "room",
-       "type": "string",
-       "value": "sala"
-      },
-      {
-       "name": "seat",
-       "type": "int",
-       "value": 4
-      },
-      {
-       "name": "face",
-       "type": "string",
-       "value": "down"
-      }
-     ]
-    },
-    {
-     "id": 28,
-     "name": "sala-chair-5",
-     "type": "",
-     "x": 552,
-     "y": 296,
-     "width": 0,
-     "height": 0,
-     "point": true,
-     "rotation": 0,
-     "visible": true,
-     "properties": [
-      {
-       "name": "room",
-       "type": "string",
-       "value": "sala"
-      },
-      {
-       "name": "seat",
-       "type": "int",
-       "value": 5
-      },
-      {
-       "name": "face",
-       "type": "string",
-       "value": "down"
-      }
-     ]
-    },
-    {
-     "id": 29,
-     "name": "sala-chair-6",
-     "type": "",
-     "x": 488,
-     "y": 344,
-     "width": 0,
-     "height": 0,
-     "point": true,
-     "rotation": 0,
-     "visible": true,
-     "properties": [
-      {
-       "name": "room",
-       "type": "string",
-       "value": "sala"
-      },
-      {
-       "name": "seat",
-       "type": "int",
-       "value": 6
-      },
-      {
-       "name": "face",
-       "type": "string",
-       "value": "up"
-      }
-     ]
-    },
-    {
-     "id": 30,
-     "name": "sala-chair-7",
-     "type": "",
-     "x": 552,
-     "y": 344,
-     "width": 0,
-     "height": 0,
-     "point": true,
-     "rotation": 0,
-     "visible": true,
-     "properties": [
-      {
-       "name": "room",
-       "type": "string",
-       "value": "sala"
-      },
-      {
-       "name": "seat",
-       "type": "int",
-       "value": 7
-      },
-      {
-       "name": "face",
-       "type": "string",
-       "value": "up"
-      }
-     ]
-    },
-    {
-     "id": 31,
-     "name": "sala-chair-8",
-     "type": "",
-     "x": 520,
-     "y": 296,
-     "width": 0,
-     "height": 0,
-     "point": true,
-     "rotation": 0,
-     "visible": true,
-     "properties": [
-      {
-       "name": "room",
-       "type": "string",
-       "value": "sala"
-      },
-      {
-       "name": "seat",
-       "type": "int",
-       "value": 8
-      },
-      {
-       "name": "face",
-       "type": "string",
-       "value": "down"
-      }
-     ]
-    },
-    {
-     "id": 32,
-     "name": "sala-chair-9",
-     "type": "",
-     "x": 520,
-     "y": 344,
-     "width": 0,
-     "height": 0,
-     "point": true,
-     "rotation": 0,
-     "visible": true,
-     "properties": [
-      {
-       "name": "room",
-       "type": "string",
-       "value": "sala"
-      },
-      {
-       "name": "seat",
-       "type": "int",
-       "value": 9
-      },
-      {
-       "name": "face",
-       "type": "string",
-       "value": "up"
-      }
-     ]
-    },
-    {
      "id": 33,
      "name": "deck-desk-0",
      "type": "",
@@ -7365,6 +7180,180 @@
        "name": "kind",
        "type": "string",
        "value": "flowerbed"
+      }
+     ]
+    },
+    {
+     "id": 67,
+     "name": "sala-chair-0",
+     "type": "",
+     "x": 504,
+     "y": 296,
+     "width": 0,
+     "height": 0,
+     "point": true,
+     "rotation": 0,
+     "visible": true,
+     "properties": [
+      {
+       "name": "room",
+       "type": "string",
+       "value": "sala"
+      },
+      {
+       "name": "seat",
+       "type": "int",
+       "value": 0
+      },
+      {
+       "name": "face",
+       "type": "string",
+       "value": "down"
+      }
+     ]
+    },
+    {
+     "id": 68,
+     "name": "sala-chair-1",
+     "type": "",
+     "x": 536,
+     "y": 296,
+     "width": 0,
+     "height": 0,
+     "point": true,
+     "rotation": 0,
+     "visible": true,
+     "properties": [
+      {
+       "name": "room",
+       "type": "string",
+       "value": "sala"
+      },
+      {
+       "name": "seat",
+       "type": "int",
+       "value": 1
+      },
+      {
+       "name": "face",
+       "type": "string",
+       "value": "down"
+      }
+     ]
+    },
+    {
+     "id": 69,
+     "name": "sala-chair-2",
+     "type": "",
+     "x": 504,
+     "y": 360,
+     "width": 0,
+     "height": 0,
+     "point": true,
+     "rotation": 0,
+     "visible": true,
+     "properties": [
+      {
+       "name": "room",
+       "type": "string",
+       "value": "sala"
+      },
+      {
+       "name": "seat",
+       "type": "int",
+       "value": 2
+      },
+      {
+       "name": "face",
+       "type": "string",
+       "value": "up"
+      }
+     ]
+    },
+    {
+     "id": 70,
+     "name": "sala-chair-3",
+     "type": "",
+     "x": 536,
+     "y": 360,
+     "width": 0,
+     "height": 0,
+     "point": true,
+     "rotation": 0,
+     "visible": true,
+     "properties": [
+      {
+       "name": "room",
+       "type": "string",
+       "value": "sala"
+      },
+      {
+       "name": "seat",
+       "type": "int",
+       "value": 3
+      },
+      {
+       "name": "face",
+       "type": "string",
+       "value": "up"
+      }
+     ]
+    },
+    {
+     "id": 71,
+     "name": "sala-chair-4",
+     "type": "",
+     "x": 488,
+     "y": 328,
+     "width": 0,
+     "height": 0,
+     "point": true,
+     "rotation": 0,
+     "visible": true,
+     "properties": [
+      {
+       "name": "room",
+       "type": "string",
+       "value": "sala"
+      },
+      {
+       "name": "seat",
+       "type": "int",
+       "value": 4
+      },
+      {
+       "name": "face",
+       "type": "string",
+       "value": "right"
+      }
+     ]
+    },
+    {
+     "id": 72,
+     "name": "sala-chair-5",
+     "type": "",
+     "x": 552,
+     "y": 328,
+     "width": 0,
+     "height": 0,
+     "point": true,
+     "rotation": 0,
+     "visible": true,
+     "properties": [
+      {
+       "name": "room",
+       "type": "string",
+       "value": "sala"
+      },
+      {
+       "name": "seat",
+       "type": "int",
+       "value": 5
+      },
+      {
+       "name": "face",
+       "type": "string",
+       "value": "left"
       }
      ]
     }

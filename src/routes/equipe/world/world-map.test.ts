@@ -39,14 +39,6 @@ const OLD: Record<string, { blocked: string[]; seats: string[] }> = {
     ].join(' ').split(' '),
     seats: ['4,21,up', '7,21,up', '5,21,up', '8,21,up'],
   },
-  'sala': {
-    blocked: [
-      '28,16 29,16 30,16 31,16 32,16 33,16 34,16 35,16 36,16 28,17 29,17 34,17 35,17 36,17 28,18 36,18',
-      '30,19 31,19 32,19 33,19 34,19 35,19 36,19 30,20 31,20 32,20 33,20 34,20 35,20 36,20 28,21 36,21',
-      '28,22 29,22 35,22 36,22 28,23 29,23 30,23 31,23 32,23 33,23 34,23 35,23 36,23',
-    ].join(' ').split(' '),
-    seats: ['31,18,down', '33,18,down', '31,21,up', '33,21,up', '30,18,down', '34,18,down', '30,21,up', '34,21,up', '32,18,down', '32,21,up'],
-  },
 };
 
 describe('world map', () => {
@@ -167,7 +159,7 @@ describe('world.tmj', () => {
     for (const o of desks) for (const k of ['project', 'seat', 'face']) expect(prop(o, k), `desk "${o.name}" is missing prop "${k}"`).toBeDefined();
     const sala = objs.find((o) => prop(o, 'kind') === 'meeting')!;
     expect(prop(sala, 'id')).toBe('sala');
-    expect(HOUSES.find((h) => h.id === 'sala')!.seats.length).toBe(10);
+    expect(HOUSES.find((h) => h.id === 'sala')!.seats.length).toBe(6);
   });
 
   it('names the object in a failure message', () => {
