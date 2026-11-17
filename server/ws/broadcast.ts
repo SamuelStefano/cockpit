@@ -22,7 +22,7 @@ export function setClientSource(s: ClientSource | null) { source = s; }
 // snapshot do thread (capTail) replaya no próximo reconnect. Frames de ciclo de
 // vida (started/tool/usage/done/error/...) sempre vão.
 export const BACKPRESSURE_BYTES = 4 * 1024 * 1024;
-const DROPPABLE: ReadonlySet<string> = new Set(['delta', 'thinking', 'stats', 'bgAgents']);
+const DROPPABLE: ReadonlySet<string> = new Set(['delta', 'thinking', 'stats', 'bgAgents', 'team-state']);
 
 export function broadcast(msg: ServerMsg) {
   if (!source) return;
