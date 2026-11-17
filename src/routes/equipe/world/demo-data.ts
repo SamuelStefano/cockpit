@@ -42,3 +42,12 @@ export function demoTeamState(now: number, tick = 0): TeamState {
     followUps: [],
   };
 }
+
+const MERGE_ORDER = ['luffy', 'ada', 'anderson', 'zoro', 'arthur'];
+
+// Merged PR counts: one bot gains a merge every other tick, in turn.
+export function demoMergedCounts(tick: number): Record<string, number> {
+  const out: Record<string, number> = Object.fromEntries(MERGE_ORDER.map((id) => [id, 3]));
+  for (let k = 1; k <= Math.floor(tick / 2); k++) out[MERGE_ORDER[k % MERGE_ORDER.length]!]! += 1;
+  return out;
+}
