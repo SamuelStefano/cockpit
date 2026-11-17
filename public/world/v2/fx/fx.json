@@ -1,0 +1,676 @@
+{
+ "version": 1,
+ "about": "F5 effect sheets (original pixel art, CC0). Each animation is one row: frames left to right starting at (x, y), each frame_w x frame_h. anchor = pixel in the frame placed on the world point. blend: normal or add (additive, Phaser BlendModes.ADD). fps 0 = static (frames are variants). loop false = one-shot. layer: ground (under props), above (after characters), light / emissive (night, after the LUT pass), screen (screen-space overlay).",
+ "animations": {
+  "fountain_day": {
+   "sheet": "fountain.png",
+   "x": 0,
+   "y": 0,
+   "frame_w": 96,
+   "frame_h": 96,
+   "frames": 8,
+   "fps": 8,
+   "anchor": [
+    48,
+    88
+   ],
+   "blend": "normal",
+   "loop": true,
+   "note": "replaces the 3x3 `fountain` tile item; top-left on the same tile; shadow stays `fountain_shadow`",
+   "tiles": [
+    3,
+    3
+   ]
+  },
+  "fountain_night": {
+   "sheet": "fountain.png",
+   "x": 0,
+   "y": 96,
+   "frame_w": 96,
+   "frame_h": 96,
+   "frames": 8,
+   "fps": 8,
+   "anchor": [
+    48,
+    88
+   ],
+   "blend": "normal",
+   "loop": true,
+   "note": "night row: lit pool + brighter sparkles + faint halo; pair with night `fountain_underglow` (add)",
+   "tiles": [
+    3,
+    3
+   ]
+  },
+  "smoke_chimney": {
+   "sheet": "smoke.png",
+   "x": 0,
+   "y": 0,
+   "frame_w": 32,
+   "frame_h": 64,
+   "frames": 6,
+   "fps": 6,
+   "anchor": [
+    14,
+    60
+   ],
+   "blend": "normal",
+   "loop": true,
+   "note": "anchor = chimney mouth; 4 puffs per loop",
+   "layer": "above"
+  },
+  "smoke_tower": {
+   "sheet": "smoke.png",
+   "x": 0,
+   "y": 64,
+   "frame_w": 32,
+   "frame_h": 64,
+   "frames": 6,
+   "fps": 6,
+   "anchor": [
+    16,
+    60
+   ],
+   "blend": "normal",
+   "loop": true,
+   "note": "server tower under high load (state yellow/red); anchor = top of the mast",
+   "layer": "above"
+  },
+  "smoke_boat": {
+   "sheet": "smoke.png",
+   "x": 0,
+   "y": 128,
+   "frame_w": 32,
+   "frame_h": 32,
+   "frames": 6,
+   "fps": 6,
+   "anchor": [
+    15,
+    29
+   ],
+   "blend": "normal",
+   "loop": true,
+   "note": "failed deploy boat deck smoke",
+   "layer": "above"
+  },
+  "rain": {
+   "sheet": "rain.png",
+   "x": 0,
+   "y": 0,
+   "frame_w": 64,
+   "frame_h": 64,
+   "frames": 4,
+   "fps": 10,
+   "anchor": [
+    0,
+    0
+   ],
+   "blend": "normal",
+   "loop": true,
+   "note": "64x64 seamless overlay, tile it over the view in screen space; 2 depth layers",
+   "layer": "screen"
+  },
+  "rain_splash": {
+   "sheet": "rain.png",
+   "x": 0,
+   "y": 64,
+   "frame_w": 32,
+   "frame_h": 16,
+   "frames": 4,
+   "fps": 10,
+   "anchor": [
+    16,
+    12
+   ],
+   "blend": "normal",
+   "loop": false,
+   "note": "ground splash, spawn at random walkable spots"
+  },
+  "rain_ripple": {
+   "sheet": "rain.png",
+   "x": 0,
+   "y": 80,
+   "frame_w": 32,
+   "frame_h": 16,
+   "frames": 6,
+   "fps": 8,
+   "anchor": [
+    16,
+    8
+   ],
+   "blend": "normal",
+   "loop": false,
+   "note": "puddle / water ripple"
+  },
+  "rain_puddle": {
+   "sheet": "rain.png",
+   "x": 0,
+   "y": 96,
+   "frame_w": 32,
+   "frame_h": 16,
+   "frames": 1,
+   "fps": 1,
+   "anchor": [
+    16,
+    8
+   ],
+   "blend": "normal",
+   "loop": true,
+   "note": "static puddle, under the ripples",
+   "layer": "ground"
+  },
+  "sky_tint": {
+   "sheet": "rain.png",
+   "x": 0,
+   "y": 112,
+   "frame_w": 32,
+   "frame_h": 32,
+   "frames": 3,
+   "fps": 0,
+   "anchor": [
+    0,
+    0
+   ],
+   "blend": "normal",
+   "loop": true,
+   "note": "dim-sky tint: single colour p0, frames = 3 strengths (drizzle, rain, storm); stretch over the view",
+   "layer": "screen"
+  },
+  "confetti_burst": {
+   "sheet": "confetti.png",
+   "x": 0,
+   "y": 0,
+   "frame_w": 96,
+   "frame_h": 96,
+   "frames": 10,
+   "fps": 12,
+   "anchor": [
+    48,
+    74
+   ],
+   "blend": "normal",
+   "loop": false,
+   "note": "merge burst, one-shot; anchor = where it pops (above the bot's head)",
+   "layer": "above"
+  },
+  "confetti_fall": {
+   "sheet": "confetti.png",
+   "x": 0,
+   "y": 96,
+   "frame_w": 64,
+   "frame_h": 96,
+   "frames": 6,
+   "fps": 8,
+   "anchor": [
+    32,
+    0
+   ],
+   "blend": "normal",
+   "loop": true,
+   "note": "falling loop, 64x96 seamless vertically; tile horizontally across the view",
+   "layer": "screen"
+  },
+  "star_pop": {
+   "sheet": "confetti.png",
+   "x": 0,
+   "y": 192,
+   "frame_w": 32,
+   "frame_h": 32,
+   "frames": 6,
+   "fps": 10,
+   "anchor": [
+    16,
+    17
+   ],
+   "blend": "normal",
+   "loop": false,
+   "note": "level up",
+   "layer": "above"
+  },
+  "boat_depart": {
+   "sheet": "boat-deploy.png",
+   "x": 0,
+   "y": 0,
+   "frame_w": 96,
+   "frame_h": 56,
+   "frames": 12,
+   "fps": 8,
+   "anchor": [
+    62,
+    46
+   ],
+   "blend": "normal",
+   "loop": false,
+   "note": "docked -> casts off the rope (0-2) -> mast light on (3) -> engine puffs (4-6) -> wake (7-11); faces right, tween the sprite to the right from frame 7"
+  },
+  "boat_sail": {
+   "sheet": "boat-deploy.png",
+   "x": 0,
+   "y": 56,
+   "frame_w": 96,
+   "frame_h": 56,
+   "frames": 6,
+   "fps": 8,
+   "anchor": [
+    62,
+    46
+   ],
+   "blend": "normal",
+   "loop": true,
+   "note": "sailing right with wake; flipX to sail left"
+  },
+  "boat_return": {
+   "sheet": "boat-deploy.png",
+   "x": 0,
+   "y": 112,
+   "frame_w": 96,
+   "frame_h": 56,
+   "frames": 6,
+   "fps": 6,
+   "anchor": [
+    34,
+    46
+   ],
+   "blend": "normal",
+   "loop": true,
+   "note": "failed deploy: dented bow, deck smoke, drooping flag, red mast light; faces LEFT (back to the dock)"
+  },
+  "boat_docked": {
+   "sheet": "boat-deploy.png",
+   "x": 0,
+   "y": 168,
+   "frame_w": 96,
+   "frame_h": 56,
+   "frames": 4,
+   "fps": 4,
+   "anchor": [
+    62,
+    46
+   ],
+   "blend": "normal",
+   "loop": true,
+   "note": "idle at the dock, rope to the left edge (bollard)"
+  },
+  "boat_wake": {
+   "sheet": "boat-deploy.png",
+   "x": 0,
+   "y": 224,
+   "frame_w": 64,
+   "frame_h": 16,
+   "frames": 6,
+   "fps": 8,
+   "anchor": [
+    63,
+    8
+   ],
+   "blend": "normal",
+   "loop": true,
+   "note": "standalone wake overlay, stern at the right edge; rotate / flip with the boat"
+  },
+  "lamp_glow_s": {
+   "sheet": "night.png",
+   "x": 0,
+   "y": 0,
+   "frame_w": 48,
+   "frame_h": 48,
+   "frames": 2,
+   "fps": 3,
+   "anchor": [
+    24,
+    24
+   ],
+   "blend": "add",
+   "loop": true,
+   "note": "radius 24 px; centre on the lamp head; alternate frames at random for flicker",
+   "layer": "light"
+  },
+  "lamp_glow_m": {
+   "sheet": "night.png",
+   "x": 0,
+   "y": 48,
+   "frame_w": 80,
+   "frame_h": 80,
+   "frames": 2,
+   "fps": 3,
+   "anchor": [
+    40,
+    40
+   ],
+   "blend": "add",
+   "loop": true,
+   "note": "radius 40 px; centre on the lamp head; alternate frames at random for flicker",
+   "layer": "light"
+  },
+  "lamp_glow_l": {
+   "sheet": "night.png",
+   "x": 0,
+   "y": 128,
+   "frame_w": 112,
+   "frame_h": 112,
+   "frames": 2,
+   "fps": 3,
+   "anchor": [
+    56,
+    56
+   ],
+   "blend": "add",
+   "loop": true,
+   "note": "radius 56 px; centre on the lamp head; alternate frames at random for flicker",
+   "layer": "light"
+  },
+  "window_light_s": {
+   "sheet": "night.png",
+   "x": 0,
+   "y": 240,
+   "frame_w": 16,
+   "frame_h": 20,
+   "frames": 2,
+   "fps": 2,
+   "anchor": [
+    8,
+    10
+   ],
+   "blend": "add",
+   "loop": true,
+   "note": "pane 8x12 px + 4 px halo; centre on the window glass",
+   "layer": "light"
+  },
+  "window_light_m": {
+   "sheet": "night.png",
+   "x": 0,
+   "y": 260,
+   "frame_w": 22,
+   "frame_h": 30,
+   "frames": 2,
+   "fps": 2,
+   "anchor": [
+    11,
+    15
+   ],
+   "blend": "add",
+   "loop": true,
+   "note": "pane 14x22 px + 4 px halo; centre on the window glass",
+   "layer": "light"
+  },
+  "window_light_l": {
+   "sheet": "night.png",
+   "x": 0,
+   "y": 290,
+   "frame_w": 32,
+   "frame_h": 36,
+   "frames": 2,
+   "fps": 2,
+   "anchor": [
+    16,
+    18
+   ],
+   "blend": "add",
+   "loop": true,
+   "note": "pane 24x28 px + 4 px halo; centre on the window glass",
+   "layer": "light"
+  },
+  "delegacia_cone": {
+   "sheet": "night.png",
+   "x": 0,
+   "y": 326,
+   "frame_w": 64,
+   "frame_h": 80,
+   "frames": 1,
+   "fps": 0,
+   "anchor": [
+    32,
+    0
+   ],
+   "blend": "add",
+   "loop": true,
+   "note": "security (Delegacia) door lamp: top centre at the lamp, falls onto the sidewalk",
+   "layer": "light"
+  },
+  "siren_flash": {
+   "sheet": "night.png",
+   "x": 0,
+   "y": 406,
+   "frame_w": 96,
+   "frame_h": 64,
+   "frames": 2,
+   "fps": 4,
+   "anchor": [
+    48,
+    32
+   ],
+   "blend": "add",
+   "loop": true,
+   "note": "frame 0 red, 1 blue; top-left = siren tile top-left + (-16, -16)",
+   "layer": "light"
+  },
+  "fountain_underglow": {
+   "sheet": "night.png",
+   "x": 0,
+   "y": 470,
+   "frame_w": 96,
+   "frame_h": 96,
+   "frames": 4,
+   "fps": 4,
+   "anchor": [
+    48,
+    54
+   ],
+   "blend": "add",
+   "loop": true,
+   "note": "same top-left as the fountain",
+   "layer": "light"
+  },
+  "string_lights": {
+   "sheet": "night.png",
+   "x": 0,
+   "y": 566,
+   "frame_w": 64,
+   "frame_h": 16,
+   "frames": 2,
+   "fps": 2,
+   "anchor": [
+    0,
+    3
+   ],
+   "blend": "normal",
+   "loop": true,
+   "note": "64 px segment, wire ends at y=3 on both edges",
+   "layer": "above"
+  },
+  "string_lights_glow": {
+   "sheet": "night.png",
+   "x": 0,
+   "y": 582,
+   "frame_w": 64,
+   "frame_h": 16,
+   "frames": 2,
+   "fps": 2,
+   "anchor": [
+    0,
+    3
+   ],
+   "blend": "add",
+   "loop": true,
+   "note": "draw on top of string_lights",
+   "layer": "light"
+  },
+  "lamp_head": {
+   "sheet": "night.png",
+   "x": 0,
+   "y": 598,
+   "frame_w": 32,
+   "frame_h": 64,
+   "frames": 1,
+   "fps": 0,
+   "anchor": [
+    16,
+    63
+   ],
+   "blend": "normal",
+   "loop": true,
+   "note": "lit pixels of `lamp_night`, same placement; draw after the LUT so the lamp stays bright",
+   "layer": "emissive"
+  },
+  "wall_lamp_head": {
+   "sheet": "night.png",
+   "x": 0,
+   "y": 662,
+   "frame_w": 32,
+   "frame_h": 32,
+   "frames": 1,
+   "fps": 0,
+   "anchor": [
+    16,
+    31
+   ],
+   "blend": "normal",
+   "loop": true,
+   "note": "lit pixels of `wall_lamp_night`",
+   "layer": "emissive"
+  },
+  "lit_windows": {
+   "sheet": "night.png",
+   "x": 0,
+   "y": 694,
+   "frame_w": 32,
+   "frame_h": 64,
+   "frames": 7,
+   "fps": 0,
+   "anchor": [
+    0,
+    0
+   ],
+   "blend": "normal",
+   "loop": true,
+   "note": "night versions of the 1x2 bay overlays, frame order = window_arched, window_square, window_shop, window_pair, door_glass, door_panel, door_arched",
+   "layer": "emissive"
+  },
+  "bug_swim_left": {
+   "sheet": "bug-fish.png",
+   "x": 0,
+   "y": 0,
+   "frame_w": 32,
+   "frame_h": 20,
+   "frames": 6,
+   "fps": 8,
+   "anchor": [
+    15,
+    12
+   ],
+   "blend": "normal",
+   "loop": true,
+   "note": "Bug swimming left (32x20)"
+  },
+  "bug_swim_right": {
+   "sheet": "bug-fish.png",
+   "x": 0,
+   "y": 20,
+   "frame_w": 32,
+   "frame_h": 20,
+   "frames": 6,
+   "fps": 8,
+   "anchor": [
+    16,
+    12
+   ],
+   "blend": "normal",
+   "loop": true,
+   "note": "mirror of swim_left"
+  },
+  "bug_blink": {
+   "sheet": "bug-fish.png",
+   "x": 0,
+   "y": 40,
+   "frame_w": 32,
+   "frame_h": 20,
+   "frames": 3,
+   "fps": 8,
+   "anchor": [
+    15,
+    12
+   ],
+   "blend": "normal",
+   "loop": false,
+   "note": "open, half, closed; play 0-1-2-1-0"
+  },
+  "bug_jump": {
+   "sheet": "bug-fish.png",
+   "x": 0,
+   "y": 60,
+   "frame_w": 48,
+   "frame_h": 56,
+   "frames": 8,
+   "fps": 10,
+   "anchor": [
+    24,
+    46
+   ],
+   "blend": "normal",
+   "loop": false,
+   "note": "leaves the water at x=37, lands at x=11 (surface y=46); follow with bug_splash at x=11"
+  },
+  "bug_splash": {
+   "sheet": "bug-fish.png",
+   "x": 0,
+   "y": 116,
+   "frame_w": 48,
+   "frame_h": 32,
+   "frames": 4,
+   "fps": 10,
+   "anchor": [
+    24,
+    24
+   ],
+   "blend": "normal",
+   "loop": false,
+   "note": "splash-back, surface at y=24"
+  },
+  "bug_wink": {
+   "sheet": "bug-fish.png",
+   "x": 0,
+   "y": 148,
+   "frame_w": 32,
+   "frame_h": 32,
+   "frames": 4,
+   "fps": 6,
+   "anchor": [
+    15,
+    26
+   ],
+   "blend": "normal",
+   "loop": false,
+   "note": "pops up and winks, surface at y=26"
+  },
+  "bug_tiny_left": {
+   "sheet": "bug-fish.png",
+   "x": 0,
+   "y": 180,
+   "frame_w": 16,
+   "frame_h": 10,
+   "frames": 4,
+   "fps": 6,
+   "anchor": [
+    7,
+    5
+   ],
+   "blend": "normal",
+   "loop": true,
+   "note": "16x10 shallow-shore Bug"
+  },
+  "bug_tiny_right": {
+   "sheet": "bug-fish.png",
+   "x": 0,
+   "y": 190,
+   "frame_w": 16,
+   "frame_h": 10,
+   "frames": 4,
+   "fps": 6,
+   "anchor": [
+    8,
+    5
+   ],
+   "blend": "normal",
+   "loop": true
+  }
+ }
+}
