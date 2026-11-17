@@ -27,13 +27,13 @@ interface MobileTabBarProps {
   onMore: () => void;
 }
 
-// Phone bottom bar. The page hides it while the keyboard is open.
+// Phone bottom bar. The app root already pads the bottom safe-area inset, so the bar adds none;
+// the page hides it while the keyboard is open.
 export function MobileTabBar({ role, route, onNavigate, onConversations, onMore }: MobileTabBarProps) {
   return (
     <nav
       aria-label="Navegação principal"
       className="flex shrink-0 border-t border-neutral-800 bg-neutral-950"
-      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
       {tabsFor(role).map((t) => {
         const active = t.route !== undefined && route === t.route;
