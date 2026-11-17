@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import type { ToolCall } from '../shared/protocol';
-import { liveFromTool, terminalTail, recordLiveTool, getLive, clearLive, LIVE_DIFF_MAX, LIVE_TAIL_LINES } from './agent-live';
+import { liveFromTool, terminalTail, recordLiveTool, getLive, clearLive, endLive, maskCutTail, LIVE_DIFF_MAX, LIVE_TAIL_LINES } from './agent-live';
 import { MASK, SENSITIVE_FILE_NOTE } from './redact-secrets';
 
 const tool = (o: Partial<ToolCall>): ToolCall => ({ id: 't1', name: 'Bash', label: 'Bash', command: '', status: 'running', output: [], ...o });
@@ -74,6 +74,57 @@ describe('per-bot store', () => {
     expect(getLive('capo1')?.tool).toBe('Bash');
     expect(getLive('capo2')?.tool).toBe('Read');
     clearLive('capo1');
+    expect(getLive('capo1')).toBeUndefined();
+  });
+});
+
+const BODY = ['MIIEowIBAAKCAQEAu1SU1LfVLPHCozMxH2Mo4lgOEePzNm0tRgeLezV6ffAt0gun', 'VTLw7onLRnrq0/IzW7yWR7QkrmBL7jTKEn5u+qKhbwKfBstIs+bMY2Zkp18gnTxK', 'LxoS2tFczGkPLPgizskuemMghRniWaoLcyehkd3qqGElvW/VDL5AaWTg0nLVkjRo'];
+
+describe('terminalTail: multi-line PEM', () => {
+  const secretBits = (out: string[]) => BODY.some((b) => out.join('\n').includes(b.slice(0, 20)));
+
+  it('masks a full PEM block printed in the terminal', () => {
+    const out = terminalTail(['$ cat key', '-----BEGIN RSA PRIVATE KEY-----', ...BODY, '-----END RSA PRIVATE KEY-----', '$ ls']);
+    expect(secretBits(out)).toBe(false);
+    expect(out[0]).toBe('$ cat key');
+    expect(out.at(-1)).toBe('$ ls');
+  });
+
+  it('masks everything after a BEGIN with no END in the window', () => {
+    const out = terminalTail(['$ cat key', '-----BEGIN OPENSSH PRIVATE KEY-----', ...BODY]);
+    expect(secretBits(out)).toBe(false);
+  });
+
+  it('masks everything before an END whose BEGIN scrolled out', () => {
+    const out = terminalTail([...BODY, '-----END OPENSSH PRIVATE KEY-----', '$ ls']);
+    expect(secretBits(out)).toBe(false);
+    expect(out.at(-1)).toBe('$ ls');
+  });
+
+  it('masks a lone key body line, keeps hex digests', () => {
+    const hex = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
+    expect(terminalTail([BODY[1], hex])).toEqual([MASK, hex]);
+  });
+});
+
+describe('diff cap boundary', () => {
+  it('masks a token cut by the cap', () => {
+    const pad = 'x '.repeat((LIVE_DIFF_MAX - 20) / 2);
+    const l = liveFromTool(undefined, tool({ name: 'Write', diff: { path: '/r/a.ts', old: '', new: pad + 'abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJ' } }), 1, home);
+    expect(l.file!.diff.endsWith(MASK)).toBe(true);
+    expect(l.file!.diff).not.toContain('abcdefgh');
+  });
+  it('maskCutTail leaves a word boundary alone', () => {
+    expect(maskCutTail('hello world ')).toBe('hello world ');
+    expect(maskCutTail('k = AbCdEfGh123')).toBe(`k = ${MASK}`);
+  });
+});
+
+describe('endLive', () => {
+  it('drops the bot state when its turn ends, so it does not linger as live', () => {
+    recordLiveTool('capo1', tool({ command: 'ls' }));
+    endLive('capo1');
+    endLive(undefined);
     expect(getLive('capo1')).toBeUndefined();
   });
 });

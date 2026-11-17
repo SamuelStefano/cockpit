@@ -1,8 +1,11 @@
 import type { AgentLive, ToolCall, ToolTodo } from '../shared/protocol';
-import { capHead, isSensitivePath, redactSecrets, SENSITIVE_FILE_NOTE } from './redact-secrets';
-import { tildePath } from './team-computer';
+import { capHead, isSensitivePath, MASK, redactSecrets, SENSITIVE_FILE_NOTE } from './redact-secrets';
+import { tildePath } from './tilde-path';
 
 export const LIVE_DIFF_MAX = 4_000;
+// Hard bound on what redaction scans; far above LIVE_DIFF_MAX so a secret cut
+// here is always beyond the final cap anyway.
+const LIVE_SCAN_MAX = 64 * 1024;
 export const LIVE_COMMAND_MAX = 300;
 export const LIVE_TAIL_LINES = 20;
 export const LIVE_TAIL_LINE_MAX = 300;
@@ -39,18 +42,29 @@ export function liveFromTool(prev: AgentLive | undefined, tool: ToolCall, now = 
     if (isSensitivePath(tool.diff.path, home)) {
       next.file = { path, diff: SENSITIVE_FILE_NOTE, truncated: false, hidden: true };
     } else {
-      // Cap before redacting so a huge Write is not scanned whole, then cap again
-      // because masking never grows past the input by much but stays bounded.
-      const raw = capHead(diffText(tool.diff.old, tool.diff.new), LIVE_DIFF_MAX * 2);
+      // Redact before the display cap: cutting first could split a key below the
+      // length its pattern needs and let the prefix through.
+      const raw = capHead(diffText(tool.diff.old, tool.diff.new), LIVE_SCAN_MAX);
       const red = capHead(redactSecrets(raw.text), LIVE_DIFF_MAX);
-      next.file = { path, diff: red.text, truncated: raw.truncated || red.truncated };
+      next.file = { path, diff: red.truncated ? maskCutTail(red.text) : red.text, truncated: raw.truncated || red.truncated };
     }
   }
   return next;
 }
 
+// The cap may cut through a token; its visible head is too short for any rule.
+export function maskCutTail(s: string): string {
+  return s.replace(/[A-Za-z0-9_\-+/=.]{8,}$/, MASK);
+}
+
+// A key body line whose BEGIN and END both scrolled out of the window.
+const BASE64_LINE = /^\s*(?=[A-Za-z0-9+/]*[a-z])(?=[A-Za-z0-9+/]*[A-Z])[A-Za-z0-9+/]{60,}={0,2}\s*$/;
+
+// Redacts the joined window, not line by line: a PEM body spans many lines and
+// only the whole text shows where it starts and ends.
 export function terminalTail(lines: string[], max = LIVE_TAIL_LINES): string[] {
-  return lines.slice(-max).map((l) => redactSecrets(l).slice(0, LIVE_TAIL_LINE_MAX));
+  const text = redactSecrets(lines.slice(-max).join('\n'));
+  return text.split('\n').map((l) => (BASE64_LINE.test(l) ? MASK : l.length > LIVE_TAIL_LINE_MAX ? maskCutTail(l.slice(0, LIVE_TAIL_LINE_MAX)) : l));
 }
 
 export function recordLiveTool(botId: string, tool: ToolCall): void {
@@ -59,6 +73,11 @@ export function recordLiveTool(botId: string, tool: ToolCall): void {
 
 export function getLive(botId: string): AgentLive | undefined {
   return live.get(botId);
+}
+
+// The turn ended (close, error, abort): the panel must not show a dead run as live.
+export function endLive(botId: string | undefined): void {
+  if (botId) live.delete(botId);
 }
 
 export function clearLive(botId?: string): void {

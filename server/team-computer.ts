@@ -1,11 +1,11 @@
 import { realpathSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { tildePath } from './tilde-path';
 import type { BotComputer } from '../shared/protocol';
 import { botTermId } from '../shared/bot-term';
 import { botsRoot, botWorkspace, ensureWorkspace } from './engine/restricted-profile';
 import { listBotFiles } from './team-files';
 import { capturePane, safeTermCwd } from './terminals';
-import { getLive, terminalTail } from './agent-live';
+import { getLive, terminalTail, LIVE_TAIL_LINES } from './agent-live';
 
 const LIST_CAP = 500;
 
@@ -21,9 +21,7 @@ export function botTermCwd(botId: string, root = botsRoot()): string | null {
   } catch { return null; }
 }
 
-export function tildePath(path: string, home = homedir()): string {
-  return home && (path === home || path.startsWith(`${home}/`)) ? `~${path.slice(home.length)}` : path;
-}
+export { tildePath };
 
 export async function botComputer(botId: string): Promise<BotComputer | { error: string }> {
   const ws = botWorkspace(botId);
@@ -31,7 +29,9 @@ export async function botComputer(botId: string): Promise<BotComputer | { error:
   const files = await listBotFiles(botId);
   const list = 'error' in files ? [] : files;
   const termId = botTermId(botId);
-  const pane = await capturePane(termId);
+  const pane = await capturePane(termId, LIVE_TAIL_LINES);
+  // One redacted tail: `preview` (current UI) and `live.terminal` share it.
+  const terminal = terminalTail(pane.lines);
   return {
     cwd: tildePath(ws),
     files: list.length,
@@ -39,7 +39,7 @@ export async function botComputer(botId: string): Promise<BotComputer | { error:
     truncated: list.length >= LIST_CAP,
     termId,
     termAlive: pane.alive,
-    preview: terminalTail(pane.lines),
-    live: { ...getLive(botId), terminal: terminalTail(pane.lines) },
+    preview: terminal,
+    live: { ...getLive(botId), terminal },
   };
 }

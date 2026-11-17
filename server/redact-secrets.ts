@@ -14,6 +14,9 @@ type Rule = { re: RegExp; to: string | ((...m: string[]) => string) };
 const RULES: Rule[] = [
   // PEM private key blocks (RSA/EC/OPENSSH/PGP/plain), including a cut-off block.
   { re: /-----BEGIN (?:[A-Z0-9]+ )*PRIVATE KEY(?: BLOCK)?-----[\s\S]*?(?:-----END (?:[A-Z0-9]+ )*PRIVATE KEY(?: BLOCK)?-----|$)/g, to: MASK },
+  // Orphan END (the BEGIN was cut off, e.g. scrolled out of a terminal window):
+  // everything before it may be key body. Runs after the full-block rule.
+  { re: /^[\s\S]*?-----END (?:[A-Z0-9]+ )*PRIVATE KEY(?: BLOCK)?-----/g, to: MASK },
   // URLs with credentials: scheme://user:pass@host -> keep scheme and host.
   { re: /\b([a-z][a-z0-9+.-]*:\/\/)[^\s/@:'"]+:[^\s/@'"]+@/gi, to: (_m, scheme) => `${scheme}${MASK}@` },
   // Anthropic, then OpenAI (sk-, sk-proj-), both before the generic rules.
