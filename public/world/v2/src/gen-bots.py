@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Original pixel-art generator: the 20 village bots at 32x48 (block 1).
+"""Original pixel-art generator: the 22 village bots (21 team bots + the player avatar) at 32x48 (block 1).
 
 Deterministic. Run: python3 gen_bots.py [outdir] [previewdir]
   outdir      -> bots/<id>.png, bots/<id>-shirt.png, bots.json, fx-zzz.png (default ./out/v2)
@@ -22,8 +22,8 @@ import gen as G  # noqa: E402
 from gen import (C, FH, FW, GROUND, PALETTE, Part, grid, m_capsule, m_ellipse, m_ellipse_rot,  # noqa: E402
                  m_poly, m_rect, m_rrect, put, render_parts, rgb)
 
-# ---------------------------------------------------------------- palette extension (teal hair only)
-PALETTE.update({"c0": "#1f7a78", "c1": "#3cb3a8"})
+# ---------------------------------------------------------------- palette extension (lilac: Hinata's headphones/eyes)
+PALETTE.update({"c0": "#7d62b8", "c1": "#c3b1ec"})
 assert len(set(PALETTE.values())) == len(PALETTE)
 
 DIRS = ["left", "down", "up", "right"]
@@ -37,8 +37,9 @@ SKIN = {
     "tan": ["s0", "w2", "w3", "s2"],
     "brown": ["w0", "w1", "w2", "w3"],
     "deep": ["ol0", "w0", "w1", "w2"],
+    "pale": ["s0", "s2", "s3", "wh"],
 }
-BLUSH = {"light": "k1", "tan": "r2", "brown": "r2", "deep": "r0"}
+BLUSH = {"light": "k1", "tan": "r2", "brown": "r2", "deep": "r0", "pale": "k1"}
 HAIR = {
     "chestnut": ["h0", "h1", "h2", "h3"],
     "black": ["ol0", "m0", "m1", "m2"],
@@ -49,7 +50,8 @@ HAIR = {
     "blue": ["a0", "a0", "a1", "a2"],
     "pink": ["r0", "k0", "k1", "t4"],
     "silver": ["m1", "m2", "t3", "t4"],
-    "teal": ["q0", "c0", "c1", "a3"],
+    "espresso": ["ol0", "ol1", "h0", "h1"],
+    "indigo": ["ol0", "p0", "p1", "p2"],
 }
 PANTS = {
     "navy": ["p0", "p1", "p2", "p2"],
@@ -74,6 +76,8 @@ RAMP = {
     "orange": ["w1", "w2", "y0", "y1"],
     "gold": ["w1", "y0", "y1", "y2"],
     "pink": ["r0", "k0", "k1", "k1"],
+    "lilac": ["p0", "c0", "c1", "wh"],
+    "navy": ["ol0", "p0", "p1", "p2"],
     "crate": ["w0", "w1", "w2", "w3"],
 }
 
@@ -108,7 +112,14 @@ BOTS = [
     ("vegeta", "Vegeta", "Backend", "armband", "light", "black", "tall", "navy", "white", "a0", "#2b4a8a", {}),
     ("deck", "Deck", "Player avatar", "orange cap + Deck pin", "tan", "darkbrown", "short", "denim", "dark", "w0",
      "#f0a830", {}),
-    ("fix", "Morador", "Villager", "none", "brown", "teal", "short", "navy", "brown", "w0", "#a6dd5a", {}),
+    ("malu", "Malu", "Lesson author", "spiral notebook + pen", "brown", "espresso", "curly_long", "khaki", "brown",
+     "w0", "#2ec4b6", {}),
+    ("naruto", "Naruto", "Animation / video", "clapperboard + headband", "light", "blonde", "spiky", "navy", "dark",
+     "a1", "#ff7a1a", {}),
+    ("sasuke", "Sasuke", "Laptop", "open laptop", "pale", "black", "swept", "dark_navy", "dark", "m0", "#8a94a6",
+     {"eyes": "calm"}),
+    ("hinata", "Hinata", "Video editing", "editing headphones", "pale", "indigo", "long_fringe", "grey", "brown",
+     "c1", "#b9a2e6", {}),
 ]
 
 
@@ -123,9 +134,11 @@ ACC = {  # accessory switches per bot id
     "raquel": {"magnifier"}, "anderson": {"hardhat", "overalls"}, "lara": {"beret_dark"},
     "lorena": {"badge", "flashlight"}, "goku": set(), "nami": {"beret_red", "brush"}, "arthur": {"megaphone"},
     "mari": {"headphones"}, "usopp": {"goggles"}, "robin": {"calculator", "glasses_thin"},
-    "bulma": {"coin"}, "ada": {"clipboard"}, "vegeta": {"armband"}, "deck": {"cap", "deckpin"}, "fix": set(),
+    "bulma": {"coin"}, "ada": {"clipboard"}, "vegeta": {"armband"}, "deck": {"cap", "deckpin"},
+    "malu": {"notebook"}, "naruto": {"clapper", "forehead"}, "sasuke": {"laptop"}, "hinata": {"edit_phones"},
 }
-HELD = {"brush", "magnifier", "megaphone", "calculator", "clipboard"}
+HELD = {"brush", "magnifier", "megaphone", "calculator", "clipboard", "notebook", "clapper", "laptop"}
+HELD_ORDER = ("brush", "magnifier", "megaphone", "calculator", "clipboard", "notebook", "clapper", "laptop")
 
 
 # ---------------------------------------------------------------- poses
@@ -219,6 +232,14 @@ def build_hair(style, d, hcx, cy, look):
         def f(r):
             a = abs(r)
             i = int(math.floor(r + 0.5))
+            if style == "long_fringe":   # hime cut: straight fringe + long front locks
+                return cy + 6.5 if a > 8.6 else (cy + 4.5 if a > 7 else cy - 1.5)
+            if base == "swept":   # fringe swept down toward screen-left
+                if a > 8.6:
+                    return cy + 2
+                if a > 7:
+                    return cy + 1 if r < 0 else cy - 1
+                return cy - 4.5 + (7 - r) / 14.0 * 3.8
             if base in ("bob", "long"):
                 return cy + 6.5 if a > 8.6 else (cy + 2.5 if a > 7 else cy - 3 + (1 if i % 5 == 0 else 0))
             if base == "short":
@@ -240,6 +261,12 @@ def build_hair(style, d, hcx, cy, look):
         if curly:
             hair |= curls(hcx, cy - 3.2 + look, 7.5, 0.1, -180, 0, 180 / 4, 1.6) & (Y > cy - 6)
             hair |= curls(hcx, cy + 1, 9.6, 3.5, 0, 180, 180, 2.2) if style != "curly_short" else False
+            if style == "curly_long":
+                for sx in (-1, 1):
+                    for k, yy in enumerate((2, 5, 8, 11)):
+                        hair |= m_ellipse(W, H, hcx + sx * (9.6 + (k % 2) * 0.7), cy + yy, 2.3, 2.0)
+        if base == "swept":
+            hair |= spikes(hcx, cy - 0.6, 11.4, 9.6, [-158, -136], 2.6, 12)
         if base == "long":
             hair |= m_rrect(W, H, hcx - 12, cy, hcx - 8.5, cy + 12, 1) | m_rrect(W, H, hcx + 7.5, cy, hcx + 11, cy + 12, 1)
         if base == "spiky":
@@ -258,12 +285,18 @@ def build_hair(style, d, hcx, cy, look):
         return hair, back
     if d == "up":
         L = {"short": 3.5, "bob": 6.5, "long": 6.5, "spiky": 3, "tall": 2, "ponytail": 2.5, "bun": 3,
-             "curly": 5}[base]
+             "curly": 5, "swept": 3.5}[base]
         if style == "curly_short":
             L = 3
         hair = cap & (Y < cy + L)
         if curly:
             hair |= curls(hcx, cy + L - 2, 9.0, 1.5, 0, 180, 30, 2.0) & (Y < cy + L + 1.5)
+            if style == "curly_long":
+                hair |= m_rrect(W, H, hcx - 9.5, cy, hcx + 8.5, cy + 10, 3)
+                hair |= curls(hcx, cy + 10, 8.6, 1.2, 0, 180, 30, 2.1)
+        if base == "swept":   # spiky tufts at the back of the head
+            hair |= spikes(hcx, cy - 0.6, 11.4, 9.6, [-150, -115, -65, -30], 2.4, 13)
+            hair |= spikes(hcx, cy + 1.5, 9.5, 2, [65, 90, 115], 2.4, 14)
         if base == "long":
             hair |= m_rrect(W, H, hcx - 10, cy, hcx + 9, cy + 12, 3)
         if base == "spiky":
@@ -283,11 +316,15 @@ def build_hair(style, d, hcx, cy, look):
 
     # side view, facing left
     tail = {"short": 3.5, "bob": 6.5, "long": 6.5, "spiky": 3, "tall": 2, "ponytail": 2.5, "bun": 3,
-            "curly": 5}[base]
+            "curly": 5, "swept": 3}[base]
     if style == "curly_short":
         tail = 3
 
     def f(r):
+        if style == "long_fringe" and r < 3.5:
+            return cy - 1.5 if r < 1.5 else cy + 1.0
+        if base == "swept" and r < -2.5:
+            return cy - 1.0 if r < -6.5 else cy - 2.5
         if r < -6.5:
             return cy - 3.0
         if r < -2.5:
@@ -302,6 +339,11 @@ def build_hair(style, d, hcx, cy, look):
     if curly:
         hair |= curls(hcx + 2, cy + tail - 2, 8.5, 1, -10, 90, 50, 2.1) & (X > hcx + 2) & (Y < cy + tail + 1.5)
         hair |= curls(hcx - 6, cy - 3.6 + look, 2.5, 0.1, -180, 0, 90, 1.5) & (Y > cy - 6)
+        if style == "curly_long":
+            hair |= m_rrect(W, H, hcx + 3, cy, hcx + 10, cy + 10, 3)
+            hair |= curls(hcx + 6.5, cy + 10, 3.2, 1.0, 0, 180, 60, 2.1)
+    if base == "swept":   # tufts sticking out at the back
+        hair |= spikes(hcx, cy - 0.6, 11.4, 9.6, [-150, -60, -30, 0], 2.8, 13)
     if base == "long":
         hair |= m_rrect(W, H, hcx + 4, cy, hcx + 10.5, cy + 12, 2)
     if base == "spiky":
@@ -623,19 +665,44 @@ def build_bot(spec, d, P, swap=False):
         elif d == "left":
             parts.append(Part("lens", m_ellipse(W, H, hcx - 7, head_cy - 6.5, 2.9, 2.9), ["m0", "m1", "m2", "m2"],
                               7.2, band=0, light=True))
-    if "headphones" in acc:
-        outer = m_ellipse(W, H, hcx, head_cy - 0.6, 12.8, 11.0)
+    if acc & {"headphones", "edit_phones"}:
+        big = "edit_phones" in acc   # Hinata: big over-ear editing headphones, white band + lilac cups
+        g = 0.8 if big else 0.0
+        outer = m_ellipse(W, H, hcx, head_cy - 0.6, 12.8 + g, 11.0 + g)
         inner = m_ellipse(W, H, hcx, head_cy - 0.6, 11.0, 9.3)
         if d in ("down", "up"):
             bandm = outer & ~inner & (Y < head_cy - 1)
-            cups = m_rrect(W, H, hcx - 13.5, head_cy - 2, hcx - 10, head_cy + 3, 1) | \
-                m_rrect(W, H, hcx + 9.5, head_cy - 2, hcx + 13, head_cy + 3, 1)
+            cups = m_rrect(W, H, hcx - 13.5 - g, head_cy - 2 - g, hcx - 10, head_cy + 3 + g, 1) | \
+                m_rrect(W, H, hcx + 9.5, head_cy - 2 - g, hcx + 13 + g, head_cy + 3 + g, 1)
         else:
             bandm = (outer & (X > hcx + 0.5) & (X < hcx + 3.5) & (Y < head_cy - 1)) & ~inner | \
                 (outer & ~inner & (X > hcx - 1) & (X < hcx + 5) & (Y < head_cy - 7))
-            cups = m_rrect(W, H, hcx - 0.5, head_cy - 2.5, hcx + 4.5, head_cy + 3, 2)
-        parts.append(Part("hp_band", bandm, RAMP["dark"], 7, band=0, light=True))
-        parts.append(Part("hp_cups", cups, RAMP["pink"], 7.1, band=0, light=True))
+            cups = m_rrect(W, H, hcx - 0.5 - g, head_cy - 2.5 - g, hcx + 4.5 + g, head_cy + 3 + g, 2)
+        parts.append(Part("hp_band", bandm, RAMP["white"] if big else RAMP["dark"], 7, band=0, light=True))
+        parts.append(Part("hp_cups", cups, RAMP["lilac"] if big else RAMP["pink"], 7.1, band=0, light=True))
+        if big and d != "up":   # white rim on the cup facing the viewer
+            if d == "down":
+                rim = m_rect(W, H, int(hcx - 13), int(head_cy - 2), int(hcx - 13), int(head_cy + 3)) | \
+                    m_rect(W, H, int(hcx + 12.5), int(head_cy - 2), int(hcx + 12.5), int(head_cy + 3))
+            else:
+                rim = m_ellipse(W, H, hcx + 2, head_cy + 0.3, 1.6, 2.2)
+            parts.append(Part("hp_rim", rim & cups, ["m1", "t3", "wh", "wh"], 7.2, outline=False, band=0,
+                              light=False))
+    if "forehead" in acc:   # Naruto: small navy headband with a metal plate on the forehead
+        ring = m_ellipse(W, H, hcx, head_cy - 0.6, 11.9, 10.1)
+        band = ring & (Y >= head_cy - 6) & (Y < head_cy - 4) & (hair | head)
+        if d == "left":
+            band |= m_capsule(W, H, (hcx + 10, head_cy - 5), (hcx + 13.5, head_cy - 1.5), 0.9)
+            plate = m_rrect(W, H, hcx - 10.5, head_cy - 7, hcx - 6.5, head_cy - 3, 0)
+        elif d == "down":
+            plate = m_rrect(W, H, hcx - 3.5, head_cy - 7, hcx + 3.5, head_cy - 3, 0)
+        else:
+            band |= m_capsule(W, H, (hcx, head_cy - 5), (hcx - 2, head_cy - 1), 0.9) | \
+                m_capsule(W, H, (hcx + 1, head_cy - 5), (hcx + 3, head_cy - 1.5), 0.9)
+            plate = np.zeros((H, W), bool)
+        parts.append(Part("headband", band, RAMP["navy"], 7, band=0, light=True))
+        if plate.any():
+            parts.append(Part("plate", plate, ["m0", "m1", "m2", "t3"], 7.1, band=0, light=True))
 
     # ---- crate
     if P["crate"]:
@@ -660,6 +727,8 @@ def build_bot(spec, d, P, swap=False):
 # ---------------------------------------------------------------- overlays
 EYE_DOWN = ["sKKs", "KWWK", "KWKK", "KBBK", "sKKs"]
 EYE_SIDE = ["sKK", "KWW", "KWK", "KBK", "sKK"]
+EYE_DOWN_CALM = ["....", "KKKK", "KWBK", "KBBK", "sKKs"]   # flat heavy lid: calm look
+EYE_SIDE_CALM = ["...", "KKK", "KWK", "KBK", "sKK"]
 EYE_SHUT = {"blink": [(0, 3), (1, 3), (2, 3), (3, 3)],
             "closed": [(0, 2), (1, 3), (2, 3), (3, 2)],
             "happy": [(0, 3), (1, 2), (2, 2), (3, 3)]}
@@ -694,23 +763,25 @@ def draw_face(img, info):
         if eyes == "open":
             for yy, row in enumerate(pat):
                 for xx, ch in enumerate(row):
-                    put(img, x + xx, y + yy, cols[ch])
+                    if ch != ".":
+                        put(img, x + xx, y + yy, cols[ch])
         else:
             for xx, yy in EYE_SHUT[eyes]:
                 if xx < w:
                     put(img, x + xx, y + yy, K)
 
     mouth = P["mouth"]
+    calm = spec.get("eyes") == "calm"
     if d == "down":
         ex = (cx - 7, cx + 3)
         for x in ex:
-            eye(x, ey, EYE_DOWN, 4)
+            eye(x, ey, EYE_DOWN_CALM if calm else EYE_DOWN, 4)
         for bx in (cx - 9, cx - 8, cx + 7, cx + 8):
             put_f(bx, ey + 5, BL)
         mx, my = cx - 1, ey + 6
     else:
         ex = (cx - 8,)
-        eye(cx - 8, ey, EYE_SIDE, 3)
+        eye(cx - 8, ey, EYE_SIDE_CALM if calm else EYE_SIDE, 3)
         for bx in (cx - 7, cx - 6):
             put_f(bx, ey + 5, BL)
         mx, my = cx - 8, ey + 6
@@ -789,7 +860,7 @@ def hair_shine(img, info, lab, order):
     arc = (dist > 7.3) & (dist < 8.5) & (((ang > -150) & (ang < -95)) | ((ang > -85) & (ang < -70)))
     a[base & arc, :3] = rgb(hr[3])
     if info["d"] == "up":
-        long_ = info["spec"]["style"] == "long"
+        long_ = info["spec"]["style"] in ("long", "long_fringe")
         for x0, y0, ln in (((12, 2, 8), (16, 1, 10), (20, 3, 7)) if long_ else ((12, 3, 3), (17, 2, 4), (21, 4, 2))):
             for k in range(ln):
                 x, y = x0, int(info["head_cy"]) + y0 - 1 + k
@@ -836,7 +907,84 @@ PROPS = {
                    "BWllB",
                    "BWWWB",
                    "BBBBB"], (2, 6), {"K": "m0", "m": "m2", "B": "w1", "W": "wh", "l": "t2"}),
+    # spiral notebook with a pen clipped in the spiral (Malu)
+    "notebook": ([".....p",
+                  "s.s.sp",
+                  "KsKsKt",
+                  "KWWWK.",
+                  "KcccK.",
+                  "KlccK.",
+                  "KcccK.",
+                  "KKKKK."], (2, 7), {"K": "m0", "s": "m2", "W": "wh", "c": "r1", "l": "r2", "p": "y1", "t": "y0"}),
+    # clapperboard, striped stick slightly open (Naruto)
+    "clapper": (["...KWKW",
+                 "KWKWK..",
+                 "KWKWKWK",
+                 "KmmmmmK",
+                 "KmwwwmK",
+                 "KmmmmmK",
+                 "KKKKKKK"], (3, 6), {"K": "ol0", "W": "wh", "m": "m1", "w": "m2"}),
+    # small open laptop held up by the base, lit screen toward the viewer (Sasuke)
+    "laptop": (["KKKKKKK",
+                "KAaaaaK",
+                "KaAaaaK",
+                "KaaaaaK",
+                "KKKKKKK",
+                "mMMMMMm",
+                ".mmmmm."], (3, 6), {"K": "ol0", "a": "a1", "A": "a3", "m": "m0", "M": "m2"}),
 }
+# seen from behind (up view): the lid back instead of the lit screen
+PROPS_BACK = {"laptop": {"a": "m1", "A": "m2"}}
+
+
+def draw_closed_laptop(img, info):
+    """sit: the laptop rests closed on the lap"""
+    d, hip = info["d"], int(info["hip"])
+    if d == "down":
+        x0, x1, y0 = 9, 22, hip - 2
+    elif d == "left":
+        x0, x1, y0 = 7, 16, hip - 3
+    else:
+        return
+    for x in range(x0, x1 + 1):
+        put(img, x, y0, C("ol0"))
+        put(img, x, y0 + 1, C("m2" if x0 < x < x1 else "ol0"))
+        put(img, x, y0 + 2, C("ol0"))
+    put(img, (x0 + x1) // 2, y0 + 1, C("wh"))
+    sk = SKIN[info["spec"]["skin"]]
+    for hp in info["hand_pts"].values():   # hands rest on top of it
+        hx, hy = int(math.floor(hp[0])), int(math.floor(hp[1]))
+        if x0 <= hx <= x1 and y0 - 2 <= hy <= y0 + 2:
+            put(img, hx, y0, C(sk[2]))
+            put(img, hx + 1, y0, C(sk[1]))
+
+
+def draw_lap_laptop(img, info):
+    """type: open laptop on the knees, hands on the keyboard behind the lid"""
+    d, hip = info["d"], int(info["hip"])
+    if d == "down":   # we see the back of the lid
+        top = int(math.floor(info["head_cy"] + 9.2)) + 1
+        x0, x1, y1 = 10, 21, hip + 2
+        for y in range(top, y1 + 1):
+            for x in range(x0, x1 + 1):
+                edge = x in (x0, x1) or y in (top, y1)
+                put(img, x, y, C("ol0" if edge else ("m2" if y == top + 1 else "m1")))
+        put(img, (x0 + x1) // 2, (top + y1) // 2 + 1, C("wh"))
+        for x in (x0 + 1, x1 - 1):   # screen glow spilling past the lid edges
+            put(img, x, top - 1, C("a3"))
+    elif d == "left":   # side: base on the thighs, lid up at the front with the lit screen facing the bot
+        hp = info["hand_pts"]["N"]
+        hx, hy = int(math.floor(hp[0])), int(math.floor(hp[1]))
+        by = hy + 2
+        for x in range(hx - 4, hx + 4):
+            put(img, x, by, C("ol0"))
+            put(img, x, by - 1, C("m2") if x > hx - 4 else C("ol0"))
+        for k in range(1, 7):
+            x, y = hx - 4 - k // 3, by - 1 - k
+            put(img, x, y, C("ol0"))
+            if k < 6:
+                put(img, x + 1, y, C("a3" if k == 3 else "a1"))
+        put(img, hx, hy, C(SKIN[info["spec"]["skin"]][2]))
 
 
 def draw_brush(img, info, hp):
@@ -871,8 +1019,10 @@ def draw_props(img, info):
     if info["held"]:
         hp = info["hand_pts"].get(info["prop_hand"])
         if hp is not None:
-            name = [n for n in ("brush", "magnifier", "megaphone", "calculator", "clipboard") if n in acc][0]
-            if name == "brush":
+            name = [n for n in HELD_ORDER if n in acc][0]
+            if name == "laptop" and P["arm_l"][0] == "lap":
+                draw_closed_laptop(img, info)
+            elif name == "brush":
                 draw_brush(img, info, hp)
             else:
                 rows, (ax, ay), cmap = PROPS[name]
@@ -880,12 +1030,16 @@ def draw_props(img, info):
                 w = max(len(r) for r in rows)
                 x0 = hx - (w - 1 - ax) if d == "up" else hx - ax
                 x0 = min(max(x0, 1), FW - 1 - w)   # never clip at the frame edge
+                if d == "up" and name in PROPS_BACK:
+                    cmap = dict(cmap, **PROPS_BACK[name])
                 stamp(img, x0, max(1, hy - ay), rows, cmap, flip=d == "up")
                 # re-draw the fist over the handle so it reads as held
                 sk = SKIN[info["spec"]["skin"]]
                 for dx, dy in ((0, 0), (-1, 0), (0, -1) if name in ("calculator", "clipboard") else (0, 0)):
                     pass
                 put(img, hx, hy, C(sk[2]))
+    if "laptop" in acc and P["arm_l"][0] == "type":
+        draw_lap_laptop(img, info)
     cx = info["cxi"]
     tt, hip = int(info["torso_top"]), int(info["hip"])
     head_bottom = int(math.floor(info["head_cy"] + 9.2))
@@ -1104,7 +1258,7 @@ def label_font(n):
 def lineup(sheets, path):
     S = 4
     n = len(sheets)
-    cols = 10
+    cols = 11
     cw, ch = FW * S + 12, FH * S + 30
     im = Image.new("RGB", (cols * cw + 12, ((n + cols - 1) // cols) * ch + 12), (236, 228, 210))
     d = ImageDraw.Draw(im)
@@ -1143,6 +1297,32 @@ def gif_fixed(sheets, path, ids):
     frames[0].save(path, save_all=True, append_images=frames[1:], duration=durs, loop=0)
 
 
+def gif_all(sheets, path, ids):
+    """every animation x 4 directions for the given bots, 8x, 8 fps"""
+    S = 8
+    sel = [s for s in sheets if s[0]["id"] in ids]
+    cw, ch = FW * S, FH * S
+    f = label_font(18)
+    frames = []
+    for an in ANIMS:
+        n = sel[0][2][an]["frames"]
+        for i in [k % n for k in range(max(8, n * 2))]:
+            im = Image.new("RGB", (4 * cw + 110, len(sel) * ch + 34), (236, 228, 210))
+            d = ImageDraw.Draw(im)
+            d.text((8, 7), "%s  (%d/%d)   left / down / up / right" % (an, i + 1, n), fill=rgb("ol0"), font=f)
+            for r, (spec, sheet, meta) in enumerate(sel):
+                d.text((4 * cw + 8, 34 + r * ch + ch // 2), spec["id"], fill=rgb("ol0"), font=f)
+                for k, dn in enumerate(DIRS):
+                    fr = tinted(frame_of(sheet, meta, an, dn, i), spec["shirt"]).resize((cw, ch), Image.NEAREST)
+                    im.paste(fr, (k * cw, 34 + r * ch), fr)
+                if an == "sleep":
+                    z = fx_zzz().crop((((i * 2) % 3) * 16, 0, ((i * 2) % 3) * 16 + 16, 16)).resize((64, 64), Image.NEAREST)
+                    for k in range(4):
+                        im.paste(z, (k * cw + cw - z.width - 8, 34 + r * ch + 10), z)
+            frames.append(im)
+    frames[0].save(path, save_all=True, append_images=frames[1:], duration=125, loop=0)
+
+
 def gif_walk(sheets, path):
     S = 4
     cw, ch = FW * S, FH * S
@@ -1150,11 +1330,12 @@ def gif_walk(sheets, path):
     frames = []
     for loop in range(3):
         for i in range(6):
-            im = Image.new("RGB", (len(sheets) * cw // 2, 2 * (ch + 18)), (236, 228, 210))
+            cols = (len(sheets) + 1) // 2
+            im = Image.new("RGB", (cols * cw, 2 * (ch + 18)), (236, 228, 210))
             d = ImageDraw.Draw(im)
             for k, (spec, sheet, meta) in enumerate(sheets):
                 fr = tinted(frame_of(sheet, meta, "walk", "down", i), spec["shirt"]).resize((cw, ch), Image.NEAREST)
-                x, y = (k % 10) * cw, (k // 10) * (ch + 18)
+                x, y = (k % cols) * cw, (k // cols) * (ch + 18)
                 im.paste(fr, (x, y), fr)
                 d.text((x + 6, y + ch), spec["id"], fill=rgb("ol0"), font=f)
             frames.append(im)
@@ -1234,6 +1415,7 @@ def main():
         lineup(sheets, os.path.join(prev, "vila-bots-lineup.png"))
         gif_fixed(sheets, os.path.join(prev, "vila-bots-sleep-sit-celebrate.gif"), ["nami", "anderson", "iris", "vegeta"])
         gif_walk(sheets, os.path.join(prev, "vila-bots-walk-all.gif"))
+        gif_all(sheets, os.path.join(prev, "vila-bots-new4.gif"), ["malu", "naruto", "sasuke", "hinata"])
     print("bots:", len(sheets), "palette colours:", len(PALETTE), "off-palette opaque px:", bad,
           "strays removed:", STRAYS[0])
 

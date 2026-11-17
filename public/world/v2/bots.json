@@ -308,15 +308,45 @@
       "sheet": "bots/deck.png",
       "shirt_mask": "bots/deck-shirt.png"
     },
-    "fix": {
-      "name": "Morador",
-      "role": "Villager",
-      "accessory": "none",
+    "malu": {
+      "name": "Malu",
+      "role": "Lesson author",
+      "accessory": "spiral notebook + pen",
       "skin": "brown",
-      "hair": "teal short",
-      "default_shirt": "#a6dd5a",
-      "sheet": "bots/fix.png",
-      "shirt_mask": "bots/fix-shirt.png"
+      "hair": "espresso curly long",
+      "default_shirt": "#2ec4b6",
+      "sheet": "bots/malu.png",
+      "shirt_mask": "bots/malu-shirt.png"
+    },
+    "naruto": {
+      "name": "Naruto",
+      "role": "Animation / video",
+      "accessory": "clapperboard + headband",
+      "skin": "light",
+      "hair": "blonde spiky",
+      "default_shirt": "#ff7a1a",
+      "sheet": "bots/naruto.png",
+      "shirt_mask": "bots/naruto-shirt.png"
+    },
+    "sasuke": {
+      "name": "Sasuke",
+      "role": "Laptop",
+      "accessory": "open laptop",
+      "skin": "pale",
+      "hair": "black swept",
+      "default_shirt": "#8a94a6",
+      "sheet": "bots/sasuke.png",
+      "shirt_mask": "bots/sasuke-shirt.png"
+    },
+    "hinata": {
+      "name": "Hinata",
+      "role": "Video editing",
+      "accessory": "editing headphones",
+      "skin": "pale",
+      "hair": "indigo long fringe",
+      "default_shirt": "#b9a2e6",
+      "sheet": "bots/hinata.png",
+      "shirt_mask": "bots/hinata-shirt.png"
     }
   }
 }
