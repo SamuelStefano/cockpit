@@ -20,6 +20,8 @@ import { refreshClaudeAiConnectors } from './mcp/claudeai-connectors';
 import { handleMcpRequest, isMcpPath } from './mcp/serve';
 import { CONFIG } from './config';
 import { ensureBundledSkills } from './bundled-skills';
+import { failInterruptedMeetings } from './team-meetings';
+import { visibleMeeting } from '../shared/team-meeting';
 import { sandboxUpstream, proxySandbox } from './sandbox-proxy';
 
 const distDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'dist');
@@ -82,6 +84,8 @@ async function main() {
   server.listen(CONFIG.port, CONFIG.host, () => {
     console.log(`cockpit em http://${CONFIG.host}:${CONFIG.port} (ws /ws, permission=${CONFIG.permissionMode})`);
   });
+
+  void failInterruptedMeetings().then((items) => { for (const item of items) broadcast({ t: 'team-meeting', item: visibleMeeting(item) }); }, () => {});
 
   void refreshClaudeAiConnectors(fetch, true).then((changed) => {
     if (changed) broadcast({ t: 'mcp-servers', servers: Object.keys(mcpServerDefsSync()) });

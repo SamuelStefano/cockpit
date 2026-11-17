@@ -182,3 +182,18 @@ describe('pending bot question', () => {
     team.getTeam.mockResolvedValue([]);
   });
 });
+
+describe('meeting frames', () => {
+  it('team-meetings-get answers only the asking socket with the sealed form', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'tmf-'));
+    process.env.COCKPIT_TEAM_MEETINGS = join(dir, 'team-meetings.json');
+    const { saveMeeting } = await import('../team-meetings');
+    await saveMeeting({ id: 'm1', question: 'q', participantIds: ['a', 'b'], moderatorId: 'a', status: 'round1', answers: [{ botId: 'a', round: 1, text: 'secret', at: 1 }], createdAt: 1, updatedAt: 1 });
+    await handle(ws, { t: 'team-meetings-get' }, 'admin');
+    expect(bc.send).toHaveBeenCalledTimes(1);
+    const frame = bc.send.mock.calls[0][1] as { t: string; items: { answers: { text: string }[] }[] };
+    expect(frame.t).toBe('team-meetings');
+    expect(frame.items[0].answers[0].text).toBe('');
+    delete process.env.COCKPIT_TEAM_MEETINGS;
+  });
+});
