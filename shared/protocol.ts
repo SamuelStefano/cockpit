@@ -20,6 +20,7 @@ import type { TeamPanelPayload } from './team-panel';
 import type { PrDetail, PrDiff, PrsSnapshot, SessionPrs } from './prs';
 import type { BoxHealth, SmokeResult } from './box-health';
 import type { VersionKind, VersionMeta } from './versions';
+import type { VillageView } from './village';
 
 export interface ToolDiff {
   path: string;
@@ -857,6 +858,8 @@ export type ClientMsg =
   | { t: 'agent-build'; reqId: string; history: { role: 'user' | 'assistant'; text: string }[]; draft: { name: string; label: string; instructions: string; skills: string[] } }
   | { t: 'team-messages-get'; botId?: string; peer?: string; before?: number }
   | { t: 'team-pause-set'; paused: boolean }
+  | { t: 'village-get' }
+  | { t: 'village-config'; dailyCap: number }
   | { t: 'team-meeting-start'; question: string; participantIds: string[]; moderatorId: string }
   | { t: 'team-meetings-get' }
   | { t: 'team-state-get'; followUpHours?: number }
@@ -1076,6 +1079,7 @@ export type ServerMsg =
   | { t: 'team-messages'; items: TeamMessage[]; botId?: string; peer?: string; before?: number }
   | { t: 'team-message'; item: TeamMessage }
   | { t: 'team-paused'; paused: boolean }
+  | { t: 'village'; village: VillageView }
   | { t: 'team-meetings'; items: TeamMeeting[] }
   | { t: 'team-state'; state: TeamState }
   | { t: 'team-panel'; panel: TeamPanelPayload }

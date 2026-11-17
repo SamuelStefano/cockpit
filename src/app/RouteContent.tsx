@@ -64,7 +64,7 @@ export function RouteContent({ route, agentRoute, isMobile, isAdmin, capsKnown, 
       return (
         <EquipePage
           tab={route === '/equipe/memoria' ? 'memoria' : route === '/equipe/mundo' ? 'mundo' : 'rotinas'}
-          teamState={c.teamState} onTeamStateGet={c.onTeamStateGet} meetings={c.meetings} onMeetingsGet={c.onMeetingsGet} onMeetingStart={c.onMeetingStart}
+          teamState={c.teamState} onTeamStateGet={c.onTeamStateGet} meetings={c.meetings} onMeetingsGet={c.onMeetingsGet} onMeetingStart={c.onMeetingStart} teamPaused={c.teamPaused} onTeamPauseSet={c.onTeamPauseSet}
           memory={{ memories: c.memories, loaded: c.memoriesLoaded, onList: c.onMemList, onSave: c.onMemSave, onDelete: c.onMemDelete }}
           views={agent.views} connected={connected} isAdmin={isAdmin} capsKnown={capsKnown}
           bots={c.bots} onOpenChat={agent.open}

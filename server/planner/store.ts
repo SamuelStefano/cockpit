@@ -4,8 +4,9 @@ import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
 import {
   PLANNER_COLUMNS, PLANNER_ID_RE, PLANNER_LIMITS, PLANNER_REF_RE,
-  type PlannerColumn, type PlannerDifficulty, type PlannerLink, type PlannerMove, type PlannerTask,
+  type PlannerColumn, type PlannerDifficulty, type PlannerLink, type PlannerMove, type PlannerTask, type TaskClaim,
 } from '../../shared/planner';
+import { isDepartmentId } from '../../shared/departments';
 import { sanitizeHandoffs } from '../../shared/task-handoff';
 import { withFileLockAsync } from '../ws/file-lock';
 
@@ -54,6 +55,12 @@ function sanitizeOwner(v: unknown): string | undefined {
   return PLANNER_ID_RE.test(id) ? id : undefined;
 }
 
+function sanitizeClaim(v: unknown): TaskClaim | undefined {
+  const c = v as Partial<TaskClaim> | null | undefined;
+  if (!c || typeof c !== 'object' || typeof c.botId !== 'string' || !PLANNER_ID_RE.test(c.botId) || !finite(c.at) || c.at <= 0) return undefined;
+  return { botId: c.botId, at: c.at };
+}
+
 export function sanitizeTask(raw: unknown, prev: PlannerTask | undefined, now: number): PlannerTask | null {
   const r = raw as Partial<PlannerTask> | null | undefined;
   if (!r || typeof r !== 'object' || typeof r.id !== 'string' || !PLANNER_ID_RE.test(r.id)) return null;
@@ -78,6 +85,16 @@ export function sanitizeTask(raw: unknown, prev: PlannerTask | undefined, now: n
   if (tag) task.tag = tag;
   const ownerBotId = 'ownerBotId' in r ? sanitizeOwner(r.ownerBotId) : prev?.ownerBotId;
   if (ownerBotId) task.ownerBotId = ownerBotId;
+  if (column !== 'done') {
+    const ready = 'ready' in r ? r.ready === true : prev?.ready === true;
+    if (ready) task.ready = true;
+    const unsafe = 'unsafe' in r ? r.unsafe === true : prev?.unsafe === true;
+    if (unsafe) task.unsafe = true;
+    const claim = prev ? prev.claim : sanitizeClaim(r.claim);
+    if (claim) task.claim = claim;
+  }
+  const ownerSector = 'ownerSector' in r ? (isDepartmentId(r.ownerSector) ? r.ownerSector : undefined) : prev?.ownerSector;
+  if (ownerSector) task.ownerSector = ownerSector;
   const handoffs = prev ? prev.handoffs ?? [] : sanitizeHandoffs(r.handoffs);
   if (handoffs.length) task.handoffs = handoffs;
   if (column === 'done') task.doneAt = prev?.column === 'done' && prev.doneAt ? prev.doneAt : finite(r.doneAt) && r.doneAt > 0 ? r.doneAt : now;
@@ -93,6 +110,7 @@ export function applyMoves(tasks: PlannerTask[], moves: unknown, now: number): P
     const next: PlannerTask = { ...prev, column: m.column, order: m.order, updatedAt: now };
     if (m.column === 'done') next.doneAt = prev.column === 'done' && prev.doneAt ? prev.doneAt : now;
     else delete next.doneAt;
+    if (m.column === 'done') { delete next.claim; delete next.ready; }
     byId.set(prev.id, next);
   }
   return tasks.map((t) => byId.get(t.id) ?? t);

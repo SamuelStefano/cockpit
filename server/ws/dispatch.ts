@@ -32,6 +32,7 @@ import { sendMeetings, startMeetingFrame } from './team-meeting-frames';
 import { cleanBuildRequest } from './agent-build';
 import { parseTtsText, synthesize, mintSttToken } from '../tts';
 import { sendTeamMessages, sendTeamPaused, setTeamPause } from './team-frames';
+import { sendVillage, setVillageConfig } from './village-frames';
 import { sendTeamState } from './team-state-frames';
 import { sendTeamPanel } from './team-panel-frames';
 import { clearBotQuestion, sendTeamPending } from './team-pending-frames';
@@ -995,6 +996,14 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     }
     case 'team-pause-set': {
       await setTeamPause(ws, msg.paused);
+      return;
+    }
+    case 'village-get': {
+      await sendVillage(ws);
+      return;
+    }
+    case 'village-config': {
+      await setVillageConfig(ws, msg.dailyCap);
       return;
     }
     case 'team-save': {
