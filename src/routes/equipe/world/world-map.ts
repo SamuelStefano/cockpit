@@ -132,8 +132,16 @@ export function validateWorldMap(m: TiledMap): string[] {
   if (meeting === null) errs.push('meeting room is missing (a rectangle with prop kind=meeting)');
   const seen = new Set<string>();
   let chairs = 0;
+  const seatTiles = new Map<string, string>();
   for (const o of objs.filter((x) => x.point)) {
     const p = propsOf(o);
+    if (p.room !== undefined || p.kind === undefined) {
+      const label = `${p.room !== undefined ? 'chair' : 'desk'} "${nameOf(o, p, p.room !== undefined ? 'room' : 'project')}"`;
+      const tile = `${tileX(o)},${tileY(o)}`;
+      const other = seatTiles.get(tile);
+      if (other !== undefined) errs.push(`${label} and ${other} are on the same tile ${tile}`);
+      else seatTiles.set(tile, label);
+    }
     if (p.room !== undefined) {
       const name = nameOf(o, p, 'room');
       need('chair', name, p, ['room', 'seat', 'face']);
