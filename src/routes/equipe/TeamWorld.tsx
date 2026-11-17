@@ -1,0 +1,110 @@
+import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import type { TeamState } from '../../../shared/team-state';
+import { navigateTo } from '../../lib/route-nav';
+import { agentPath } from '../../useRoute';
+import { initialWorldUi, isDemo, parseInitialMode, worldUiReducer, type CameraMode } from './world/camera-mode';
+import { DEMO_COUNTS, demoTeamState } from './world/demo-data';
+import { deriveWorld } from './world/world-state';
+import type { WorldHandle } from './world/world-scene';
+
+interface TeamWorldProps {
+  state: TeamState | null;
+  connected: boolean;
+  onRefresh: () => void;
+}
+
+const DEMO_TICK_MS = 7000;
+const isCoarse = (): boolean => typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+
+const chip = 'inline-flex items-center justify-center rounded-md border px-3 py-1.5 text-xs font-medium backdrop-blur pointer-coarse:min-h-11 pointer-coarse:px-4';
+const chipOff = 'border-white/10 bg-neutral-950/75 text-neutral-200 hover:bg-neutral-900/90';
+const chipOn = 'border-emerald-400/40 bg-emerald-500/20 text-emerald-200';
+
+// 2D team world: bots as NPCs on a plaza, projects as houses on a street. The
+// canvas only ever receives names, states and counts (see world-state.ts).
+export function TeamWorld({ state, connected, onRefresh }: TeamWorldProps) {
+  const demo = useMemo(() => isDemo(location.search), []);
+  const [ui, dispatch] = useReducer(worldUiReducer, location.search, (s) => initialWorldUi(parseInitialMode(s)));
+  const [ready, setReady] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const [tick, setTick] = useState(0);
+  const host = useRef<HTMLDivElement>(null);
+  const world = useRef<WorldHandle | null>(null);
+  const modeRef = useRef<CameraMode>(ui.mode);
+  modeRef.current = ui.mode;
+
+  useEffect(() => { if (connected && !demo) onRefresh(); }, [connected, demo, onRefresh]);
+  useEffect(() => {
+    if (!demo) return;
+    const id = setInterval(() => setTick((t) => t + 1), DEMO_TICK_MS);
+    return () => clearInterval(id);
+  }, [demo]);
+
+  const view = useMemo(
+    () => (demo ? deriveWorld(demoTeamState(Date.now(), tick), { counts: DEMO_COUNTS }) : deriveWorld(state)),
+    [demo, state, tick],
+  );
+  const viewRef = useRef(view);
+  viewRef.current = view;
+
+  useEffect(() => {
+    const el = host.current;
+    if (!el) return;
+    let dead = false;
+    let ro: ResizeObserver | null = null;
+    import('./world/world-scene').then(({ createWorld }) => {
+      if (dead) return;
+      const h = createWorld({
+        parent: el,
+        mode: modeRef.current,
+        coarse: isCoarse(),
+        onOpenBot: (id) => { if (!demo) navigateTo(agentPath(id, 'computador')); },
+        onReady: () => { setReady(true); h.update(viewRef.current); },
+      });
+      world.current = h;
+      ro = new ResizeObserver(() => h.refresh());
+      ro.observe(el);
+    }).catch(() => { if (!dead) setFailed(true); });
+    return () => { dead = true; ro?.disconnect(); world.current?.destroy(); world.current = null; };
+  }, [demo]);
+
+  useEffect(() => { world.current?.update(view); }, [view]);
+  useEffect(() => { world.current?.setMode(ui.mode); }, [ui.mode]);
+  useEffect(() => {
+    world.current?.setRecording(ui.recording);
+    window.dispatchEvent(new Event('resize'));
+  }, [ui.recording]);
+  useEffect(() => {
+    if (!ui.recording) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') dispatch({ t: 'exit-recording' }); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [ui.recording]);
+
+  const wrap = ui.recording ? 'fixed inset-0 z-[70] bg-[#0a0908]' : 'relative min-h-[420px] flex-1 overflow-hidden rounded-xl border border-white/10 bg-[#0a0908]';
+  return (
+    <div className={wrap} data-world-ready={ready ? '1' : '0'} data-world-mode={ui.mode}>
+      <div ref={host} className="absolute inset-0 touch-none" />
+      {!ready && !failed && <div className="pointer-events-none absolute inset-0 grid place-items-center text-xs text-neutral-400">Carregando o mundo...</div>}
+      {failed && <div className="absolute inset-0 grid place-items-center text-xs text-red-300">Não foi possível carregar o mundo.</div>}
+      {!ui.recording && (
+        <>
+          <div className="absolute left-2 top-2 flex gap-1.5">
+            <button type="button" className={`${chip} ${ui.mode === 'avatar' ? chipOn : chipOff}`} aria-pressed={ui.mode === 'avatar'} onClick={() => dispatch({ t: 'set-mode', mode: 'avatar' })}>Deck</button>
+            <button type="button" className={`${chip} ${ui.mode === 'god' ? chipOn : chipOff}`} aria-pressed={ui.mode === 'god'} onClick={() => dispatch({ t: 'set-mode', mode: 'god' })}>Modo Deus</button>
+          </div>
+          <div className="absolute right-2 top-2 flex items-center gap-1.5">
+            {demo && <span className="rounded-md border border-amber-400/30 bg-amber-500/15 px-2 py-1 text-[11px] text-amber-200">demo</span>}
+            <button type="button" className={`${chip} ${chipOff}`} aria-pressed={false} onClick={() => dispatch({ t: 'toggle-recording' })}>Gravação</button>
+          </div>
+          <p className="pointer-events-none absolute bottom-2 left-2 rounded bg-neutral-950/70 px-2 py-1 text-[11px] text-neutral-400 max-sm:hidden">
+            {ui.mode === 'avatar' ? 'WASD ou setas · botão direito para andar · clique num bot para abrir o computador dele' : 'arraste para mover · roda ou pinça para o zoom · clique num bot'}
+          </p>
+        </>
+      )}
+      {ui.recording && (
+        <button type="button" aria-label="Sair da gravação" className="absolute right-2 top-2 h-7 w-7 rounded-full border border-white/10 bg-white/5 text-[11px] text-white/40 opacity-30 hover:opacity-100" onClick={() => dispatch({ t: 'exit-recording' })}>×</button>
+      )}
+    </div>
+  );
+}

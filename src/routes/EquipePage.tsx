@@ -7,8 +7,10 @@ import { Rotinas } from './equipe/Rotinas';
 import { useRotinas } from './equipe/rotinas/useRotinas';
 import type { CronApi } from './equipe/equipe-props';
 import { Memoria } from './equipe/Memoria';
+import { TeamWorld } from './equipe/TeamWorld';
+import type { TeamState } from '../../shared/team-state';
 
-export type Tab = 'rotinas' | 'memoria';
+export type Tab = 'rotinas' | 'memoria' | 'mundo';
 
 export interface MemoryProps {
   memories: Memory[];
@@ -21,27 +23,39 @@ export interface MemoryProps {
 interface EquipePageProps {
   tab?: Tab;
   memory?: MemoryProps;
+  teamState?: TeamState | null;
+  onTeamStateGet?: () => void;
   views: BotView[];
   connected: boolean;
   isAdmin: boolean;
   cron: CronApi & { loaded: boolean };
   bots: TeamBot[];
   onOpenChat: (id: string) => void;
-  onGo: (to: '/' | '/equipe/rotinas' | '/equipe/memoria') => void;
+  onGo: (to: '/' | '/equipe/rotinas' | '/equipe/memoria' | '/equipe/mundo') => void;
 }
 
 export function EquipePage(p: EquipePageProps) {
   const { views, isAdmin, connected, onGo } = p;
   const canSeeMemory = isAdmin && !!p.memory;
   // Rotinas and Memória are admin tools; /equipe/memoria has no tab for anyone else.
-  const tab: Tab = p.tab === 'memoria' && canSeeMemory ? 'memoria' : 'rotinas';
-  useEffect(() => { if (p.tab === 'memoria' && !canSeeMemory) onGo('/'); }, [p.tab, canSeeMemory, onGo]);
+  const canSeeWorld = isAdmin && !!p.onTeamStateGet;
+  const tab: Tab = p.tab === 'memoria' && canSeeMemory ? 'memoria' : p.tab === 'mundo' && canSeeWorld ? 'mundo' : 'rotinas';
+  useEffect(() => { if ((p.tab === 'memoria' && !canSeeMemory) || (p.tab === 'mundo' && !canSeeWorld)) onGo('/'); }, [p.tab, canSeeMemory, canSeeWorld, onGo]);
   const r = useRotinas({ ...p.cron, bots: p.bots, connected });
   const items: TabItem<Tab>[] = [
     { id: 'rotinas', label: 'Rotinas', count: p.cron.loaded ? p.cron.crons.length : undefined },
     ...(canSeeMemory && p.memory ? [{ id: 'memoria' as const, label: 'Memória', count: p.memory.loaded ? p.memory.memories.length : undefined }] : []),
+    ...(canSeeWorld ? [{ id: 'mundo' as const, label: 'Mundo' }] : []),
   ];
-  const onTab = (t: Tab) => onGo(t === 'memoria' ? '/equipe/memoria' : '/equipe/rotinas');
+  const onTab = (t: Tab) => onGo(t === 'memoria' ? '/equipe/memoria' : t === 'mundo' ? '/equipe/mundo' : '/equipe/rotinas');
+  if (tab === 'mundo' && p.onTeamStateGet) {
+    return (
+      <div className="flex min-h-0 flex-1 flex-col p-4 max-lg:pt-1 md:p-8">
+        <Tabs items={items} active={tab} onChange={onTab} className="mb-2.5 lg:mb-4" />
+        <TeamWorld state={p.teamState ?? null} connected={connected} onRefresh={p.onTeamStateGet} />
+      </div>
+    );
+  }
   return (
     <div className="scroll-thin min-h-0 flex-1 overflow-y-auto">
       <div className="mx-auto w-full max-w-[960px] p-4 max-lg:pt-1 md:p-8">

@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react';
 import type { ClientMsg, ServerMsg, TeamBot, TeamBotInput, TeamPendingQuestion } from '../../shared/protocol';
 import type { MeetingInput, TeamMeeting } from '../../shared/team-meeting';
 import { mergeTeamMessages, type TeamMessage } from '../../shared/team-messages';
+import type { TeamState } from '../../shared/team-state';
 
 export interface AgentBuildResult { reqId: string; ok: boolean; text?: string; error?: string }
 export type AgentBuildRequest = Omit<Extract<ClientMsg, { t: 'agent-build' }>, 't'>;
@@ -15,6 +16,8 @@ export interface Team {
   teamPaused: boolean;
   pendingQuestions: TeamPendingQuestion[];
   meetings: TeamMeeting[];
+  teamState: TeamState | null;
+  onTeamStateGet: () => void;
   onMeetingsGet: () => void;
   onMeetingStart: (input: MeetingInput) => void;
   onTeamGet: () => void;
@@ -36,6 +39,7 @@ export function useTeam(send: (m: ClientMsg) => boolean): Team {
   const [agentBuild, setAgentBuild] = useState<AgentBuildResult | null>(null);
   const [pendingQuestions, setPendingQuestions] = useState<TeamPendingQuestion[]>([]);
   const [meetings, setMeetings] = useState<TeamMeeting[]>([]);
+  const [teamState, setTeamState] = useState<TeamState | null>(null);
 
   const onMsg = useCallback((msg: ServerMsg) => {
     switch (msg.t) {
@@ -64,6 +68,9 @@ export function useTeam(send: (m: ClientMsg) => boolean): Team {
       case 'team-pending':
         setPendingQuestions(msg.items);
         return true;
+      case 'team-state':
+        setTeamState(msg.state);
+        return true;
       default:
         return false;
     }
@@ -76,6 +83,8 @@ export function useTeam(send: (m: ClientMsg) => boolean): Team {
     teamPaused,
     pendingQuestions,
     meetings,
+    teamState,
+    onTeamStateGet: useCallback(() => { send({ t: 'team-state-get' }); }, [send]),
     onMeetingsGet: useCallback(() => { send({ t: 'team-meetings-get' }); }, [send]),
     onMeetingStart: useCallback((input: MeetingInput) => { send({ t: 'team-meeting-start', ...input }); }, [send]),
     agentBuild,

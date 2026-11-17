@@ -38,6 +38,7 @@ export const NAV: NavItem[] = [
   { to: '/agentes', label: 'Agente', icon: 'users', student: true },
   { to: '/equipe/rotinas', label: 'Rotinas', icon: 'clock', side: true, tile: 'bg-sky-500/20 text-sky-300' },
   { to: '/equipe/memoria', label: 'Memória', icon: 'brain' },
+  { to: '/equipe/mundo', label: 'Mundo', icon: 'globe' },
   { to: '/docs', label: 'Docs', icon: 'book', side: true, tile: 'bg-neutral-500/20 text-neutral-300' },
   { to: '/configuracoes', label: 'Configurações', icon: 'sliders', student: true },
 ];

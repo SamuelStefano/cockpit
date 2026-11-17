@@ -63,10 +63,11 @@ export function RouteContent({ route, agentRoute, skillRoute, isMobile, isAdmin,
     [isRoot, connected, onOpenSession, onSendTo, onLaunchAgent],
   );
   const view = (() => {
-    if (route === '/equipe/rotinas' || route === '/equipe/memoria') {
+    if (route === '/equipe/rotinas' || route === '/equipe/memoria' || route === '/equipe/mundo') {
       return (
         <EquipePage
-          tab={route === '/equipe/memoria' ? 'memoria' : 'rotinas'}
+          tab={route === '/equipe/memoria' ? 'memoria' : route === '/equipe/mundo' ? 'mundo' : 'rotinas'}
+          teamState={c.teamState} onTeamStateGet={c.onTeamStateGet}
           memory={{ memories: c.memories, loaded: c.memoriesLoaded, onList: c.onMemList, onSave: c.onMemSave, onDelete: c.onMemDelete }}
           views={agent.views} connected={connected} isAdmin={isAdmin}
           bots={c.bots} onOpenChat={agent.open}
