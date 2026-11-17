@@ -66,7 +66,6 @@ export function Sidebar({ route, nav, role, navCounts, onNew, onPalette, bitStat
         {(expanded || drawer) && <IconButton icon={drawer ? 'x' : 'panelLeft'} label={drawer ? 'Fechar menu' : toggleLabel} side="bottom" aria-expanded={expanded} onClick={drawer ? drawer.onClose : toggle} />}
       </div>
 
-
       {!expanded && (rail ?? <div className="flex-1" />)}
 
       {expanded && <div className={`flex min-h-0 flex-1 flex-col ${list ? 'mx-2 border-t border-neutral-800/80' : ''}`}>
