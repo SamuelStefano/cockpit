@@ -254,7 +254,7 @@ function CockpitBody() {
   const viewRoute = settings.viewRoute;
   const chatSurface = viewRoute === '/';
   const pageTitle = viewRoute === '/agentes'
-    ? (agentId === 'novo' ? 'Novo agente' : agent.views.find((v) => v.bot.id === agentId)?.bot.name ?? 'Agente')
+    ? (!agentId ? 'Escritório' : agentId === 'novo' ? 'Novo agente' : agent.views.find((v) => v.bot.id === agentId)?.bot.name ?? 'Agente')
     : viewRoute === '/skills' && skillId ? skills.find((x) => x.id === skillId)?.name ?? skillId
     : navLabel(viewRoute) ?? (viewRoute === '/onboarding' ? 'Começar' : 'Deck');
 
