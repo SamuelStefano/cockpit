@@ -7,7 +7,7 @@ import { RouteFallback } from './RouteFallback';
 import { ChunkErrorBoundary } from './ChunkErrorBoundary';
 import {
   Pontos,
-  Graph, Canvas, DesignSystem, Onboarding, EquipePage, Agente, Base, Arcade, Prs,
+  Graph, Canvas, DesignSystem, Onboarding, EquipePage, EquipeHome, Agente, Base, Arcade, Prs,
 } from './lazyRoutes';
 import type { ChatPanelProps } from '../components/chat/chat-panel-props';
 import type { TerminalsPanelProps } from '../components/Terminals';
@@ -68,6 +68,12 @@ export function RouteContent({ route, agentRoute, isMobile, isAdmin, isRoot, con
           bots={c.bots} onOpenChat={agent.open}
           cron={{ crons: c.crons, loaded: c.cronsLoaded, onCronsGet: c.onCronsGet, onCronSave: c.onCronSave, onCronDelete: c.onCronDelete, onCronRun: c.onCronRun }}
           onGo={navigateTo} />
+      );
+    }
+    if (route === '/equipe' && isAdmin) {
+      return (
+        <EquipeHome state={c.teamState} bots={c.bots} connected={connected} onLoad={c.onTeamStateGet}
+          onOpenAgent={agent.open} onSendTo={c.onSendTo} />
       );
     }
     if (route === '/arcade') return <Arcade />;

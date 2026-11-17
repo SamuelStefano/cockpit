@@ -7,6 +7,7 @@ import { KanbanButton } from './components/planner/KanbanButton';
 import { Sidebar } from './components/chrome/sidebar/Sidebar';
 import { MobileTopBar } from './components/chrome/sidebar/MobileTopBar';
 import { TopBarSlotContext } from './components/chrome/sidebar/TopBarSlot';
+import { MobileTabBar } from './components/chrome/sidebar/MobileTabBar';
 import { MobileNavDrawer } from './components/chrome/sidebar/MobileNavDrawer';
 import { SessionsPanel } from './components/Sessions';
 import { QuotaBanner } from './components/chrome/QuotaBanner';
@@ -59,7 +60,7 @@ import { useRoleLanding } from './app/useRoleLanding';
 import { useIsMobile } from './app/useIsMobile';
 import { useKeyboardOpen } from './app/useKeyboardOpen';
 import { useKeyboardViewport } from './app/useKeyboardViewport';
-import { entryOpensNewChat } from './app/entry-landing';
+import { entryOpensNewChat, entryLandsOnTeamHome } from './app/entry-landing';
 import { useTabTitle } from './app/useTabTitle';
 import { useOfflineLatch } from './app/useOfflineLatch';
 import { useReconnectAction } from './app/useReconnectAction';
@@ -196,7 +197,7 @@ function CockpitBody() {
     setActiveSessionId(pick);
   }, [activeSessionId, sessions, archived, chatId, setActiveSessionId]);
 
-  useRoleLanding({ route, capsKnown: !!caps, role, nav });
+  useRoleLanding({ route, capsKnown: !!caps, role, nav, landOnTeam: entryLandsOnTeamHome });
 
   // Between a reload and the first session list there is no active session yet: without
   // this the chat flashed the empty "new chat" screen before jumping back to the open one.
@@ -317,7 +318,7 @@ function CockpitBody() {
           />
         )}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          {isMobile && !chatSurface && (
+          {isMobile && !chatSurface && viewRoute !== '/equipe' && (
             <MobileTopBar onMenu={() => setDrawer(!drawer)} menuOpen={drawer} title={pageTitle} slotRef={setTopBarSlot} />
           )}
           {/* Âncora de altura zero no fluxo: o aviso pende daqui, logo abaixo do topo da coluna. */}
@@ -342,6 +343,9 @@ function CockpitBody() {
             pages={settingsPages({ cockpit, connected: conn.ws === 'connected', isAdmin, isRoot, skillRoute: { id: skillId, open: navSkill }, onOpenAgentChat: (m) => { handleNew(); setModel(m); nav('/'); } })}
           />
           {!isMobile && !chatSurface && bodyFooter}
+          {isMobile && !keyboardOpen && (
+            <MobileTabBar role={role} route={viewRoute} onNavigate={nav} onConversations={() => setDrawer(true)} onMore={() => setDrawer(true)} />
+          )}
         </div>
       </div>
       {isMobile && !chatSurface && (

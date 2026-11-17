@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import type { ClientMsg, ServerMsg, TeamBot, TeamBotInput, TeamPendingQuestion } from '../../shared/protocol';
 import type { MeetingInput, TeamMeeting } from '../../shared/team-meeting';
+import type { TeamState } from '../../shared/team-state';
 import { mergeTeamMessages, type TeamMessage } from '../../shared/team-messages';
 
 export interface AgentBuildResult { reqId: string; ok: boolean; text?: string; error?: string }
@@ -13,6 +14,9 @@ export interface Team {
   teamLoaded: boolean;
   teamMessages: TeamMessage[];
   teamPaused: boolean;
+  // Latest team-state snapshot (root/admin only; null until the first frame).
+  teamState: TeamState | null;
+  onTeamStateGet: () => void;
   pendingQuestions: TeamPendingQuestion[];
   meetings: TeamMeeting[];
   onMeetingsGet: () => void;
@@ -33,6 +37,7 @@ export function useTeam(send: (m: ClientMsg) => boolean): Team {
   const [teamLoaded, setTeamLoaded] = useState(false);
   const [teamMessages, setTeamMessages] = useState<TeamMessage[]>([]);
   const [teamPaused, setTeamPaused] = useState(false);
+  const [teamState, setTeamState] = useState<TeamState | null>(null);
   const [agentBuild, setAgentBuild] = useState<AgentBuildResult | null>(null);
   const [pendingQuestions, setPendingQuestions] = useState<TeamPendingQuestion[]>([]);
   const [meetings, setMeetings] = useState<TeamMeeting[]>([]);
@@ -48,6 +53,9 @@ export function useTeam(send: (m: ClientMsg) => boolean): Team {
         return true;
       case 'team-message':
         setTeamMessages((prev) => mergeTeamMessages(prev, [msg.item]));
+        return true;
+      case 'team-state':
+        setTeamState(msg.state);
         return true;
       case 'team-paused':
         setTeamPaused(msg.paused);
@@ -74,6 +82,8 @@ export function useTeam(send: (m: ClientMsg) => boolean): Team {
     teamLoaded,
     teamMessages,
     teamPaused,
+    teamState,
+    onTeamStateGet: useCallback(() => { send({ t: 'team-state-get' }); }, [send]),
     pendingQuestions,
     meetings,
     onMeetingsGet: useCallback(() => { send({ t: 'team-meetings-get' }); }, [send]),

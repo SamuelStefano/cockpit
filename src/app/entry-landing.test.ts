@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { opensNewChat } from './entry-landing';
+import { landsOnTeamHome, opensNewChat } from './entry-landing';
 
 const now = 10_000_000;
 const away = now - 31 * 60_000;
@@ -21,5 +21,16 @@ describe('opensNewChat', () => {
   });
   it('leaves other routes alone', () => {
     expect(opensNewChat({ path: '/canvas', navType: 'navigate', hiddenAt: away, now })).toBe(false);
+  });
+});
+
+describe('landsOnTeamHome', () => {
+  it('lands on the bare URL', () => {
+    expect(landsOnTeamHome({ path: '/', navType: 'navigate' })).toBe(true);
+  });
+  it('keeps a reload on the bare URL and any chat or other route', () => {
+    expect(landsOnTeamHome({ path: '/', navType: 'reload' })).toBe(false);
+    expect(landsOnTeamHome({ path: '/c/abc', navType: 'navigate' })).toBe(false);
+    expect(landsOnTeamHome({ path: '/canvas', navType: 'navigate' })).toBe(false);
   });
 });

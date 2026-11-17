@@ -159,11 +159,11 @@ describe('useRoute', () => {
     expect(result.current).toMatchObject({ route: '/agentes', agentId: '' });
   });
 
-  it('redirects the retired /equipe page to /', () => {
+  it('opens the Equipe home on /equipe', () => {
     history.replaceState(null, '', '/equipe');
     const { result } = renderHook(() => useRoute());
-    expect(location.pathname).toBe('/');
-    expect(result.current.route).toBe('/');
+    expect(location.pathname).toBe('/equipe');
+    expect(result.current.route).toBe('/equipe');
   });
 
   it('navAgent writes the tab in the query and falls back to perfil on a bad one', () => {
