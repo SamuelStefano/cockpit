@@ -11,7 +11,7 @@
  "tilewidth": 16,
  "tileheight": 16,
  "nextlayerid": 6,
- "nextobjectid": 81,
+ "nextobjectid": 84,
  "tilesets": [
   {
    "firstgid": 1,
@@ -688,10 +688,10 @@
    "name": "props",
    "image": "props.png",
    "imagewidth": 64,
-   "imageheight": 64,
+   "imageheight": 80,
    "tilewidth": 16,
    "tileheight": 16,
-   "tilecount": 16,
+   "tilecount": 20,
    "columns": 4,
    "margin": 0,
    "spacing": 0,
@@ -778,6 +778,66 @@
     },
     {
      "id": 10,
+     "properties": [
+      {
+       "name": "block",
+       "type": "bool",
+       "value": true
+      }
+     ]
+    },
+    {
+     "id": 12,
+     "properties": [
+      {
+       "name": "block",
+       "type": "bool",
+       "value": true
+      }
+     ]
+    },
+    {
+     "id": 13,
+     "properties": [
+      {
+       "name": "block",
+       "type": "bool",
+       "value": true
+      }
+     ]
+    },
+    {
+     "id": 14,
+     "properties": [
+      {
+       "name": "block",
+       "type": "bool",
+       "value": true
+      }
+     ]
+    },
+    {
+     "id": 16,
+     "properties": [
+      {
+       "name": "block",
+       "type": "bool",
+       "value": true
+      }
+     ]
+    },
+    {
+     "id": 17,
+     "properties": [
+      {
+       "name": "block",
+       "type": "bool",
+       "value": true
+      }
+     ]
+    },
+    {
+     "id": 18,
      "properties": [
       {
        "name": "block",
@@ -2803,11 +2863,11 @@
     0,
     0,
     0,
-    0,
-    0,
-    0,
-    0,
-    0,
+    97,
+    98,
+    98,
+    98,
+    99,
     0,
     0,
     97,
@@ -2851,11 +2911,11 @@
     0,
     0,
     0,
-    0,
-    0,
-    0,
-    0,
-    0,
+    109,
+    1249,
+    1250,
+    1251,
+    111,
     0,
     0,
     109,
@@ -2899,11 +2959,11 @@
     0,
     0,
     0,
-    0,
-    0,
-    0,
-    0,
-    0,
+    109,
+    1253,
+    1254,
+    1255,
+    111,
     0,
     0,
     109,
@@ -2947,11 +3007,11 @@
     0,
     0,
     0,
+    109,
     0,
     0,
     0,
-    0,
-    0,
+    111,
     0,
     0,
     0,
@@ -2995,11 +3055,11 @@
     0,
     0,
     0,
+    109,
     0,
     0,
     0,
-    0,
-    0,
+    111,
     0,
     0,
     0,
@@ -3043,11 +3103,11 @@
     0,
     0,
     0,
+    121,
+    122,
     0,
-    0,
-    0,
-    0,
-    0,
+    122,
+    123,
     0,
     0,
     109,
@@ -7130,24 +7190,6 @@
      ]
     },
     {
-     "id": 64,
-     "name": "flowerbed-1",
-     "type": "",
-     "x": 368,
-     "y": 256,
-     "width": 32,
-     "height": 16,
-     "rotation": 0,
-     "visible": true,
-     "properties": [
-      {
-       "name": "kind",
-       "type": "string",
-       "value": "flowerbed"
-      }
-     ]
-    },
-    {
      "id": 65,
      "name": "flowerbed-2",
      "type": "",
@@ -7412,6 +7454,107 @@
        "name": "face",
        "type": "string",
        "value": "right"
+      }
+     ]
+    },
+    {
+     "id": 81,
+     "name": "quadro",
+     "type": "",
+     "x": 336,
+     "y": 256,
+     "width": 80,
+     "height": 96,
+     "rotation": 0,
+     "visible": true,
+     "properties": [
+      {
+       "name": "kind",
+       "type": "string",
+       "value": "house"
+      },
+      {
+       "name": "project",
+       "type": "string",
+       "value": "quadro"
+      },
+      {
+       "name": "label",
+       "type": "string",
+       "value": "Quadro de tarefas"
+      },
+      {
+       "name": "tint",
+       "type": "color",
+       "value": "#ffffe9c8"
+      },
+      {
+       "name": "door",
+       "type": "string",
+       "value": "bottom"
+      },
+      {
+       "name": "icon",
+       "type": "string",
+       "value": "indoor:370"
+      }
+     ]
+    },
+    {
+     "id": 82,
+     "name": "quadro-desk-0",
+     "type": "",
+     "x": 360,
+     "y": 328,
+     "width": 0,
+     "height": 0,
+     "point": true,
+     "rotation": 0,
+     "visible": true,
+     "properties": [
+      {
+       "name": "project",
+       "type": "string",
+       "value": "quadro"
+      },
+      {
+       "name": "seat",
+       "type": "int",
+       "value": 0
+      },
+      {
+       "name": "face",
+       "type": "string",
+       "value": "up"
+      }
+     ]
+    },
+    {
+     "id": 83,
+     "name": "quadro-desk-1",
+     "type": "",
+     "x": 392,
+     "y": 328,
+     "width": 0,
+     "height": 0,
+     "point": true,
+     "rotation": 0,
+     "visible": true,
+     "properties": [
+      {
+       "name": "project",
+       "type": "string",
+       "value": "quadro"
+      },
+      {
+       "name": "seat",
+       "type": "int",
+       "value": 1
+      },
+      {
+       "name": "face",
+       "type": "string",
+       "value": "up"
       }
      ]
     }

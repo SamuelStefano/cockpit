@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<tileset version="1.10" tiledversion="1.11.2" name="props" tilewidth="16" tileheight="16" tilecount="16" columns="4">
- <image source="props.png" width="64" height="64"/>
+<tileset version="1.10" tiledversion="1.11.2" name="props" tilewidth="16" tileheight="16" tilecount="20" columns="4">
+ <image source="props.png" width="64" height="80"/>
  <tile id="0">
   <properties>
    <property name="block" type="bool" value="true"/>
@@ -42,6 +42,36 @@
   </properties>
  </tile>
  <tile id="10">
+  <properties>
+   <property name="block" type="bool" value="true"/>
+  </properties>
+ </tile>
+ <tile id="12">
+  <properties>
+   <property name="block" type="bool" value="true"/>
+  </properties>
+ </tile>
+ <tile id="13">
+  <properties>
+   <property name="block" type="bool" value="true"/>
+  </properties>
+ </tile>
+ <tile id="14">
+  <properties>
+   <property name="block" type="bool" value="true"/>
+  </properties>
+ </tile>
+ <tile id="16">
+  <properties>
+   <property name="block" type="bool" value="true"/>
+  </properties>
+ </tile>
+ <tile id="17">
+  <properties>
+   <property name="block" type="bool" value="true"/>
+  </properties>
+ </tile>
+ <tile id="18">
   <properties>
    <property name="block" type="bool" value="true"/>
   </properties>
