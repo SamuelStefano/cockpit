@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Icon } from '../primitives';
 import { ComposerNotice } from './ComposerNotice';
 import { ComposerActions } from './ComposerActions';
@@ -75,6 +76,7 @@ interface ChatInputProps {
   onShowHelp?: () => void;
   onCall?: () => void;
   focusMode?: boolean;
+  sideButton?: ReactNode;
 }
 
 export function ChatInput(props: ChatInputProps) {
@@ -91,6 +93,7 @@ export function ChatInput(props: ChatInputProps) {
   // itens da lista. O composer precisa de um contexto próprio acima dele.
   return (
     <div className="relative z-20 shrink-0 px-3 py-3">
+      {props.sideButton && <div className="absolute -top-10 right-3">{props.sideButton}</div>}
       <div className="mx-auto w-full max-w-[760px]">
       {mic.error && <ComposerNotice icon="mic" onDismiss={mic.dismissError}>{mic.error}</ComposerNotice>}
       <FocusCollapse hidden={!!focusMode}>

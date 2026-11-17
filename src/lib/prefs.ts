@@ -58,3 +58,8 @@ export const GAME_CRT_KEY = 'game.crt';
 // nova. Ligado por padrão; prefers-reduced-motion desliga de qualquer jeito.
 export const BIT_PLAYFUL_KEY = 'bit.playful';
 export const BIT_PLAYFUL_DEFAULT = true;
+
+export const TEAM_PANEL_OPEN_KEY = 'teamPanel.open';
+export const TEAM_PANEL_OPEN_DEFAULT = false;
+export const TEAM_PANEL_RECORDING_KEY = 'teamPanel.recording';
+export const TEAM_PANEL_RECORDING_DEFAULT = false;
