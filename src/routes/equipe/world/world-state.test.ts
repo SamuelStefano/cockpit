@@ -8,7 +8,7 @@ const state = (over: Partial<TeamState> = {}): TeamState => ({
   bots: [
     { id: 'a', name: 'Íris', role: 'cargo', status: 'working', task: 'secret task text', lastSend: { to: 'b', at: 1, preview: 'secret preview' } },
     { id: 'b', name: 'Otto', role: 'cargo', status: 'idle' },
-    { id: 'c', name: 'Luffy', role: 'cargo', status: 'waiting' },
+    { id: 'c', name: 'Luffy', role: 'cargo', status: 'waiting', project: 'itera' },
   ],
   handoffs: [],
   followUps: [],
@@ -53,6 +53,12 @@ describe('deriveWorld', () => {
     expect(deriveWorld(state(), { projects: { itera: 4, dfl: 0 } }).projects).toEqual({ itera: '4' });
   });
 
+  it('shows no badges with real data: counts only come from the demo', () => {
+    const w = deriveWorld(state({ bots: [{ id: 'z', name: 'Luffy', role: 'r', status: 'working', project: 'itera' }] }));
+    expect(w.projects).toEqual({});
+    expect(w.npcs[0]?.badge).toBeNull();
+  });
+
   it('turns recent handoffs into flights and drops stale or unknown ones', () => {
     const w = deriveWorld(state({
       handoffs: [
@@ -71,15 +77,17 @@ describe('deriveWorld', () => {
 });
 
 describe('projectOf', () => {
-  it('uses the TL mapping, then task keywords, then the shared office', () => {
-    expect(projectOf('Luffy')).toBe('itera');
-    expect(projectOf('Goku')).toBe('deck');
-    expect(projectOf('Zoro', 'Corte Radar')).toBe('dfl');
-    expect(projectOf('Anderson', 'ajustar Corte Radar')).toBe('corte-radar');
-    expect(projectOf('Lara', 'Itera lesson')).toBe('itera');
-    expect(projectOf('Ada', 'DFL invoice')).toBe('dfl');
-    expect(projectOf('Raquel', 'something else')).toBe('escritorio');
-    expect(projectOf('Raquel')).toBe('escritorio');
+  it('reads the bot project field and falls back to the shared office', () => {
+    expect(projectOf('itera')).toBe('itera');
+    expect(projectOf('deck')).toBe('deck');
+    expect(projectOf('corte-radar')).toBe('corte-radar');
+    expect(projectOf('nope')).toBe('escritorio');
+    expect(projectOf()).toBe('escritorio');
+  });
+
+  it('ignores names and task text', () => {
+    const w = deriveWorld(state({ bots: [{ id: 'z', name: 'Luffy', role: 'r', status: 'working', task: 'DFL invoice' }] }));
+    expect(w.npcs[0]?.project).toBe('escritorio');
   });
 });
 

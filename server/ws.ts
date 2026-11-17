@@ -4,7 +4,7 @@ import { setWss, broadcast, BACKPRESSURE_BYTES } from './ws/broadcast';
 import { CONFIG } from './config';
 import { originAllowed } from './ws/origin';
 import { tokenAllowed, tokenFromUrl } from './ws/token';
-import { fireCron } from './ws/runs';
+import { fireAnyCron } from './ws/cron-fire';
 import { startTeamMessaging } from './ws/team-deliver';
 import { startRunReaper } from './ws/reaper';
 import { runStats, killAllRuns, threads } from './ws/threads';
@@ -110,7 +110,7 @@ export function attachWs(server: Server) {
   startDflPointsWatch();
   startDflDraftsWatch();
   probeSlashCommands();
-  startCronLoop(fireCron); // agendador: dispara prompts agendados (turnos autônomos)
+  startCronLoop(fireAnyCron); // agendador: dispara prompts agendados (turnos autônomos)
   startTeamMessaging();
   startRunReaper(); // mata turno travado ("garimpando" eterno) → UI cai pra idle e a fila drena
   // O loop de autopause do canvas NÃO liga aqui: ele para/reenfileira turnos

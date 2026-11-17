@@ -17,21 +17,20 @@ interface MeetingPanelProps {
 const btn = 'rounded-md border px-3 py-1.5 text-xs font-medium disabled:opacity-40 pointer-coarse:min-h-11';
 
 // Convocar = the same `team-meeting-start` frame `deckctl meeting start` sends.
-// Agendar = a daily cron (existing crons) whose prompt runs that same command.
+// Agendar = a daily cron whose server-side action starts the meeting (admin only, no LLM turn).
 export function MeetingPanel({ bots, running, picked, onPick, onStart, onSchedule, onClose }: MeetingPanelProps) {
   const [question, setQuestion] = useState('');
   const [time, setTime] = useState('09:00');
   const [note, setNote] = useState<string | null>(null);
   const eligible = useMemo(() => bots.filter((b) => !botBlock(b)), [bots]);
-  const names = useMemo(() => Object.fromEntries(bots.map((b) => [b.id, b.name])), [bots]);
   const moderatorId = picked.includes(defaultModeratorId(eligible)) ? defaultModeratorId(eligible) : (picked[0] ?? '');
   const check = validateMeetingInput({ question, participantIds: picked, moderatorId }, bots);
   const toggle = (id: string) => onPick(picked.includes(id) ? picked.filter((x) => x !== id) : picked.length >= MEETING_LIMITS.maxParticipants ? picked : [...picked, id]);
   const start = () => { if (check.ok) { onStart(check.input); setNote('Reunião convocada'); } };
   const schedule = () => {
     if (!check.ok) return;
-    const r = meetingCron(check.input, names, time, Date.now());
-    if (r.ok) { onSchedule(r.cron); setNote(`Agendada para ${time}, todo dia`); } else setNote(r.error);
+    const r = meetingCron(check.input, time, Date.now());
+    if (r.ok) { onSchedule(r.cron); setNote(`Agendada para ${time}, todo dia. Falhas aparecem em Rotinas`); } else setNote(r.error);
   };
   return (
     <div className="absolute right-2 top-12 z-10 flex max-h-[calc(100%-4rem)] w-72 max-w-[calc(100%-1rem)] flex-col gap-2 overflow-y-auto rounded-xl border border-white/10 bg-neutral-950/90 p-3 text-xs text-neutral-200 backdrop-blur">

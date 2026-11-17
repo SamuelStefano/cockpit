@@ -1,7 +1,8 @@
 import type { TeamState, TeamBotStatus } from '../../../../shared/team-state';
 import type { BuildingId } from './world-map';
 
-export type ProjectId = 'itera' | 'dfl' | 'corte-radar' | 'escritorio' | 'deck';
+const PROJECT_IDS = ['itera', 'dfl', 'corte-radar', 'escritorio', 'deck'] as const;
+export type ProjectId = (typeof PROJECT_IDS)[number];
 
 // What the world is allowed to know about a bot: name, state, counts. The snapshot
 // also carries task titles and message previews; they are dropped here on purpose,
@@ -31,20 +32,9 @@ export interface WorldView {
 export type NpcAnim = 'work' | 'idle' | 'wait';
 export interface NpcSprite { anim: NpcAnim; bubble: 'zz' | '!' | null; tool: boolean }
 
-const norm = (s: string): string => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
-
-// The TL's fixed mapping, by first name. The task text is only read to pick a project
-// (a keyword match); it is never stored or drawn.
-const TL_PROJECT: Record<string, ProjectId> = { luffy: 'itera', zoro: 'dfl', goku: 'deck' };
-
-export function projectOf(name: string, task?: string): ProjectId {
-  const fixed = TL_PROJECT[norm(name)];
-  if (fixed) return fixed;
-  const t = task ? norm(task) : '';
-  if (/corte radar|radar/.test(t)) return 'corte-radar';
-  if (/\bitera\b/.test(t)) return 'itera';
-  if (/\bdfl\b/.test(t)) return 'dfl';
-  return 'escritorio';
+// Reads the bot's own project field; anything missing or unknown sits in the office.
+export function projectOf(project?: string): ProjectId {
+  return PROJECT_IDS.find((p) => p === project) ?? 'escritorio';
 }
 
 export type Station = 'plaza' | 'sala' | BuildingId;
@@ -86,15 +76,12 @@ export function deriveWorld(state: TeamState | null, opts: DeriveOptions = {}): 
   const inMeeting = new Set((opts.meeting?.participantIds ?? []).filter((id) => ids.has(id)));
   const npcs = state.bots.map((b): NpcView => ({
     id: b.id, name: b.name, mode: b.status, badge: badgeText(opts.counts?.[b.id]),
-    project: projectOf(b.name, b.task), meeting: inMeeting.has(b.id),
+    project: projectOf(b.project), meeting: inMeeting.has(b.id),
   }));
   const flights = state.handoffs
     .filter((h) => ids.has(h.to) && now - h.at <= FLIGHT_WINDOW_MS)
     .map((h): Flight => ({ key: `${h.taskId}:${h.at}`, from: h.from && ids.has(h.from) ? h.from : null, to: h.to }));
   const projects: Record<string, string> = {};
-  // Without an explicit count, a house shows how many bots are working there now.
-  const counted: Record<string, number> = opts.projects ?? {};
-  if (!opts.projects) for (const n of npcs) if (n.mode === 'working' && !n.meeting && n.project !== 'escritorio') counted[n.project] = (counted[n.project] ?? 0) + 1;
-  for (const [id, n] of Object.entries(counted)) { const t = badgeText(n); if (t) projects[id] = t; }
+  for (const [id, n] of Object.entries(opts.projects ?? {})) { const t = badgeText(n); if (t) projects[id] = t; }
   return { npcs, flights, projects, meetingSize: inMeeting.size };
 }

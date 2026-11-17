@@ -1,24 +1,24 @@
 import type { TeamState, TeamStateBot } from '../../../../shared/team-state';
 
-const bot = (id: string, name: string, status: TeamStateBot['status'], task?: string): TeamStateBot => ({ id, name, role: 'demo', status, ...(task ? { task } : {}) });
+const bot = (id: string, name: string, status: TeamStateBot['status'], project?: string): TeamStateBot => ({ id, name, role: 'demo', status, ...(project ? { project } : {}) });
 
 export const DEMO_BOTS: TeamStateBot[] = [
   bot('iris', 'Íris', 'working'),
   bot('otto', 'Otto', 'idle'),
-  bot('luffy', 'Luffy', 'working', 'Itera'),
-  bot('zoro', 'Zoro', 'working', 'DFL'),
+  bot('luffy', 'Luffy', 'working', 'itera'),
+  bot('zoro', 'Zoro', 'working', 'dfl'),
   bot('raquel', 'Raquel', 'waiting'),
-  bot('anderson', 'Anderson', 'working', 'Corte Radar'),
+  bot('anderson', 'Anderson', 'working', 'corte-radar'),
   bot('lara', 'Lara', 'idle'),
   bot('lorena', 'Lorena', 'idle'),
-  bot('goku', 'Goku', 'working', 'Deck'),
-  bot('nami', 'Nami', 'working', 'Deck'),
-  bot('arthur', 'Arthur', 'working', 'Itera'),
+  bot('goku', 'Goku', 'working', 'deck'),
+  bot('nami', 'Nami', 'working', 'deck'),
+  bot('arthur', 'Arthur', 'working', 'itera'),
   bot('mari', 'Mari', 'idle'),
   bot('usopp', 'Usopp', 'idle'),
   bot('robin', 'Robin', 'idle'),
-  bot('bulma', 'Bulma', 'working', 'DFL'),
-  bot('ada', 'Ada', 'working', 'DFL'),
+  bot('bulma', 'Bulma', 'working', 'dfl'),
+  bot('ada', 'Ada', 'working', 'dfl'),
 ];
 
 export const DEMO_PROJECTS: Record<string, number> = { itera: 4, dfl: 6, 'corte-radar': 1 };

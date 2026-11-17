@@ -425,6 +425,7 @@ export type Effort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 // minimalista: intervalo (a cada N min), diário (minuto do dia, hora local) ou uma
 // vez só (`atMs`, timestamp absoluto — dispara e se auto-pausa).
 export interface CronSchedule { kind: 'interval' | 'daily' | 'once'; everyMinutes?: number; atMinute?: number; atMs?: number }
+export interface CronAction { kind: 'team-meeting'; question: string; participantIds: string[]; moderatorId: string }
 export interface Cron {
   id: string;
   name: string;
@@ -438,6 +439,8 @@ export interface Cron {
   createdAt: number;
   // Rotina de um bot da Equipe: dispara na thread do bot (`bot-<id>`), com a identidade dele.
   botId?: string;
+  // A server-side action replaces the LLM prompt: `prompt` is then only a human label.
+  action?: CronAction;
 }
 // Bot da Equipe: um agente persistente com nome, cargo e mascote, dono de UMA thread
 // contínua (sessionId). Persistido em ~/.cockpit/team.json (server/team.ts).
@@ -461,6 +464,8 @@ export interface TeamBot {
   mascot: TeamMascot;
   parentId?: string;
   department?: DepartmentId;
+  // Project house the bot works in on the team world (a project id, e.g. 'itera').
+  project?: string;
   primary?: boolean;
   sessionId?: string;
   profile: TeamProfile;

@@ -50,8 +50,12 @@ const REASON: Record<string, string> = {
   blocked: 'bloqueada até liberar a vaga',
   skipped: 'não conseguiu começar',
   'bot-gone': 'o agente foi removido',
+  failed: 'a reunião não pôde começar',
 };
-export const failReason = (c: Cron) => REASON[c.lastFire ?? ''] ?? 'não conseguiu começar';
+export const failReason = (c: Cron) => {
+  const base = REASON[c.lastFire ?? ''] ?? 'não conseguiu começar';
+  return c.lastFire === 'failed' && c.lastError ? `${base} (${c.lastError})` : base;
+};
 
 export interface RunState { tone: 'ok' | 'err' | 'muted'; text: string }
 

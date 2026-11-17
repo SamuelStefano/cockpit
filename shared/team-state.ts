@@ -16,6 +16,7 @@ export interface TeamStateBot {
   name: string;
   role: string;
   sector?: DepartmentId;
+  project?: string;
   manager?: string;
   status: TeamBotStatus;
   task?: string;
@@ -94,6 +95,7 @@ export function buildTeamState(i: TeamStateInput): TeamState {
       name: b.name,
       role: b.label,
       ...(b.department ? { sector: b.department } : {}),
+      ...(b.project ? { project: b.project } : {}),
       ...(b.parentId && ids.has(b.parentId) ? { manager: b.parentId } : {}),
       status: i.waiting.has(b.id) ? 'waiting' : i.running.has(b.id) ? 'working' : 'idle',
       ...(task ? { task: task.title } : {}),

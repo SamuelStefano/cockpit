@@ -54,9 +54,9 @@ export function saveCron(c: Cron): Promise<Cron[]> {
     // lastRun and createdAt are the server's: the browser's list is only fetched on
     // mount, so an edit (or pause/resume) after a fire carried the old lastRun back
     // and isDue turned true again — a second autonomous turn within 30s.
-    const { retryAt: _a, retryCount: _b, lastFire: _c, ...fresh } = c;
+    const { retryAt: _a, retryCount: _b, lastFire: _c, lastError: _d, ...fresh } = c;
     const old = i >= 0 ? all[i] : undefined;
-    if (old) all[i] = { ...fresh, lastRun: old.lastRun, createdAt: old.createdAt, retryAt: old.retryAt, retryCount: old.retryCount, lastFire: old.lastFire };
+    if (old) all[i] = { ...fresh, lastRun: old.lastRun, createdAt: old.createdAt, retryAt: old.retryAt, retryCount: old.retryCount, lastFire: old.lastFire, lastError: old.lastError };
     else all.push(fresh);
     await writeCrons(all);
     return all;
@@ -85,16 +85,18 @@ export function markRan(id: string, now: number): Promise<unknown> {
 
 // Records how the fire went. A fire that never started (bot busy, blocked, removed)
 // is retried one hour later, up to RETRY_MAX times, only for crons that opted in.
-export function recordFire(id: string, outcome: CronFireOutcome, now: number): Promise<unknown> {
+export function recordFire(id: string, outcome: CronFireOutcome, now: number, error?: string): Promise<unknown> {
   return serialize(async () => {
     const all = await getCrons();
     const c = all.find((x) => x.id === id);
     if (!c) return;
     c.lastFire = outcome;
+    if (outcome === 'failed' && error) c.lastError = error.slice(0, 200);
+    else delete c.lastError;
     if (outcome === 'started') {
       delete c.retryAt;
       delete c.retryCount;
-    } else if (c.retry && outcome !== 'bot-gone' && (c.retryCount ?? 0) < RETRY_MAX) {
+    } else if (c.retry && outcome !== 'bot-gone' && outcome !== 'failed' && (c.retryCount ?? 0) < RETRY_MAX) {
       c.retryCount = (c.retryCount ?? 0) + 1;
       c.retryAt = now + RETRY_DELAY_MS;
     } else {
@@ -154,6 +156,10 @@ export function startCronLoop(fire: (c: Cron) => unknown): void {
         try {
           const outcome = await fire(c);
           if (typeof outcome === 'string') await recordFire(c.id, outcome as CronFireOutcome, now);
+          else if (outcome && typeof outcome === 'object' && 'outcome' in outcome) {
+            const r = outcome as { outcome: CronFireOutcome; error?: string };
+            await recordFire(c.id, r.outcome, now, r.error);
+          }
         } catch { /* não trava os outros */ }
       }
     } catch { /* leitura falhou: tenta no próximo tick */ } finally { ticking = false; }

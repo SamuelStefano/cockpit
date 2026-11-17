@@ -1,6 +1,6 @@
 import type { Cron, CronSchedule } from './protocol';
 
-export type CronFireOutcome = 'started' | 'skipped' | 'blocked' | 'bot-busy' | 'bot-gone';
+export type CronFireOutcome = 'started' | 'skipped' | 'blocked' | 'bot-busy' | 'bot-gone' | 'failed';
 
 declare module './protocol' {
   interface CronSchedule {
@@ -12,6 +12,7 @@ declare module './protocol' {
     retryCount?: number;
     retryAt?: number;
     lastFire?: CronFireOutcome;
+    lastError?: string;
   }
 }
 
