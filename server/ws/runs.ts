@@ -40,6 +40,7 @@ import { threadIsMarathon, MARATHON_AUTO_RESUME_CAP } from './marathon';
 import { bindBotSession, getTeam } from '../team';
 import { refreshAgentSource } from '../agent-source';
 import { botTurnParams, botDenyRules } from '../team-prompt';
+import { executorConfigured } from '../heavy-executor';
 import { readMemoriesSafe } from '../memories';
 import { botThreadKey } from '../../shared/team';
 import { clearBotQuestion } from './team-pending-frames';
@@ -1428,7 +1429,7 @@ async function fireBotRoutine(cron: Cron, botId: string): Promise<CronFire> {
   if (!bot) return 'bot-gone';
   if (bot.sessionId && (await readBusyElsewhereSessionIds().catch(() => [] as string[])).includes(bot.sessionId)) return 'bot-busy';
   const key = botThreadKey(botId);
-  const turn = botTurnParams(team, key, undefined, await readMemoriesSafe());
+  const turn = botTurnParams(team, key, undefined, await readMemoriesSafe(), executorConfigured());
   if (!turn) return 'bot-gone';
   if (botLiveKey(botId, bot.sessionId)) return 'bot-busy';
   if (isAreaAdmissionBlocked(turn.resumeId, key)) return 'blocked';
