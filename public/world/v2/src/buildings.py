@@ -7,7 +7,7 @@ import numpy as np
 from PIL import Image
 
 from pixkit import (T, C, R, rgb, blank, fill, put, hline, vline, rect, grid, m_ellipse, m_rect, m_rrect, m_poly,
-                    m_capsule, Part, shape, draw_parts, overlay_from_alpha, draw_text, text_width, GLYPHS, shift)
+                    m_capsule, Part, shape, draw_parts, overlay_from_alpha, draw_text, text_width, glyph_pixels, shift)
 from nature import has
 
 # ---------------------------------------------------------------- walls (32x64 bays: upper + lower tile)
@@ -346,14 +346,14 @@ def door_glass():
             elif y < 25:
                 a[y, x, :3] = rgb("a0")
     im = Image.fromarray(a, "RGBA")
-    # OPEN sign
-    rect(im, 8, 30, 24, 36, "y1")
-    hline(im, 8, 24, 36, "y0")
-    draw_text(im, 9, 31, "OPEN", "w0")
-    put(im, 12, 28, C("m1"))
-    put(im, 19, 28, C("m1"))
-    put(im, 13, 29, C("m1"))
-    put(im, 18, 29, C("m1"))
+    # ABERTO sign, wider than the glass so six letters fit inside the tile
+    rect(im, 3, 30, 28, 36, "y1")
+    hline(im, 3, 28, 36, "y0")
+    draw_text(im, 5, 31, "ABERTO", "w0")
+    put(im, 10, 28, C("m1"))
+    put(im, 21, 28, C("m1"))
+    put(im, 11, 29, C("m1"))
+    put(im, 20, 29, C("m1"))
     hline(im, 3, 28, 63, "m1")
     return im
 
@@ -582,12 +582,11 @@ def compose(cols, wall, roof, bays, roof_rows=2, awnings=None, signs=None, chimn
 # ---------------------------------------------------------------- landmark helpers
 def big_text(im, x, y, s, name, scale=2):
     for i, ch in enumerate(s.upper()):
-        g = GLYPHS[ch]
-        for gy, row in enumerate(g):
-            for gx, v in enumerate(row):
-                if v == "1":
-                    rect(im, x + (i * 4 + gx) * scale, y + gy * scale, x + (i * 4 + gx) * scale + scale - 1,
-                         y + gy * scale + scale - 1, name)
+        for gx, gy in glyph_pixels(ch):
+            # accents above stay one pixel tall so they fit between the text and the sign edge
+            y0 = y + gy if gy < 0 else y + gy * scale
+            y1 = y0 if gy < 0 else y0 + scale - 1
+            rect(im, x + (i * 4 + gx) * scale, y0, x + (i * 4 + gx) * scale + scale - 1, y1, name)
 
 
 def big_text_width(s, scale=2):
@@ -674,7 +673,7 @@ def bank():
     hline(im, 2, 125, 52, "t1")
     vline(im, 2, 37, 52, "t2")
     vline(im, 125, 37, 52, "t1")
-    s = "BANK"
+    s = "BANCO"
     big_text(im, 64 - big_text_width(s) // 2, 40, s, "w0")
     for x in range(0, 128, 4):
         rect(im, x, 54, x + 1, 56, "t4")
@@ -758,7 +757,7 @@ def library():
     put(im, 67, 106, C("y1"))
     # sign board
     draw_parts(im, [Part("board", m_rrect(W, H, 34, 65, 93, 76, 1), R["dark_wood"], 3, band=0, light=True)])
-    s = "LIBRARY"
+    s = "BIBLIOTECA"
     from pixkit import draw_text as dt
     dt(im, 64 - text_width(s) // 2, 68, s, "y1")
     # open book emblem
@@ -794,9 +793,9 @@ def studio():
         put(im, x, 60, C("y2"))
         put(im, x + 1, 44, C("y1"))
         put(im, x + 1, 60, C("y1"))
-    s = "STUDIO"
-    big_text(im, 64 - big_text_width(s) // 2 + 1, 48, s, "ol1")
-    big_text(im, 64 - big_text_width(s) // 2, 47, s, "y1")
+    s = "ESTÚDIO"
+    big_text(im, 64 - big_text_width(s) // 2 + 1, 49, s, "ol1")
+    big_text(im, 64 - big_text_width(s) // 2, 48, s, "y1")
     # clapperboard on the roof
     board = m_rect(W, H, 34, 12, 93, 30)
     draw_parts(im, [Part("legs", m_rect(W, H, 44, 28, 46, 33) | m_rect(W, H, 82, 28, 84, 33), R["metal"], 1, band=0),
@@ -827,7 +826,7 @@ def studio():
         for y in range(77, 126):
             put(im, x0 + (y - 77) // 4 % 18, y, C("a3")) if (y - 77) % 4 == 0 else None
         hline(im, x0 + 2, x0 + 15, 100, "m2")
-    draw_text(im, 64 - text_width("STAGE") // 2, 66, "STAGE", "t4")
+    draw_text(im, 64 - text_width("PALCO") // 2, 66, "PALCO", "t4")
     # posters
     for x0, kind in ((8, "star"), (98, "sun")):
         draw_parts(im, [Part("pf%d" % x0, m_rect(W, H, x0, 72, x0 + 21, 108), R["yellow"], 1, band=0)])
@@ -887,13 +886,12 @@ def radio(frame):
                          light=False),
                     Part("feed", m_capsule(W, H, (19, 60), (24, 55), 0.6), R["metal"], 4, outline=False, band=-1)])
     put(im, 24, 54, C("r1"))
-    # RADIO board + ON AIR lamp
-    draw_parts(im, [Part("board", m_rrect(W, H, 6, 101, 29, 111, 1), R["white"], 5, band=0)])
-    draw_text(im, 8, 104, "RADIO", "r0")
+    # RÁDIO board + NO AR lamp
+    draw_parts(im, [Part("board", m_rrect(W, H, 6, 100, 29, 111, 1), R["white"], 5, band=0)])
+    draw_text(im, 8, 105, "RÁDIO", "r0")
     draw_parts(im, [Part("onair", m_rrect(W, H, 33, 98, 62, 107, 1), ["ol1", "r0", "r1" if on else "r0",
                                                                        "r2" if on else "r1"], 5, band=0)])
-    draw_text(im, 36, 100, "ON AIR"[:2], "wh" if on else "k1")
-    draw_text(im, 47, 100, "AIR", "wh" if on else "k1")
+    draw_text(im, 48 - text_width("NO AR") // 2, 100, "NO AR", "wh" if on else "k1")
     return im
 
 
@@ -911,11 +909,12 @@ def security():
     rect(im, 0, 0, 127, 5, "t3")
     hline(im, 0, 127, 0, "t2")
     hline(im, 0, 127, 5, "t1")
-    rect(im, 0, 7, 127, 21, "p0")
+    # band is 3 rows taller than the text so the cedilla of the Ç clears the bottom edge
+    rect(im, 0, 7, 127, 24, "p0")
     hline(im, 0, 127, 7, "p1")
-    hline(im, 0, 127, 21, "ol0")
-    hline(im, 0, 127, 23, "a1")
-    s = "SECURITY"
+    hline(im, 0, 127, 24, "ol0")
+    hline(im, 0, 127, 26, "a1")
+    s = "SEGURANÇA"
     big_text(im, 64 - big_text_width(s) // 2, 9, s, "wh")
     # shield badge
     sm = m_poly(W, H, [(56, 27), (72, 27), (72, 35), (64, 42), (56, 35)])
@@ -1013,11 +1012,11 @@ def town_hall():
                          band=0)])
     for y in range(66, 86, 3):
         hline(im, 74, 85, y, "w2")
-    # frieze with TOWN HALL
+    # frieze with PREFEITURA
     rect(im, 4, 99, 155, 109, "t4")
     hline(im, 4, 155, 99, "t2")
     hline(im, 4, 155, 109, "t1")
-    s = "TOWN HALL"
+    s = "PREFEITURA"
     draw_text(im, 80 - text_width(s) // 2, 102, s, "w0")
     # door
     frame = m_rect(W, H, 66, 120, 93, 151) | m_ellipse(W, H, 80, 122, 14, 10)
