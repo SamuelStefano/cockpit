@@ -17,6 +17,7 @@ interface EquipeHomeProps {
   now?: number;
 }
 
+const NO_SESSION = 'bot sem sessão';
 const DOT: Record<TeamStateBot['status'], string> = { working: 'bg-green-500', waiting: 'bg-yellow-400', idle: 'bg-neutral-600' };
 const STATUS_LABEL: Record<TeamStateBot['status'], string> = { working: 'Trabalhando', waiting: 'Precisa de você', idle: 'Ociosa' };
 
@@ -55,6 +56,7 @@ function Section({ title, bots, recording, onOpen }: { title: string; bots: Team
 export function EquipeHome({ state, bots, connected, onLoad, onOpenAgent, onSendTo, now }: EquipeHomeProps) {
   const [recording, setRecording] = usePersisted<boolean>(RECORDING_MODE_KEY, RECORDING_MODE_DEFAULT);
   const [draft, setDraft] = useState('');
+  const [failedNudge, setFailedNudge] = useState<string | null>(null);
   useEffect(() => { if (connected) onLoad(); }, [connected, onLoad]);
 
   const primary = primaryBot(bots);
@@ -67,8 +69,11 @@ export function EquipeHome({ state, bots, connected, onLoad, onOpenAgent, onSend
     if (!state) return;
     const f = state.followUps[i];
     const target = bots.find((b) => b.id === f.to);
-    if (target?.sessionId) onSendTo(target.sessionId, nudgeText(nameOf(state, f.from), nameOf(state, f.to), ago((now ?? Date.now()) - f.at)));
+    if (!target?.sessionId) return;
+    const sent = onSendTo(target.sessionId, nudgeText(nameOf(state, f.from), nameOf(state, f.to), ago((now ?? Date.now()) - f.at)));
+    setFailedNudge(sent ? null : followUpKey(f));
   };
+  const hasSession = (id: string) => !!bots.find((b) => b.id === id)?.sessionId;
 
   const sections = state ? sectionsOf(state) : null;
   const clock = now ?? Date.now();
@@ -99,7 +104,10 @@ export function EquipeHome({ state, bots, connected, onLoad, onOpenAgent, onSend
                     {state.followUps.map((f, i) => (
                       <li key={followUpKey(f)} className="flex items-center gap-2 text-[13px] text-neutral-300">
                         <span className="min-w-0 flex-1 truncate">{nameOf(state, f.from)} → {nameOf(state, f.to)} {ago(clock - f.at)}</span>
-                        <Button size="xs" variant="outline" onClick={() => nudge(i)}>Cobrar</Button>
+                        {failedNudge === followUpKey(f) && <span role="status" className="text-[12px] text-red-400">não enviado</span>}
+                        <span title={hasSession(f.to) ? undefined : NO_SESSION}>
+                          <Button size="xs" variant="outline" disabled={!hasSession(f.to)} title={hasSession(f.to) ? undefined : NO_SESSION} onClick={() => nudge(i)}>Cobrar</Button>
+                        </span>
                       </li>
                     ))}
                   </ul>
@@ -116,6 +124,7 @@ export function EquipeHome({ state, bots, connected, onLoad, onOpenAgent, onSend
             value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Pedir algo para a equipe…" aria-label="Pedir algo para a equipe"
             className="min-w-0 flex-1 bg-transparent text-[14px] text-neutral-100 placeholder:text-neutral-500 focus:outline-hidden"
           />
+          {!primary?.sessionId && <span className="text-[12px] text-neutral-500">bot principal sem sessão</span>}
           <Button type="submit" size="sm" disabled={!draft.trim() || !primary?.sessionId}>Enviar</Button>
         </form>
       </div>

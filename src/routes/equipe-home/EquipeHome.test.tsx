@@ -44,6 +44,25 @@ describe('EquipeHome', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Cobrar' }));
     expect(p.onSendTo).toHaveBeenCalledWith('s-r', expect.stringContaining('Anderson aguarda'));
   });
+  it('Cobrar is disabled with a tooltip when the target has no session', () => {
+    const p = mount({ bots: [bot('a', { primary: true }), bot('z'), bot('r', { sessionId: undefined })] });
+    const btn = screen.getByRole('button', { name: 'Cobrar' }) as HTMLButtonElement;
+    expect(btn.disabled).toBe(true);
+    expect(btn.getAttribute('title')).toBe('bot sem sessão');
+    fireEvent.click(btn);
+    expect(p.onSendTo).not.toHaveBeenCalled();
+  });
+  it('shows "não enviado" when the nudge is rejected', () => {
+    mount({ onSendTo: vi.fn(() => false) });
+    fireEvent.click(screen.getByRole('button', { name: 'Cobrar' }));
+    expect(screen.getByText('não enviado')).toBeTruthy();
+  });
+  it('hints and disables the composer when the primary bot has no session', () => {
+    mount({ bots: [bot('a', { primary: true, sessionId: undefined }), bot('z'), bot('r')] });
+    fireEvent.change(screen.getByLabelText('Pedir algo para a equipe'), { target: { value: 'oi' } });
+    expect(screen.getByText('bot principal sem sessão')).toBeTruthy();
+    expect((screen.getByRole('button', { name: 'Enviar' }) as HTMLButtonElement).disabled).toBe(true);
+  });
   it('the composer sends to the primary bot', () => {
     const p = mount();
     fireEvent.change(screen.getByLabelText('Pedir algo para a equipe'), { target: { value: 'Priorize o Deck' } });
