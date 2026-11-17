@@ -40,6 +40,7 @@ interface RouteContentProps {
   agentRoute?: { id: string; tab: AgentTab; open: (id: string, tab?: AgentTab) => void };
   isMobile: boolean;
   isAdmin: boolean;
+  capsKnown: boolean;
   isRoot: boolean;
   connected: boolean;
   cockpit: ReturnType<typeof useCockpit>;
@@ -51,7 +52,7 @@ interface RouteContentProps {
   mobile: MobileState;
 }
 
-export function RouteContent({ route, agentRoute, isMobile, isAdmin, isRoot, connected, cockpit, chatProps, termProps, onOpenSession, agent, layout, mobile }: RouteContentProps) {
+export function RouteContent({ route, agentRoute, isMobile, isAdmin, capsKnown, isRoot, connected, cockpit, chatProps, termProps, onOpenSession, agent, layout, mobile }: RouteContentProps) {
   const c = cockpit;
   const { onSendTo, onLaunchAgent } = c;
   const prDeps = useMemo<ChatPrDeps | null>(
@@ -65,7 +66,7 @@ export function RouteContent({ route, agentRoute, isMobile, isAdmin, isRoot, con
           tab={route === '/equipe/memoria' ? 'memoria' : route === '/equipe/mundo' ? 'mundo' : 'rotinas'}
           teamState={c.teamState} onTeamStateGet={c.onTeamStateGet} meetings={c.meetings} onMeetingsGet={c.onMeetingsGet} onMeetingStart={c.onMeetingStart}
           memory={{ memories: c.memories, loaded: c.memoriesLoaded, onList: c.onMemList, onSave: c.onMemSave, onDelete: c.onMemDelete }}
-          views={agent.views} connected={connected} isAdmin={isAdmin}
+          views={agent.views} connected={connected} isAdmin={isAdmin} capsKnown={capsKnown}
           bots={c.bots} onOpenChat={agent.open}
           cron={{ crons: c.crons, loaded: c.cronsLoaded, onCronsGet: c.onCronsGet, onCronSave: c.onCronSave, onCronDelete: c.onCronDelete, onCronRun: c.onCronRun }}
           onGo={navigateTo} />
