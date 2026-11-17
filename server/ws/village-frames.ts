@@ -3,7 +3,7 @@ import { clampDailyCap, type VillageView } from '../../shared/village';
 import { readTasksChained } from '../planner/store';
 import { isTeamPaused } from '../team-log';
 import { dryRound } from '../village/round';
-import { readVillage, setVillageSettings } from '../village/store';
+import { appendVillageLog, readVillage, setVillageSettings } from '../village/store';
 import { send } from './broadcast';
 
 export async function villageView(): Promise<VillageView> {
@@ -38,4 +38,10 @@ export async function setVillageConfig(ws: WebSocket, msg: { enabled?: unknown; 
   }
   await setVillageSettings(patch);
   await sendVillage(ws);
+}
+
+export function refuseReady(ws: WebSocket, taskId: string, why: string, now: number): void {
+  console.error(`[village] ready refused task=${taskId.slice(0, 80)}: ${why}`);
+  void appendVillageLog({ at: now, event: 'ready refused', taskId: taskId.slice(0, 80), reason: why });
+  send(ws, { t: 'error', message: `ready refused: ${why}` });
 }

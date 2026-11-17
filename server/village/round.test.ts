@@ -5,12 +5,12 @@ import { CLAIM_STALE_MS, isClaimable, matchesUnsafeNet, planRound, type RoundInp
 const NOW = Date.UTC(2026, 10, 17, 15);
 const task = (o: Partial<PlannerTask>): PlannerTask => ({
   id: 't1', title: 'Write the docs', description: '', links: [], difficulty: 1, column: 'today', order: 1, createdAt: 1, updatedAt: 1,
-  ready: true, ownerBotId: 'bob', ...o,
+  ready: true, readyBy: 'human:box:dev1', readyAt: 1, ownerBotId: 'bob', ...o,
 });
 const team = [
-  { id: 'iris', sessionId: 's-iris', primary: true, department: 'direction' as const },
-  { id: 'bob', sessionId: 's-bob', department: 'engineering' as const },
-  { id: 'amy', sessionId: 's-amy', department: 'engineering' as const },
+  { id: 'iris', sessionId: 's-iris', primary: true, department: 'direction' as const, profile: 'restricted' as const },
+  { id: 'bob', sessionId: 's-bob', department: 'engineering' as const, profile: 'restricted' as const },
+  { id: 'amy', sessionId: 's-amy', department: 'engineering' as const, profile: 'restricted' as const },
 ];
 const input = (o: Partial<RoundInput>): RoundInput => ({
   tasks: [], team, state: { turns: {} }, now: NOW, config: { dailyCap: 6 }, running: new Set(), paused: false, ...o,

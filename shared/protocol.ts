@@ -957,7 +957,8 @@ export type ClientMsg =
   | { t: 'canvas-card-save'; card: CanvasCard }
   | { t: 'canvas-card-delete'; id: string }
   | { t: 'planner-get' }
-  | { t: 'planner-task-save'; task: PlannerTask; confirmHuman?: boolean }
+  | { t: 'planner-task-save'; task: PlannerTask }
+  | { t: 'planner-task-ready'; id: string; ready: boolean }
   | { t: 'planner-task-delete'; id: string }
   | { t: 'planner-reorder'; moves: PlannerMove[] }
   | { t: 'planner-task-handoff'; id: string; handoff: Omit<TaskHandoff, 'at'> }

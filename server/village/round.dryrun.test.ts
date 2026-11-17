@@ -16,7 +16,7 @@ const bot = (id: string, o: Partial<TeamBot> = {}) =>
   ({ id, name: id, label: id, department: 'engineering', profile: 'restricted', sessionId: `s-${id}`, ...o } as unknown as TeamBot);
 const task = (id: string, o: Partial<PlannerTask> = {}): PlannerTask => ({
   id, title: `safe chore ${id}`, description: 'rename a variable', links: [], difficulty: 1,
-  column: 'today', order: 1, createdAt: NOW, updatedAt: NOW, ready: true, ownerBotId: 'luffy', ...o,
+  column: 'today', order: 1, createdAt: NOW, updatedAt: NOW, ready: true, readyBy: 'human:box:dev1', readyAt: NOW, ownerBotId: 'luffy', ...o,
 } as PlannerTask);
 const seedTasks = (t: PlannerTask[]) => writeFileSync(process.env.COCKPIT_PLANNER!, JSON.stringify({ tasks: t }));
 const seedVillage = (turns: Record<string, number>, cap = 6) =>
@@ -159,8 +159,7 @@ describe('V2 dry-run', () => {
     expect(r.released).toEqual([]);
   });
 
-  // SKIPPED ON PURPOSE: would exclude all 23/23 real team bots (all profile 'full'); not in BRIEF.md. Needs a product decision.
-  it.skip('(h) profile full never receives a task (owner)', async () => {
+  it('(h) profile full never receives a task (owner)', async () => {
     seedTasks([task('t1')]);
     const x = deps([bot('iris', { primary: true }), bot('luffy', { profile: 'full' })]); const r = await run(x.d);
     expect(x.deliver).not.toHaveBeenCalled();
@@ -168,8 +167,7 @@ describe('V2 dry-run', () => {
     expect(readTasks()[0].claim).toBeUndefined();
   });
 
-  // SKIPPED ON PURPOSE: would exclude all 23/23 real team bots (all profile 'full'); not in BRIEF.md. Needs a product decision.
-  it.skip('(h2) sector task skips the full-profile bot and goes to the restricted one', async () => {
+  it('(h2) sector task skips the full-profile bot and goes to the restricted one', async () => {
     seedTasks([task('t1', { ownerBotId: undefined, ownerSector: 'engineering' })]); seedVillage({ luffy: 5, zoro: 0 });
     const x = deps([bot('iris', { primary: true, department: 'direction' }), bot('zoro', { profile: 'full' }), bot('luffy')]);
     const r = await run(x.d);
@@ -296,48 +294,67 @@ describe('V2 dry-run: full risk list (spec item 4)', () => {
 });
 
 describe('V2 dry-run: ready boundary (planner store)', () => {
-  const S = async () => (await import('../planner/store')).sanitizeTask;
+  const M = async () => import('../planner/store');
   const base = (o: Record<string, unknown> = {}) => ({ id: 't1', title: 'a', description: '', column: 'today', ...o });
+  const humanReady = async (o: Record<string, unknown> = {}) => {
+    const { sanitizeTask, markReady } = await M();
+    const r = markReady(sanitizeTask(base(o), undefined, NOW)!, 'box:dev1', NOW);
+    if (!r.ok) throw new Error(r.reason);
+    return r.task;
+  };
 
-  it('(1) bot-origin frame cannot set ready (TL or Iris alike): no opts => not ready', async () => {
-    const sanitize = await S();
-    expect(sanitize(base({ ready: true }), undefined, NOW)?.ready).toBeUndefined();
-    expect(sanitize(base({ ready: true, readyBy: 'human' }), undefined, NOW)?.ready).toBeUndefined();
-    expect(sanitize(base({ ready: true }), undefined, NOW, { trusted: false })?.ready).toBeUndefined();
+  it('(1) a bot-origin save cannot set ready, with or without forged readyBy (TL or Iris alike)', async () => {
+    const { sanitizeTask, readyAttempt } = await M();
+    for (const raw of [base({ ready: true }), base({ ready: true, readyBy: 'human:forged', readyAt: NOW })]) {
+      expect(sanitizeTask(raw, undefined, NOW)?.ready).toBeUndefined();
+      expect(sanitizeTask(raw, undefined, NOW, { human: 'box:dev1' })?.ready).toBeUndefined();
+      expect(readyAttempt(raw, undefined)).toBe(true);
+    }
   });
 
-  it('(1b) human-confirmed UI path can set ready (control)', async () => {
-    const sanitize = await S();
-    expect(sanitize(base({ ready: true }), undefined, NOW, { humanConfirmed: true })?.ready).toBe(true);
+  it('(1b) only markReady (the human frame) sets ready, stamping readyBy and readyAt', async () => {
+    const t = await humanReady();
+    expect(t).toMatchObject({ ready: true, readyBy: 'human:box:dev1', readyAt: NOW });
   });
 
   it('(2) edit after ready clears ready (title, description, links, unsafe)', async () => {
-    const sanitize = await S();
-    const prev = sanitize(base({ ready: true }), undefined, NOW, { humanConfirmed: true })!;
+    const { sanitizeTask } = await M();
+    const prev = await humanReady();
     for (const edit of [{ title: 'b' }, { description: 'x' }, { links: [{ url: 'https://a.dev', label: 'a' }] }, { unsafe: true }]) {
-      expect(sanitize(base({ ready: true, ...edit }), prev, NOW + 1)?.ready, JSON.stringify(edit)).toBeUndefined();
+      const next = sanitizeTask({ ...prev, ...edit }, prev, NOW + 1)!;
+      expect([next.ready, next.readyBy, next.readyAt], JSON.stringify(edit)).toEqual([undefined, undefined, undefined]);
     }
   });
 
   it('(2b) moving column does NOT clear ready', async () => {
-    const sanitize = await S();
-    const prev = sanitize(base({ ready: true }), undefined, NOW, { humanConfirmed: true })!;
-    expect(sanitize(base({ ready: true, column: 'week' }), prev, NOW + 1)?.ready).toBe(true);
+    const { sanitizeTask } = await M();
+    const prev = await humanReady();
+    expect(sanitizeTask({ ...prev, column: 'week' }, prev, NOW + 1)).toMatchObject({ ready: true, readyBy: 'human:box:dev1' });
   });
 
   it('(3) owner change (bot or sector) clears ready', async () => {
-    const sanitize = await S();
-    const prev = sanitize(base({ ready: true, ownerBotId: 'luffy' }), undefined, NOW, { humanConfirmed: true })!;
-    expect(sanitize(base({ ready: true, ownerBotId: 'zoro' }), prev, NOW + 1)?.ready).toBeUndefined();
-    expect(sanitize(base({ ready: true, ownerBotId: 'luffy', ownerSector: 'growth' }), prev, NOW + 1)?.ready).toBeUndefined();
+    const { sanitizeTask } = await M();
+    const prev = await humanReady({ ownerBotId: 'luffy' });
+    expect(sanitizeTask({ ...prev, ownerBotId: 'zoro' }, prev, NOW + 1)?.ready).toBeUndefined();
+    expect(sanitizeTask({ ...prev, ownerSector: 'growth' }, prev, NOW + 1)?.ready).toBeUndefined();
   });
 
   it('(B3) wantReady: reason <= 140, no newline, never makes a task claimable', async () => {
-    const sanitize = await S();
-    const t = sanitize(base({ wantReady: { by: 'luffy', reason: 'a\nb', at: NOW } }), undefined, NOW) as unknown as { wantReady?: { reason: string }; ready?: boolean };
+    const { sanitizeTask } = await M();
+    const t = sanitizeTask(base({ wantReady: { by: 'luffy', reason: 'a\nb', at: NOW } }), undefined, NOW)!;
     expect(t.ready).toBeUndefined();
-    expect(t.wantReady?.reason ?? '').not.toMatch(/\n/);
-    const long = sanitize(base({ wantReady: { by: 'luffy', reason: 'x'.repeat(300), at: NOW } }), undefined, NOW) as unknown as { wantReady?: { reason: string } };
-    expect((long.wantReady?.reason ?? '').length).toBeLessThanOrEqual(140);
+    expect(t.wantReady?.reason).toBe('a b');
+    const long = sanitizeTask(base({ wantReady: { by: 'luffy', reason: 'x'.repeat(300), at: NOW } }), undefined, NOW)!;
+    expect(long.wantReady?.reason).toHaveLength(140);
+    const { isClaimable } = await import('./round');
+    expect(isClaimable(t)).toBe(false);
+  });
+
+  it('(B1) a task whose readyBy is not human:* is never picked', async () => {
+    for (const readyBy of [undefined, 'human', 'bot:luffy', 'human:']) {
+      seedTasks([task('t1', { readyBy } as Partial<PlannerTask>)]);
+      const x = deps(team()); await run(x.d);
+      expect(x.deliver, String(readyBy)).not.toHaveBeenCalled();
+    }
   });
 });

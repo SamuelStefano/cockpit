@@ -1332,8 +1332,9 @@ async function cmdTriage(flags: Flags, json: boolean): Promise<void> {
 
 // --- task commands (personal Kanban planner) ----------------------------
 
-const TASK_BOOL_FLAGS = new Set(['json', 'all', 'force', 'clear-links', 'ready', 'no-ready', 'unready', 'unsafe', 'safe', 'confirm-human']);
-const TASK_VALUE_FLAGS = new Set(['col', 'desc', 'diff', 'link', 'title', 'ref', 'tag', 'owner', 'to', 'from', 'done', 'pending', 'reason', 'switch', 'sector']);
+const TASK_BOOL_FLAGS = new Set(['json', 'all', 'force', 'clear-links', 'unsafe']);
+const TASK_REFUSED_FLAGS = new Set(['ready', 'no-ready', 'unready', 'safe', 'confirm-human']);
+const TASK_VALUE_FLAGS = new Set(['col', 'desc', 'diff', 'link', 'title', 'ref', 'tag', 'owner', 'to', 'from', 'done', 'pending', 'reason', 'switch', 'sector', 'want-ready']);
 
 export interface TaskArgs { positional: string[]; flags: Flags; links: string[] }
 
@@ -1348,6 +1349,7 @@ export function parseTaskArgs(args: string[]): TaskArgs {
     const a = args[i];
     if (!a.startsWith('--')) { positional.push(a); continue; }
     const name = a.slice(2);
+    if (TASK_REFUSED_FLAGS.has(name)) throw new Error(`--${name} is not available here: only a human can mark a task ready (or clear unsafe), from the Deck UI. Use --want-ready "<reason>" to suggest it`);
     if (TASK_BOOL_FLAGS.has(name)) { flags[name] = true; continue; }
     if (!TASK_VALUE_FLAGS.has(name)) throw new Error(`unknown flag "--${name}"`);
     const next = args[i + 1];
@@ -1397,23 +1399,23 @@ export function parseOwner(team: Pick<TeamBot, 'id' | 'name'>[], v: string): str
   return v.trim().toLowerCase() === 'none' ? undefined : resolveBot(team, v).id;
 }
 
-export interface TaskSeal { ready?: boolean; unsafe?: boolean; confirmHuman?: boolean }
+export interface TaskSeal { unsafe?: true; wantReady?: string }
 
 export function parseSeal(flags: Flags): TaskSeal {
-  const unready = flags['no-ready'] === true || flags.unready === true;
-  if (flags.ready === true && unready) throw new Error('--ready and --unready conflict');
-  if (flags.unsafe === true && flags.safe === true) throw new Error('--unsafe and --safe conflict');
   const seal: TaskSeal = {};
-  if (flags.ready === true) seal.ready = true;
-  if (unready) seal.ready = false;
   if (flags.unsafe === true) seal.unsafe = true;
-  if (flags.safe === true) seal.unsafe = false;
-  if (flags['confirm-human'] === true) seal.confirmHuman = true;
-  if ((seal.ready === true || seal.unsafe === false) && !seal.confirmHuman) {
-    throw new Error('--ready and --safe widen what the village may pick up: only a human may use them, with --confirm-human');
+  const w = flagStr(flags, 'want-ready');
+  if (w !== undefined) {
+    const reason = w.trim();
+    if (!reason) throw new Error('--want-ready needs a reason');
+    if (/[\r\n]/.test(reason)) throw new Error('--want-ready reason must be a single line');
+    if (reason.length > PLANNER_LIMITS.wantReadyReason) throw new Error(`--want-ready reason too long — max ${PLANNER_LIMITS.wantReadyReason} chars`);
+    seal.wantReady = reason;
   }
   return seal;
 }
+
+const botLabel = (): string => (process.env.DECK_BOT_ID ?? '').trim().slice(0, 80) || 'bot';
 
 export function parseSector(v: string): DepartmentId | null {
   const id = v.trim().toLowerCase();
@@ -1422,10 +1424,10 @@ export function parseSector(v: string): DepartmentId | null {
   return id;
 }
 
-export function applySeal(task: PlannerTask, seal: TaskSeal, sector: DepartmentId | null | undefined): void {
+export function applySeal(task: PlannerTask, seal: TaskSeal, sector: DepartmentId | null | undefined, by = 'bot'): void {
   const t = task as unknown as Record<string, unknown>;
-  if (seal.ready !== undefined) t.ready = seal.ready ? true : false;
-  if (seal.unsafe !== undefined) t.unsafe = seal.unsafe ? true : false;
+  if (seal.unsafe !== undefined) t.unsafe = true;
+  if (seal.wantReady !== undefined) t.wantReady = { by, reason: seal.wantReady, at: Date.now() };
   if (sector !== undefined) t.ownerSector = sector;
 }
 
@@ -1474,7 +1476,7 @@ export function formatTaskList(tasks: PlannerTask[], opts: { col?: PlannerColumn
     lines.push(`${COLUMN_LABELS[col]} (${shown.length})${note}`);
     for (const t of shown) {
       const n = t.links.length;
-      const meta = [t.ref, t.tag && `#${t.tag}`, t.ready && 'READY', t.unsafe && 'UNSAFE', t.claim && 'DOING', t.ownerSector && `sector:${t.ownerSector}`].filter(Boolean).join(' ');
+      const meta = [t.ref, t.tag && `#${t.tag}`, t.ready && 'READY', t.wantReady && !t.ready && 'WANT-READY', t.unsafe && 'UNSAFE', t.claim && 'DOING', t.ownerSector && `sector:${t.ownerSector}`].filter(Boolean).join(' ');
       lines.push(`  ${shortId(t.id)}  [${t.difficulty}] ${oneLine(t.title, 100)}${t.ownerBotId ? ` @${opts.nameOf?.(t.ownerBotId) ?? t.ownerBotId}` : ''}${meta ? `  ${meta}` : ''}${n ? `  (${n} ${n === 1 ? 'link' : 'links'})` : ''}`);
       const desc = t.description.split('\n').find((l) => l.trim())?.trim();
       if (desc) lines.push(`      ${oneLine(desc, 120)}`);
@@ -1495,7 +1497,7 @@ export function sameTaskContent(a: PlannerTask, b: PlannerTask): boolean {
   return a.id === b.id && a.title === b.title && a.description === b.description && a.difficulty === b.difficulty
     && a.column === b.column && JSON.stringify(a.links) === JSON.stringify(b.links)
     && (a.ref ?? '') === (b.ref ?? '') && (a.tag ?? '') === (b.tag ?? '') && (a.ownerBotId ?? '') === (b.ownerBotId ?? '')
-    && !!a.ready === !!b.ready && !!a.unsafe === !!b.unsafe && (a.ownerSector ?? '') === (b.ownerSector ?? '');
+    && !!a.unsafe === !!b.unsafe && (a.ownerSector ?? '') === (b.ownerSector ?? '');
 }
 
 const boardWithTask = (ok: (tasks: PlannerTask[]) => boolean) =>
@@ -1519,8 +1521,9 @@ function orFail<T>(fn: () => T): T {
   try { return fn(); } catch (e) { return fail((e as Error).message); }
 }
 
-async function saveTask(client: Client, task: PlannerTask, confirmHuman = false): Promise<void> {
-  client.send({ t: 'planner-task-save', task: { ...task, updatedAt: Date.now() }, ...(confirmHuman ? { confirmHuman: true } : {}) });
+async function saveTask(client: Client, task: PlannerTask): Promise<void> {
+  const { ready: _r, readyBy: _b, readyAt: _a, claim: _c, ...rest } = task;
+  client.send({ t: 'planner-task-save', task: { ...rest, updatedAt: Date.now() } });
   await mutationAck(client, boardWithTask((list) => list.some((t) => sameTaskContent(t, task))), 'planner-task-save');
 }
 
@@ -1549,7 +1552,7 @@ async function cmdTaskList(args: string[]): Promise<void> {
 async function cmdTaskAdd(args: string[]): Promise<void> {
   const { positional, flags, links } = orFail(() => parseTaskArgs(args));
   const title = positional[0]?.trim().slice(0, PLANNER_LIMITS.title);
-  if (!title) fail('usage: deckctl task add "<title>" [--col today|week|backlog] [--desc D] [--diff 1|2|3] [--ref R] [--tag T] [--owner BOT|none] [--ready --confirm-human] [--unsafe] [--sector DEPT|none] [--link URL[|label]]... [--force]');
+  if (!title) fail('usage: deckctl task add "<title>" [--col today|week|backlog] [--desc D] [--diff 1|2|3] [--ref R] [--tag T] [--owner BOT|none] [--unsafe] [--want-ready "reason"] [--sector DEPT|none] [--link URL[|label]]... [--force]');
   const column = orFail(() => parseColumn(flagStr(flags, 'col') ?? 'backlog'));
   if (column === 'done') fail('tasks are added to today, week or backlog — use "deckctl task done <id>" to finish one');
   const difficulty = orFail(() => parseDifficulty(flagStr(flags, 'diff') ?? '1'));
@@ -1575,8 +1578,8 @@ async function cmdTaskAdd(args: string[]): Promise<void> {
       links: taskLinks, difficulty, column, order: topOrder(tasks, column), createdAt: now, updatedAt: now, source: 'agent',
       ...(ref ? { ref } : {}), ...(tag ? { tag } : {}), ...(ownerBotId ? { ownerBotId } : {}),
     };
-    applySeal(task, seal, sector);
-    await saveTask(client, task, seal.confirmHuman === true);
+    applySeal(task, seal, sector, botLabel());
+    await saveTask(client, task);
     console.log(`task created: ${task.id}`);
   });
 }
@@ -1618,8 +1621,8 @@ async function cmdTaskEdit(idPrefix: string, args: string[]): Promise<void> {
   const sector = sectorRaw === undefined ? undefined : orFail(() => parseSector(sectorRaw));
   if (title === '') fail('--title cannot be empty');
   if (title === undefined && desc === undefined && colRaw === undefined && diffRaw === undefined && refRaw === undefined && tagRaw === undefined && ownerRaw === undefined && !links.length && !clear
-    && seal.ready === undefined && seal.unsafe === undefined && sector === undefined) {
-    fail('nothing to change — pass --title, --desc, --diff, --ref, --tag, --owner, --ready/--no-ready, --unsafe/--safe, --sector, --link, --clear-links or --col');
+    && seal.wantReady === undefined && seal.unsafe === undefined && sector === undefined) {
+    fail('nothing to change — pass --title, --desc, --diff, --ref, --tag, --owner, --unsafe, --want-ready, --sector, --link, --clear-links or --col');
   }
   const ref = refRaw === undefined ? undefined : orFail(() => parseRef(refRaw));
   const tag = tagRaw === undefined ? undefined : orFail(() => parseTag(tagRaw));
@@ -1642,12 +1645,12 @@ async function cmdTaskEdit(idPrefix: string, args: string[]): Promise<void> {
       next.ref = ref;
     }
     if (tag !== undefined) next.tag = tag;
-    applySeal(next, seal, sector);
+    applySeal(next, seal, sector, botLabel());
     if (column !== undefined && column !== task.column) {
       next.column = column;
       next.order = topOrder(tasks.filter((t) => t.id !== task.id), column);
     }
-    await saveTask(client, next, seal.confirmHuman === true);
+    await saveTask(client, next);
     console.log(`task ${task.id} updated`);
   });
 }
@@ -1696,7 +1699,7 @@ async function cmdTask(args: string[]): Promise<void> {
     return cmdTaskDone(rest[0], rest.slice(1));
   }
   if (sub === 'edit') {
-    if (!rest[0] || rest[0].startsWith('--')) fail('usage: deckctl task edit <id> [--title T] [--desc D] [--diff N] [--ref R] [--tag T] [--owner BOT|none] [--ready|--no-ready] [--unsafe|--safe] [--sector DEPT|none] [--link URL[|label]]... [--clear-links] [--col C]');
+    if (!rest[0] || rest[0].startsWith('--')) fail('usage: deckctl task edit <id> [--title T] [--desc D] [--diff N] [--ref R] [--tag T] [--owner BOT|none] [--unsafe] [--want-ready "reason"] [--sector DEPT|none] [--link URL[|label]]... [--clear-links] [--col C]');
     return cmdTaskEdit(rest[0], rest.slice(1));
   }
   if (sub === 'handoff') {
@@ -1847,10 +1850,10 @@ Usage: deckctl <command> [args] [--json]
   card rm <id>                              delete a card
   card run <id> [--fork <parentSessionId>]  run a card (optionally as a fork of an existing session)
   task list [--col C] [--all]               the person's personal Kanban (today|week|backlog|done); done = last 7 days unless --all
-  task add "<title>" [--col C] [--desc D] [--diff 1|2|3] [--ref R] [--tag T] [--owner BOT|none] [--ready] [--unsafe] [--sector DEPT|none] [--link URL[|label]]... [--force]   add to the top of a column (default backlog); refuses an existing ref
+  task add "<title>" [--col C] [--desc D] [--diff 1|2|3] [--ref R] [--tag T] [--owner BOT|none] [--unsafe] [--want-ready "reason"] [--sector DEPT|none] [--link URL[|label]]... [--force]   add to the top of a column (default backlog); refuses an existing ref
   task move <id> <col>                      move a task (today|week|backlog|done)
   task done <id> [--link URL[|label]]...    finish a task, optionally attaching the PR/result links
-  task edit <id> [--title T] [--desc D] [--diff N] [--ref R] [--tag T] [--owner BOT|none] [--ready|--unready] [--unsafe|--safe] [--confirm-human] [--sector DEPT|none] [--link URL]... [--clear-links] [--col C]
+  task edit <id> [--title T] [--desc D] [--diff N] [--ref R] [--tag T] [--owner BOT|none] [--unsafe] [--want-ready "reason"] [--sector DEPT|none] [--link URL]... [--clear-links] [--col C]
   task handoff <id> --to BOT --done ".." --pending ".." --reason ".." --switch ".." [--from BOT]   record that ownership moves to another bot
   task rm <id>                              delete a task
   village status|on|off                     the self-sustaining village (admin): enabled flag, daily cap, who holds a claim

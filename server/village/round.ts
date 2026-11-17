@@ -2,7 +2,8 @@ import { randomBytes } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { TeamBot } from '../../shared/protocol';
-import { PLANNER_LIMITS, type PlannerTask } from '../../shared/planner';
+import { PLANNER_LIMITS, READY_BY_RE, type PlannerTask } from '../../shared/planner';
+import { isUnsafeTask, matchesUnsafeNet, normalizeText, UNSAFE_NET } from '../../shared/village-risk';
 import type { TeamMessage } from '../../shared/team-messages';
 import { VILLAGE_DEFAULT_DAILY_CAP, type VillagePlanView, type VillageState } from '../../shared/village';
 import { readTasksChained, updateTasks } from '../planner/store';
@@ -10,26 +11,10 @@ import { getTeam } from '../team';
 import { isTeamPaused, readTeamLog, teamOutboxDir } from '../team-log';
 import { addTurn, appendVillageLog, readVillage, recordEvent, turnsToday, updateVillage } from './store';
 
+export { matchesUnsafeNet, normalizeText, UNSAFE_NET };
 export const CLAIM_STALE_MS = 30 * 60_000;
 const COLUMN_RANK = { today: 0, week: 1, backlog: 2, done: 3 } as const;
 const MESSAGE_DESC_MAX = 3000;
-
-const UNSAFE_WORDS = [
-  'prod(?:uction|ucao)?', 'migration', 'migracao', 'rls', 'banco', 'database', 'sql', 'supabase', 'dinheiro', 'financeiro', 'financ\\w*',
-  'money', 'payment', 'pagamento', 'invoice', 'fatura', 'nfse', 'pix', 'stripe', 'woovi', 'reembolso', 'refund', 'deploy', 'docker', 'swarm',
-  'dokploy', 'infisical', 'cloudflare', 'dns', 'firewall', '0\\.0\\.0\\.0', 'porta', 'cron', 'relay', 'segredo', 'secret', 'token', 'senha',
-  'chave', 'credencial', 'credential', '\\.env', 'ssh', 'sudo', 'root', 'admin', 'permissao', 'revogar', 'rotacionar', 'irreversivel',
-  'irreversible', 'delet(?:e|ed|es|ing|ion)', 'drop(?:ped|ping)?', 'truncate', 'apagar', 'excluir', 'remover', '-rf', '--force', '--hard',
-  'main', 'postar', 'publicar', 'e-mail', 'email', 'cliente', 'plans', 'chatwoot', '(?:rm|reset|merge|na)\\\\',
-];
-export const UNSAFE_NET = new RegExp(`(?<![\\p{L}\\p{N}])(?:${UNSAFE_WORDS.join('|')})s?(?![\\p{L}\\p{N}])`, 'u');
-
-export const normalizeText = (s: string): string => s.normalize('NFKC').toLowerCase().normalize('NFD').replace(/\p{M}+/gu, '');
-
-export function matchesUnsafeNet(task: Pick<PlannerTask, 'title' | 'description'> & Partial<Pick<PlannerTask, 'links' | 'tag' | 'ref'>>): boolean {
-  const links = (task.links ?? []).map((l) => `${l.url} ${l.label}`).join('\n');
-  return UNSAFE_NET.test(normalizeText(`${task.title}\n${task.description}\n${links}\n${task.tag ?? ''}\n${task.ref ?? ''}`));
-}
 
 export interface RoundConfig { dailyCap: number }
 export interface RoundClaim { taskId: string; botId: string }
@@ -39,7 +24,7 @@ export interface RoundPlan { claims: RoundClaim[]; releases: RoundRelease[]; ski
 
 export interface RoundInput {
   tasks: PlannerTask[];
-  team: Pick<TeamBot, 'id' | 'department' | 'primary' | 'sessionId'>[];
+  team: Pick<TeamBot, 'id' | 'department' | 'primary' | 'sessionId' | 'profile'>[];
   state: Pick<VillageState, 'turns'>;
   now: number;
   config: RoundConfig;
@@ -48,8 +33,11 @@ export interface RoundInput {
   log?: Pick<TeamMessage, 'from' | 'ts' | 'status'>[];
 }
 
+export const isHumanReady = (t: PlannerTask): boolean =>
+  t.ready === true && typeof t.readyBy === 'string' && READY_BY_RE.test(t.readyBy) && typeof t.readyAt === 'number' && t.readyAt > 0;
+
 export function isClaimable(t: PlannerTask): boolean {
-  return t.ready === true && t.source !== 'agent' && t.unsafe !== true && !t.claim && t.column !== 'done' && !matchesUnsafeNet(t);
+  return isHumanReady(t) && t.source !== 'agent' && !t.claim && t.column !== 'done' && !isUnsafeTask(t);
 }
 
 function candidates(t: PlannerTask, team: RoundInput['team']): RoundInput['team'] {
@@ -79,7 +67,9 @@ export function planRound(i: RoundInput): RoundPlan {
     .filter(isClaimable)
     .sort((a, b) => COLUMN_RANK[a.column] - COLUMN_RANK[b.column] || a.order - b.order);
   for (const t of open) {
-    const all = candidates(t, i.team);
+    const owners = candidates(t, i.team);
+    const all = owners.filter((b) => b.profile === 'restricted');
+    for (const b of owners) if (b.profile !== 'restricted') plan.skips.push({ taskId: t.id, botId: b.id, reason: 'bot profile is not restricted' });
     const withSession = all.filter((b) => b.sessionId);
     if (all.length > 0 && withSession.length === 0) {
       for (const b of all) plan.skips.push({ taskId: t.id, botId: b.id, reason: 'bot has no session' });
@@ -96,7 +86,7 @@ export function planRound(i: RoundInput): RoundPlan {
   return plan;
 }
 
-export function claimMessage(task: PlannerTask, profile: TeamBot['profile'] = 'restricted'): string {
+export function claimMessage(task: PlannerTask): string {
   const quote = (v: string) => v.split('\n').map((l) => `> ${l}`).join('\n');
   const desc = task.description.trim().slice(0, MESSAGE_DESC_MAX);
   const lines = [
@@ -107,12 +97,7 @@ export function claimMessage(task: PlannerTask, profile: TeamBot['profile'] = 'r
     desc ? quote(`Description: ${desc}`) : '',
     'If anything turns out unsafe (production, database, money, secrets, irreversible), stop and ask the human.',
   ];
-  if (profile === 'full') {
-    lines.push('Work under the NORMAL rules: feature branch, merge by risk.');
-    lines.push(`Mark progress with "deckctl task edit ${task.id}" / "deckctl task done ${task.id}" and report to the primary bot when done.`);
-  } else {
-    lines.push('Report to the primary bot when done or blocked.');
-  }
+  lines.push('Report to the primary bot when done or blocked.');
   return lines.filter((l) => l !== '').join('\n');
 }
 
@@ -253,7 +238,7 @@ export async function runRound(deps?: RoundDeps): Promise<RoundResult> {
     }
     let delivered = false;
     try {
-      const m = await d.deliver(await spool(sender, c.botId, claimMessage(task, team.find((b) => b.id === c.botId)?.profile), now));
+      const m = await d.deliver(await spool(sender, c.botId, claimMessage(task), now));
       delivered = m?.status === 'delivered' || m?.status === 'queued';
     } catch { delivered = false; }
     if (delivered) {

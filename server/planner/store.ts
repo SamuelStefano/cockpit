@@ -3,9 +3,10 @@ import { readFile, writeFile, mkdir, rename } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
 import {
-  PLANNER_COLUMNS, PLANNER_ID_RE, PLANNER_LIMITS, PLANNER_REF_RE,
-  type PlannerColumn, type PlannerDifficulty, type PlannerLink, type PlannerMove, type PlannerTask, type TaskClaim,
+  PLANNER_COLUMNS, PLANNER_ID_RE, PLANNER_LIMITS, PLANNER_REF_RE, READY_BY_RE,
+  type PlannerColumn, type PlannerDifficulty, type PlannerLink, type PlannerMove, type PlannerTask, type TaskClaim, type WantReady,
 } from '../../shared/planner';
+import { isUnsafeTask } from '../../shared/village-risk';
 import { isDepartmentId } from '../../shared/departments';
 import { sanitizeHandoffs } from '../../shared/task-handoff';
 import { withFileLockAsync } from '../ws/file-lock';
@@ -64,7 +65,33 @@ function sanitizeClaim(v: unknown): TaskClaim | undefined {
   return out;
 }
 
-export interface SanitizeOpts { trusted?: boolean; humanConfirmed?: boolean }
+function sanitizeWantReady(v: unknown, prev: WantReady | undefined, now: number, trusted: boolean): WantReady | undefined {
+  const w = v as Partial<WantReady> | null | undefined;
+  if (!w || typeof w !== 'object' || typeof w.reason !== 'string') return undefined;
+  const reason = w.reason.replace(/[\r\n\u2028\u2029]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, PLANNER_LIMITS.wantReadyReason).trim();
+  if (!reason) return undefined;
+  const by = sanitizeOwner(w.by) ?? 'bot';
+  const at = trusted && finite(w.at) && w.at > 0 ? w.at : prev && prev.by === by && prev.reason === reason ? prev.at : now;
+  return { by, reason, at };
+}
+
+export interface SanitizeOpts { trusted?: boolean; human?: string }
+
+export function readyAttempt(raw: unknown, prev: PlannerTask | undefined): boolean {
+  const r = raw as { ready?: unknown } | null | undefined;
+  return !!r && typeof r === 'object' && r.ready === true && prev?.ready !== true;
+}
+
+export type MarkReadyResult = { ok: true; task: PlannerTask } | { ok: false; reason: string };
+
+export function markReady(task: PlannerTask, human: string, now: number): MarkReadyResult {
+  const readyBy = `human:${human}`;
+  if (!READY_BY_RE.test(readyBy)) return { ok: false, reason: 'no verified human identity' };
+  if (task.column === 'done') return { ok: false, reason: 'task is done' };
+  if (isUnsafeTask(task)) return { ok: false, reason: 'task is unsafe' };
+  const { wantReady: _w, ...rest } = task;
+  return { ok: true, task: { ...rest, ready: true, readyBy, readyAt: now, updatedAt: now } };
+}
 
 export function sanitizeTask(raw: unknown, prev: PlannerTask | undefined, now: number, opts: SanitizeOpts = {}): PlannerTask | null {
   const r = raw as Partial<PlannerTask> | null | undefined;
@@ -91,15 +118,21 @@ export function sanitizeTask(raw: unknown, prev: PlannerTask | undefined, now: n
   const ownerBotId = 'ownerBotId' in r ? sanitizeOwner(r.ownerBotId) : prev?.ownerBotId;
   if (ownerBotId) task.ownerBotId = ownerBotId;
   if (column !== 'done') {
-    const open = opts.trusted || opts.humanConfirmed;
-    const wantReady = 'ready' in r ? r.ready === true : prev?.ready === true;
+    const open = !!opts.trusted || !!opts.human;
     const wantUnsafe = 'unsafe' in r ? r.unsafe === true : prev?.unsafe === true;
     if (wantUnsafe || (prev?.unsafe === true && !open)) task.unsafe = true;
     const ownerSectorNext = 'ownerSector' in r ? (isDepartmentId(r.ownerSector) ? r.ownerSector : undefined) : prev?.ownerSector;
     const edited = !!prev && (task.title !== prev.title || task.description !== prev.description
       || JSON.stringify(task.links) !== JSON.stringify(prev.links) || !!task.unsafe !== !!prev.unsafe
       || task.ownerBotId !== prev.ownerBotId || ownerSectorNext !== prev.ownerSector);
-    if (wantReady && (open || (prev?.ready === true && !edited))) task.ready = true;
+    const src = opts.trusted ? r : prev && !edited && (r as { ready?: unknown }).ready !== false ? prev : undefined;
+    if (src?.ready === true && typeof src.readyBy === 'string' && READY_BY_RE.test(src.readyBy) && finite(src.readyAt) && src.readyAt > 0) {
+      task.ready = true;
+      task.readyBy = src.readyBy;
+      task.readyAt = src.readyAt;
+    }
+    const wantReady = 'wantReady' in r ? sanitizeWantReady(r.wantReady, prev?.wantReady, now, !!opts.trusted) : prev?.wantReady;
+    if (wantReady) task.wantReady = wantReady;
   }
   const ownerSector = 'ownerSector' in r ? (isDepartmentId(r.ownerSector) ? r.ownerSector : undefined) : prev?.ownerSector;
   if (ownerSector) task.ownerSector = ownerSector;
@@ -123,7 +156,7 @@ export function applyMoves(tasks: PlannerTask[], moves: unknown, now: number): P
     const next: PlannerTask = { ...prev, column: m.column, order: m.order, updatedAt: now };
     if (m.column === 'done') next.doneAt = prev.column === 'done' && prev.doneAt ? prev.doneAt : now;
     else delete next.doneAt;
-    if (m.column === 'done') { delete next.claim; delete next.ready; }
+    if (m.column === 'done') { delete next.claim; delete next.ready; delete next.readyBy; delete next.readyAt; delete next.wantReady; }
     byId.set(prev.id, next);
   }
   return tasks.map((t) => byId.get(t.id) ?? t);

@@ -17,7 +17,7 @@ export function applyHandoff(task: PlannerTask, handoff: TaskHandoff): HandoffRe
   if (!clean) return { ok: false, reason: 'passagem incompleta: done, pending, reason e switchPoint são obrigatórios' };
   if (clean.toBotId === task.ownerBotId) return { ok: false, reason: 'o destinatário já é o dono da tarefa' };
   const handoffs = [...(task.handoffs ?? []), clean].slice(-PLANNER_LIMITS.handoffs);
-  const { claim: _claim, ...rest } = task;
+  const { claim: _claim, ready: _ready, readyBy: _by, readyAt: _at, ...rest } = task;
   return { ok: true, task: { ...rest, ownerBotId: clean.toBotId, handoffs, updatedAt: clean.at } };
 }
 

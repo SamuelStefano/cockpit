@@ -246,21 +246,25 @@ describe('task owner', () => {
 });
 
 describe('village flags', () => {
-  it('parses ready/unsafe toggles and sector', () => {
-    const r = parseTaskArgs(['--ready', '--unsafe', '--confirm-human', '--sector', 'growth', 'Title']);
+  it('parses unsafe, want-ready and sector', () => {
+    const r = parseTaskArgs(['--unsafe', '--want-ready', 'looks done', '--sector', 'growth', 'Title']);
     expect(r.positional).toEqual(['Title']);
-    expect(parseSeal(r.flags)).toEqual({ ready: true, unsafe: true, confirmHuman: true });
-    expect(parseSeal(parseTaskArgs(['--unready', '--unsafe']).flags)).toEqual({ ready: false, unsafe: true });
-    expect(parseSeal(parseTaskArgs(['--safe', '--confirm-human']).flags)).toEqual({ unsafe: false, confirmHuman: true });
+    expect(parseSeal(r.flags)).toEqual({ unsafe: true, wantReady: 'looks done' });
     expect(parseSeal(parseTaskArgs([]).flags)).toEqual({});
+    expect(() => parseTaskArgs(['--sector'])).toThrow(/needs a value/);
   });
 
-  it('rejects conflicting toggles and a missing sector value', () => {
-    expect(() => parseSeal(parseTaskArgs(['--ready', '--no-ready']).flags)).toThrow(/conflict/);
-    expect(() => parseSeal(parseTaskArgs(['--ready']).flags)).toThrow(/confirm-human/);
-    expect(() => parseSeal(parseTaskArgs(['--safe']).flags)).toThrow(/confirm-human/);
-    expect(() => parseSeal(parseTaskArgs(['--unsafe', '--safe']).flags)).toThrow(/conflict/);
-    expect(() => parseTaskArgs(['--sector'])).toThrow(/needs a value/);
+  it('refuses every flag that would mark a task ready or clear unsafe', () => {
+    for (const f of ['--ready', '--no-ready', '--unready', '--safe', '--confirm-human']) {
+      expect(() => parseTaskArgs([f]), f).toThrow(/only a human/);
+    }
+  });
+
+  it('validates the want-ready reason', () => {
+    expect(() => parseSeal({ 'want-ready': '   ' })).toThrow(/needs a reason/);
+    expect(() => parseSeal({ 'want-ready': 'a\nb' })).toThrow(/single line/);
+    expect(() => parseSeal({ 'want-ready': 'x'.repeat(141) })).toThrow(/too long/);
+    expect(parseSeal({ 'want-ready': 'x'.repeat(140) }).wantReady).toHaveLength(140);
   });
 
   it('validates the sector id and accepts none', () => {
@@ -269,23 +273,26 @@ describe('village flags', () => {
     expect(() => parseSector('sales')).toThrow(/invalid sector/);
   });
 
-  it('applySeal writes explicit values so the server can clear them', () => {
-    const t = task({ ready: true, ownerSector: 'growth' });
-    applySeal(t, { ready: false }, null);
-    expect(t.ready).toBe(false);
+  it('applySeal writes wantReady, unsafe and sector, never ready', () => {
+    const t = task({ ownerSector: 'growth' });
+    applySeal(t, { unsafe: true, wantReady: 'why' }, null, 'luffy');
+    const r = t as unknown as Record<string, unknown>;
+    expect(r.unsafe).toBe(true);
+    expect(r.ready).toBeUndefined();
+    expect(r.wantReady).toMatchObject({ by: 'luffy', reason: 'why' });
     expect(t.ownerSector).toBeNull();
-    applySeal(t, {}, undefined);
-    expect(t.ready).toBe(false);
   });
 
-  it('sameTaskContent notices the new fields', () => {
-    expect(sameTaskContent(task({ ready: true }), task({}))).toBe(false);
-    expect(sameTaskContent(task({}), task({ ready: false as unknown as true }))).toBe(true);
+  it('sameTaskContent ignores ready but notices unsafe and sector', () => {
+    expect(sameTaskContent(task({ ready: true }), task({}))).toBe(true);
+    expect(sameTaskContent(task({ unsafe: true }), task({}))).toBe(false);
+    expect(sameTaskContent(task({ ownerSector: 'growth' }), task({}))).toBe(false);
   });
 
-  it('formatTaskList shows ready mark and sector', () => {
-    const out = formatTaskList([task({ column: 'today', ready: true, ownerSector: 'growth' })], { now: NOW }).join('\n');
+  it('formatTaskList shows ready, want-ready and sector marks', () => {
+    const out = formatTaskList([task({ column: 'today', ready: true, ownerSector: 'growth' }), task({ id: 'w', column: 'today', wantReady: { by: 'a', reason: 'r', at: 1 } })], { now: NOW }).join('\n');
     expect(out).toContain('READY');
+    expect(out).toContain('WANT-READY');
     expect(out).toContain('sector:growth');
   });
 });

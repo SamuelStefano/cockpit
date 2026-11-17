@@ -97,7 +97,7 @@ export function villageLogFile(): string {
   return process.env.COCKPIT_VILLAGE_LOG ?? join(homedir(), '.cockpit', 'village-log.jsonl');
 }
 
-export interface VillageLogEntry { at: number; event: 'claim' | 'release' | 'skip' | 'confirm'; taskId: string; botId?: string; reason?: string }
+export interface VillageLogEntry { at: number; event: 'claim' | 'release' | 'skip' | 'ready' | 'ready refused'; taskId: string; botId?: string; reason?: string }
 
 export async function appendVillageLog(e: VillageLogEntry): Promise<void> {
   try {

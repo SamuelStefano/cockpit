@@ -9,9 +9,9 @@ import { readTasks, updateTasks } from '../planner/store';
 import { readVillage, setVillageSettings } from './store';
 import { runRound, type RoundDeps } from './round';
 
-const bot = (id: string, o: Partial<TeamBot> = {}): TeamBot => ({ id, name: id, label: '', instructions: '', mascot: { shape: 'blob', color: '#fff' }, profile: 'full', createdAt: 0, updatedAt: 0, ...o });
+const bot = (id: string, o: Partial<TeamBot> = {}): TeamBot => ({ id, name: id, label: '', instructions: '', mascot: { shape: 'blob', color: '#fff' }, profile: 'restricted', createdAt: 0, updatedAt: 0, ...o });
 const team = [bot('iris', { primary: true, sessionId: 's-iris' }), bot('bob', { department: 'engineering', sessionId: 's-bob' })];
-const task = (o: Partial<PlannerTask> = {}): PlannerTask => ({ id: 't1', title: 'Write docs', description: 'polish', links: [], difficulty: 1, column: 'today', order: 1, createdAt: 1, updatedAt: 1, ...o });
+const task = (o: Partial<PlannerTask> = {}): PlannerTask => ({ ...(o.ready ? { readyBy: 'human:box:dev1', readyAt: 1 } : {}), id: 't1', title: 'Write docs', description: 'polish', links: [], difficulty: 1, column: 'today', order: 1, createdAt: 1, updatedAt: 1, ...o });
 
 let dir: string;
 beforeEach(async () => {
