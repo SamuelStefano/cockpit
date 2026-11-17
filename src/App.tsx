@@ -4,6 +4,7 @@ import { useEdgeSwipeOpen } from './components/useEdgeSwipeOpen';
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { memorizePrompt } from './components/chat/memorize';
 import { KanbanButton } from './components/planner/KanbanButton';
+import { VilaButton } from './components/chrome/VilaButton';
 import { Sidebar } from './components/chrome/sidebar/Sidebar';
 import { MobileTopBar } from './components/chrome/sidebar/MobileTopBar';
 import { TopBarSlotContext } from './components/chrome/sidebar/TopBarSlot';
@@ -242,7 +243,7 @@ function CockpitBody() {
     const bot = cockpit.bots.find((b) => (ref.id ? b.id === ref.id : b.name === ref.name));
     if (bot) cockpit.onOpenBot(bot.id, bot.sessionId, bot.name);
   };
-  const chatWithTeam = { ...chatProps, teamSlot: isAdmin && cockpit.planner ? <KanbanButton planner={cockpit.planner} bots={cockpit.bots} /> : undefined, footer: bodyFooter, sidePanel: isAdmin ? { api: cockpit.teamPanel, isMobile, onOpenBot: openPanelBot } : undefined };
+  const chatWithTeam = { ...chatProps, teamSlot: isAdmin ? <><VilaButton route={route} isAdmin={isAdmin} onGo={nav} />{cockpit.planner && <KanbanButton planner={cockpit.planner} bots={cockpit.bots} />}</> : undefined, footer: bodyFooter, sidePanel: isAdmin ? { api: cockpit.teamPanel, isMobile, onOpenBot: openPanelBot } : undefined };
   const openPalette = () => { setDrawer(false); setPalette(true); };
   const account = { userId: sbAuth.session?.user.id, onSignOut: SUPABASE_ENABLED ? sbAuth.signOut : undefined, onChangePassword: SUPABASE_ENABLED ? sbAuth.changePassword : undefined, drops: dropApi };
 
