@@ -35,7 +35,7 @@ describe('badgeText', () => {
 
 describe('deriveWorld', () => {
   it('returns an empty world without a snapshot', () => {
-    expect(deriveWorld(null)).toEqual({ npcs: [], flights: [] });
+    expect(deriveWorld(null)).toEqual({ npcs: [], flights: [], projects: {} });
   });
 
   it('keeps only name, mode and badge per bot', () => {
@@ -47,6 +47,10 @@ describe('deriveWorld', () => {
     ]);
     const dump = JSON.stringify(w);
     expect(dump).not.toContain('secret');
+  });
+
+  it('formats project counts and hides empty ones', () => {
+    expect(deriveWorld(state(), { projects: { itera: 4, dfl: 0 } }).projects).toEqual({ itera: '4' });
   });
 
   it('turns recent handoffs into flights and drops stale or unknown ones', () => {

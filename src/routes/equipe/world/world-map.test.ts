@@ -24,6 +24,7 @@ describe('world map', () => {
     for (const h of HOUSES) {
       const d = doorTiles(h)[0]!;
       const inside = { x: d.x, y: d.y - 2 };
+      expect(isBlocked(inside.x, inside.y)).toBe(false);
       const path = findPath(AVATAR_SPAWN, inside);
       expect(path.length).toBeGreaterThan(0);
       expect(path[path.length - 1]).toEqual(inside);
@@ -49,6 +50,20 @@ describe('world map', () => {
     const end = path[path.length - 1]!;
     expect(isBlocked(end.x, end.y)).toBe(false);
     expect(Math.abs(end.x - h.x)).toBeLessThanOrEqual(4);
+  });
+
+  it('gives every house its own furniture set, none on the walls', () => {
+    const sets = HOUSES.map((h) => h.items.map((i) => `${i.s}:${i.f}@${i.x},${i.y}`).sort().join('|'));
+    expect(new Set(sets).size).toBe(HOUSES.length);
+    for (const h of HOUSES) {
+      expect(h.items.length).toBeGreaterThan(20);
+      for (const i of h.items) {
+        expect(i.x).toBeGreaterThan(0);
+        expect(i.x).toBeLessThan(h.w - 1);
+        expect(i.y).toBeGreaterThan(0);
+        expect(i.y).toBeLessThan(h.h - 1);
+      }
+    }
   });
 
   it('returns no path for out-of-bounds targets and none when already there', () => {

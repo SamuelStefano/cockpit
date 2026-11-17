@@ -3,7 +3,7 @@ import type { TeamState } from '../../../shared/team-state';
 import { navigateTo } from '../../lib/route-nav';
 import { agentPath } from '../../useRoute';
 import { initialWorldUi, isDemo, parseInitialMode, worldUiReducer, type CameraMode } from './world/camera-mode';
-import { DEMO_COUNTS, demoTeamState } from './world/demo-data';
+import { DEMO_COUNTS, DEMO_PROJECTS, demoTeamState } from './world/demo-data';
 import { deriveWorld } from './world/world-state';
 import type { WorldHandle } from './world/world-scene';
 
@@ -41,7 +41,7 @@ export function TeamWorld({ state, connected, onRefresh }: TeamWorldProps) {
   }, [demo]);
 
   const view = useMemo(
-    () => (demo ? deriveWorld(demoTeamState(Date.now(), tick), { counts: DEMO_COUNTS }) : deriveWorld(state)),
+    () => (demo ? deriveWorld(demoTeamState(Date.now(), tick), { counts: DEMO_COUNTS, projects: DEMO_PROJECTS }) : deriveWorld(state)),
     [demo, state, tick],
   );
   const viewRef = useRef(view);
@@ -52,7 +52,8 @@ export function TeamWorld({ state, connected, onRefresh }: TeamWorldProps) {
     if (!el) return;
     let dead = false;
     let ro: ResizeObserver | null = null;
-    import('./world/world-scene').then(({ createWorld }) => {
+    import('./world/world-scene').then(async ({ createWorld, loadWorldFont }) => {
+      await loadWorldFont().catch(() => {});
       if (dead) return;
       const h = createWorld({
         parent: el,

@@ -1,40 +1,45 @@
 import Phaser from 'phaser';
 import {
-  AVATAR_SPAWN, CONNECTOR, HOUSES, MAP_H, MAP_W, PLAZA, PLAZA_CENTER, STREET, STREET_SIGN, TILE, TREES,
-  doorTiles, findPath, isBlocked, plazaSlots, tileCenter, toTile, type HouseDef, type Point,
+  AVATAR_SPAWN, FLOWER_BEDS, HOUSES, MAP_H, MAP_W, PLAZA, PLAZA_ITEMS, ROAD, STREET, STREET_SIGN, TILE, TREES,
+  doorTiles, findPath, isBlocked, plazaSlots, tf, tileCenter, toTile, type HouseDef, type Item, type Point, type Sheet,
 } from './world-map';
-import { fitZoom, wheelZoom, clampZoom, type CameraMode } from './camera-mode';
+import { clampZoom, initialZoom, parseFocus, stepZoom, wheelStep, type CameraMode } from './camera-mode';
 import { npcSprite, type Flight, type NpcView, type WorldView } from './world-state';
 
 // Phaser lives only in this module, loaded with a dynamic import from TeamWorld.tsx.
-// Art: Kenney CC0 sheets in /world (see LICENSES.md). Frame = row * columns + column.
+// Art: Kenney CC0 sheets and font in /world (see LICENSES.md). 16px tiles, whole zoom only.
 
 const BASE = import.meta.env.BASE_URL;
-const TOWN = 'town';
-const DUNGEON = 'dungeon';
-const INDOOR = 'indoor';
-const COLS = 12;
-const ICOLS = 27;
-const tf = (c: number, r: number): number => r * COLS + c;
-const inf = (c: number, r: number): number => r * ICOLS + c;
+const FONT = 'KenneyMini';
 
 const F = {
-  grass: 0, flowerA: 1, flowerB: 2, dirtA: tf(1, 2), dirtB: tf(1, 2), stone: tf(7, 3), floor: tf(1, 9),
+  grass: 0, flowerA: 1, flowerB: 2, dirt: tf(1, 2), stone: tf(7, 3), floor: tf(1, 9),
   wallTL: tf(0, 8), wallT: tf(1, 8), wallTR: tf(2, 8), wallL: tf(0, 9), wallR: tf(2, 9), wallBL: tf(0, 10), wallB: tf(1, 10), wallBR: tf(2, 10),
-  treeTop: tf(4, 0), treeBase: tf(4, 1), autumnTop: tf(3, 0), autumnBase: tf(3, 1), bush: tf(5, 0), sign: tf(11, 6),
-  shelfA: tf(3, 5), shelfB: tf(3, 6), hammer: tf(9, 9), potion: tf(8, 9),
-  counterA: inf(0, 12), counterB: inf(4, 12), stoveTL: inf(14, 14), stoveTR: inf(15, 14), stoveBL: inf(14, 15), stoveBR: inf(15, 15),
-  deskTL: inf(4, 2), deskTR: inf(5, 2), deskBL: inf(4, 3), deskBR: inf(5, 3), chair: inf(0, 2), plant: inf(16, 0),
+  treeTop: tf(4, 0), treeBase: tf(4, 1), autumnTop: tf(3, 0), autumnBase: tf(3, 1), bush: tf(5, 0),
+  hammer: tf(9, 9), potion: tf(8, 9),
 };
 
 // Distinct Tiny Dungeon characters for the bots; the avatar has its own.
 const NPC_FRAMES = [tf(0, 7), tf(1, 7), tf(2, 7), tf(3, 7), tf(4, 7), tf(0, 8), tf(1, 8), tf(2, 8), tf(4, 8), tf(4, 9), tf(1, 9)];
 const AVATAR_FRAME = tf(3, 8);
 
-const GREEN = '#3fd17f';
-const INK = '#0a0908';
+const GREEN = 0x3fd17f;
+const GREY = 0x8d8a85;
+const AMBER = 0xf5a524;
+const INK = 0x0a0908;
+const PILL = 0x14110f;
+const PILL_LINE = 0x39342e;
 const AVATAR_SPEED = 72;
-const LABEL_FONT = 'ui-monospace, SFMono-Regular, Menlo, monospace';
+const FOCUS_W = (PLAZA.x1 - PLAZA.x0 + 3) * TILE;
+
+const modeColor = (m: NpcView['mode']): number => (m === 'working' ? GREEN : m === 'waiting' ? AMBER : GREY);
+
+export async function loadWorldFont(): Promise<void> {
+  if (typeof FontFace === 'undefined') return;
+  const face = new FontFace(FONT, `url(${BASE}world/kenney-mini-square.ttf)`);
+  await face.load();
+  document.fonts.add(face);
+}
 
 export interface WorldOptions {
   parent: HTMLElement;
@@ -52,15 +57,27 @@ export interface WorldHandle {
   destroy: () => void;
 }
 
+// A dark rounded pill: optional icon, white pixel text, optional state dot and count badge.
+interface Pill {
+  c: Phaser.GameObjects.Container;
+  text: Phaser.GameObjects.Text;
+  g: Phaser.GameObjects.Graphics;
+  icon: Phaser.GameObjects.Image | null;
+  badge: Phaser.GameObjects.Text | null;
+  anchor: 'center' | 'left';
+  h: number;
+}
+
 interface Npc {
   view: NpcView;
   sprite: Phaser.GameObjects.Sprite;
-  name: Phaser.GameObjects.Text;
-  badge: Phaser.GameObjects.Text | null;
+  pill: Pill;
   extras: Phaser.GameObjects.GameObject[];
   tweens: Phaser.Tweens.Tween[];
   mode: NpcView['mode'] | null;
   slot: Point;
+  index: number;
+  busyUntil: number;
 }
 
 const hash = (x: number, y: number): number => Math.abs((x * 73856093) ^ (y * 19349663)) % 100;
@@ -73,14 +90,18 @@ class WorldScene extends Phaser.Scene {
   private pendingView: WorldView | null = null;
   private npcs = new Map<string, Npc>();
   private seenFlights = new Set<string>();
-  private labels: Phaser.GameObjects.Text[] = [];
+  private pills: Pill[] = [];
+  private housePills = new Map<string, Pill>();
   private labelScale = 1;
   private avatar!: Phaser.GameObjects.Sprite;
+  private avatarPill!: Pill;
   private route: Point[] = [];
   private marker!: Phaser.GameObjects.Ellipse;
   private keys!: Record<'W' | 'A' | 'S' | 'D' | 'UP' | 'DOWN' | 'LEFT' | 'RIGHT', Phaser.Input.Keyboard.Key>;
   private downAt = new Map<number, Point>();
   private pinchDist = 0;
+  private pinchRatio = 1;
+  private wheelAcc = 0;
   private pinching = false;
   private userMoved = false;
 
@@ -92,15 +113,18 @@ class WorldScene extends Phaser.Scene {
 
   preload(): void {
     const sheet = { frameWidth: TILE, frameHeight: TILE };
-    this.load.spritesheet(TOWN, `${BASE}world/town.png`, sheet);
-    this.load.spritesheet(DUNGEON, `${BASE}world/dungeon.png`, sheet);
-    this.load.spritesheet(INDOOR, `${BASE}world/indoor.png`, { ...sheet, spacing: 1 });
+    this.load.spritesheet('town', `${BASE}world/town.png`, sheet);
+    this.load.spritesheet('dungeon', `${BASE}world/dungeon.png`, sheet);
+    this.load.spritesheet('indoor', `${BASE}world/indoor.png`, { ...sheet, spacing: 1 });
   }
 
   create(): void {
-    this.cameras.main.setBackgroundColor(INK);
+    const cam = this.cameras.main;
+    cam.setBackgroundColor(INK);
+    cam.roundPixels = true;
     this.buildGround();
     this.buildStreet();
+    this.buildPlaza();
     for (const h of HOUSES) this.buildHouse(h);
     this.buildTrees();
     this.buildAvatar();
@@ -108,6 +132,7 @@ class WorldScene extends Phaser.Scene {
     this.scale.on('resize', () => { if (this.mode === 'god' && !this.userMoved) this.applyMode(false); });
     this.ready = true;
     this.applyMode(false);
+    this.applyLabelScale(true);
     if (this.pendingView) this.sync(this.pendingView);
     this.opts.onReady?.();
   }
@@ -116,6 +141,7 @@ class WorldScene extends Phaser.Scene {
 
   sync(view: WorldView): void {
     if (!this.ready) { this.pendingView = view; return; }
+    for (const h of HOUSES) this.setPillBadge(this.housePills.get(h.id)!, view.projects[h.id] ?? null);
     const slots = plazaSlots(view.npcs.length);
     const live = new Set(view.npcs.map((n) => n.id));
     for (const [id, npc] of this.npcs) if (!live.has(id)) this.removeNpc(id, npc);
@@ -142,31 +168,71 @@ class WorldScene extends Phaser.Scene {
 
   // ---- map ----
 
-  private img(sheet: string, frame: number, tx: number, ty: number, depth: number, tint?: number): Phaser.GameObjects.Image {
+  private img(sheet: Sheet, frame: number, tx: number, ty: number, depth: number, tint?: number): Phaser.GameObjects.Image {
     const i = this.add.image(tx * TILE, ty * TILE, sheet, frame).setOrigin(0, 0).setDepth(depth);
     if (tint !== undefined) i.setTint(tint);
     return i;
+  }
+
+  private rect(x: number, y: number, w: number, h: number, color: number, alpha: number, depth: number): Phaser.GameObjects.Rectangle {
+    return this.add.rectangle(x, y, w, h, color, alpha).setOrigin(0, 0).setDepth(depth);
   }
 
   private buildGround(): void {
     for (let y = 0; y < MAP_H; y++) {
       for (let x = 0; x < MAP_W; x++) {
         const h = hash(x, y);
-        this.img(TOWN, h < 6 ? F.flowerA : h < 10 ? F.flowerB : F.grass, x, y, 0);
+        this.img('town', h < 5 ? F.flowerA : h < 8 ? F.flowerB : F.grass, x, y, 0);
       }
     }
   }
 
   private buildStreet(): void {
-    const dirt = (x: number, y: number) => this.img(TOWN, hash(x, y) < 12 ? F.dirtB : F.dirtA, x, y, 1);
-    for (let y = STREET.y0; y <= STREET.y1; y++) for (let x = STREET.x0; x <= STREET.x1; x++) dirt(x, y);
-    for (let y = CONNECTOR.y0; y <= CONNECTOR.y1; y++) for (let x = CONNECTOR.x0; x <= CONNECTOR.x1; x++) dirt(x, y);
-    for (const h of HOUSES) for (const d of doorTiles(h)) { dirt(d.x, d.y + 1); dirt(d.x, d.y + 2); }
-    for (let y = PLAZA.y0; y <= PLAZA.y1; y++) for (let x = PLAZA.x0; x <= PLAZA.x1; x++) this.img(TOWN, F.floor, x, y, 1, 0xffe6b8);
-    for (const [dx, dy] of [[-1, -1], [0, -1], [-1, 0], [0, 0]] as const) this.img(TOWN, F.stone, PLAZA_CENTER.x + dx, PLAZA_CENTER.y + dy, 2);
-    this.img(TOWN, F.sign, STREET_SIGN.x, STREET_SIGN.y, 20);
-    this.label('Rua dos Projetos', (STREET_SIGN.x + 1) * TILE + 2, tileCenter(STREET.y0 + 1), { color: '#ffffff', anchorX: 0, anchorY: 0.5, size: 10 });
-    this.label('Praça', PLAZA_CENTER.x * TILE, PLAZA.y0 * TILE + 3, { color: '#ffffff', anchorX: 0.5, anchorY: 0, size: 9 });
+    for (let x = STREET.x0; x <= STREET.x1; x++) {
+      this.img('town', F.floor, x, STREET.y0, 1, 0xd9d3c6);
+      this.img('town', F.floor, x, STREET.y1, 1, 0xd9d3c6);
+      for (let y = ROAD.y0; y <= ROAD.y1; y++) this.img('town', F.dirt, x, y, 1, 0x9b8e84);
+      if (x % 2 === 0) this.rect(x * TILE + 3, (ROAD.y0 + 1) * TILE - 1, 10, 2, 0xf2ead8, 0.65, 2);
+    }
+    // Curbs and sidewalk edges.
+    this.rect(STREET.x0 * TILE, ROAD.y0 * TILE - 1, (STREET.x1 - STREET.x0 + 1) * TILE, 2, 0x2f2a25, 0.9, 2);
+    this.rect(STREET.x0 * TILE, (ROAD.y1 + 1) * TILE - 1, (STREET.x1 - STREET.x0 + 1) * TILE, 2, 0x2f2a25, 0.9, 2);
+    for (const h of HOUSES) for (const d of doorTiles(h)) this.img('town', F.floor, d.x, d.y + 1, 1, 0xd9d3c6);
+    this.label(STREET_SIGN);
+  }
+
+  private label(p: Point): void {
+    const pill = this.makePill({ text: 'Rua dos Projetos', anchor: 'left', dot: null, icon: null });
+    pill.c.setPosition(p.x * TILE, p.y * TILE - 2);
+  }
+
+  private buildPlaza(): void {
+    for (let y = PLAZA.y0; y <= PLAZA.y1; y++) {
+      for (let x = PLAZA.x0; x <= PLAZA.x1; x++) this.img('town', F.floor, x, y, 1, (x + y) % 2 === 0 ? 0xe6d9bb : 0xdacdae);
+    }
+    const w = (PLAZA.x1 - PLAZA.x0 + 1) * TILE;
+    const h = (PLAZA.y1 - PLAZA.y0 + 1) * TILE;
+    this.add.rectangle(PLAZA.x0 * TILE, PLAZA.y0 * TILE, w, h).setOrigin(0, 0).setStrokeStyle(1, 0x2f2a25, 0.8).setDepth(2);
+    const tints = [0xff7a90, 0xffd166, 0xb69cff, 0xffffff];
+    for (const bed of FLOWER_BEDS) {
+      this.rect(bed.x * TILE - 1, bed.y * TILE - 1, bed.w * TILE + 2, bed.h * TILE + 2, 0x5b3a22, 1, 1);
+      for (let x = 0; x < bed.w; x++) {
+        for (let y = 0; y < bed.h; y++) this.img('town', F.flowerB, bed.x + x, bed.y + y, 2, tints[(x * 3 + y * 5 + bed.x) % tints.length]);
+      }
+    }
+    this.drawItems(PLAZA_ITEMS, 0, 0);
+  }
+
+  private drawItems(items: Item[], ox: number, oy: number): void {
+    for (const i of items) {
+      const x = ox + i.x;
+      const y = oy + i.y;
+      const layer = i.layer;
+      const depth = layer === 'floor' ? 3 : layer === 'wall' ? 4 : layer === 'top' ? 7 : 6;
+      const img = this.img(i.s, i.f, x, y, depth);
+      if (layer === 'top') img.y -= 4;
+      if (i.block && layer !== 'top') this.rect(x * TILE + 1, (y + 1) * TILE, 14, 3, INK, 0.3, 5);
+    }
   }
 
   private buildHouse(h: HouseDef): void {
@@ -179,65 +245,98 @@ class WorldScene extends Phaser.Scene {
         const bottom = dy === h.h - 1;
         const left = dx === 0;
         const right = dx === h.w - 1;
-        if (doors.has(`${x},${y}`)) { this.img(TOWN, F.dirtA, x, y, 2); continue; }
-        if (!top && !bottom && !left && !right) { this.img(TOWN, F.floor, x, y, 2, h.tint); continue; }
+        if (doors.has(`${x},${y}`)) { this.img('town', F.floor, x, y, 2, 0xb59a74); continue; }
+        if (!top && !bottom && !left && !right) { this.img('town', F.floor, x, y, 2, h.tint); continue; }
         const frame = top ? (left ? F.wallTL : right ? F.wallTR : F.wallT)
           : bottom ? (left ? F.wallBL : right ? F.wallBR : F.wallB)
             : left ? F.wallL : F.wallR;
-        this.img(TOWN, frame, x, y, 5);
+        this.img('town', frame, x, y, 5);
       }
     }
-    const at = (dx: number, dy: number) => ({ x: h.x + dx, y: h.y + dy });
-    for (const dx of [1, 2, 3]) {
-      this.img(DUNGEON, F.shelfA, at(dx, 1).x, at(dx, 1).y, 6);
-      this.img(DUNGEON, F.shelfB, at(dx, 2).x, at(dx, 2).y, 6);
-    }
-    this.img(INDOOR, F.counterA, at(5, 1).x, at(5, 1).y, 6);
-    this.img(INDOOR, F.counterB, at(6, 1).x, at(6, 1).y, 6);
-    this.img(INDOOR, F.stoveTL, at(7, 1).x, at(7, 1).y, 6);
-    this.img(INDOOR, F.stoveTR, at(8, 1).x, at(8, 1).y, 6);
-    this.img(INDOOR, F.stoveBL, at(7, 2).x, at(7, 2).y, 6);
-    this.img(INDOOR, F.stoveBR, at(8, 2).x, at(8, 2).y, 6);
-    this.img(INDOOR, F.deskTL, at(3, 4).x, at(3, 4).y, 6);
-    this.img(INDOOR, F.deskTR, at(4, 4).x, at(4, 4).y, 6);
-    this.img(INDOOR, F.deskBL, at(3, 5).x, at(3, 5).y, 6);
-    this.img(INDOOR, F.deskBR, at(4, 5).x, at(4, 5).y, 6);
-    this.img(INDOOR, F.chair, at(3, 6).x, at(3, 6).y, 6);
-    this.img(INDOOR, F.plant, at(8, 7).x, at(8, 7).y, 6);
-    // Sign above the door side: project name and a small pixel icon.
-    this.img(TOWN, F.sign, h.x + 4, h.y - 1, 20);
-    this.img(TOWN, h.icon, h.x + 5, h.y - 1, 20);
-    this.label(h.label, (h.x + h.w / 2) * TILE, (h.y - 1) * TILE, { color: '#ffffff', anchorX: 0.5, anchorY: 1, size: 11, bold: true });
+    // Depth: shade under the back wall, along the side walls and below the house.
+    this.rect((h.x + 1) * TILE, (h.y + 1) * TILE, (h.w - 2) * TILE, 6, INK, 0.2, 3);
+    this.rect((h.x + 1) * TILE, (h.y + 1) * TILE, 3, (h.h - 2) * TILE, INK, 0.12, 3);
+    this.rect((h.x + h.w - 1) * TILE - 3, (h.y + 1) * TILE, 3, (h.h - 2) * TILE, INK, 0.12, 3);
+    this.rect(h.x * TILE, (h.y + h.h) * TILE, h.w * TILE, 4, INK, 0.25, 1);
+    this.drawItems(h.items, h.x, h.y);
+    const pill = this.makePill({ text: h.label, anchor: 'center', dot: null, icon: h.icon });
+    pill.c.setPosition((h.x + h.w / 2) * TILE, h.y * TILE - 3);
+    this.housePills.set(h.id, pill);
   }
 
   private buildTrees(): void {
     for (const t of TREES) {
-      const y = tileCenter(t.y) + TILE / 2;
-      const autumn = hash(t.x, t.y) < 30;
-      if (t.y === 6) { this.add.image(t.x * TILE, t.y * TILE, TOWN, F.bush).setOrigin(0, 0).setDepth(100 + y); continue; }
-      this.add.image(t.x * TILE, (t.y - 1) * TILE, TOWN, autumn ? F.autumnTop : F.treeTop).setOrigin(0, 0).setDepth(100 + y);
-      this.add.image(t.x * TILE, t.y * TILE, TOWN, autumn ? F.autumnBase : F.treeBase).setOrigin(0, 0).setDepth(100 + y);
+      const yPx = (t.y + 1) * TILE;
+      this.add.ellipse(t.x * TILE + 8, yPx - 2, 14, 5, INK, 0.28).setDepth(5);
+      if (t.kind === 'bush') { this.add.image(t.x * TILE, t.y * TILE, 'town', F.bush).setOrigin(0, 0).setDepth(100 + yPx); continue; }
+      const autumn = t.kind === 'autumn';
+      this.add.image(t.x * TILE, (t.y - 1) * TILE, 'town', autumn ? F.autumnTop : F.treeTop).setOrigin(0, 0).setDepth(100 + yPx);
+      this.add.image(t.x * TILE, t.y * TILE, 'town', autumn ? F.autumnBase : F.treeBase).setOrigin(0, 0).setDepth(100 + yPx);
     }
   }
 
-  // ---- labels ----
+  // ---- pills ----
 
-  private label(text: string, x: number, y: number, o: { color: string; anchorX: number; anchorY: number; size: number; bold?: boolean; bg?: string; fg?: string }): Phaser.GameObjects.Text {
-    const t = this.add.text(x, y, text, {
-      fontFamily: LABEL_FONT, fontSize: `${o.size}px`, fontStyle: o.bold ? 'bold' : 'normal', color: o.fg ?? o.color,
-      stroke: INK, strokeThickness: o.bg ? 0 : 3, backgroundColor: o.bg, padding: o.bg ? { x: 2, y: 1 } : undefined,
-    }).setOrigin(o.anchorX, o.anchorY).setDepth(10_000).setResolution(3);
-    t.setScale(this.labelScale);
-    this.labels.push(t);
-    return t;
+  private makePill(o: { text: string; anchor: 'center' | 'left'; dot: number | null; icon: { s: Sheet; f: number } | null; badge?: string | null }): Pill {
+    const g = this.add.graphics();
+    const text = this.add.text(0, 0, o.text, { fontFamily: `${FONT}, monospace`, fontSize: '16px', color: '#ffffff' }).setOrigin(0, 0.5);
+    const icon = o.icon ? this.add.image(0, 0, o.icon.s, o.icon.f).setOrigin(0, 0.5) : null;
+    const c = this.add.container(0, 0, [g, ...(icon ? [icon] : []), text]).setDepth(10_000);
+    const pill: Pill = { c, text, g, icon, badge: null, anchor: o.anchor, h: 22 };
+    this.pills.push(pill);
+    this.drawPill(pill, o.text, o.dot, o.badge ?? null);
+    c.setScale(this.labelScale);
+    return pill;
   }
 
-  private rescaleLabels(): void {
+  private drawPill(p: Pill, label: string, dot: number | null, badge: string | null): void {
+    p.text.setText(label);
+    const pad = 6;
+    const h = 22;
+    let w = pad + p.text.width + pad;
+    const iconW = p.icon ? 18 : 0;
+    const dotW = dot !== null ? 12 : 0;
+    w += iconW + dotW;
+    if (badge) {
+      if (!p.badge) {
+        p.badge = this.add.text(0, 0, badge, { fontFamily: `${FONT}, monospace`, fontSize: '16px', color: '#0a0908' }).setOrigin(0.5, 0.5);
+        p.c.add(p.badge);
+      }
+      p.badge.setText(badge);
+    } else if (p.badge) {
+      p.badge.destroy();
+      p.badge = null;
+    }
+    const badgeW = p.badge ? Math.max(18, p.badge.width + 8) + 4 : 0;
+    w += badgeW;
+    const ox = p.anchor === 'center' ? -Math.round(w / 2) : 0;
+    p.g.clear();
+    p.g.fillStyle(PILL, 0.92).fillRoundedRect(ox, -h, w, h, h / 2);
+    p.g.lineStyle(1, PILL_LINE, 1).strokeRoundedRect(ox + 0.5, -h + 0.5, w - 1, h - 1, h / 2);
+    let x = ox + pad;
+    if (p.icon) { p.icon.setPosition(x, -h / 2); x += iconW; }
+    if (dot !== null) { p.g.fillStyle(dot, 1).fillCircle(x + 4, -h / 2, 4); p.g.lineStyle(1, 0x000000, 0.5).strokeCircle(x + 4, -h / 2, 4); x += dotW; }
+    p.text.setPosition(x, -h / 2 + 1);
+    if (p.badge) {
+      const bw = Math.max(18, p.badge.width + 8);
+      const bx = x + p.text.width + 4;
+      p.g.fillStyle(GREEN, 1).fillRoundedRect(bx, -h + 3, bw, h - 6, (h - 6) / 2);
+      p.badge.setPosition(bx + bw / 2, -h / 2 + 1);
+    }
+    p.h = h;
+  }
+
+  private setPillBadge(p: Pill, badge: string | null): void {
+    this.drawPill(p, p.text.text, null, badge);
+  }
+
+  // Pills are drawn at 1 screen px per font px: scale = 1 / zoom (zoom is whole).
+  private applyLabelScale(force = false): void {
     const z = this.cameras.main.zoom;
-    const s = Math.min(1.6, Math.max(0.5, 1.05 / z));
-    if (Math.abs(s - this.labelScale) < 0.01) return;
+    const s = 1 / z;
+    if (!force && Math.abs(s - this.labelScale) < 0.001) return;
     this.labelScale = s;
-    for (const t of this.labels) t.setScale(s);
+    for (const p of this.pills) p.c.setScale(s);
     for (const n of this.npcs.values()) this.placeNpcLabels(n);
   }
 
@@ -251,33 +350,30 @@ class WorldScene extends Phaser.Scene {
     let npc = this.npcs.get(v.id);
     const f = this.feet(slot);
     if (!npc) {
-      const sprite = this.add.sprite(f.x, f.y, DUNGEON, NPC_FRAMES[index % NPC_FRAMES.length]).setOrigin(0.5, 1);
-      const name = this.label(v.name, f.x, f.y - 17, { color: '#ffffff', anchorX: 0.5, anchorY: 1, size: 9, bold: true });
-      npc = { view: v, sprite, name, badge: null, extras: [], tweens: [], mode: null, slot };
+      const sprite = this.add.sprite(f.x, f.y, 'dungeon', NPC_FRAMES[index % NPC_FRAMES.length]).setOrigin(0.5, 1);
+      const pill = this.makePill({ text: v.name, anchor: 'center', dot: modeColor(v.mode), icon: null, badge: v.badge });
+      npc = { view: v, sprite, pill, extras: [], tweens: [], mode: null, slot, index, busyUntil: 0 };
       this.npcs.set(v.id, npc);
     }
     npc.view = v;
     npc.slot = slot;
-    npc.name.setText(v.name);
+    npc.index = index;
     npc.sprite.setPosition(f.x, f.y).setDepth(100 + f.y);
-    this.setBadge(npc, v.badge);
+    this.repaintNpcPill(npc);
     if (npc.mode !== v.mode) this.applyNpcMode(npc, v.mode);
     this.placeNpcLabels(npc);
   }
 
-  private placeNpcLabels(n: Npc): void {
-    const { x, y } = n.sprite;
-    n.name.setPosition(x, y - 17);
-    n.badge?.setPosition(x - 6, y - 8);
+  private repaintNpcPill(n: Npc): void {
+    const dot = this.time.now < n.busyUntil ? AMBER : modeColor(n.view.mode);
+    this.drawPill(n.pill, n.view.name, dot, n.view.badge);
   }
 
-  private setBadge(n: Npc, text: string | null): void {
-    if (!text) { n.badge?.destroy(); this.labels = this.labels.filter((l) => l !== n.badge); n.badge = null; return; }
-    if (!n.badge) {
-      n.badge = this.label(text, n.sprite.x - 6, n.sprite.y - 8, { color: INK, fg: INK, bg: GREEN, anchorX: 1, anchorY: 1, size: 8, bold: true });
-    } else {
-      n.badge.setText(text);
-    }
+  private placeNpcLabels(n: Npc): void {
+    const { x, y } = n.sprite;
+    // At 1x neighbours are closer than a pill is wide: odd slots sit one pill higher.
+    const lift = this.cameras.main.zoom < 2 && n.index % 2 === 1 ? (n.pill.h + 1) * this.labelScale : 0;
+    n.pill.c.setPosition(x, y - 17 - lift);
   }
 
   private applyNpcMode(n: Npc, mode: NpcView['mode']): void {
@@ -299,14 +395,14 @@ class WorldScene extends Phaser.Scene {
       n.tweens.push(this.tweens.add({ targets: n.sprite, angle: 4, duration: 420, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' }));
     }
     if (s.tool) {
-      const tool = this.add.sprite(x + 8, baseY - 7, DUNGEON, F.hammer).setScale(0.7).setDepth(100 + baseY + 1);
+      const tool = this.add.sprite(x + 8, baseY - 7, 'dungeon', F.hammer).setScale(0.7).setDepth(100 + baseY + 1);
       n.extras.push(tool);
       n.tweens.push(this.tweens.add({ targets: tool, angle: { from: -40, to: 25 }, duration: 260, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' }));
     }
     if (s.bubble) {
       const b = this.add.text(x + 11, baseY - 3, s.bubble, {
-        fontFamily: LABEL_FONT, fontSize: s.bubble === 'zz' ? '8px' : '11px', fontStyle: 'bold', color: s.bubble === 'zz' ? '#bcd7ff' : '#ffd166', stroke: INK, strokeThickness: 3,
-      }).setOrigin(0.5, 1).setDepth(10_000).setResolution(3);
+        fontFamily: `${FONT}, monospace`, fontSize: '16px', color: s.bubble === 'zz' ? '#bcd7ff' : '#ffd166', stroke: '#0a0908', strokeThickness: 3,
+      }).setOrigin(0.5, 1).setScale(0.5).setDepth(10_000);
       n.extras.push(b);
       n.tweens.push(this.tweens.add({ targets: b, y: b.y - 4, alpha: { from: 1, to: s.bubble === 'zz' ? 0.35 : 1 }, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' }));
     }
@@ -315,9 +411,8 @@ class WorldScene extends Phaser.Scene {
   private removeNpc(id: string, n: Npc): void {
     for (const t of n.tweens) t.stop();
     for (const e of n.extras) e.destroy();
-    this.labels = this.labels.filter((l) => l !== n.name && l !== n.badge);
-    n.name.destroy();
-    n.badge?.destroy();
+    this.pills = this.pills.filter((p) => p !== n.pill);
+    n.pill.c.destroy();
     n.sprite.destroy();
     this.npcs.delete(id);
   }
@@ -327,15 +422,18 @@ class WorldScene extends Phaser.Scene {
     const to = this.npcs.get(f.to);
     if (!to) return;
     const from = f.from ? this.npcs.get(f.from) : undefined;
-    const a = from ? { x: from.sprite.x, y: from.slot ? this.feet(from.slot).y - 8 : 0 } : { x: tileCenter(CONNECTOR.x0), y: CONNECTOR.y1 * TILE };
+    const a = from ? { x: from.sprite.x, y: this.feet(from.slot).y - 8 } : { x: tileCenter(PLAZA.x0 + 7), y: PLAZA.y0 * TILE };
     const b = { x: to.sprite.x, y: this.feet(to.slot).y - 10 };
-    const item = this.add.sprite(a.x, a.y, DUNGEON, F.potion).setDepth(9_000).setScale(0.75);
+    const item = this.add.sprite(a.x, a.y, 'dungeon', F.potion).setDepth(9_000).setScale(0.75);
     const dist = Math.hypot(b.x - a.x, b.y - a.y);
+    const duration = 700 + dist * 7;
+    for (const n of [from, to]) if (n) { n.busyUntil = this.time.now + duration + 600; this.repaintNpcPill(n); }
+    this.time.delayedCall(duration + 650, () => { for (const n of [from, to]) if (n && this.npcs.has(n.view.id)) this.repaintNpcPill(n); });
     this.tweens.addCounter({
-      from: 0, to: 1, duration: 700 + dist * 7, ease: 'Sine.easeInOut',
+      from: 0, to: 1, duration, ease: 'Sine.easeInOut',
       onUpdate: (tw) => {
         const k = tw.getValue() ?? 0;
-        item.setPosition(a.x + (b.x - a.x) * k, a.y + (b.y - a.y) * k - Math.sin(k * Math.PI) * 22).setAngle(k * 360);
+        item.setPosition(Math.round(a.x + (b.x - a.x) * k), Math.round(a.y + (b.y - a.y) * k - Math.sin(k * Math.PI) * 22)).setAngle(k * 360);
       },
       onComplete: () => {
         item.destroy();
@@ -348,10 +446,9 @@ class WorldScene extends Phaser.Scene {
 
   private buildAvatar(): void {
     const f = this.feet(AVATAR_SPAWN);
-    this.avatar = this.add.sprite(f.x, f.y, DUNGEON, AVATAR_FRAME).setOrigin(0.5, 1).setDepth(100 + f.y);
-    const tag = this.label('Deck', f.x, f.y - 17, { color: INK, fg: INK, bg: GREEN, anchorX: 0.5, anchorY: 1, size: 9, bold: true });
-    this.avatar.setData('tag', tag);
-    this.marker = this.add.ellipse(0, 0, 10, 5, 0x3fd17f, 0.5).setStrokeStyle(1, 0x3fd17f).setDepth(3).setVisible(false);
+    this.avatar = this.add.sprite(f.x, f.y, 'dungeon', AVATAR_FRAME).setOrigin(0.5, 1).setDepth(100 + f.y);
+    this.avatarPill = this.makePill({ text: 'Deck', anchor: 'center', dot: GREEN, icon: null });
+    this.marker = this.add.ellipse(0, 0, 10, 5, GREEN, 0.5).setStrokeStyle(1, GREEN).setDepth(3).setVisible(false);
   }
 
   private bindInput(): void {
@@ -384,9 +481,17 @@ class WorldScene extends Phaser.Scene {
       if (this.mode === 'avatar') this.moveTo(p.worldX, p.worldY);
     });
     this.input.on('wheel', (_p: unknown, _o: unknown, _dx: number, dy: number) => {
-      this.userMoved = true;
-      this.cameras.main.setZoom(wheelZoom(this.cameras.main.zoom, dy));
+      this.wheelAcc += dy;
+      if (Math.abs(this.wheelAcc) < 40) return;
+      const dir = wheelStep(this.wheelAcc);
+      this.wheelAcc = 0;
+      this.stepCameraZoom(dir);
     });
+  }
+
+  private stepCameraZoom(dir: number): void {
+    this.userMoved = true;
+    this.cameras.main.setZoom(stepZoom(this.cameras.main.zoom, dir));
   }
 
   private npcAt(wx: number, wy: number): string | null {
@@ -429,15 +534,12 @@ class WorldScene extends Phaser.Scene {
       this.marker.setVisible(false);
     } else if (this.route.length > 0) {
       const next = this.route[0]!;
-      const tx = tileCenter(next.x);
-      const ty = (next.y + 1) * TILE - 1;
-      const dx = tx - a.x;
-      const dy = ty - a.y;
+      const dx = tileCenter(next.x) - a.x;
+      const dy = (next.y + 1) * TILE - 1 - a.y;
       const dist = Math.hypot(dx, dy);
       if (dist < 2) { this.route.shift(); if (this.route.length === 0) this.marker.setVisible(false); } else { vx = dx / dist; vy = dy / dist; }
     }
-    const moving = vx !== 0 || vy !== 0;
-    if (moving) {
+    if (vx !== 0 || vy !== 0) {
       const len = Math.hypot(vx, vy);
       const step = (AVATAR_SPEED * dt) / 1000;
       const nx = a.x + (vx / len) * step;
@@ -450,7 +552,7 @@ class WorldScene extends Phaser.Scene {
       a.setAngle(0);
     }
     a.setDepth(100 + a.y);
-    (a.getData('tag') as Phaser.GameObjects.Text).setPosition(a.x, a.y - 17);
+    this.avatarPill.c.setPosition(Math.round(a.x), Math.round(a.y) - 17);
   }
 
   // ---- camera ----
@@ -460,21 +562,25 @@ class WorldScene extends Phaser.Scene {
     if (this.mode === 'god') {
       cam.stopFollow();
       cam.removeBounds();
-      // Portrait screens crop the side trees: the width is what limits the zoom there.
-      const portrait = cam.height > cam.width;
-      const z = fitZoom(cam.width, cam.height, (portrait ? MAP_W - 4 : MAP_W) * TILE, MAP_H * TILE, portrait ? 12 : 24);
-      cam.setZoom(z);
+      // The border row/column may be cropped; the plaza, street and houses are what must fit.
+      cam.setZoom(initialZoom(cam.width, cam.height, (MAP_W - 2) * TILE, (MAP_H - 2) * TILE, FOCUS_W, (MAP_H - 2) * TILE));
       cam.centerOn((MAP_W * TILE) / 2, (MAP_H * TILE) / 2);
+      const focus = parseFocus(location.search);
+      const house = focus ? HOUSES.find((h) => h.id === focus.house) : undefined;
+      if (focus && house) { cam.setZoom(focus.zoom); cam.centerOn((house.x + house.w / 2) * TILE, (house.y + house.h / 2) * TILE); this.userMoved = true; }
+      this.applyLabelScale();
       return;
     }
-    const z = clampZoom(this.opts.coarse ? 2.4 : 3);
-    if (animate) cam.zoomTo(z, 350); else cam.setZoom(z);
+    const z = clampZoom(this.opts.coarse ? 2 : 3);
+    void animate;
+    cam.setZoom(z);
     cam.startFollow(this.avatar, true, 0.12, 0.12);
+    this.applyLabelScale();
   }
 
   update(_t: number, dt: number): void {
     this.stepAvatar(dt);
-    this.rescaleLabels();
+    this.applyLabelScale();
     this.pinch();
   }
 
@@ -484,12 +590,14 @@ class WorldScene extends Phaser.Scene {
       const d = Math.hypot(p1.x - p2.x, p1.y - p2.y);
       this.pinching = true;
       if (this.pinchDist > 0) {
-        this.userMoved = true;
-        this.cameras.main.setZoom(clampZoom(this.cameras.main.zoom * (d / this.pinchDist)));
+        this.pinchRatio *= d / this.pinchDist;
+        if (this.pinchRatio > 1.3) { this.stepCameraZoom(1); this.pinchRatio = 1; }
+        else if (this.pinchRatio < 0.77) { this.stepCameraZoom(-1); this.pinchRatio = 1; }
       }
       this.pinchDist = d;
     } else {
       this.pinchDist = 0;
+      this.pinchRatio = 1;
       if (!p1.isDown && !p2.isDown) this.pinching = false;
     }
   }
@@ -500,9 +608,10 @@ export function createWorld(opts: WorldOptions): WorldHandle {
   const game = new Phaser.Game({
     type: Phaser.AUTO,
     parent: opts.parent,
-    backgroundColor: INK,
+    backgroundColor: '#0a0908',
     pixelArt: true,
     roundPixels: true,
+    antialias: false,
     banner: false,
     disableContextMenu: true,
     scale: { mode: Phaser.Scale.RESIZE, width: opts.parent.clientWidth || 800, height: opts.parent.clientHeight || 600 },

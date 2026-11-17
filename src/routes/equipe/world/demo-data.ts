@@ -16,6 +16,8 @@ export const DEMO_BOTS: TeamStateBot[] = [
   bot('ada', 'Ada', 'working'),
 ];
 
+export const DEMO_PROJECTS: Record<string, number> = { itera: 4, dfl: 6, 'corte-radar': 1 };
+
 export const DEMO_COUNTS: Record<string, number> = { iris: 4, teo: 2, caio: 7, gui: 1, ada: 3, rita: 2 };
 
 // Pairs the demo cycles through to keep handoff items flying.

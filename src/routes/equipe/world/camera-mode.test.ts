@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { clampZoom, fitZoom, initialWorldUi, isDemo, parseInitialMode, wheelZoom, worldUiReducer } from './camera-mode';
+import { clampZoom, fitZoom, initialWorldUi, initialZoom, isDemo, parseFocus, parseInitialMode, stepZoom, wheelStep, worldUiReducer } from './camera-mode';
 
 describe('worldUiReducer', () => {
   it('toggles between avatar and god mode', () => {
@@ -23,20 +23,31 @@ describe('worldUiReducer', () => {
 });
 
 describe('zoom helpers', () => {
-  it('clamps zoom to the allowed range', () => {
-    expect(clampZoom(0.01)).toBe(0.4);
-    expect(clampZoom(99)).toBe(5);
-    expect(clampZoom(2)).toBe(2);
+  it('only produces whole zoom levels inside the range', () => {
+    expect(clampZoom(0.2)).toBe(1);
+    expect(clampZoom(99)).toBe(6);
+    expect(clampZoom(2.4)).toBe(2);
   });
 
-  it('zooms in on wheel up and out on wheel down', () => {
-    expect(wheelZoom(1, -100)).toBeGreaterThan(1);
-    expect(wheelZoom(1, 100)).toBeLessThan(1);
+  it('steps one level per wheel notch or pinch', () => {
+    expect(stepZoom(2, 1)).toBe(3);
+    expect(stepZoom(2, -1)).toBe(1);
+    expect(stepZoom(1, -1)).toBe(1);
+    expect(stepZoom(6, 1)).toBe(6);
+    expect(wheelStep(-120)).toBe(1);
+    expect(wheelStep(120)).toBe(-1);
+    expect(wheelStep(0)).toBe(0);
   });
 
-  it('fits the world inside the viewport', () => {
-    expect(fitZoom(1280, 800, 768, 544)).toBeCloseTo(Math.min((1280 - 24) / 768, (800 - 24) / 544), 5);
-    expect(fitZoom(0, 800, 768, 544)).toBe(1);
+  it('fits the world at the largest whole zoom', () => {
+    expect(fitZoom(1264, 784, 608, 368)).toBe(2);
+    expect(fitZoom(1000, 700, 608, 368)).toBe(1);
+    expect(fitZoom(0, 800, 608, 368)).toBe(1);
+  });
+
+  it('frames the plaza and middle house on a portrait phone', () => {
+    expect(initialZoom(390, 844, 608, 368, 256, 368)).toBe(1);
+    expect(initialZoom(1264, 784, 608, 368, 256, 368)).toBe(2);
   });
 });
 
@@ -46,5 +57,8 @@ describe('url flags', () => {
     expect(isDemo('?demo=0')).toBe(false);
     expect(parseInitialMode('?mode=god')).toBe('god');
     expect(parseInitialMode('')).toBe('avatar');
+    expect(parseFocus('?focus=dfl&zoom=3')).toEqual({ house: 'dfl', zoom: 3 });
+    expect(parseFocus('?focus=dfl')).toEqual({ house: 'dfl', zoom: 3 });
+    expect(parseFocus('')).toBeNull();
   });
 });
