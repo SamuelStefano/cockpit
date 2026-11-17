@@ -2,7 +2,7 @@
 """Composes three 14x10-tile mock rooms from tiles-interior + pc.png and writes them at 2x:
 <outdir>/vila-room-house.png, vila-room-meeting.png, vila-room-shop.png
 
-Run: python3 public/world/v2/src/demo_rooms.py /path/to/outdir
+Run: python3 scripts/world/demo_rooms.py /path/to/outdir
 """
 import os
 import sys
