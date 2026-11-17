@@ -19,7 +19,7 @@ const tf = (c: number, r: number): number => r * COLS + c;
 const inf = (c: number, r: number): number => r * ICOLS + c;
 
 const F = {
-  grass: 0, flowerA: 1, flowerB: 2, dirtA: tf(4, 3), dirtB: tf(5, 3), stone: tf(7, 3), floor: tf(1, 9),
+  grass: 0, flowerA: 1, flowerB: 2, dirtA: tf(1, 2), dirtB: tf(1, 2), stone: tf(7, 3), floor: tf(1, 9),
   wallTL: tf(0, 8), wallT: tf(1, 8), wallTR: tf(2, 8), wallL: tf(0, 9), wallR: tf(2, 9), wallBL: tf(0, 10), wallB: tf(1, 10), wallBR: tf(2, 10),
   treeTop: tf(4, 0), treeBase: tf(4, 1), autumnTop: tf(3, 0), autumnBase: tf(3, 1), bush: tf(5, 0), sign: tf(11, 6),
   shelfA: tf(3, 5), shelfB: tf(3, 6), hammer: tf(9, 9), potion: tf(8, 9),
@@ -162,7 +162,7 @@ class WorldScene extends Phaser.Scene {
     for (let y = STREET.y0; y <= STREET.y1; y++) for (let x = STREET.x0; x <= STREET.x1; x++) dirt(x, y);
     for (let y = CONNECTOR.y0; y <= CONNECTOR.y1; y++) for (let x = CONNECTOR.x0; x <= CONNECTOR.x1; x++) dirt(x, y);
     for (const h of HOUSES) for (const d of doorTiles(h)) { dirt(d.x, d.y + 1); dirt(d.x, d.y + 2); }
-    for (let y = PLAZA.y0; y <= PLAZA.y1; y++) for (let x = PLAZA.x0; x <= PLAZA.x1; x++) this.img(TOWN, F.floor, x, y, 1, 0xe9dcc0);
+    for (let y = PLAZA.y0; y <= PLAZA.y1; y++) for (let x = PLAZA.x0; x <= PLAZA.x1; x++) this.img(TOWN, F.floor, x, y, 1, 0xffe6b8);
     for (const [dx, dy] of [[-1, -1], [0, -1], [-1, 0], [0, 0]] as const) this.img(TOWN, F.stone, PLAZA_CENTER.x + dx, PLAZA_CENTER.y + dy, 2);
     this.img(TOWN, F.sign, STREET_SIGN.x, STREET_SIGN.y, 20);
     this.label('Rua dos Projetos', (STREET_SIGN.x + 1) * TILE + 2, tileCenter(STREET.y0 + 1), { color: '#ffffff', anchorX: 0, anchorY: 0.5, size: 10 });
@@ -234,7 +234,7 @@ class WorldScene extends Phaser.Scene {
 
   private rescaleLabels(): void {
     const z = this.cameras.main.zoom;
-    const s = Math.min(2.4, Math.max(0.5, 1.05 / z));
+    const s = Math.min(1.6, Math.max(0.5, 1.05 / z));
     if (Math.abs(s - this.labelScale) < 0.01) return;
     this.labelScale = s;
     for (const t of this.labels) t.setScale(s);
@@ -304,7 +304,7 @@ class WorldScene extends Phaser.Scene {
       n.tweens.push(this.tweens.add({ targets: tool, angle: { from: -40, to: 25 }, duration: 260, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' }));
     }
     if (s.bubble) {
-      const b = this.add.text(x + 10, baseY - 12, s.bubble, {
+      const b = this.add.text(x + 11, baseY - 3, s.bubble, {
         fontFamily: LABEL_FONT, fontSize: s.bubble === 'zz' ? '8px' : '11px', fontStyle: 'bold', color: s.bubble === 'zz' ? '#bcd7ff' : '#ffd166', stroke: INK, strokeThickness: 3,
       }).setOrigin(0.5, 1).setDepth(10_000).setResolution(3);
       n.extras.push(b);
@@ -460,7 +460,9 @@ class WorldScene extends Phaser.Scene {
     if (this.mode === 'god') {
       cam.stopFollow();
       cam.removeBounds();
-      const z = fitZoom(cam.width, cam.height, MAP_W * TILE, MAP_H * TILE);
+      // Portrait screens crop the side trees: the width is what limits the zoom there.
+      const portrait = cam.height > cam.width;
+      const z = fitZoom(cam.width, cam.height, (portrait ? MAP_W - 4 : MAP_W) * TILE, MAP_H * TILE, portrait ? 12 : 24);
       cam.setZoom(z);
       cam.centerOn((MAP_W * TILE) / 2, (MAP_H * TILE) / 2);
       return;

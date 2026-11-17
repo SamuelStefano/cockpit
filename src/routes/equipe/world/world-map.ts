@@ -35,7 +35,7 @@ export const PLAZA = { x0: 15, x1: 32, y0: 19, y1: 31 } as const;
 export const PLAZA_CENTER: Point = { x: 24, y: 25 };
 export const CONNECTOR = { x0: 23, x1: 24, y0: 17, y1: 18 } as const;
 export const STREET_SIGN: Point = { x: 2, y: 13 };
-export const AVATAR_SPAWN: Point = { x: 24, y: 22 };
+export const AVATAR_SPAWN: Point = { x: 24, y: 27 };
 
 export const doorTiles = (h: HouseDef): Point[] => [{ x: h.x + 4, y: h.y + h.h - 1 }, { x: h.x + 5, y: h.y + h.h - 1 }];
 
