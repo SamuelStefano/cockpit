@@ -113,25 +113,42 @@ def gif_weather(out):
 
 
 # ---------------------------------------------------------------- 3. confetti
+BOTS = os.path.join(os.path.dirname(os.path.dirname(HERE)), "public", "world", "v2", "bots")
+
+
+SHIRT_RAMPS = {"luffy": {"g0": "h0", "g1": "r0", "g2": "r1", "g3": "r2"}}   # default_shirt #e04848
+
+
+def bot(name, row=1, frame=0):
+    """one 32x48 frame of a bot sheet (row 1 = idle down), origin (16, 46); the g0..g3 shirt ramp is
+    swapped for the bot's signature colour where its -shirt mask is set (nami keeps the green)"""
+    box = (frame * 32, row * 48, frame * 32 + 32, row * 48 + 48)
+    img = Image.open(os.path.join(BOTS, name + ".png")).convert("RGBA").crop(box)
+    if name in SHIRT_RAMPS:
+        mask = np.array(Image.open(os.path.join(BOTS, name + "-shirt.png")).convert("L").crop(box)) > 0
+        img = recolour(img, SHIRT_RAMPS[name], mask)
+    return img
+
+
 def gif_confetti(out):
-    W, H = 8, 6
+    W, H = 8, 7
     burst = fp.burst_frames()
     fall = fp.fall_frames()
     star = fp.star_pop_frames()
-    bot = dc.silhouette("p1")
+    nami = bot("nami")
+    fx_, fy = 4 * T, 5 * T            # bot feet
+    bx, by = fx_ - 16, fy - 46
     frames = []
-    for t in range(30):
-        im = plaza(W, H, (2, 1, 6, 5))
-        im.alpha_composite(item("shadow_round"), (3 * T + 16, 3 * T + 6))
-        im.alpha_composite(bot, (3 * T + 16, 2 * T + 6))
+    for t in range(40):
+        im = plaza(W, H, (2, 1, 6, 6))
+        im.alpha_composite(item("shadow_round"), (bx, fy - 26))
+        im.alpha_composite(nami, (bx, by))
+        if t >= 9:
+            im.alpha_composite(fall[(t - 9) % fp.FALL_N], (fx_ - fp.FALL_ANCHOR[0], fy - fp.FALL_ANCHOR[1]))
         if 2 <= t < 12:
-            im.alpha_composite(burst[t - 2], (4 * T - 48, 2 * T + 6 - 74 + 10))
+            im.alpha_composite(burst[t - 2], (fx_ - fp.BURST_ANCHOR[0], fy - fp.BURST_ANCHOR[1]))
         if 8 <= t < 14:
-            im.alpha_composite(star[t - 8], (4 * T - 16, 1 * T - 6))
-        if t >= 12:
-            for x in range(0, W * T, 64):
-                for y in (-96 + (0), 0, 96):
-                    im.alpha_composite(fall[t % 6], (x, y))
+            im.alpha_composite(star[t - 8], (fx_ - 16, by - 30))
         frames.append(im)
     save_gif(frames, os.path.join(out, "vila-fx-confetti.gif"), fps=8)
 
@@ -278,45 +295,59 @@ def glass_boxes(mask, ox, oy):
     return out
 
 
-def night_frames():
+NAMI_FEET = (12 * T + 30, 13 * T - 4)     # right next to the plaza lamp at (12, 11)
+LUFFY_FEET = (7 * T + 16, 17 * T - 6)     # bottom of the plaza, away from every light
+
+
+def night_frames(n=12):
     blank_items(["lamp_glow", "wall_lamp_glow", "siren_glow"])
     em, boxes = emissive_layer()
     lg = fn.lamp_glows()
-    wl = fn.window_lights()
     heads = fn.emissive_heads()
     cone = fn.delegacia_cone()
     siren = fn.siren_flash()
     under = fn.fountain_underglow()
     _, fnight = ff.fountain_rows()
     lights, sglow = fn.string_lights()
+    p = fn.WIN_PAD
+    wins = {}
+    for (x0, y0, x1, y1) in boxes:
+        w, h = x1 - x0 + 1, y1 - y0 + 1
+        wins[(w, h)] = [fn.window_light(w, h, k) for k in (1.0, 0.86)]
+    sources = [(x * T + 16, y * T + 12, fn.LAMP_RADII["l"]) for x, y in LAMPS]
+    sources += [(x * T, 3 * T + 17, fn.LAMP_RADII["s"]) for x in WALL_LAMPS]
+    sources += [((x0 + x1) / 2, (y0 + y1) / 2, 16 + 0.5 * ((x1 - x0) ** 2 + (y1 - y0) ** 2) ** 0.5)
+                for (x0, y0, x1, y1) in boxes]
+    sources.append((6 * T + 48, 11 * T + 54, 40))
+    chars = [(bot("nami"), NAMI_FEET), (bot("luffy"), LUFFY_FEET)]
+    shadow = item("shadow_round")
     rnd = lcg(3)
-    flick = [[rnd() < 0.18 for _ in LAMPS] for _ in range(12)]
+    flick = [[rnd() < 0.18 for _ in LAMPS] for _ in range(n)]
     frames = []
-    for t in range(12):
-        day = dc.scene(A, t)
+    for t in range(n):
+        world = dc.scene(A, t, figures=False)
         # the night fountain row replaces the static fountain (6, 11)
-        day.alpha_composite(fnight[t % 8], (6 * T, 11 * T))
-        im = fn.night_image(day)
-        im.alpha_composite(em)
+        world.alpha_composite(fnight[t % 8], (6 * T, 11 * T))
+        for _, (fx_, fy) in chars:   # contact shadows belong to the world layer
+            world.alpha_composite(shadow, (fx_ - 16, fy - 26))
+        emissive = [(em, 0, 0)]
+        emissive += [(heads["lamp_head"], x * T, y * T) for x, y in LAMPS]
+        emissive += [(heads["wall_lamp_head"], x * T - 16, 3 * T) for x in WALL_LAMPS]
+        emissive += [(lights[(t // 3) % 2], x, 10 * T + 4) for x in range(4 * T, 12 * T, 64)]
+        halos = []
         for (x0, y0, x1, y1) in boxes:
-            w, h = x1 - x0 + 1, y1 - y0 + 1
-            k = "l" if w >= 20 else ("m" if w >= 11 else "s")
-            g = wl[k][1 if (t + x0) % 7 == 0 else 0]
-            ww, hh = fn.WIN_SIZES[k]
-            im = place(im, g.resize((w + 8, h + 8), Image.NEAREST), x0 - 4, y0 - 4, "add")
+            g = wins[(x1 - x0 + 1, y1 - y0 + 1)][1 if (t + x0) % 7 == 0 else 0]
+            halos.append((g, x0 - p, y0 - p))
         for i, (x, y) in enumerate(LAMPS):
-            im.alpha_composite(heads["lamp_head"], (x * T, y * T))
-            im = place(im, lg["l"][1 if flick[t][i] else 0], x * T + 16 - 56, y * T + 12 - 56, "add")
+            halos.append((lg["l"][1 if flick[t][i] else 0], x * T + 16 - 56, y * T + 12 - 56))
         for x in WALL_LAMPS:
-            im.alpha_composite(heads["wall_lamp_head"], (x * T - 16, 3 * T))
-            im = place(im, lg["s"][0], x * T - 24, 3 * T + 17 - 24, "add")
-        im = place(im, siren[(t // 2) % 2], 27 * T - 16, 1 * T - 16, "add")
-        im = place(im, cone, 26 * T + 64 - 32, 5 * T - 51, "add")
-        im = place(im, under[(t // 2) % 4], 6 * T, 11 * T, "add")
-        for x in range(4 * T, 12 * T, 64):
-            im.alpha_composite(lights[(t // 3) % 2], (x, 10 * T + 4))
-            im = place(im, sglow[(t // 3) % 2], x, 10 * T + 4, "add")
-        frames.append(im)
+            halos.append((lg["s"][0], x * T - 24, 3 * T + 17 - 24))
+        halos.append((siren[(t // 2) % 2], 27 * T - 16, 1 * T - 16))
+        halos.append((cone, 26 * T + 64 - 32, 5 * T - 51))
+        halos.append((under[(t // 2) % 4], 6 * T, 11 * T))
+        halos += [(sglow[(t // 3) % 2], x, 10 * T + 4) for x in range(4 * T, 12 * T, 64)]
+        characters = [(img, fx_ - 16, fy - 46) for img, (fx_, fy) in chars]
+        frames.append(fn.compose_night(world, characters, halos, emissive, sources))
     return frames
 
 
@@ -324,7 +355,7 @@ def out_night(out):
     frames = night_frames()
     f0 = frames[0]
     f0.resize((f0.width * 2, f0.height * 2), Image.NEAREST).save(os.path.join(out, "vila-fx-night.png"))
-    save_gif(frames, os.path.join(out, "vila-fx-night.gif"), fps=6, scale=4)
+    save_gif(frames[:8], os.path.join(out, "vila-fx-night.gif"), fps=6, scale=4)
 
 
 # ---------------------------------------------------------------- 6. Bug in the fountain

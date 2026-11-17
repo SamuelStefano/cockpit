@@ -180,40 +180,40 @@
    "sheet": "confetti.png",
    "x": 0,
    "y": 0,
-   "frame_w": 96,
-   "frame_h": 96,
+   "frame_w": 192,
+   "frame_h": 192,
    "frames": 10,
    "fps": 12,
    "anchor": [
-    48,
-    74
+    96,
+    140
    ],
    "blend": "normal",
    "loop": false,
-   "note": "merge burst, one-shot; anchor = where it pops (above the bot's head)",
+   "note": "merge burst, one-shot, 120 pieces of 2x2 / 3x2 px; anchor = the bot's feet, pops at (96, 98) just above the head; spread stays within ~3 tiles",
    "layer": "above"
   },
   "confetti_fall": {
    "sheet": "confetti.png",
    "x": 0,
-   "y": 96,
-   "frame_w": 64,
+   "y": 192,
+   "frame_w": 192,
    "frame_h": 96,
-   "frames": 6,
+   "frames": 12,
    "fps": 8,
    "anchor": [
-    32,
-    0
+    96,
+    72
    ],
    "blend": "normal",
    "loop": true,
-   "note": "falling loop, 64x96 seamless vertically; tile horizontally across the view",
-   "layer": "screen"
+   "note": "falling loop around the bot (anchor = feet): 12 frames x 8 px = 96 px seamless; pieces fall 8 px/frame inside a 96x48 px radius ellipse; play after confetti_burst",
+   "layer": "above"
   },
   "star_pop": {
    "sheet": "confetti.png",
    "x": 0,
-   "y": 192,
+   "y": 288,
    "frame_w": 32,
    "frame_h": 32,
    "frames": 6,
@@ -321,7 +321,7 @@
    ],
    "blend": "add",
    "loop": true,
-   "note": "radius 24 px; centre on the lamp head; alternate frames at random for flicker",
+   "note": "radius 24 px, warm (y0 rim, y2 core), Bayer-dithered edge; centre on the lamp head; alternate frames at random for flicker",
    "layer": "light"
   },
   "lamp_glow_m": {
@@ -338,7 +338,7 @@
    ],
    "blend": "add",
    "loop": true,
-   "note": "radius 40 px; centre on the lamp head; alternate frames at random for flicker",
+   "note": "radius 40 px, warm (y0 rim, y2 core), Bayer-dithered edge; centre on the lamp head; alternate frames at random for flicker",
    "layer": "light"
   },
   "lamp_glow_l": {
@@ -355,64 +355,64 @@
    ],
    "blend": "add",
    "loop": true,
-   "note": "radius 56 px; centre on the lamp head; alternate frames at random for flicker",
+   "note": "radius 56 px, warm (y0 rim, y2 core), Bayer-dithered edge; centre on the lamp head; alternate frames at random for flicker",
    "layer": "light"
   },
   "window_light_s": {
    "sheet": "night.png",
    "x": 0,
    "y": 240,
-   "frame_w": 16,
-   "frame_h": 20,
+   "frame_w": 20,
+   "frame_h": 24,
    "frames": 2,
    "fps": 2,
    "anchor": [
-    8,
-    10
+    10,
+    12
    ],
    "blend": "add",
    "loop": true,
-   "note": "pane 8x12 px + 4 px halo; centre on the window glass",
+   "note": "pane 8x12 px + 6 px dithered halo; centre on the window glass",
    "layer": "light"
   },
   "window_light_m": {
    "sheet": "night.png",
    "x": 0,
-   "y": 260,
-   "frame_w": 22,
-   "frame_h": 30,
+   "y": 264,
+   "frame_w": 26,
+   "frame_h": 34,
    "frames": 2,
    "fps": 2,
    "anchor": [
-    11,
-    15
+    13,
+    17
    ],
    "blend": "add",
    "loop": true,
-   "note": "pane 14x22 px + 4 px halo; centre on the window glass",
+   "note": "pane 14x22 px + 6 px dithered halo; centre on the window glass",
    "layer": "light"
   },
   "window_light_l": {
    "sheet": "night.png",
    "x": 0,
-   "y": 290,
-   "frame_w": 32,
-   "frame_h": 36,
+   "y": 298,
+   "frame_w": 36,
+   "frame_h": 40,
    "frames": 2,
    "fps": 2,
    "anchor": [
-    16,
-    18
+    18,
+    20
    ],
    "blend": "add",
    "loop": true,
-   "note": "pane 24x28 px + 4 px halo; centre on the window glass",
+   "note": "pane 24x28 px + 6 px dithered halo; centre on the window glass",
    "layer": "light"
   },
   "delegacia_cone": {
    "sheet": "night.png",
    "x": 0,
-   "y": 326,
+   "y": 338,
    "frame_w": 64,
    "frame_h": 80,
    "frames": 1,
@@ -429,7 +429,7 @@
   "siren_flash": {
    "sheet": "night.png",
    "x": 0,
-   "y": 406,
+   "y": 418,
    "frame_w": 96,
    "frame_h": 64,
    "frames": 2,
@@ -446,7 +446,7 @@
   "fountain_underglow": {
    "sheet": "night.png",
    "x": 0,
-   "y": 470,
+   "y": 482,
    "frame_w": 96,
    "frame_h": 96,
    "frames": 4,
@@ -457,13 +457,13 @@
    ],
    "blend": "add",
    "loop": true,
-   "note": "same top-left as the fountain",
+   "note": "warm, dithered; same top-left as the fountain",
    "layer": "light"
   },
   "string_lights": {
    "sheet": "night.png",
    "x": 0,
-   "y": 566,
+   "y": 578,
    "frame_w": 64,
    "frame_h": 16,
    "frames": 2,
@@ -480,7 +480,7 @@
   "string_lights_glow": {
    "sheet": "night.png",
    "x": 0,
-   "y": 582,
+   "y": 594,
    "frame_w": 64,
    "frame_h": 16,
    "frames": 2,
@@ -497,7 +497,7 @@
   "lamp_head": {
    "sheet": "night.png",
    "x": 0,
-   "y": 598,
+   "y": 610,
    "frame_w": 32,
    "frame_h": 64,
    "frames": 1,
@@ -514,7 +514,7 @@
   "wall_lamp_head": {
    "sheet": "night.png",
    "x": 0,
-   "y": 662,
+   "y": 674,
    "frame_w": 32,
    "frame_h": 32,
    "frames": 1,
@@ -531,7 +531,7 @@
   "lit_windows": {
    "sheet": "night.png",
    "x": 0,
-   "y": 694,
+   "y": 706,
    "frame_w": 32,
    "frame_h": 64,
    "frames": 7,
@@ -671,26 +671,6 @@
    ],
    "blend": "normal",
    "loop": true
-  },
-  "porto_sign": {
-   "sheet": "porto-sign.png",
-   "x": 0,
-   "y": 0,
-   "frame_w": 96,
-   "frame_h": 64,
-   "frames": 1,
-   "fps": 0,
-   "anchor": [
-    48,
-    62
-   ],
-   "blend": "normal",
-   "loop": false,
-   "note": "wooden PORTO sign for the dock, static; place at the dock entrance, its shadow overlay is porto-sign-shadow.png (96x16, drawn under, anchor top-left at y+56)",
-   "tiles": [
-    3,
-    2
-   ]
   }
  }
 }

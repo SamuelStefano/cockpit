@@ -72,11 +72,12 @@ BRIGHT = [("g2", "g1"), ("y1", "y0"), ("k1", "k0"), ("a2", "a1"), ("h3", "h2")]
 
 
 def piece(im, x, y, kind, phase, col):
-    """rectangles flip between face-on (wide, light colour) and edge-on (thin, dark colour)"""
+    """pieces are at most 3x2 (paper) or 2x2 (chip); rectangles flip between face-on (wide, light
+    colour) and edge-on (thin, dark colour) for the spin illusion"""
     lt, dk = col
     x, y = int(round(x)), int(round(y))
     st = phase % 4
-    if kind == 0:   # paper rectangle
+    if kind == 0:   # paper rectangle, 3x2 face-on
         if st == 0:
             for dx in range(3):
                 for dy in range(2):
@@ -89,10 +90,10 @@ def piece(im, x, y, kind, phase, col):
             put(im, x + 1, y, C(dk))
             put(im, x, y, C(lt))
             put(im, x, y + 1, C(dk))
-        else:
+        else:           # edge-on
             put(im, x + 1, y, C(dk))
             put(im, x + 1, y + 1, C(dk))
-    elif kind == 1:  # square chip
+    else:            # square chip, 2x2 face-on
         if st in (0, 2):
             put(im, x, y, C(lt))
             put(im, x + 1, y, C(lt))
@@ -101,24 +102,25 @@ def piece(im, x, y, kind, phase, col):
         else:
             put(im, x, y, C(dk))
             put(im, x + 1, y + 1, C(dk))
-    else:            # streamer: wavy 1px ribbon
-        for t in range(6):
-            yy = y + t
-            xx = x + (1 if (t + phase) % 4 in (1, 2) else 0)
-            put(im, xx, yy, C(lt if t % 3 else dk))
 
 
-def burst_frames(n=10, W=96, H=96):
+BURST_SIZE = 192            # frame side; spread stays within ~3 tiles (96 px) of the pop
+BURST_POP = (96, 98)        # pop point, at the top of the bot's head
+BURST_ANCHOR = (96, 140)    # bot feet (origin)
+BURST_PIECES = 120
+
+
+def burst_frames(n=10):
+    W = H = BURST_SIZE
     rnd = lcg(20261117)
     pieces = []
-    for i in range(60):
-        ang = -math.pi / 2 + (rnd() - 0.5) * 2.8
-        sp = 1.6 + rnd() * 4.4
-        kind = 2 if i % 7 == 0 else (1 if i % 3 == 0 else 0)
-        pieces.append(dict(vx=math.cos(ang) * sp, vy=math.sin(ang) * sp - 1.0, kind=kind,
+    for i in range(BURST_PIECES):
+        ang = -math.pi / 2 + (rnd() - 0.5) * 3.6
+        sp = 0.8 + rnd() * 1.9
+        pieces.append(dict(vx=math.cos(ang) * sp, vy=math.sin(ang) * sp - 0.2, kind=1 if i % 3 == 0 else 0,
                            col=BRIGHT[i % 5], ph=int(rnd() * 4), spin=1 + (i % 2), gone=7 + int(rnd() * 3)))
     frames = []
-    cx, cy = 48, 74
+    cx, cy = BURST_POP
     for f in range(n):
         im = blank(W, H)
         if f <= 1:
@@ -133,10 +135,10 @@ def burst_frames(n=10, W=96, H=96):
         for p in pieces:
             if f >= p["gone"]:
                 continue
-            # drag + gravity: fast pop, then a slow drift down
+            # drag + gravity: fast pop, then a slow drift down (gravity term never exceeds 8 px/frame)
             drag = (1 - 0.72 ** t) / 0.28
-            x = cx + p["vx"] * drag * 3.0
-            y = cy + p["vy"] * drag * 3.0 + 0.3 * t * t
+            x = cx + p["vx"] * drag * 7.0
+            y = cy + p["vy"] * drag * 7.0 + 0.4 * t * t
             ph = p["ph"] + f * p["spin"]
             if f >= p["gone"] - 1 and (int(x) + int(y)) % 2:
                 continue   # thin out just before the piece disappears
@@ -145,23 +147,33 @@ def burst_frames(n=10, W=96, H=96):
     return frames
 
 
-def fall_frames(n=6, W=64, H=96):
-    """seamless: each piece moves 16 px per frame (6 x 16 = 96 = frame height) with a periodic sway"""
+FALL_W, FALL_H, FALL_N, FALL_STEP = 192, 96, 12, 8   # 12 x 8 px = 96 px: seamless
+FALL_ANCHOR = (96, 72)                              # bot feet
+
+
+def fall_frames():
+    """seamless loop centred on the bot: every piece falls 8 px per frame (12 x 8 = 96 = frame height)
+    with a sway of period 12; pieces cluster near the middle and only show inside an ellipse of
+    96 x 48 px radius, so the shower stays within ~3 tiles of the bot"""
+    W, H, n = FALL_W, FALL_H, FALL_N
+    cx, cy = W / 2, H / 2
     rnd = lcg(77)
     pieces = []
-    for i in range(16):
-        pieces.append(dict(x=4 + rnd() * 54, y=rnd() * 96, ph=int(rnd() * 4), kind=2 if i % 6 == 0 else
-                           (1 if i % 3 == 0 else 0), col=BRIGHT[i % 5], sw=1.5 + rnd() * 2, sp=rnd() * 6.28))
+    for i in range(40):
+        # triangular distribution: denser over the bot, sparse at the sides
+        dx = (rnd() - rnd()) * 88
+        pieces.append(dict(x=cx + dx, y=rnd() * H, ph=int(rnd() * 4), kind=1 if i % 3 == 0 else 0,
+                           col=BRIGHT[i % 5], sw=1.0 + rnd() * 2, sp=rnd() * 6.28))
     frames = []
     for f in range(n):
         im = blank(W, H)
         for p in pieces:
-            y = (p["y"] + 16 * f) % 96
+            y = (p["y"] + FALL_STEP * f) % H
             x = p["x"] + p["sw"] * math.sin(2 * math.pi * f / n + p["sp"])
-            ph = p["ph"] + f * 2   # period 2 flip keeps the 6-frame loop seamless
-            piece(im, x, y - 6, p["kind"], ph, p["col"])
-            if y > 90:   # piece wrapping: draw its top copy so nothing pops
-                piece(im, x, y - 6 - 96, p["kind"], ph, p["col"])
+            if ((x - cx) / 94) ** 2 + ((y - cy) / 50) ** 2 > 1:
+                continue
+            ph = p["ph"] + f   # flip period 4 divides the 12-frame loop
+            piece(im, x, y - 2, p["kind"], ph, p["col"])
         frames.append(im)
     return frames
 

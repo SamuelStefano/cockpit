@@ -126,10 +126,20 @@
   "note": "affine, so it can run as a shader / colour matrix on the whole frame and gives the same result as the LUT on blended pixels"
  },
  "order": [
-  "world (ground, shadows, props, bots) recoloured by the LUT / transform",
-  "layer=emissive sprites (lit_windows over each bay, lamp_head, wall_lamp_head) unrecoloured",
-  "layer=light sprites with blend=add (lamp glows, window lights, cone, siren, underglow)"
+  "1. world (ground, shadows, props, buildings; NOT characters) recoloured by the LUT / transform, then layer=emissive sprites (lit_windows over each bay, lamp_head, wall_lamp_head, string_lights) unrecoloured",
+  "2. characters, never recoloured by the LUT: multiply tint `characters.shade` (mild night shade, faint blue), lerped to white (= original colours) by the light factor of the nearest light source; they stay in the same depth-sorted layer as the props",
+  "3. layer=light sprites with blend=add on top of everything (lamp glows, window lights, cone, siren, underglow, string_lights_glow)"
  ],
+ "characters": {
+  "shade": [
+   0.82,
+   0.85,
+   0.96
+  ],
+  "lit_inner": 0.6,
+  "formula": "light = max over sources of clamp((1 - dist/radius) / (1 - lit_inner), 0, 1); dist from the body centre (origin - 24 px) to the light centre; tint = shade + (1 - shade) * light (per channel, multiply)",
+  "sources": "lamp heads (radius of their lamp_glow), wall lamps (24), lit panes (half the pane diagonal + 16), fountain underglow (40)"
+ },
  "lit_windows": {
   "window_arched": 0,
   "window_square": 1,
@@ -154,7 +164,7 @@
    ],
    "blend": "add",
    "loop": true,
-   "note": "radius 24 px; centre on the lamp head; alternate frames at random for flicker",
+   "note": "radius 24 px, warm (y0 rim, y2 core), Bayer-dithered edge; centre on the lamp head; alternate frames at random for flicker",
    "layer": "light"
   },
   "lamp_glow_m": {
@@ -171,7 +181,7 @@
    ],
    "blend": "add",
    "loop": true,
-   "note": "radius 40 px; centre on the lamp head; alternate frames at random for flicker",
+   "note": "radius 40 px, warm (y0 rim, y2 core), Bayer-dithered edge; centre on the lamp head; alternate frames at random for flicker",
    "layer": "light"
   },
   "lamp_glow_l": {
@@ -188,64 +198,64 @@
    ],
    "blend": "add",
    "loop": true,
-   "note": "radius 56 px; centre on the lamp head; alternate frames at random for flicker",
+   "note": "radius 56 px, warm (y0 rim, y2 core), Bayer-dithered edge; centre on the lamp head; alternate frames at random for flicker",
    "layer": "light"
   },
   "window_light_s": {
    "sheet": "night.png",
    "x": 0,
    "y": 240,
-   "frame_w": 16,
-   "frame_h": 20,
+   "frame_w": 20,
+   "frame_h": 24,
    "frames": 2,
    "fps": 2,
    "anchor": [
-    8,
-    10
+    10,
+    12
    ],
    "blend": "add",
    "loop": true,
-   "note": "pane 8x12 px + 4 px halo; centre on the window glass",
+   "note": "pane 8x12 px + 6 px dithered halo; centre on the window glass",
    "layer": "light"
   },
   "window_light_m": {
    "sheet": "night.png",
    "x": 0,
-   "y": 260,
-   "frame_w": 22,
-   "frame_h": 30,
+   "y": 264,
+   "frame_w": 26,
+   "frame_h": 34,
    "frames": 2,
    "fps": 2,
    "anchor": [
-    11,
-    15
+    13,
+    17
    ],
    "blend": "add",
    "loop": true,
-   "note": "pane 14x22 px + 4 px halo; centre on the window glass",
+   "note": "pane 14x22 px + 6 px dithered halo; centre on the window glass",
    "layer": "light"
   },
   "window_light_l": {
    "sheet": "night.png",
    "x": 0,
-   "y": 290,
-   "frame_w": 32,
-   "frame_h": 36,
+   "y": 298,
+   "frame_w": 36,
+   "frame_h": 40,
    "frames": 2,
    "fps": 2,
    "anchor": [
-    16,
-    18
+    18,
+    20
    ],
    "blend": "add",
    "loop": true,
-   "note": "pane 24x28 px + 4 px halo; centre on the window glass",
+   "note": "pane 24x28 px + 6 px dithered halo; centre on the window glass",
    "layer": "light"
   },
   "delegacia_cone": {
    "sheet": "night.png",
    "x": 0,
-   "y": 326,
+   "y": 338,
    "frame_w": 64,
    "frame_h": 80,
    "frames": 1,
@@ -262,7 +272,7 @@
   "siren_flash": {
    "sheet": "night.png",
    "x": 0,
-   "y": 406,
+   "y": 418,
    "frame_w": 96,
    "frame_h": 64,
    "frames": 2,
@@ -279,7 +289,7 @@
   "fountain_underglow": {
    "sheet": "night.png",
    "x": 0,
-   "y": 470,
+   "y": 482,
    "frame_w": 96,
    "frame_h": 96,
    "frames": 4,
@@ -290,13 +300,13 @@
    ],
    "blend": "add",
    "loop": true,
-   "note": "same top-left as the fountain",
+   "note": "warm, dithered; same top-left as the fountain",
    "layer": "light"
   },
   "string_lights": {
    "sheet": "night.png",
    "x": 0,
-   "y": 566,
+   "y": 578,
    "frame_w": 64,
    "frame_h": 16,
    "frames": 2,
@@ -313,7 +323,7 @@
   "string_lights_glow": {
    "sheet": "night.png",
    "x": 0,
-   "y": 582,
+   "y": 594,
    "frame_w": 64,
    "frame_h": 16,
    "frames": 2,
@@ -330,7 +340,7 @@
   "lamp_head": {
    "sheet": "night.png",
    "x": 0,
-   "y": 598,
+   "y": 610,
    "frame_w": 32,
    "frame_h": 64,
    "frames": 1,
@@ -347,7 +357,7 @@
   "wall_lamp_head": {
    "sheet": "night.png",
    "x": 0,
-   "y": 662,
+   "y": 674,
    "frame_w": 32,
    "frame_h": 32,
    "frames": 1,
@@ -364,7 +374,7 @@
   "lit_windows": {
    "sheet": "night.png",
    "x": 0,
-   "y": 694,
+   "y": 706,
    "frame_w": 32,
    "frame_h": 64,
    "frames": 7,

@@ -15,7 +15,7 @@ import numpy as np
 from PIL import Image
 
 from pixkit import PALETTE, C, rgb, blank, put, grid, m_poly, Part, draw_parts
-from fxkit import stack_alpha, recolour
+from fxkit import stack_alpha, recolour, dither_levels, dither_pick, place
 import buildings as bd
 import props as pr
 
@@ -52,49 +52,69 @@ def lut():
 
 
 # ---------------------------------------------------------------- additive lights
-def stepped_radial(w, h, cx, cy, rx, ry, peak, steps=5):
+# Warm halos: falloff field -> ordered Bayer dither between a few alpha steps (no hard rings). Colours
+# are overlay colours only: `warm` y0 (amber) on the outside, `glow` y2 (pale yellow) dithered in
+# towards the core. No white.
+HALO_LEVELS = (0, 0.25, 0.5, 0.75, 1.0)   # 4 alpha steps, scaled by the peak
+
+
+def falloff(d, power=1.4):
+    """d = normalised distance (0 centre, 1 edge) -> 0..1, eased so the edge is long and soft"""
+    return np.clip(1 - d, 0, 1) ** power
+
+
+def warm_halo(f, peak, core=(0.55, 0.85)):
+    """f: 0..1 light field -> RGBA image (y0 rim, y2 core), dithered alpha and dithered colour edge"""
+    a = dither_levels(f, [peak * k for k in HALO_LEVELS])
+    hot = dither_pick(f, *core) & (a > 0)
+    return stack_alpha([(np.where(hot, 0, a), "y0"), (np.where(hot, a, 0), "y2")])
+
+
+def radial(w, h, cx, cy, rx, ry):
     X, Y = grid(w, h)
-    d = np.sqrt(((X - cx) / rx) ** 2 + ((Y - cy) / ry) ** 2)
-    a = np.zeros((h, w))
-    for k in range(steps):
-        a[d <= 1.0 - k / steps] = peak * (k + 1) / steps
-    return a
+    return np.sqrt(((X + 0.5 - cx) / rx) ** 2 + ((Y + 0.5 - cy) / ry) ** 2)
+
+
+def dithered_radial(w, h, cx, cy, rx, ry, peak, steps=4):
+    """single-colour soft spot (for the coloured lights: siren, bulbs, cone pool)"""
+    return dither_levels(falloff(radial(w, h, cx, cy, rx, ry)), [peak * k / steps for k in range(steps + 1)])
+
+
+LAMP_RADII = {"s": 24, "m": 40, "l": 56}
 
 
 def lamp_glows():
     """3 radii (24, 40, 56 px), 2 frames each (steady, slightly dimmer) for a lamp flicker"""
     out = {}
-    for name, r in (("s", 24), ("m", 40), ("l", 56)):
+    for name, r in LAMP_RADII.items():
         frames = []
-        for k in (1.0, 0.86):
-            outer = stepped_radial(2 * r, 2 * r, r, r, r, r, 88 * k)
-            core = stepped_radial(2 * r, 2 * r, r, r, r * 0.4, r * 0.4, 64 * k, steps=2)
-            frames.append(stack_alpha([(outer, "y1"), (core, "y2")]))
+        for k in (1.0, 0.88):
+            f = falloff(radial(2 * r, 2 * r, r, r, r, r), 1.1) * k
+            frames.append(warm_halo(f, 160, core=(0.88, 1.15)))
         out[name] = frames
     return out
 
 
 WIN_SIZES = {"s": (8, 12), "m": (14, 22), "l": (24, 28)}
+WIN_PAD = 6
+
+
+def window_light(w, h, k=1.0):
+    """warm light over a w x h pane plus a WIN_PAD px dithered halo; frame = (w + 2 pad) x (h + 2 pad)"""
+    W, H = w + 2 * WIN_PAD, h + 2 * WIN_PAD
+    X, Y = grid(W, H)
+    dx = np.maximum(0, np.maximum(WIN_PAD - (X + 0.5), (X + 0.5) - (W - WIN_PAD)))
+    dy = np.maximum(0, np.maximum(WIN_PAD - (Y + 0.5), (Y + 0.5) - (H - WIN_PAD)))
+    d = np.sqrt(dx ** 2 + dy ** 2) / WIN_PAD
+    f = falloff(d, 1.2) * 0.8
+    inside = (dx == 0) & (dy == 0)
+    f[inside] = 0.8 + 0.2 * (Y[inside] < WIN_PAD + 2)   # glass sheen along the top of the pane
+    return warm_halo(f * k, 128, core=(0.85, 1.05))
 
 
 def window_lights():
-    """warm light square + 2 soft steps of halo; 2 frames: on and a slight flicker"""
-    out = {}
-    for name, (w, h) in WIN_SIZES.items():
-        W, H = w + 8, h + 8
-        frames = []
-        for k in (1.0, 0.84):
-            core = np.zeros((H, W))
-            halo = np.zeros((H, W))
-            halo[0:H, 0:W] = 0
-            halo[2:H - 2, 2:W - 2] = 26 * k
-            halo[3:H - 3, 3:W - 3] = 52 * k
-            core[4:H - 4, 4:W - 4] = 120 * k
-            # top-left corner of the pane a touch brighter, like the tileset's glass sheen
-            core[4:6, 4:W - 4] = 150 * k
-            frames.append(stack_alpha([(halo, "y2"), (core, "y1")]))
-        out[name] = frames
-    return out
+    """2 frames: on and a slight flicker"""
+    return {name: [window_light(w, h, k) for k in (1.0, 0.86)] for name, (w, h) in WIN_SIZES.items()}
 
 
 def delegacia_cone(W=64, H=80):
@@ -105,7 +125,7 @@ def delegacia_cone(W=64, H=80):
     for k, y0 in enumerate((0, 16, 32, 48)):
         a[m & (Y >= y0)] = [64, 50, 38, 28][k]
     # pool on the ground at the bottom of the cone
-    pool = stepped_radial(W, H, 32, 68, 30, 9, 60, steps=3)
+    pool = dithered_radial(W, H, 32, 68, 30, 9, 60, steps=3)
     a = np.maximum(a, pool)
     # a soft inner beam
     inner = m_poly(W, H, [(29, 0), (35, 0), (44, 66), (20, 66)])
@@ -117,18 +137,17 @@ def siren_flash():
     """96x64 additive flash, placed so its centre sits on the siren (the 64x32 siren tile + (-16, -16))"""
     out = []
     for col, cx in (("r1", 40), ("a2", 56)):
-        a = stepped_radial(96, 64, cx, 36, 34, 22, 110)
-        beam = stepped_radial(96, 64, cx, 36, 48, 7, 70, steps=3)
+        a = dithered_radial(96, 64, cx, 36, 34, 22, 110)
+        beam = dithered_radial(96, 64, cx, 36, 48, 7, 70, steps=3)
         out.append(stack_alpha([(np.maximum(a, beam), col)]))
     return out
 
 
 def fountain_underglow():
     out = []
-    for k in (1.0, 0.9, 1.0, 1.1):
-        a = stepped_radial(96, 96, 48, 54, 40, 23, 70 * k)
-        a = np.maximum(a, stepped_radial(96, 96, 48, 54, 47, 30, 30 * k, steps=2))
-        out.append(stack_alpha([(a, "a3")]))
+    d = radial(96, 96, 48, 54, 47, 30)
+    for k in (1.0, 0.92, 1.0, 1.08):
+        out.append(warm_halo(falloff(d, 1.1) * 0.9 * k, 120, core=(0.75, 1.0)))
     return out
 
 
@@ -160,7 +179,7 @@ def string_lights():
             put(im, x + 1, y + 2, C(col if on else "m0"))
             if on:
                 put(im, x, y + 1, C("wh"))
-                ga = stepped_radial(W, H, x + 1, y + 2, 5, 5, 90, steps=3)
+                ga = dithered_radial(W, H, x + 1, y + 2, 5, 5, 90, steps=3)
                 gcol[ga > glow] = b % 5
                 glow = np.maximum(glow, ga)
         frames.append(im)
@@ -189,3 +208,49 @@ def emissive_heads():
         a[~keep] = 0
         out[name] = Image.fromarray(a, "RGBA")
     return out
+
+
+# ---------------------------------------------------------------- characters at night (lit-sprite rule)
+# Characters never go through the night LUT (it turns them into navy silhouettes). They get a mild
+# multiply tint instead, and the tint fades back to their original colours inside a light radius.
+CHAR_SHADE = (0.82, 0.85, 0.96)   # ~15-18% darker, a faint blue cast
+CHAR_LIT_INNER = 0.6              # full colour inside 60% of a light's radius, fading out to its edge
+
+
+def char_light(px, py, sources):
+    """0..1 light factor for a character whose body centre is (px, py); sources = [(x, y, radius)]"""
+    best = 0.0
+    for x, y, r in sources:
+        d = math.hypot(px - x, py - y) / r
+        best = max(best, min(1.0, max(0.0, (1 - d) / (1 - CHAR_LIT_INNER))))
+    return best
+
+
+def char_tint(light):
+    """multiply tint for a character sprite (what Phaser setTint would get), light = char_light()"""
+    return tuple(s + (1 - s) * light for s in CHAR_SHADE)
+
+
+def shade_character(img, light):
+    a = np.array(img.convert("RGBA")).astype(np.float64)
+    a[..., :3] *= np.array(char_tint(light))
+    return Image.fromarray(np.clip(np.round(a), 0, 255).astype(np.uint8), "RGBA")
+
+
+def compose_night(world, characters=(), lights=(), emissive=(), sources=()):
+    """the 3-step night draw order on separate layers:
+    1. world (ground, props, buildings - no characters) recoloured by the night transform / LUT,
+       then the emissive sprites (lit windows, lamp heads) unrecoloured;
+    2. characters = [(img, x, y)] (top-left), each with its own mild shade, lit back to full colour
+       near a light source (sources = [(x, y, radius)]);
+    3. lights = [(img, x, y)] additive halos on top of everything.
+    """
+    im = night_image(world)
+    for img, x, y in emissive:
+        im.alpha_composite(img, (int(x), int(y)))
+    for img, x, y in characters:
+        lf = char_light(x + img.width / 2, y + img.height / 2, sources)
+        im.alpha_composite(shade_character(img, lf), (int(x), int(y)))
+    for img, x, y in lights:
+        im = place(im, img, x, y, "add")
+    return im

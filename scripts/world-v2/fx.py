@@ -12,7 +12,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 OUT = os.path.join(os.path.dirname(os.path.dirname(HERE)), "public", "world", "v2", "fx")
 
-from fxkit import Sheet, audit_fx, baked_shadow_px  # noqa: E402
+from fxkit import Sheet, audit_fx, audit_overlay, baked_shadow_px  # noqa: E402
 import fx_fountain as ff  # noqa: E402
 import fx_particles as fp  # noqa: E402
 import fx_weather as fw  # noqa: E402
@@ -57,10 +57,13 @@ def rain():
 
 def confetti():
     S = Sheet("confetti.png")
-    S.add("confetti_burst", fp.burst_frames(), 12, (48, 74), loop=False, layer="above",
-          note="merge burst, one-shot; anchor = where it pops (above the bot's head)")
-    S.add("confetti_fall", fp.fall_frames(), 8, (32, 0), layer="screen",
-          note="falling loop, 64x96 seamless vertically; tile horizontally across the view")
+    S.add("confetti_burst", fp.burst_frames(), 12, fp.BURST_ANCHOR, loop=False, layer="above",
+          note="merge burst, one-shot, %d pieces of 2x2 / 3x2 px; anchor = the bot's feet, pops at (%d, %d) "
+               "just above the head; spread stays within ~3 tiles" % ((fp.BURST_PIECES,) + fp.BURST_POP))
+    S.add("confetti_fall", fp.fall_frames(), 8, fp.FALL_ANCHOR, layer="above",
+          note="falling loop around the bot (anchor = feet): %d frames x %d px = %d px seamless; pieces "
+               "fall %d px/frame inside a 96x48 px radius ellipse; play after confetti_burst"
+               % (fp.FALL_N, fp.FALL_STEP, fp.FALL_H, fp.FALL_STEP))
     S.add("star_pop", fp.star_pop_frames(), 10, (16, 17), loop=False, layer="above", note="level up")
     return S
 
@@ -85,17 +88,19 @@ def night():
     g = fn.lamp_glows()
     for k, r in (("s", 24), ("m", 40), ("l", 56)):
         S.add("lamp_glow_" + k, g[k], 3, (r, r), blend="add", layer="light",
-              note="radius %d px; centre on the lamp head; alternate frames at random for flicker" % r)
+              note="radius %d px, warm (y0 rim, y2 core), Bayer-dithered edge; centre on the lamp head; "
+                   "alternate frames at random for flicker" % r)
     w = fn.window_lights()
+    p = fn.WIN_PAD
     for k, (ww, hh) in fn.WIN_SIZES.items():
-        S.add("window_light_" + k, w[k], 2, ((ww + 8) // 2, (hh + 8) // 2), blend="add", layer="light",
-              note="pane %dx%d px + 4 px halo; centre on the window glass" % (ww, hh))
+        S.add("window_light_" + k, w[k], 2, ((ww + 2 * p) // 2, (hh + 2 * p) // 2), blend="add", layer="light",
+              note="pane %dx%d px + %d px dithered halo; centre on the window glass" % (ww, hh, p))
     S.add("delegacia_cone", [fn.delegacia_cone()], 0, (32, 0), blend="add", layer="light",
           note="security (Delegacia) door lamp: top centre at the lamp, falls onto the sidewalk")
     S.add("siren_flash", fn.siren_flash(), 4, (48, 32), blend="add", layer="light",
           note="frame 0 red, 1 blue; top-left = siren tile top-left + (-16, -16)")
     S.add("fountain_underglow", fn.fountain_underglow(), 4, (48, 54), blend="add", layer="light",
-          note="same top-left as the fountain")
+          note="warm, dithered; same top-left as the fountain")
     lights, glows = fn.string_lights()
     S.add("string_lights", lights, 2, (0, 3), layer="emissive", note="64 px segment, wire ends at y=3 on both edges")
     S.add("string_lights_glow", glows, 2, (0, 3), blend="add", layer="light", note="draw on top of string_lights")
@@ -138,6 +143,9 @@ def main():
         anims.update(rows)
         op, tr = audit_fx(img)
         baked = sum(baked_shadow_px(f) for _, frames, _ in S.rows for f in frames)
+        halo = sum(audit_overlay(f) for a, frames, _ in S.rows for f in frames
+                   if a.startswith(("lamp_glow", "window_light", "fountain_underglow")))
+        assert halo == 0, ("halo pixels outside OVERLAY_COLOURS", S.name, halo)
         report.append((S.name, img.size, os.path.getsize(path), op, tr, baked))
     lut, names, mapping = fn.lut()
     lut.save(os.path.join(OUT, "night-lut.png"), optimize=True)
@@ -162,9 +170,20 @@ def main():
                       "desat": fn.DESAT, "mul": list(fn.MUL), "add": list(fn.ADD),
                       "note": "affine, so it can run as a shader / colour matrix on the whole frame and gives "
                               "the same result as the LUT on blended pixels"},
-        "order": ["world (ground, shadows, props, bots) recoloured by the LUT / transform",
-                  "layer=emissive sprites (lit_windows over each bay, lamp_head, wall_lamp_head) unrecoloured",
-                  "layer=light sprites with blend=add (lamp glows, window lights, cone, siren, underglow)"],
+        "order": ["1. world (ground, shadows, props, buildings; NOT characters) recoloured by the LUT / "
+                  "transform, then layer=emissive sprites (lit_windows over each bay, lamp_head, wall_lamp_head, "
+                  "string_lights) unrecoloured",
+                  "2. characters, never recoloured by the LUT: multiply tint `characters.shade` (mild night "
+                  "shade, faint blue), lerped to white (= original colours) by the light factor of the nearest "
+                  "light source; they stay in the same depth-sorted layer as the props",
+                  "3. layer=light sprites with blend=add on top of everything (lamp glows, window lights, cone, "
+                  "siren, underglow, string_lights_glow)"],
+        "characters": {"shade": list(fn.CHAR_SHADE), "lit_inner": fn.CHAR_LIT_INNER,
+                       "formula": "light = max over sources of clamp((1 - dist/radius) / (1 - lit_inner), 0, 1); "
+                                  "dist from the body centre (origin - 24 px) to the light centre; "
+                                  "tint = shade + (1 - shade) * light (per channel, multiply)",
+                       "sources": "lamp heads (radius of their lamp_glow), wall lamps (24), lit panes "
+                                  "(half the pane diagonal + 16), fountain underglow (40)"},
         "lit_windows": {n: i for i, n in enumerate(fn.LIT_BAYS)},
         "animations": {k: v for k, v in anims.items() if v["sheet"] == "night.png"},
     }

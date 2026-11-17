@@ -10,7 +10,7 @@ import math
 import numpy as np
 from PIL import Image
 
-from pixkit import PALETTE, rgb, blank
+from pixkit import PALETTE, OVERLAY_COLOURS, rgb, blank
 
 PAL_RGB = np.array([rgb(n) for n in PALETTE], np.int32)
 
@@ -91,6 +91,43 @@ def stack_alpha(layers):
         arr[m, :3] = rgb(col)
         arr[m, 3] = np.clip(np.round(al[m]), 0, 255).astype(np.uint8)
     return Image.fromarray(arr, "RGBA")
+
+
+BAYER4 = np.array([[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]], np.float64)
+
+
+def bayer(w, h):
+    """4x4 ordered-dither thresholds in (0, 1), tiled to w x h"""
+    t = (BAYER4 + 0.5) / 16.0
+    return np.tile(t, (h // 4 + 1, w // 4 + 1))[:h, :w]
+
+
+def dither_levels(f, levels):
+    """quantise a 0..1 field onto `levels` (alpha values, levels[0] = 0) with an ordered Bayer dither
+    between neighbouring steps: no hard ring where one step meets the next"""
+    h, w = f.shape
+    n = len(levels) - 1
+    v = np.clip(f, 0, 1) * n
+    lo = np.floor(v).astype(int)
+    idx = np.minimum(n, lo + ((v - lo) > bayer(w, h)))
+    return np.asarray(levels, np.float64)[idx]
+
+
+def dither_pick(f, lo, hi):
+    """bool mask: True where f crosses the lo..hi band, ordered-dithered across the band"""
+    h, w = f.shape
+    return np.clip((f - lo) / (hi - lo), 0, 1) > bayer(w, h)
+
+
+def audit_overlay(img):
+    """translucent pixels whose RGB is not one of pixkit.OVERLAY_COLOURS"""
+    a = np.array(img.convert("RGBA"))
+    tr = (a[..., 3] > 0) & (a[..., 3] < 255)
+    tp = a[tr][:, :3]
+    ok = np.zeros(len(tp), bool)
+    for n in OVERLAY_COLOURS.values():
+        ok |= np.all(tp == rgb(n), axis=1)
+    return int((~ok).sum())
 
 
 def recolour(img, mapping, mask=None):
