@@ -59,6 +59,8 @@ export const GAME_CRT_KEY = 'game.crt';
 export const BIT_PLAYFUL_KEY = 'bit.playful';
 export const BIT_PLAYFUL_DEFAULT = true;
 
+export const TEAM_PANEL_OPEN_KEY = 'teamPanel.open';
+export const TEAM_PANEL_OPEN_DEFAULT = false;
 // Recording mode: the team home hides task text and previews so the screen can be filmed.
 export const RECORDING_MODE_KEY = 'team.recordingMode';
 export const RECORDING_MODE_DEFAULT = false;

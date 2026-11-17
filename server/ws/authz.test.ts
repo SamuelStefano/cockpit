@@ -37,6 +37,8 @@ describe('authorize', () => {
     expect(authorize('student', 'plan-usage-get')).toBe(true);
     expect(authorize('student', 'team-computer-get')).toBe(true);
     expect(authorize('student', 'team-state-get')).toBe(false);
+    expect(authorize('student', 'team-panel-get')).toBe(false);
+    expect(authorize('admin', 'team-panel-get')).toBe(true);
     expect(authorize('admin', 'team-state-get')).toBe(true);
     expect(authorize('student', 'term-open')).toBe(false);
   });

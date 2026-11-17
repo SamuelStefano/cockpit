@@ -37,5 +37,7 @@ export async function pushTeamState(): Promise<void> {
     if (wanted.size === 0) return;
     const snaps = await teamStateSnapshots([...wanted]);
     emitTeamState((h) => ({ t: 'team-state', state: snaps.get(h)! }));
+    const { pushTeamPanel } = await import('./team-panel-frames');
+    await pushTeamPanel();
   } catch { /* the next pull recovers */ }
 }

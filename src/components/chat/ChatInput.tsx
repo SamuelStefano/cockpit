@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Icon } from '../primitives';
 import { ComposerNotice } from './ComposerNotice';
 import { ComposerActions } from './ComposerActions';
@@ -75,6 +76,7 @@ interface ChatInputProps {
   onShowHelp?: () => void;
   onCall?: () => void;
   focusMode?: boolean;
+  sideButton?: ReactNode;
 }
 
 export function ChatInput(props: ChatInputProps) {
@@ -146,6 +148,7 @@ export function ChatInput(props: ChatInputProps) {
         <div className="flex shrink-0 items-center pointer-coarse:ml-auto">
           <ModelPicker compact model={model} setModel={setModel} models={models} onRefreshModels={onRefreshModels} canManage={caps?.role === 'admin' || caps?.role === 'root'} locked={modelLocked} effort={effort} setEffort={setEffort} />
         </div>
+        {props.sideButton}
         <ComposerActions
           mic={mic}
           busy={disabled}
