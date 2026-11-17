@@ -1,6 +1,7 @@
 import type { TeamState, TeamBotStatus } from '../../../../shared/team-state';
 import { HOUSES, type BuildingId } from './world-map';
 
+const HEX = /^#[0-9a-fA-F]{6}$/;
 export type ProjectId = string;
 const OFFICE = 'escritorio';
 const TASK_KEYWORDS: readonly (readonly [string, string])[] = [['itera', 'itera'], ['dfl', 'dfl'], ['radar', 'corte-radar']];
@@ -16,8 +17,11 @@ export interface NpcView {
   // Where the bot works when it is working (an id, never text).
   project: ProjectId;
   sprite?: string;
+  // Mascot colour as #rrggbb, never free text.
+  color?: string;
   // True while an existing meeting that includes this bot is running.
   meeting: boolean;
+  moderator?: boolean;
 }
 
 export interface Flight { key: string; from: string | null; to: string }
@@ -78,7 +82,7 @@ export interface DeriveOptions {
   projects?: Record<string, number>;
   now?: number;
   // The running meeting (existing meeting state), by participant ids only.
-  meeting?: { participantIds: string[] } | null;
+  meeting?: { participantIds: string[]; moderatorId?: string } | null;
   celebrate?: string[];
 }
 
@@ -90,10 +94,12 @@ export function deriveWorld(state: TeamState | null, opts: DeriveOptions = {}): 
   if (!state) return { npcs: [], flights: [], projects: {}, meetingSize: 0, celebrate: [] };
   const now = opts.now ?? state.at;
   const ids = new Set(state.bots.map((b) => b.id));
-  const inMeeting = new Set((opts.meeting?.participantIds ?? []).filter((id) => ids.has(id)));
+  const moderatorId = opts.meeting?.moderatorId && ids.has(opts.meeting.moderatorId) ? opts.meeting.moderatorId : undefined;
+  const inMeeting = new Set([...(opts.meeting?.participantIds ?? []), ...(moderatorId ? [moderatorId] : [])].filter((id) => ids.has(id)));
   const npcs = state.bots.map((b): NpcView => ({
     id: b.id, name: b.name, mode: b.status, badge: badgeText(opts.counts?.[b.id]),
-    project: projectOf(b), ...(b.sprite ? { sprite: b.sprite } : {}), meeting: inMeeting.has(b.id),
+    project: projectOf(b), ...(b.sprite ? { sprite: b.sprite } : {}), ...(HEX.test(b.color ?? '') ? { color: b.color } : {}), meeting: inMeeting.has(b.id),
+    ...(b.id === moderatorId ? { moderator: true } : {}),
   }));
   const flights = state.handoffs
     .filter((h) => ids.has(h.to) && now - h.at <= FLIGHT_WINDOW_MS)

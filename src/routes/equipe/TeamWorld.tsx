@@ -54,7 +54,7 @@ export function TeamWorld({ state, connected, onRefresh, bots, meetings, onMeeti
   // Only ids reach the world: never the question, answers or minutes.
   const live = useMemo(() => meetings.find(isRunning), [meetings]);
   const meeting = useMemo(
-    () => (demo ? (demoMeet ? { participantIds: DEMO_MEETING } : null) : live ? { participantIds: [...new Set([...live.participantIds, live.moderatorId])] } : null),
+    () => (demo ? (demoMeet ? { participantIds: DEMO_MEETING, moderatorId: DEMO_MEETING[0] } : null) : live ? { participantIds: [...new Set([...live.participantIds, live.moderatorId])], moderatorId: live.moderatorId } : null),
     [demo, demoMeet, live],
   );
   useEffect(() => {

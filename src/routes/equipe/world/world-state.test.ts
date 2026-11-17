@@ -132,3 +132,29 @@ describe('deriveWorld celebrate', () => {
     expect(deriveWorld(state(), { celebrate: list }).celebrate).toBe(list);
   });
 });
+
+describe('deriveWorld colour', () => {
+  it('passes a hex mascot colour and drops anything else', () => {
+    const w = deriveWorld(state({ bots: [
+      { id: 'a', name: 'A', role: 'r', status: 'idle', color: '#3fd17f' },
+      { id: 'b', name: 'B', role: 'r', status: 'idle', color: 'red; drop' },
+      { id: 'c', name: 'C', role: 'r', status: 'idle' },
+    ] }));
+    expect(w.npcs.map((n) => n.color)).toEqual(['#3fd17f', undefined, undefined]);
+  });
+});
+
+describe('deriveWorld moderator', () => {
+  it('flags the moderator and counts it as a participant', () => {
+    const w = deriveWorld(state(), { meeting: { participantIds: ['a'], moderatorId: 'c' } });
+    expect(w.npcs.find((n) => n.id === 'c')).toMatchObject({ meeting: true, moderator: true });
+    expect(w.npcs.find((n) => n.id === 'a')?.moderator).toBeUndefined();
+    expect(w.meetingSize).toBe(2);
+  });
+
+  it('ignores an unknown moderator', () => {
+    const w = deriveWorld(state(), { meeting: { participantIds: ['a'], moderatorId: 'zzz' } });
+    expect(w.npcs.some((n) => n.moderator)).toBe(false);
+    expect(w.meetingSize).toBe(1);
+  });
+});
