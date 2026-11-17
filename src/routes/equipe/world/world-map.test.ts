@@ -159,7 +159,7 @@ describe('world.tmj', () => {
     for (const o of desks) for (const k of ['project', 'seat', 'face']) expect(prop(o, k), `desk "${o.name}" is missing prop "${k}"`).toBeDefined();
     const sala = objs.find((o) => prop(o, 'kind') === 'meeting')!;
     expect(prop(sala, 'id')).toBe('sala');
-    expect(HOUSES.find((h) => h.id === 'sala')!.seats.length).toBe(6);
+    expect(HOUSES.find((h) => h.id === 'sala')!.seats.length).toBe(8);
   });
 
   it('names the object in a failure message', () => {
