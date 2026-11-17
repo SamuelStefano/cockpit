@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { MAX_PARTICLES, ParticleSim, jumpLift, stepPhase, walkBob } from './world-juice';
+import { MAX_PARTICLES, fxFrame, ParticleSim, jumpLift, stepPhase, walkBob } from './world-juice';
 
 describe('walkBob', () => {
   it('stays small and squashes on landing', () => {
@@ -47,5 +47,12 @@ describe('ParticleSim', () => {
     expect(p.x).toBeCloseTo(0.5);
     s.step(60);
     expect(s.live).toBe(0);
+  });
+});
+
+describe('fxFrame', () => {
+  it('walks four frames per kind over the particle life', () => {
+    expect([0, 0.3, 0.6, 0.99, 1.5].map((k) => fxFrame('dust', k))).toEqual([0, 1, 2, 3, 3]);
+    expect([0, 0.3, 0.6, 0.99].map((k) => fxFrame('spark', k))).toEqual([4, 5, 6, 7]);
   });
 });

@@ -132,3 +132,14 @@ describe('deriveWorld celebrate', () => {
     expect(deriveWorld(state(), { celebrate: list }).celebrate).toBe(list);
   });
 });
+
+describe('deriveWorld colour', () => {
+  it('passes a hex mascot colour and drops anything else', () => {
+    const w = deriveWorld(state({ bots: [
+      { id: 'a', name: 'A', role: 'r', status: 'idle', color: '#3fd17f' },
+      { id: 'b', name: 'B', role: 'r', status: 'idle', color: 'red; drop' },
+      { id: 'c', name: 'C', role: 'r', status: 'idle' },
+    ] }));
+    expect(w.npcs.map((n) => n.color)).toEqual(['#3fd17f', undefined, undefined]);
+  });
+});
