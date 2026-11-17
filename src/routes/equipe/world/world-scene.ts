@@ -149,7 +149,7 @@ class WorldScene extends Phaser.Scene {
     const onOk = (k: string): void => {
       if (k !== tex) return;
       this.sheetState.set(key, 'ready');
-      for (const n of this.npcs.values()) if (n.own === key) n.sprite.setTexture(tex, this.frameOf(n, 0));
+      for (const n of this.npcs.values()) if (n.own === key) n.sprite.setTexture(tex, this.frameOf(n, 0)).clearTint();
     };
     this.load.once(`filecomplete-spritesheet-${tex}`, () => onOk(tex));
     this.load.once('loaderror', (f: { key?: string }) => { if (f.key === tex) this.sheetState.set(key, 'failed'); });
