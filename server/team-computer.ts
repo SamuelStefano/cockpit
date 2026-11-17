@@ -5,6 +5,7 @@ import { botTermId } from '../shared/bot-term';
 import { botsRoot, botWorkspace, ensureWorkspace } from './engine/restricted-profile';
 import { listBotFiles } from './team-files';
 import { capturePane, safeTermCwd } from './terminals';
+import { getLive, terminalTail } from './agent-live';
 
 const LIST_CAP = 500;
 
@@ -38,6 +39,7 @@ export async function botComputer(botId: string): Promise<BotComputer | { error:
     truncated: list.length >= LIST_CAP,
     termId,
     termAlive: pane.alive,
-    preview: pane.lines,
+    preview: terminalTail(pane.lines),
+    live: { ...getLive(botId), terminal: terminalTail(pane.lines) },
   };
 }
