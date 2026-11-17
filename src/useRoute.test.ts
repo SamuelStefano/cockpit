@@ -176,6 +176,17 @@ describe('useRoute', () => {
     expect(again.result.current.agentTab).toBe('perfil');
   });
 
+  it('/agentes/loja is the reserved store id and survives reload and back', () => {
+    history.replaceState(null, '', '/agentes/loja');
+    const { result } = renderHook(() => useRoute());
+    expect(result.current).toMatchObject({ route: '/agentes', agentId: 'loja', agentTab: 'perfil' });
+    act(() => result.current.navAgent(''));
+    expect(location.pathname).toBe('/agentes');
+    act(() => result.current.navAgent('loja'));
+    expect(location.pathname).toBe('/agentes/loja');
+    expect(result.current.agentId).toBe('loja');
+  });
+
   it('/skills/<id> abre a página da skill', () => {
     history.replaceState(null, '', '/skills/deck-ops');
     const { result } = renderHook(() => useRoute());
