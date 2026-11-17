@@ -6,8 +6,8 @@ import type { AgentNav } from './useAgentNav';
 import { RouteFallback } from './RouteFallback';
 import { ChunkErrorBoundary } from './ChunkErrorBoundary';
 import {
-  Skills, Pontos,
-  Graph, Canvas, Conexoes, Docs, DesignSystem, Onboarding, EquipePage, EquipeHome, Agente, Base, Arcade, Prs,
+  Pontos,
+  Graph, Canvas, DesignSystem, Onboarding, EquipePage, EquipeHome, Agente, Base, Arcade, Prs,
 } from './lazyRoutes';
 import type { ChatPanelProps } from '../components/chat/chat-panel-props';
 import type { TerminalsPanelProps } from '../components/Terminals';
@@ -17,8 +17,6 @@ import { AGENT_MEETINGS, AGENT_STORE, type AgentTab, type Route } from '../useRo
 import { SkeletonCards } from '../components/primitives';
 import { AgentsHome } from '../routes/agentes-office/AgentsHome';
 import { navigateTo } from '../lib/route-nav';
-import { ManageProviders, ManageTools } from '../routes/conexoes/Manage';
-import { VaultPanel } from '../components/vault/VaultPanel';
 import { ChatPrDepsContext, type ChatPrDeps } from '../routes/prs/chat/pr-deps-context';
 
 // The DFL snapshot is root-only on the server: the Canvas of a plain admin skips it.
@@ -39,7 +37,6 @@ interface MobileState {
 
 interface RouteContentProps {
   route: Route;
-  skillRoute?: { id: string; open: (id: string) => void };
   agentRoute?: { id: string; tab: AgentTab; open: (id: string, tab?: AgentTab) => void };
   isMobile: boolean;
   isAdmin: boolean;
@@ -50,12 +47,11 @@ interface RouteContentProps {
   termProps: TerminalsPanelProps;
   onOpenSession: (id: string) => void;
   agent: AgentNav;
-  onOpenAgentChat: (model: string) => void;
   layout: LayoutState;
   mobile: MobileState;
 }
 
-export function RouteContent({ route, agentRoute, skillRoute, isMobile, isAdmin, isRoot, connected, cockpit, chatProps, termProps, onOpenSession, agent, onOpenAgentChat, layout, mobile }: RouteContentProps) {
+export function RouteContent({ route, agentRoute, isMobile, isAdmin, isRoot, connected, cockpit, chatProps, termProps, onOpenSession, agent, layout, mobile }: RouteContentProps) {
   const c = cockpit;
   const { onSendTo, onLaunchAgent } = c;
   const prDeps = useMemo<ChatPrDeps | null>(
@@ -78,15 +74,6 @@ export function RouteContent({ route, agentRoute, skillRoute, isMobile, isAdmin,
       return (
         <EquipeHome state={c.teamState} bots={c.bots} connected={connected} onLoad={c.onTeamStateGet}
           onOpenAgent={agent.open} onSendTo={c.onSendTo} />
-      );
-    }
-    if (route === '/skills') {
-      return (
-        <Skills connected={connected} skills={c.skills} loaded={c.skillsLoaded} openSkill={c.openSkill} bots={c.bots}
-          skillId={skillRoute?.id ?? ''} onToggleAgent={isAdmin ? c.onTeamSave : undefined} onNavigate={(id) => skillRoute?.open(id)}
-          registry={c.registry} registryLoading={c.registryLoading} registryError={c.registryError} installing={c.installing}
-          onSkillList={c.onSkillList} onSkillOpen={c.onSkillOpen} onSkillClose={c.onSkillClose}
-          onRegistryGet={c.onRegistryGet} onRegistryInstall={c.onRegistryInstall} versions={c.versions} canRestoreVersions={isRoot} />
       );
     }
     if (route === '/arcade') return <Arcade />;
@@ -144,15 +131,6 @@ export function RouteContent({ route, agentRoute, skillRoute, isMobile, isAdmin,
           cvLiveSessionIds={c.cvLiveSessionIds} cvIdleSessionIds={c.cvIdleSessionIds} sessionPeeks={c.sessionPeeks} onSessionPeek={c.onSessionPeek} />
       );
     }
-    if (route === '/conexoes' && isAdmin) {
-      const manage = { agents: c.agents, onMcpsGet: c.onMcpsGet, term: c.term, models: c.models, isRoot, onOpenAgentChat };
-      return (
-        <Conexoes connected={connected} items={c.connections} loaded={c.connectionsLoaded} bots={c.bots}
-          mcpsState={c.mcps} mcpsBusy={c.mcpsBusy} onGet={c.onConnectionsGet} onGo={navigateTo}
-          probe={{ probeResult: c.probeResult, probeBusy: c.probeBusy, onProviderProbe: c.onProviderProbe, onProviderProbeReset: c.onProviderProbeReset }}
-          manage={{ provedores: <ManageProviders {...manage} />, ferramentas: <ManageTools {...manage} />, chaves: isRoot ? <VaultPanel api={c} /> : undefined }} />
-      );
-    }
     if (route === '/agentes' && agentRoute && (!agentRoute.id || agentRoute.id === AGENT_STORE || agentRoute.id === AGENT_MEETINGS)) {
       return (
         <div className="scroll-thin min-h-0 flex-1 overflow-y-auto">
@@ -174,7 +152,6 @@ export function RouteContent({ route, agentRoute, skillRoute, isMobile, isAdmin,
           onTab={agentRoute.open} onList={() => agentRoute.open('')} onChat={agent.open} />
       );
     }
-    if (route === '/docs') return <Docs />;
     if (route === '/ds') return <DesignSystem />;
     if (route === '/onboarding') {
       return (

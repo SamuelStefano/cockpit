@@ -10,6 +10,7 @@ import { gameEnabled } from '../game/game-bus';
 import { foundEgg } from '../game/found-egg';
 import { triggerEgg, type EggTrigger } from '../game/egg-bus';
 import { appOrigin } from '../lib/origin';
+import { SECTION_ROUTE, settingsSections } from '../routes/configuracoes/sections';
 
 const SUDO_QUERY = 'sudo make me a sandwich';
 const HIDDEN_EGGS: EggTrigger[] = ['iddqd', 'matrix', 'konami'];
@@ -51,6 +52,11 @@ export function usePaletteCommands(args: PaletteCommandsArgs): Cmd[] {
       group: 'Navegar',
       run: go(n.to),
     }));
+    // Skills, Conexões and Docs live inside Configurações now; ⌘K still jumps straight to them.
+    const inSettings = settingsSections(role, false).filter((s) => s.id === 'skills' || s.id === 'conexoes' || s.id === 'docs').map<Cmd>((s) => ({
+      id: `go-${s.id}`, label: `Ir para ${s.label}`, icon: s.icon, group: 'Navegar', run: go(SECTION_ROUTE[s.id]),
+    }));
+    nav_.push(...inSettings);
     const actions: Cmd[] = [
       { id: 'new', label: 'Nova conversa', icon: 'plus', group: 'Ações', run: () => { onNew(); onClose(); } },
       { id: 'focus', label: 'Focar campo de mensagem', hint: '↵', icon: 'pencil', group: 'Ações', run: () => { nav('/'); onFocusComposer(); onClose(); } },

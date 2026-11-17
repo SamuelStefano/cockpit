@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { SideNav } from '../components/primitives';
 import type { NavRole } from '../components/chrome/nav-routes';
 import type { UsageDockProps } from '../components/chrome/sidebar/UsageDock';
@@ -13,6 +13,9 @@ import { Maquinas } from './configuracoes/Maquinas';
 import { Avancado } from './configuracoes/Avancado';
 import { SECTION_ROUTE, sectionOf, settingsSections } from './configuracoes/sections';
 
+// Skills, Conexões and Docs need a lot of cockpit state: the app shell builds them and passes them in.
+export interface SettingsPages { skills?: ReactNode; conexoes?: ReactNode; docs?: ReactNode }
+
 interface ConfiguracoesProps {
   route: Route;
   role: NavRole;
@@ -24,9 +27,10 @@ interface ConfiguracoesProps {
   usageDock: UsageDockProps;
   onOpenSession: (id: string) => void;
   onOpenTerminal: () => void;
+  pages?: SettingsPages;
 }
 
-export function Configuracoes({ route, role, nav, isMobile, connected, cockpit: c, account, usageDock, onOpenSession, onOpenTerminal }: ConfiguracoesProps) {
+export function Configuracoes({ route, role, nav, isMobile, connected, cockpit: c, account, usageDock, onOpenSession, onOpenTerminal, pages }: ConfiguracoesProps) {
   const items = settingsSections(role, SUPABASE_ENABLED);
   const wanted = sectionOf(route);
   const allowed = items.some((i) => i.id === wanted);
@@ -58,6 +62,9 @@ export function Configuracoes({ route, role, nav, isMobile, connected, cockpit: 
             />
           )}
           {section === 'maquinas' && <Maquinas userId={account.userId} />}
+          {section === 'skills' && pages?.skills}
+          {section === 'conexoes' && pages?.conexoes}
+          {section === 'docs' && pages?.docs}
           {section === 'avancado' && (
             <Avancado
               caps={c.caps} bypass={c.bypass} setBypass={c.setBypass} isRoot={isRoot} isMobile={isMobile} adminOp={c.adminOp}
