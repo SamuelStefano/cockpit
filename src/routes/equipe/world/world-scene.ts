@@ -6,6 +6,7 @@ import {
 import { assignSpots, type Spot } from './world-layout';
 import { nudgePills } from './pill-layout';
 import { clampZoom, initialZoom, parseFocus, stepZoom, wheelStep, type CameraMode } from './camera-mode';
+import { sheetFrame, spriteKey, spritePath, textureKey } from './bot-sprite';
 import { npcSprite, type Flight, type NpcView, type WorldView } from './world-state';
 
 // Phaser lives only in this module, loaded with a dynamic import from TeamWorld.tsx.
@@ -95,6 +96,7 @@ interface Npc {
   route: Point[];
   walking: boolean;
   char: number;
+  own: string | null;
   tint: number;
   face: Face;
 }
@@ -135,6 +137,32 @@ class WorldScene extends Phaser.Scene {
     super('world');
     this.opts = opts;
     this.mode = opts.mode;
+  }
+
+  private sheetState = new Map<string, 'loading' | 'ready' | 'failed'>();
+
+  private ensureSheet(key: string): void {
+    if (this.sheetState.has(key)) return;
+    const tex = textureKey(key);
+    if (this.textures.exists(tex)) { this.sheetState.set(key, 'ready'); return; }
+    this.sheetState.set(key, 'loading');
+    const onOk = (k: string): void => {
+      if (k !== tex) return;
+      this.sheetState.set(key, 'ready');
+      for (const n of this.npcs.values()) if (n.own === key) n.sprite.setTexture(tex, this.frameOf(n, 0));
+    };
+    this.load.once(`filecomplete-spritesheet-${tex}`, () => onOk(tex));
+    this.load.once('loaderror', (f: { key?: string }) => { if (f.key === tex) this.sheetState.set(key, 'failed'); });
+    this.load.spritesheet(tex, spritePath(BASE, key), { frameWidth: TILE, frameHeight: TILE });
+    this.load.start();
+  }
+
+  private ownReady(n: Pick<Npc, 'own'>): boolean {
+    return !!n.own && this.sheetState.get(n.own) === 'ready';
+  }
+
+  private frameOf(n: Npc, row: number): number {
+    return this.ownReady(n) ? sheetFrame(row, n.face) : charFrame(n.char, row, n.face);
   }
 
   preload(): void {
@@ -431,9 +459,14 @@ class WorldScene extends Phaser.Scene {
     if (!npc) {
       const char = NPC_CHARS[index % NPC_CHARS.length]!;
       const tint = NPC_TINTS[Math.floor(index / NPC_CHARS.length) % NPC_TINTS.length]!;
-      const sprite = this.add.sprite(f.x, f.y, 'urban', charFrame(char, 0, spot.face)).setOrigin(0.5, 1).setTint(tint);
+      const own = spriteKey(v.sprite);
+      if (own) this.ensureSheet(own);
+      const ready = !!own && this.sheetState.get(own) === 'ready';
+      const sprite = ready
+        ? this.add.sprite(f.x, f.y, textureKey(own!), sheetFrame(0, spot.face)).setOrigin(0.5, 1)
+        : this.add.sprite(f.x, f.y, 'urban', charFrame(char, 0, spot.face)).setOrigin(0.5, 1).setTint(tint);
       const pill = this.makePill({ text: v.name, anchor: 'center', dot: modeColor(v.mode, v.meeting), icon: null, badge: v.badge });
-      npc = { view: v, sprite, pill, extras: [], tweens: [], mode: null, spot, index, busyUntil: 0, route: [], walking: false, char, tint, face: spot.face };
+      npc = { view: v, sprite, pill, extras: [], tweens: [], mode: null, spot, index, busyUntil: 0, route: [], walking: false, char, own, tint, face: spot.face };
       this.npcs.set(v.id, npc);
     } else if (npc.spot.tile.x !== spot.tile.x || npc.spot.tile.y !== spot.tile.y) {
       // Walk from where the bot stands now: out of its house, across the street or plaza, into the next one.
@@ -480,13 +513,13 @@ class WorldScene extends Phaser.Scene {
         if (dist <= step) { sp.setPosition(tx, ty); n.route.shift(); } else { sp.x += (dx / dist) * step; sp.y += (dy / dist) * step; }
         n.face = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 'left' : 'right') : (dy < 0 ? 'up' : 'down');
         n.walking = true;
-        sp.setFrame(charFrame(n.char, 1 + (Math.floor(now / 140) % 2), n.face));
+        sp.setFrame(this.frameOf(n, 1 + (Math.floor(now / 140) % 2)));
       } else if (n.walking) {
         n.walking = false;
         const f = this.feet(n.spot.tile);
         sp.setPosition(f.x, f.y);
         n.face = n.spot.face;
-        sp.setFrame(charFrame(n.char, 0, n.face));
+        sp.setFrame(this.frameOf(n, 0));
       }
       sp.setDepth(100 + sp.y);
     }

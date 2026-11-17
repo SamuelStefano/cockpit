@@ -15,6 +15,7 @@ export interface NpcView {
   badge: string | null;
   // Where the bot works when it is working (an id, never text).
   project: ProjectId;
+  sprite?: string;
   // True while an existing meeting that includes this bot is running.
   meeting: boolean;
 }
@@ -85,7 +86,7 @@ export function deriveWorld(state: TeamState | null, opts: DeriveOptions = {}): 
   const inMeeting = new Set((opts.meeting?.participantIds ?? []).filter((id) => ids.has(id)));
   const npcs = state.bots.map((b): NpcView => ({
     id: b.id, name: b.name, mode: b.status, badge: badgeText(opts.counts?.[b.id]),
-    project: projectOf(b), meeting: inMeeting.has(b.id),
+    project: projectOf(b), ...(b.sprite ? { sprite: b.sprite } : {}), meeting: inMeeting.has(b.id),
   }));
   const flights = state.handoffs
     .filter((h) => ids.has(h.to) && now - h.at <= FLIGHT_WINDOW_MS)
