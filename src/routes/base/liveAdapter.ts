@@ -1,7 +1,9 @@
 import type { Message, ToolQuestion } from '../../data/types';
 import type { CanvasCard, CardStatus, TermStats } from '../../../shared/canvas';
 import { isCronPing } from '../../../shared/canvas';
-import type { Cron, SysStats } from '../../../shared/protocol';
+import type { Cron, SysStats, TeamBot } from '../../../shared/protocol';
+import { DEPARTMENTS, departmentById } from '../../../shared/departments';
+import { botIdFromKey } from '../../../shared/team';
 import { pendingQuestionIdx } from '../../cockpit/pending-question';
 import { lastAssistantModel } from '../../cockpit/session-model';
 import { isFreeTextOption } from '../../components/chat/free-text-option';
@@ -37,6 +39,7 @@ export interface LiveInput {
   answered: Record<string, number>;
   // Running background agents per session: a session waiting on them is working, not quiet.
   bgRunning?: Record<string, number | undefined>;
+  bots?: TeamBot[];
   now: number;
 }
 
@@ -82,6 +85,22 @@ export function projectOf(title: string, area?: string): { id: string; name: str
   const hit = KEYWORDS.find(([re]) => re.test(title));
   return hit ? wingOf_(hit[1]) : { id: 'general', name: 'General' };
 }
+
+export const TEAM_WING_ID = 'dept:none';
+const hexToRug = (hex: string) => parseInt(hex.slice(1), 16);
+
+export function botOf(sessionId: string, bots: readonly TeamBot[] | undefined): TeamBot | undefined {
+  if (!bots?.length) return undefined;
+  const key = botIdFromKey(sessionId);
+  return bots.find((b) => b.sessionId === sessionId) ?? (key ? bots.find((b) => b.id === key) : undefined);
+}
+
+function teamWing(bot: TeamBot): { id: string; name: string; rug?: number } {
+  const d = departmentById(bot.department);
+  return d ? { id: `dept:${d.id}`, name: d.name, rug: hexToRug(d.color) } : { id: TEAM_WING_ID, name: 'Equipe' };
+}
+
+const teamWingRank = (id: string) => { const i = DEPARTMENTS.findIndex((d) => `dept:${d.id}` === id); return i >= 0 ? i : id === TEAM_WING_ID ? DEPARTMENTS.length : -1; };
 
 export function pickSessions(input: Pick<LiveInput, 'sessions' | 'running' | 'now'>): { shown: LiveSession[]; elsewhere: number } {
   const live = input.sessions.filter((s) => !isCronPing(s));
@@ -184,17 +203,23 @@ function clockLabel(crons: Cron[] | null, now: number): string {
 
 export function adaptLive(input: LiveInput, prev: Placement): LiveFloor {
   const { shown, elsewhere } = pickSessions(input);
-  const withProject = shown.map((s) => ({ s, p: projectOf(s.title, input.areas[s.id]) }));
+  const withProject = shown.map((s) => {
+    const bot = botOf(s.id, input.bots);
+    return { s, bot, p: bot ? teamWing(bot) : { ...projectOf(s.title, input.areas[s.id]), rug: undefined as number | undefined } };
+  });
   const placement = placeSessions(prev, withProject.map(({ s, p }) => ({ id: s.id, project: p.id })));
   const names = Object.fromEntries(withProject.map(({ p }) => [p.id, p.name]));
+  const rugs = Object.fromEntries(withProject.map(({ p }) => [p.id, p.rug]));
+  const rank = teamWingRank;
+  const order = [...placement.order.filter((id) => rank(id) >= 0).sort((a, b) => rank(a) - rank(b)), ...placement.order.filter((id) => rank(id) < 0)];
   // A wing is as wide as its highest slot, not its head count, so nobody slides when a neighbor leaves.
-  const groups = placement.order.map((id) => ({ id, name: names[id], count: Math.max(...Object.values(placement.slots[id])) + 1 }));
+  const groups = order.map((id) => ({ id, name: names[id], rug: rugs[id], pinned: rank(id) >= 0, count: Math.max(...Object.values(placement.slots[id])) + 1 }));
   const { wings, folded } = layoutWings(groups);
   const wingOf = (project: string): Wing => wings.find((w) => w.id === (folded[project] ?? project)) ?? wings[0];
 
   const otherSlots = new Map<string, number>();
   const decisions: LiveDecision[] = [], missingThreads: string[] = [];
-  const agents = withProject.map(({ s, p }, idx): FloorAgent => {
+  const agents = withProject.map(({ s, bot, p }, idx): FloorAgent => {
     const wing = wingOf(p.id);
     let slot = placement.slots[p.id][s.id];
     if (folded[p.id]) { slot = otherSlots.get(wing.id) ?? 0; otherSlots.set(wing.id, slot + 1); }
@@ -216,7 +241,7 @@ export function adaptLive(input: LiveInput, prev: Placement): LiveFloor {
     }
     const now = asking ? 'Waiting for your answer' : quiet !== null ? quietLabel(quiet) : isRunning ? (latestAction(activityOf(thread)) ?? 'Running a turn') : finished ? `Finished ${Math.max(1, Math.round((input.now - s.mtime) / 60000))}m ago, read it` : 'Idle';
     return {
-      id, name: s.title || 'Untitled session', family: familyOf(model), modelLabel: model ? shortModel(model) : 'unknown', wingId: wing.id, sector: 'build', x: pos.x, z: pos.z, state,
+      id, name: bot?.name ?? (s.title || 'Untitled session'), family: familyOf(model), modelLabel: model ? shortModel(model) : 'unknown', wingId: wing.id, sector: 'build', x: pos.x, z: pos.z, state,
       line: now, sessionId: s.id, ctx: pct === null ? null : pct / 100, phase: idx * 1.7,
       monitor: { kind: 'live', title: s.title || 'Untitled session', tail: input.tails[s.id] ?? null, now },
     };

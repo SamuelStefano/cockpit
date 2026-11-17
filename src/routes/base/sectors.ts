@@ -28,7 +28,7 @@ export function slotPosition(wing: Pick<Wing, 'colStart'>, slot: number): Point 
   return { x: FIRST_COL_X + col * COL_WIDTH, z: ROW_Z[slot % SLOTS_PER_COL] };
 }
 
-export interface WingGroup { id: string; name: string; count: number }
+export interface WingGroup { id: string; name: string; count: number; pinned?: boolean; rug?: number }
 const colsFor = (count: number) => Math.max(1, Math.ceil(count / SLOTS_PER_COL));
 
 // Order is the caller's first-seen order, so wings do not swap places as counts change.
@@ -38,7 +38,7 @@ export function layoutWings(groups: WingGroup[], maxCols = MAX_COLS): { wings: W
   const folded: Record<string, string> = {};
   const total = () => kept.reduce((n, g) => n + colsFor(g.count), 0);
   while (total() > maxCols) {
-    const candidates = kept.filter((g) => g.id !== OTHER_WING_ID);
+    const candidates = kept.filter((g) => g.id !== OTHER_WING_ID && !g.pinned);
     if (candidates.length < 2) break;
     const small = candidates.reduce((a, b) => (b.count < a.count ? b : a));
     kept.splice(kept.indexOf(small), 1);
@@ -51,7 +51,7 @@ export function layoutWings(groups: WingGroup[], maxCols = MAX_COLS): { wings: W
   const wings = kept.map((g, i): Wing => {
     const cols = colsFor(g.count), colStart = col;
     col += cols;
-    return { id: g.id, name: g.name, count: g.count, colStart, cols, width: cols * COL_WIDTH, cx: FIRST_COL_X + colStart * COL_WIDTH + ((cols - 1) * COL_WIDTH) / 2, rug: RUGS[i % RUGS.length], hotkey: HOTKEYS[i] };
+    return { id: g.id, name: g.name, count: g.count, colStart, cols, width: cols * COL_WIDTH, cx: FIRST_COL_X + colStart * COL_WIDTH + ((cols - 1) * COL_WIDTH) / 2, rug: g.rug ?? RUGS[i % RUGS.length], hotkey: HOTKEYS[i] };
   });
   return { wings, folded };
 }
