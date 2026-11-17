@@ -16,7 +16,7 @@ export function useBuilderPanels(patch: (p: Partial<BotDraft>) => void) {
     setPanel(null);
   };
   const imported = (d: ImportedDraft) => {
-    patch({ name: d.name, label: d.label, instructions: d.instructions, skills: d.skills, shape: d.shape, color: d.color });
+    patch({ name: d.name, label: d.label, instructions: d.instructions, skills: d.skills, shape: d.shape, color: d.color, department: d.department ?? '' });
     setNotice(d.missingSkills.length ? `${d.missingSkills.length} skill(s) do agente original não existem aqui e ficaram de fora.` : null);
     setPanel(null);
   };

@@ -32,6 +32,22 @@ describe('exportTemplate', () => {
   });
 });
 
+describe('department in templates', () => {
+  it('exports, round-trips and reaches the draft', () => {
+    const r = exportTemplate({ ...bot, department: 'growth' });
+    if (!r.ok) throw new Error(r.error);
+    expect(r.template.department).toBe('growth');
+    const parsed = parseTemplate(templateToJson(r.template));
+    expect(parsed.ok && parsed.template.department).toBe('growth');
+    expect(templateToDraft(r.template, new Set()).department).toBe('growth');
+  });
+  it('drops an unknown department instead of failing', () => {
+    const v = validateTemplate({ ...exported(), department: 'sales' });
+    expect(v.ok && v.template.department).toBeUndefined();
+    expect(v.ok && 'department' in v.template).toBe(false);
+  });
+});
+
 describe('parseTemplate', () => {
   it('round-trips through JSON and through the share link', () => {
     const t = exported();

@@ -16,6 +16,14 @@ describe('buildBotIdentity', () => {
     expect(t).toContain('- capo1 (principal) — coo do tainan; chefe de lead1');
     expect(t).toContain('- lead1; responde a capo1; chefe de kid11');
   });
+  it('names the department in the roster and in the bot identity', () => {
+    const t = [mk('capo1', { label: 'coo', department: 'direction' }), mk('lead1', { parentId: 'capo1', department: 'engineering' })];
+    const text = buildBotIdentity(t[1], t);
+    expect(text).toContain('Seu setor: Engenharia.');
+    expect(text).toContain('- capo1 — coo; setor Direção; chefe de lead1');
+    expect(text).toContain('- lead1; setor Engenharia; responde a capo1');
+    expect(buildBotIdentity(team[1], team)).not.toContain('setor');
+  });
   it('asks for decisions as AskUserQuestion with 2-4 options and images as workspace files', () => {
     const t = buildBotIdentity(team[0], team);
     expect(t).toContain('AskUserQuestion com uma pergunta e 2 a 4 opções curtas e mutuamente exclusivas');

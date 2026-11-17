@@ -1,4 +1,5 @@
 import { useRef, useState, type ReactNode } from 'react';
+import { DEPARTMENTS, isDepartmentId } from '../../../shared/departments';
 import type { ModelInfo, SkillMeta, TeamBot, TeamBotInput } from '../../../shared/protocol';
 import { Button, Input, Switch, tokens } from '../../components/primitives';
 import { useArmed } from '../../components/primitives/useArmed';
@@ -69,6 +70,12 @@ export function AgentForm({ bot, bots, models, locked, skills = [], onSave, onSa
         </Field>
         <Field label="Cargo">
           <Input aria-label="Cargo" placeholder="cargo (ex: levanta fatos e fontes pra equipe)" value={draft.label} onChange={(e) => set('label', e.target.value)} />
+        </Field>
+        <Field label="Setor">
+          <select aria-label="Setor" value={draft.department} onChange={(e) => set('department', isDepartmentId(e.target.value) ? e.target.value : '')} className={field}>
+            <option value="">Sem setor</option>
+            {DEPARTMENTS.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+          </select>
         </Field>
         <Field label="Instruções" help="Em português, como se explicasse pra uma pessoa nova no time.">
           <textarea aria-label="Instruções" placeholder="O que esse agente faz, como fala, o que nunca faz…" rows={6}

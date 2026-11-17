@@ -15,6 +15,8 @@ describe('bot form model', () => {
     const bot = mk('capo1', { label: 'coo', parentId: 'lead1', model: 'agent:grok', primary: true });
     expect(toInput('capo1', draftFrom(bot, 1))).toEqual({ id: 'capo1', name: 'capo1', label: 'coo', instructions: '', mascot: bot.mascot, profile: 'full', parentId: 'lead1', model: 'agent:grok', primary: true });
     expect(toInput('x1234', draftFrom(null, 1))).not.toHaveProperty('model');
+    expect(toInput('x1234', draftFrom(null, 1))).not.toHaveProperty('department');
+    expect(toInput('capo1', draftFrom(mk('capo1', { department: 'growth' }), 1)).department).toBe('growth');
   });
   it('reports the first problem in Portuguese', () => {
     const bots = [mk('capo1'), mk('lead1', { parentId: 'capo1' })];
