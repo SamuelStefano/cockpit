@@ -20,6 +20,16 @@ export function jumpLift(k: number, height = 9): number {
 
 export type ParticleKind = 'dust' | 'spark';
 
+export const FX_DUST = 0;
+export const FX_SPARK = 4;
+export const FX_SHADOW = 8;
+export const FX_SHADOW_SMALL = 9;
+
+// fx.png frame for a particle at life fraction k: four frames per kind.
+export function fxFrame(kind: ParticleKind, k: number): number {
+  return (kind === 'dust' ? FX_DUST : FX_SPARK) + Math.max(0, Math.min(3, Math.floor(k * 4)));
+}
+
 export interface Particle {
   slot: number; kind: ParticleKind; x: number; y: number; vx: number; vy: number; age: number; life: number; alive: boolean;
 }

@@ -1,6 +1,10 @@
 import type { TeamState, TeamStateBot } from '../../../../shared/team-state';
 
-const bot = (id: string, name: string, status: TeamStateBot['status'], project?: string): TeamStateBot => ({ id, name, role: 'demo', status, ...(project ? { project } : {}) });
+const COLORS = ['#3fd17f', '#ff6b6b', '#4dabf7', '#ffd166', '#b69cff', '#ff9f43', '#38d9a9', '#f783ac'];
+let colorIdx = 0;
+const bot = (id: string, name: string, status: TeamStateBot['status'], project?: string): TeamStateBot => ({
+  id, name, role: 'demo', status, color: COLORS[colorIdx++ % COLORS.length]!, ...(project ? { project } : {}),
+});
 
 export const DEMO_BOTS: TeamStateBot[] = [
   bot('iris', 'Íris', 'working'),

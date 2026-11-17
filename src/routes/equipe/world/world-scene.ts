@@ -10,7 +10,8 @@ import { sheetFrame, spriteKey, spritePath, textureKey } from './bot-sprite';
 import { npcSprite, type Flight, type NpcView, type WorldView } from './world-state';
 import { pickWanderTile, tileKey, wanderDelay, wanderTiles } from './world-wander';
 import { planCarry } from './world-carry';
-import { ParticleSim, jumpLift, stepPhase, walkBob, type Particle } from './world-juice';
+import { FX_SHADOW, FX_SHADOW_SMALL, ParticleSim, fxFrame, jumpLift, stepPhase, walkBob, type Particle } from './world-juice';
+import { CHIBI_FRAME_H, CHIBI_FRAME_W, FX_FRAME, assignVariants, chibiFrame, hashId, idleAnim, shirtTint, walkAnim } from './world-chibi';
 
 // Phaser lives only in this module, loaded with a dynamic import from TeamWorld.tsx.
 // Art: Kenney CC0 sheets and font in /world (see LICENSES.md). 16px tiles, whole zoom only.
@@ -101,6 +102,9 @@ interface Npc {
   walking: boolean;
   char: number;
   own: string | null;
+  chibi: boolean;
+  variant: number;
+  shirt: Phaser.GameObjects.Sprite | null;
   tint: number;
   face: Face;
   shadow: Phaser.GameObjects.Image;
@@ -155,6 +159,7 @@ class WorldScene extends Phaser.Scene {
   private fx: Phaser.GameObjects.Image[] = [];
   private wanderPool: Point[] = [];
   private lastCelebrate: string[] | null = null;
+  private variants = new Map<string, number>();
 
   constructor(opts: WorldOptions) {
     super('world');
@@ -185,6 +190,7 @@ class WorldScene extends Phaser.Scene {
   }
 
   private frameOf(n: Npc, row: number): number {
+    if (n.chibi) return chibiFrame(n.variant, n.face, row === 0 ? idleAnim(this.time.now + (hashId(n.view.id) % 1200)) : walkAnim(this.time.now));
     return this.ownReady(n) ? sheetFrame(row, n.face) : charFrame(n.char, row, n.face);
   }
 
@@ -194,6 +200,9 @@ class WorldScene extends Phaser.Scene {
     this.load.spritesheet('dungeon', `${BASE}world/dungeon.png`, sheet);
     this.load.spritesheet('urban', `${BASE}world/urban.png`, sheet);
     this.load.spritesheet('props', `${BASE}world/props.png`, sheet);
+    this.load.spritesheet('chibi', `${BASE}world/chibi.png`, { frameWidth: CHIBI_FRAME_W, frameHeight: CHIBI_FRAME_H });
+    this.load.spritesheet('chibi-shirt', `${BASE}world/chibi-shirt.png`, { frameWidth: CHIBI_FRAME_W, frameHeight: CHIBI_FRAME_H });
+    this.load.spritesheet('fx', `${BASE}world/fx.png`, { frameWidth: FX_FRAME, frameHeight: FX_FRAME });
     this.load.spritesheet('indoor', `${BASE}world/indoor.png`, { ...sheet, spacing: 1 });
     this.load.tilemapTiledJSON('world', `${BASE}world/world.tmj`);
   }
@@ -231,6 +240,7 @@ class WorldScene extends Phaser.Scene {
       this.drawPill(p, p.text.text, meet ? MEET : null, meet ? 'em reunião' : (view.projects[h.id] ?? null));
     }
     const spots = assignSpots(view.npcs);
+    this.variants = assignVariants([...spots].map(([id, sp]) => ({ id, station: sp.station })), this.variants);
     const live = new Set(view.npcs.map((n) => n.id));
     for (const [id, npc] of this.npcs) if (!live.has(id)) this.removeNpc(id, npc);
     view.npcs.forEach((v, i) => this.upsertNpc(v, spots.get(v.id)!, i));
@@ -297,7 +307,7 @@ class WorldScene extends Phaser.Scene {
     g.destroy();
   }
 
-  // Small code-made textures: handover box, soft shadow, dust puff, star spark.
+  // Code-made handover box; shadow, dust and sparkle come from fx.png.
   private makeTextures(): void {
     const g = this.make.graphics({ x: 0, y: 0 }, false);
     g.fillStyle(0x8a5a2b, 1).fillRect(0, 1, 8, 6);
@@ -305,22 +315,11 @@ class WorldScene extends Phaser.Scene {
     g.fillStyle(0xf2ead8, 1).fillRect(3, 1, 2, 6);
     g.lineStyle(1, 0x2f1d0e, 1).strokeRect(0.5, 1.5, 7, 5);
     g.generateTexture('box', 8, 8);
-    g.clear();
-    g.fillStyle(0x000000, 0.18).fillEllipse(8, 3, 16, 6);
-    g.fillStyle(0x000000, 0.22).fillEllipse(8, 3, 11, 4);
-    g.generateTexture('shadow', 16, 6);
-    g.clear();
-    g.fillStyle(0xe8dcc4, 0.35).fillCircle(4, 4, 4);
-    g.fillStyle(0xe8dcc4, 0.5).fillCircle(4, 4, 2);
-    g.generateTexture('dust', 8, 8);
-    g.clear();
-    g.fillStyle(0xffffff, 1).fillRect(3, 0, 1, 7).fillRect(0, 3, 7, 1).fillRect(2, 2, 3, 3);
-    g.generateTexture('spark', 7, 7);
     g.destroy();
   }
 
   private buildParticles(): void {
-    for (let i = 0; i < this.sim.cap; i++) this.fx.push(this.add.image(0, 0, 'dust').setDepth(9_500).setVisible(false));
+    for (let i = 0; i < this.sim.cap; i++) this.fx.push(this.add.image(0, 0, 'fx', 0).setDepth(9_500).setVisible(false));
   }
 
   private emit(kind: Particle['kind'], x: number, y: number, vx: number, vy: number, life: number): void {
@@ -333,10 +332,8 @@ class WorldScene extends Phaser.Scene {
       const img = this.fx[p.slot]!;
       if (!p.alive) { if (img.visible) img.setVisible(false); continue; }
       const k = p.age / p.life;
-      if (img.texture.key !== p.kind) img.setTexture(p.kind);
-      img.setVisible(true).setPosition(Math.round(p.x), Math.round(p.y)).setAlpha(1 - k);
-      if (p.kind === 'dust') img.setScale(0.5 + k * 0.7).clearTint();
-      else img.setScale(1 - k * 0.5).setTint(SPARK_TINTS[p.slot % SPARK_TINTS.length]!);
+      img.setFrame(fxFrame(p.kind, k)).setOrigin(0.5, p.kind === 'dust' ? 0.8 : 0.5);
+      img.setVisible(true).setPosition(Math.round(p.x), Math.round(p.y)).setAlpha(p.kind === 'dust' ? 1 - k * 0.5 : 1 - k * k);
     }
   }
 
@@ -550,13 +547,18 @@ class WorldScene extends Phaser.Scene {
       const own = spriteKey(v.sprite);
       if (own) this.ensureSheet(own);
       const ready = !!own && this.sheetState.get(own) === 'ready';
-      const sprite = ready
-        ? this.add.sprite(f.x, f.y, textureKey(own!), sheetFrame(0, spot.face)).setOrigin(0.5, 1)
-        : this.add.sprite(f.x, f.y, 'urban', charFrame(char, 0, spot.face)).setOrigin(0.5, 1).setTint(tint);
+      const chibi = !own;
+      const variant = this.variants.get(v.id) ?? hashId(v.id) % 8;
+      const sprite = chibi
+        ? this.add.sprite(f.x, f.y, 'chibi', chibiFrame(variant, spot.face, 0)).setOrigin(0.5, 1)
+        : ready
+          ? this.add.sprite(f.x, f.y, textureKey(own!), sheetFrame(0, spot.face)).setOrigin(0.5, 1)
+          : this.add.sprite(f.x, f.y, 'urban', charFrame(char, 0, spot.face)).setOrigin(0.5, 1).setTint(tint);
+      const shirt = chibi ? this.add.sprite(f.x, f.y, 'chibi-shirt', chibiFrame(variant, spot.face, 0)).setOrigin(0.5, 1).setTint(shirtTint(v.color)) : null;
       const pill = this.makePill({ text: v.name, anchor: 'center', dot: modeColor(v.mode, v.meeting), icon: null, badge: v.badge });
-      const shadow = this.add.image(f.x, f.y - 1, 'shadow').setDepth(100 + f.y - 0.5);
+      const shadow = this.add.image(f.x, f.y - 1, 'fx', FX_SHADOW).setDepth(100 + f.y - 0.5);
       npc = {
-        view: v, sprite, pill, extras: [], tweens: [], mode: null, spot, index, busyUntil: 0, route: [], walking: false, char, own, tint, face: spot.face,
+        view: v, sprite, pill, extras: [], tweens: [], mode: null, spot, index, busyUntil: 0, route: [], walking: false, char, own, chibi, variant, shirt, tint, face: spot.face,
         shadow, stand: null, nextWander: this.time.now + wanderDelay(v.id, 0), wanderN: 0, phase: 0, dust: 0, lift: 0, jumpAt: -1e9, carry: null,
       };
       this.npcs.set(v.id, npc);
@@ -570,6 +572,7 @@ class WorldScene extends Phaser.Scene {
       npc.stand = null;
       npc.route = findPath(this.tileOf(npc), spot.tile);
     }
+    if (npc.shirt) npc.shirt.setTint(shirtTint(v.color));
     const changed = npc.mode !== v.mode || npc.view.meeting !== v.meeting;
     npc.view = v;
     npc.spot = spot;
@@ -638,11 +641,11 @@ class WorldScene extends Phaser.Scene {
         n.face = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 'left' : 'right') : (dy < 0 ? 'up' : 'down');
         n.walking = true;
         n.phase += stepPhase(step);
-        bob = walkBob(n.phase);
+        bob = n.chibi ? bob : walkBob(n.phase);
         n.dust += step;
         if (n.dust >= 7) { n.dust = 0; this.emit('dust', sp.x + (Math.random() - 0.5) * 4, sp.y - 1, (Math.random() - 0.5) * 8, -6, 420); }
         sp.setFrame(this.frameOf(n, 1 + (Math.floor(now / 140) % 2)));
-        sp.setScale(bob.sx, bob.sy);
+        if (!n.chibi) sp.setScale(bob.sx, bob.sy);
       } else if (n.walking) {
         n.walking = false;
         n.phase = 0;
@@ -652,16 +655,25 @@ class WorldScene extends Phaser.Scene {
         sp.setScale(1, sp.scaleY);
         sp.setFrame(this.frameOf(n, 0));
       }
+      if (n.chibi && !n.walking && !next) sp.setFrame(this.frameOf(n, 0));
       this.stepCarry(n);
       this.maybeWander(n, now);
       const jk = (now - n.jumpAt) / JUMP_MS;
       n.lift = bob.lift + (jk >= 0 && jk < 1 ? jumpLift(jk) : 0);
-      sp.setOrigin(0.5, 1 + n.lift / TILE);
+      sp.setOrigin(0.5, 1 + n.lift / sp.height);
       sp.setDepth(100 + sp.y);
       const seatedStill = n.spot.seated && !n.stand && !n.walking && !n.carry;
-      n.shadow.setVisible(!seatedStill).setPosition(Math.round(sp.x), Math.round(sp.y) - 1).setDepth(sp.depth - 0.5).setScale(Math.max(0.5, 1 - n.lift * 0.06));
+      n.shadow.setVisible(!seatedStill).setPosition(Math.round(sp.x), Math.round(sp.y) - 1).setDepth(sp.depth - 0.5).setFrame(n.lift > 0.5 ? FX_SHADOW_SMALL : FX_SHADOW);
+      this.syncShirt(n);
       if (n.carry?.phase === 'go') n.carry.box.setPosition(Math.round(sp.x), Math.round(sp.y - 15 - n.lift)).setDepth(sp.depth + 1);
     }
+  }
+
+  private syncShirt(n: Npc): void {
+    const s = n.shirt;
+    if (!s) return;
+    const sp = n.sprite;
+    s.setPosition(sp.x, sp.y).setOrigin(sp.originX, sp.originY).setFrame(sp.frame.name).setScale(sp.scaleX, sp.scaleY).setAngle(sp.angle).setDepth(sp.depth + 0.01).setVisible(sp.visible);
   }
 
   // ---- handover on foot ----
@@ -732,7 +744,9 @@ class WorldScene extends Phaser.Scene {
     const s = npcSprite(mode);
     const meeting = n.view.meeting;
     // Seated workers "type": a tiny stretch. Standing bots breathe. No tween moves the sprite, so walking stays exact.
-    if (s.anim === 'work' || meeting) {
+    if (n.chibi && s.anim !== 'wait') {
+      n.sprite.setScale(1);
+    } else if (s.anim === 'work' || meeting) {
       n.tweens.push(this.tweens.add({ targets: n.sprite, scaleY: 1.04, duration: 320 + (n.view.id.length % 4) * 40, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' }));
     } else if (s.anim === 'idle') {
       n.tweens.push(this.tweens.add({ targets: n.sprite, scaleY: 1.05, duration: 1400, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' }));
@@ -780,6 +794,7 @@ class WorldScene extends Phaser.Scene {
     this.pills = this.pills.filter((p) => p !== n.pill);
     n.pill.c.destroy();
     n.sprite.destroy();
+    n.shirt?.destroy();
     this.npcs.delete(id);
   }
 
