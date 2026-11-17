@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { savePref } from '../lib/persist';
 import { GAME_ENABLED_KEY } from '../lib/prefs';
 import { renderHook } from '@testing-library/react';
@@ -23,6 +23,17 @@ describe('usePaletteCommands navigation', () => {
   it('adds the admin-only routes only for admins', () => {
     expect(navIds('student')).not.toContain('go-canvas');
     expect(navIds('admin')).toEqual(expect.arrayContaining(['go-canvas', 'go-graph', 'go-conexoes']));
+  });
+
+  it('keeps Skills, Conexões and Docs reachable by the palette, pointing into Configurações', () => {
+    for (const r of ['root', 'admin'] as const) expect(navIds(r)).toEqual(expect.arrayContaining(['go-skills', 'go-conexoes', 'go-docs']));
+    for (const id of ['go-skills', 'go-conexoes', 'go-docs']) expect(navIds('student')).not.toContain(id);
+    const nav = vi.fn();
+    const cmds = renderHook(() => usePaletteCommands({ ...base, nav, role: 'admin' })).result.current;
+    cmds.find((c) => c.id === 'go-conexoes')?.run();
+    cmds.find((c) => c.id === 'go-skills')?.run();
+    cmds.find((c) => c.id === 'go-docs')?.run();
+    expect(nav.mock.calls.map((c) => c[0])).toEqual(['/configuracoes/conexoes', '/configuracoes/skills', '/configuracoes/docs']);
   });
 
   it('offers pontos to root only', () => {
