@@ -14,6 +14,8 @@ import type { TerminalsPanelProps } from '../components/Terminals';
 import type { Terminal } from '../data/types';
 import type { useCockpit } from '../useCockpit';
 import type { AgentTab, Route } from '../useRoute';
+import { SkeletonCards } from '../components/primitives';
+import { Office } from '../routes/agentes-office/Office';
 import { navigateTo } from '../lib/route-nav';
 import { ManageProviders, ManageTools } from '../routes/conexoes/Manage';
 import { VaultPanel } from '../components/vault/VaultPanel';
@@ -143,6 +145,15 @@ export function RouteContent({ route, agentRoute, skillRoute, isMobile, isAdmin,
           mcpsState={c.mcps} mcpsBusy={c.mcpsBusy} onGet={c.onConnectionsGet} onGo={navigateTo}
           probe={{ probeResult: c.probeResult, probeBusy: c.probeBusy, onProviderProbe: c.onProviderProbe, onProviderProbeReset: c.onProviderProbeReset }}
           manage={{ provedores: <ManageProviders {...manage} />, ferramentas: <ManageTools {...manage} />, chaves: isRoot ? <VaultPanel api={c} /> : undefined }} />
+      );
+    }
+    if (route === '/agentes' && agentRoute && !agentRoute.id) {
+      return (
+        <div className="scroll-thin min-h-0 flex-1 overflow-y-auto">
+          <div className="mx-auto w-full max-w-350 px-4 pb-8 pt-6 max-lg:pt-2 sm:px-8">
+            {c.teamLoaded ? <Office views={agent.views} onOpen={agent.open} onNew={agent.openNew} /> : <SkeletonCards />}
+          </div>
+        </div>
       );
     }
     if (route === '/agentes' && agentRoute) {

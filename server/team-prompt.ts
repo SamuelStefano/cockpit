@@ -2,6 +2,7 @@ import type { BotPermissions, Memory, TeamBot } from '../shared/protocol';
 import { buildMemoryBlock } from '../shared/memory';
 import { toolsDeniedBy } from '../shared/bot-access';
 import { resolveSkillDeny } from './skills';
+import { departmentById } from '../shared/departments';
 import { botIdFromKey } from '../shared/team';
 import type { Role } from './auth';
 
@@ -9,6 +10,8 @@ const MAX_IDENTITY_BYTES = 16 * 1024;
 
 function rosterLine(b: TeamBot, byId: Map<string, TeamBot>, team: TeamBot[]): string {
   const parts = [`- ${b.name}${b.primary ? ' (principal)' : ''}${b.label ? ` — ${b.label}` : ''}`];
+  const dept = departmentById(b.department);
+  if (dept) parts.push(`setor ${dept.name}`);
   const boss = b.parentId ? byId.get(b.parentId) : undefined;
   if (boss) parts.push(`responde a ${boss.name}`);
   const reports = team.filter((x) => x.parentId === b.id).map((x) => x.name);
@@ -29,6 +32,8 @@ export function buildBotIdentity(bot: TeamBot, team: TeamBot[], memories?: Memor
     'Quando precisar de uma decisão do humano, explique o contexto em prosa antes e então use AskUserQuestion com uma pergunta e 2 a 4 opções curtas e mutuamente exclusivas. Marque a recomendada com "(Recomendada)" no fim do rótulo. Se houver um mockup ou print, passe o caminho dele em `image` na pergunta; se for segurar a rodada sem resposta, passe o horário em `deadline` (ex.: "10:30").',
     'Para mostrar uma imagem (mockup, gráfico, print), salve o arquivo no seu diretório de trabalho e cite com caminho relativo: ![legenda](nome.png).',
   ];
+  const dept = departmentById(bot.department);
+  if (dept) lines.splice(1, 0, `Seu setor: ${dept.name}.`);
   if (bot.instructions.trim()) lines.push('', 'Suas instruções:', bot.instructions.trim());
   if (team.length > 1) {
     lines.push('', 'A equipe (a hierarquia é combinada, não imposta pelo sistema):');

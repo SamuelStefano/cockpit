@@ -1,4 +1,6 @@
+import type { DepartmentId } from './departments';
 import type { Effort, MascotShape, PermMode, TeamBot, TeamBotInput, TeamProfile } from './protocol';
+import { isDepartmentId } from './departments';
 import { isAgentModel } from './agents';
 import { validateAgentSource } from './agent-source';
 import { parsePermissions, parseSkillIds, profileFromPermissions } from './bot-access';
@@ -64,6 +66,7 @@ export function validateBotInput(raw: unknown): BotValidation {
   const parentId = str(r.parentId) || undefined;
   if (parentId !== undefined && !ID_RE.test(parentId)) return { ok: false, error: 'chefe inválido' };
   if (parentId === id) return { ok: false, error: 'um bot não pode ser chefe de si mesmo' };
+  if (r.department !== undefined && !isDepartmentId(r.department)) return { ok: false, error: 'setor inválido' };
   const model = str(r.model) || undefined;
   if (model !== undefined && !MODEL_RE.test(model)) return { ok: false, error: 'modelo inválido' };
   // The ACP agent runs its own tool loop, outside the restricted profile's rules.
@@ -77,6 +80,7 @@ export function validateBotInput(raw: unknown): BotValidation {
   if (effort !== undefined && !EFFORTS.has(effort)) return { ok: false, error: 'esforço inválido' };
   const bot: TeamBotInput = { id, name, label, instructions, mascot: { shape, color: color.toLowerCase() }, profile };
   if (parentId) bot.parentId = parentId;
+  if (r.department !== undefined) bot.department = r.department as DepartmentId;
   if (r.primary === true) bot.primary = true;
   if (model) bot.model = model;
   if (fallbackModel) bot.fallbackModel = fallbackModel;

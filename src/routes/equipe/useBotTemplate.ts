@@ -11,7 +11,7 @@ export interface TemplateSource {
 }
 
 export function exportPayloads(d: BotDraft, origin: string): { ok: true; link: string; json: string } | { ok: false; error: string } {
-  const r = exportTemplate({ name: d.name, label: d.label, instructions: d.instructions, mascot: { shape: d.shape, color: d.color }, skills: d.skills });
+  const r = exportTemplate({ name: d.name, label: d.label, instructions: d.instructions, mascot: { shape: d.shape, color: d.color }, skills: d.skills, ...(d.department ? { department: d.department } : {}) });
   if (!r.ok) return r;
   return { ok: true, link: templateToLink(r.template, origin), json: templateToJson(r.template) };
 }

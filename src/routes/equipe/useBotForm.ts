@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { BotPermissions, Effort, MascotShape, PermMode, TeamBot, TeamBotInput, TeamProfile } from '../../../shared/protocol';
 import { newBotId, validateBotInput, wouldCycle } from '../../../shared/team';
 import { MASCOT_COLORS } from '../../components/team/mascot-shapes';
+import type { DepartmentId } from '../../../shared/departments';
 import { isAgentModel } from '../../../shared/agents';
 
 export interface BotDraft {
@@ -11,6 +12,7 @@ export interface BotDraft {
   shape: MascotShape;
   color: string;
   parentId: string;
+  department: DepartmentId | '';
   primary: boolean;
   profile: TeamProfile;
   model: string;
@@ -31,11 +33,11 @@ export function draftFrom(bot: TeamBot | null, count: number, locked = false): B
 
 function baseDraft(bot: TeamBot | null, count: number): BotDraft {
   if (!bot) {
-    return { name: '', label: '', instructions: '', shape: 'blob', color: MASCOT_COLORS[count % MASCOT_COLORS.length], parentId: '', primary: count === 0, profile: 'full', model: '', fallbackModel: '', mode: '', effort: '', skills: [], sourceRepo: '', sourcePath: '' };
+    return { name: '', label: '', instructions: '', shape: 'blob', color: MASCOT_COLORS[count % MASCOT_COLORS.length], parentId: '', department: '', primary: count === 0, profile: 'full', model: '', fallbackModel: '', mode: '', effort: '', skills: [], sourceRepo: '', sourcePath: '' };
   }
   return {
     name: bot.name, label: bot.label, instructions: bot.instructions, shape: bot.mascot.shape, color: bot.mascot.color,
-    parentId: bot.parentId ?? '', primary: !!bot.primary, profile: bot.profile, model: bot.model ?? '', fallbackModel: bot.fallbackModel ?? '', mode: bot.mode ?? '', effort: bot.effort ?? '',
+    parentId: bot.parentId ?? '', department: bot.department ?? '', primary: !!bot.primary, profile: bot.profile, model: bot.model ?? '', fallbackModel: bot.fallbackModel ?? '', mode: bot.mode ?? '', effort: bot.effort ?? '',
     skills: bot.skills ?? [],
     sourceRepo: bot.source?.repo ?? '', sourcePath: bot.source?.path ?? '',
     ...(bot.permissions ? { permissions: bot.permissions } : {}),
@@ -45,6 +47,7 @@ function baseDraft(bot: TeamBot | null, count: number): BotDraft {
 export function toInput(id: string, d: BotDraft): TeamBotInput {
   const bot: TeamBotInput = { id, name: d.name.trim(), label: d.label.trim(), instructions: d.instructions, mascot: { shape: d.shape, color: d.color }, profile: d.profile };
   if (d.parentId) bot.parentId = d.parentId;
+  if (d.department) bot.department = d.department;
   if (d.primary) bot.primary = true;
   if (d.model) bot.model = d.model;
   if (d.fallbackModel) bot.fallbackModel = d.fallbackModel;

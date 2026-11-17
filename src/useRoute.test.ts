@@ -147,15 +147,15 @@ describe('useRoute', () => {
     const { result } = renderHook(() => useRoute());
     expect(result.current).toMatchObject({ route: '/agentes', agentId: 'ana01', agentTab: 'rotinas' });
     act(() => result.current.navAgent(''));
-    expect(location.pathname).toBe('/');
-    expect(result.current).toMatchObject({ route: '/', agentId: '' });
+    expect(location.pathname).toBe('/agentes');
+    expect(result.current).toMatchObject({ route: '/agentes', agentId: '' });
   });
 
-  it('redirects the bare /agentes list to /', () => {
+  it('keeps the bare /agentes as the office', () => {
     history.replaceState(null, '', '/agentes');
     const { result } = renderHook(() => useRoute());
-    expect(location.pathname).toBe('/');
-    expect(result.current.route).toBe('/');
+    expect(location.pathname).toBe('/agentes');
+    expect(result.current).toMatchObject({ route: '/agentes', agentId: '' });
   });
 
   it('redirects the retired /equipe page to /', () => {

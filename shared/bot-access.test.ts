@@ -47,6 +47,12 @@ describe('validateBotInput with access fields', () => {
     const full = validateBotInput({ ...base, profile: 'restricted', permissions: ALL_PERMISSIONS });
     expect(full.ok && full.bot.profile).toBe('full');
   });
+  it('accepts a known department and rejects an unknown one', () => {
+    const ok = validateBotInput({ ...base, department: 'finance' });
+    expect(ok.ok && ok.bot.department).toBe('finance');
+    const bad = validateBotInput({ ...base, department: 'sales' });
+    expect(bad).toEqual({ ok: false, error: 'setor inválido' });
+  });
   it('rejects malformed fields', () => {
     expect(validateBotInput({ ...base, permissions: { read: 1 } }).ok).toBe(false);
     expect(validateBotInput({ ...base, skills: 'a' }).ok).toBe(false);

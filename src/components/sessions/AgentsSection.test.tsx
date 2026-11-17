@@ -35,6 +35,21 @@ describe('AgentsSection', () => {
     expect(onOpen).toHaveBeenCalledWith('b');
   });
 
+  it('groups the roster by department when any bot has one, no-department last', () => {
+    const views = [view('a', 'ana'), view('b', 'bia', { department: 'growth' }), view('c', 'cris', { department: 'direction' }), view('d', 'duda', { department: 'growth' })];
+    render(<AgentsSection views={views} activeId={null} onOpen={() => {}} />);
+    expand();
+    const text = document.querySelector('section')!.textContent ?? '';
+    const at = ['Direção', 'cris', 'Growth', 'bia', 'duda', 'Sem setor', 'ana'].map((n) => text.indexOf(n));
+    expect(at.every((n, k) => n >= 0 && (k === 0 || n > at[k - 1]))).toBe(true);
+  });
+
+  it('keeps the flat roster when no bot has a department', () => {
+    render(<AgentsSection views={[view('a', 'ana'), view('b', 'bia')]} activeId={null} onOpen={() => {}} />);
+    expand();
+    expect(screen.queryByText('Sem setor')).toBeNull();
+  });
+
   it('offers a new agent only when allowed and expanded', () => {
     const onNew = vi.fn();
     const { rerender } = render(<AgentsSection views={[view('a', 'capo')]} activeId={null} onOpen={() => {}} />);

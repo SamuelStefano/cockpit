@@ -1,5 +1,6 @@
 import type { MascotShape, TeamBot } from './protocol';
 import { MAX_INSTRUCTIONS_BYTES, MAX_LABEL, MAX_NAME } from './team';
+import { isDepartmentId, type DepartmentId } from './departments';
 import { knownSkillFilter, sanitizeName } from './agent-builder';
 
 export const TEMPLATE_KIND = 'deck-agent';
@@ -22,6 +23,7 @@ export interface AgentTemplate {
   instructions: string;
   mascot: { shape: MascotShape; color: string };
   skills: string[];
+  department?: DepartmentId;
 }
 
 export type TemplateResult = { ok: true; template: AgentTemplate } | { ok: false; error: string };
@@ -42,7 +44,7 @@ export function findSecret(...texts: string[]): string | null {
   return null;
 }
 
-export function exportTemplate(bot: Pick<TeamBot, 'name' | 'label' | 'instructions' | 'mascot'> & { skills?: string[] }): TemplateResult {
+export function exportTemplate(bot: Pick<TeamBot, 'name' | 'label' | 'instructions' | 'mascot' | 'department'> & { skills?: string[] }): TemplateResult {
   const secret = findSecret(bot.name, bot.label, bot.instructions);
   if (secret) return { ok: false, error: `as instruções parecem ter ${secret} — tire antes de compartilhar` };
   return {
@@ -55,6 +57,7 @@ export function exportTemplate(bot: Pick<TeamBot, 'name' | 'label' | 'instructio
       instructions: bot.instructions,
       mascot: { shape: bot.mascot.shape, color: bot.mascot.color.toLowerCase() },
       skills: [...(bot.skills ?? [])],
+      ...(bot.department ? { department: bot.department } : {}),
     },
   };
 }
@@ -92,6 +95,7 @@ export function validateTemplate(raw: unknown): TemplateResult {
       instructions: r.instructions,
       mascot: { shape: m.shape as MascotShape, color: m.color.toLowerCase() },
       skills: [...new Set(skillsRaw as string[])],
+      ...(isDepartmentId(r.department) ? { department: r.department } : {}),
     },
   };
 }
@@ -146,6 +150,7 @@ export interface ImportedDraft {
   shape: MascotShape;
   color: string;
   missingSkills: string[];
+  department?: DepartmentId;
 }
 
 // Skills this box does not have are dropped and reported, never silently kept.
@@ -159,5 +164,6 @@ export function templateToDraft(t: AgentTemplate, known: ReadonlySet<string>): I
     shape: t.mascot.shape,
     color: t.mascot.color,
     missingSkills: t.skills.filter((s) => !skills.includes(s)),
+    ...(t.department ? { department: t.department } : {}),
   };
 }

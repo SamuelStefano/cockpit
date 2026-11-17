@@ -3,6 +3,7 @@
 // importa este arquivo.
 
 import type { AreaBudget, AreaId, CanvasBoard, CanvasCard, CanvasFlow, CanvasFlowRun, CanvasGraph, CanvasPos, CardPlain, CardStatus, OrchestratorActivity, OrchestratorInfo, SessionPeek, TermStats } from './canvas';
+import type { DepartmentId } from './departments';
 import type { AreaUsage } from './canvas-budget';
 import type { PlannerMove, PlannerTask } from './planner';
 import type { DflDraft, DraftOp } from './dfl-drafts';
@@ -457,6 +458,7 @@ export interface TeamBot {
   instructions: string;
   mascot: TeamMascot;
   parentId?: string;
+  department?: DepartmentId;
   primary?: boolean;
   sessionId?: string;
   profile: TeamProfile;
