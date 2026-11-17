@@ -67,4 +67,14 @@ describe('pendingFollowUps', () => {
     expect(followUpHoursOf(-2)).toBe(4);
     expect(followUpHoursOf('2')).toBe(2);
   });
+
+  it('matches replies by direction and uses only the latest one per pair', () => {
+    const log = [msg('m1', 'a', 'b', 1 * HOUR), msg('m2', 'b', 'a', 0.5 * HOUR), msg('m3', 'b', 'a', 3 * HOUR), msg('m4', 'a', 'b', 2 * HOUR)];
+    expect(pendingFollowUps(log, team, now, 4).map((x) => x.at)).toEqual([3 * HOUR]);
+  });
+
+  it('handles a large log', () => {
+    const log = Array.from({ length: 20_000 }, (_, i) => msg(`m${i}`, 'a', 'b', i, 'x', i % 2 ? 'blocked' : 'delivered'));
+    expect(pendingFollowUps(log, team, now, 4)).toHaveLength(30);
+  });
 });

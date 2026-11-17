@@ -62,10 +62,17 @@ export function currentTask(botId: string, tasks: PlannerTask[]): PlannerTask | 
 // becomes a follow-up once it is older than `hours`.
 export function pendingFollowUps(log: TeamMessage[], team: Pick<TeamBot, 'id'>[], now: number, hours: number): TeamStateFollowUp[] {
   const known = new Set(team.map((b) => b.id));
+  // Latest sent message per (from, to), so "answered since" is one lookup per request.
+  const latest = new Map<string, number>();
+  for (const m of log) {
+    if (!sent(m)) continue;
+    const k = `${m.from}\u0000${m.to}`;
+    if ((latest.get(k) ?? -Infinity) < m.ts) latest.set(k, m.ts);
+  }
   const out: TeamStateFollowUp[] = [];
   for (const m of log) {
     if (!sent(m) || !known.has(m.from) || !known.has(m.to) || now - m.ts < hours * HOUR_MS) continue;
-    if (log.some((r) => sent(r) && r.from === m.to && r.to === m.from && r.ts > m.ts)) continue;
+    if ((latest.get(`${m.to}\u0000${m.from}`) ?? -Infinity) > m.ts) continue;
     out.push({ from: m.from, to: m.to, at: m.ts, preview: preview(m.text) });
   }
   return out.sort((a, b) => b.at - a.at).slice(0, TEAM_STATE_FEED_CAP);
