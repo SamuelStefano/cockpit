@@ -7,10 +7,12 @@ export interface OfficeSummary { total: number; working: number; waiting: number
 
 export interface OfficeRoom { key: string; department: Department | null; entries: TeamEntry[]; leaders: ReadonlySet<string> }
 
+export const isLive = (state: BotState) => state === 'thinking' || state === 'working';
+
 export function summarize(views: BotView[]): OfficeSummary {
   return {
     total: views.length,
-    working: views.filter((v) => v.state === 'thinking' || v.state === 'working').length,
+    working: views.filter((v) => isLive(v.state)).length,
     waiting: views.filter((v) => v.state === 'waiting').length,
   };
 }

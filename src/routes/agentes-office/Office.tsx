@@ -25,7 +25,7 @@ export function Office({ views, onOpen, onNew }: OfficeProps) {
         <span className={chip}><b className="mr-1 font-semibold text-white">{s.waiting}</b>esperando você</span>
         {onNew && <Button variant="secondary" size="sm" icon="plus" onClick={onNew}>Novo agente</Button>}
       </div>
-      <div className="grid grid-cols-1 items-start gap-3.5 md:grid-cols-2 xl:grid-cols-3">
+      <div className="gap-3.5 md:columns-2 xl:columns-3">
         {buildRooms(views).map((room) => <DepartmentRoom key={room.key} room={room} onOpen={onOpen} />)}
       </div>
     </div>

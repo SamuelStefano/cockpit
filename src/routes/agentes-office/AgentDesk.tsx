@@ -4,14 +4,14 @@ import { Mascot } from '../../components/team/Mascot';
 import type { BotView } from '../equipe/team-view';
 import { STATE_DOT } from './office-view';
 
-interface AgentDeskProps { view: BotView; isLeader: boolean; onOpen: (id: string) => void }
+interface AgentDeskProps { view: BotView; isLeader: boolean; wide?: boolean; onOpen: (id: string) => void }
 
-export function AgentDesk({ view, isLeader, onOpen }: AgentDeskProps) {
+export function AgentDesk({ view, isLeader, wide = false, onOpen }: AgentDeskProps) {
   const { bot, state } = view;
   return (
     <button
       type="button" onClick={() => onOpen(bot.id)} aria-label={bot.name}
-      className={`relative flex min-w-0 items-center gap-2.5 rounded-xl border border-neutral-800 bg-neutral-900/70 px-2.5 py-2 text-left transition hover:border-neutral-700 hover:bg-neutral-800/60 ${tokens.focusRing}`}
+      className={`${wide ? 'sm:col-span-2 ' : ''}relative flex min-w-0 items-center gap-2.5 rounded-xl border border-neutral-800 bg-neutral-900/70 px-2.5 py-2 text-left transition hover:border-neutral-700 hover:bg-neutral-800/60 ${tokens.focusRing}`}
     >
       <Mascot mascot={bot.mascot} state={state} size={38} />
       <span className="min-w-0 flex-1">
