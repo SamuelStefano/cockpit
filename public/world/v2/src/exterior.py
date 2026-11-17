@@ -81,7 +81,7 @@ def build():
         img, corners = tr.wang_set(a, b, style, seed)
         grids = A.add(name, img, info={"corner_order": "tl,tr,br,bl", "tile_index": "tl*8+tr*4+br*2+bl",
                                        "terrains": [ca[0], cb[0]]})
-        A.add_wangset(name.replace("auto_", ""), [ca, cb],
+        A.add_wangset(name.replace("auto_", "").replace("_", "-"), [ca, cb],
                       [(grids[0][k // 4][k % 4], tuple(c + 1 for c in corners[k])) for k in range(16)])
     frames = []
     for f in range(4):

@@ -3503,7 +3503,7 @@
   </properties>
  </tile>
  <wangsets>
-  <wangset name="grass_path" type="corner" tile="99">
+  <wangset name="grass-path" type="corner" tile="99">
    <wangcolor name="grass" color="#72c048" tile="-1" probability="1"/>
    <wangcolor name="path" color="#b0743f" tile="-1" probability="1"/>
    <wangtile tileid="48" wangid="0,1,0,1,0,1,0,1"/>
@@ -3523,7 +3523,7 @@
    <wangtile tileid="98" wangid="0,2,0,2,0,1,0,2"/>
    <wangtile tileid="99" wangid="0,2,0,2,0,2,0,2"/>
   </wangset>
-  <wangset name="grass_plaza" type="corner" tile="103">
+  <wangset name="grass-plaza" type="corner" tile="103">
    <wangcolor name="grass" color="#72c048" tile="-1" probability="1"/>
    <wangcolor name="plaza" color="#e3cba6" tile="-1" probability="1"/>
    <wangtile tileid="52" wangid="0,1,0,1,0,1,0,1"/>
@@ -3543,7 +3543,7 @@
    <wangtile tileid="102" wangid="0,2,0,2,0,1,0,2"/>
    <wangtile tileid="103" wangid="0,2,0,2,0,2,0,2"/>
   </wangset>
-  <wangset name="grass_sand" type="corner" tile="107">
+  <wangset name="grass-sand" type="corner" tile="107">
    <wangcolor name="grass" color="#72c048" tile="-1" probability="1"/>
    <wangcolor name="sand" color="#f6e7cf" tile="-1" probability="1"/>
    <wangtile tileid="56" wangid="0,1,0,1,0,1,0,1"/>
