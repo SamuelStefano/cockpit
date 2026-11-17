@@ -35,6 +35,7 @@ const AGENTS = '/agentes/';
 // Reserved agent ids: they are pages under /agentes, never a bot (real ids come from newBotId).
 export const AGENT_NEW = 'novo';
 export const AGENT_STORE = 'loja';
+export const AGENT_MEETINGS = 'reunioes';
 const SKILLS = '/skills/';
 
 export interface RouteState { route: Route; chatId: string; agentId: string; agentTab: AgentTab; skillId: string }

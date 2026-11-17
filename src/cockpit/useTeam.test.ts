@@ -78,4 +78,15 @@ describe('useTeam messages and pause', () => {
     });
     expect(sent).toEqual([{ t: 'team-pause-set', paused: false }, { t: 'team-messages-get', botId: 'capo1', peer: 'ativ1' }]);
   });
+
+  it('keeps meetings newest first and upserts by id', () => {
+    const { result, sent } = mount();
+    const m = (id: string, createdAt: number, status: 'round1' | 'done' = 'round1') => ({ id, question: 'q', participantIds: ['a', 'b'], moderatorId: 'a', status, answers: [], createdAt, updatedAt: createdAt });
+    act(() => { result.current.onMsg({ t: 'team-meetings', items: [m('m2', 2), m('m1', 1)] }); });
+    act(() => { expect(result.current.onMsg({ t: 'team-meeting', item: m('m3', 3) })).toBe(true); });
+    act(() => { result.current.onMsg({ t: 'team-meeting', item: m('m2', 2, 'done') }); });
+    expect(result.current.meetings.map((x) => `${x.id}:${x.status}`)).toEqual(['m3:round1', 'm2:done', 'm1:round1']);
+    act(() => { result.current.onMeetingsGet(); result.current.onMeetingStart({ question: 'q', participantIds: ['a', 'b'], moderatorId: 'a' }); });
+    expect(sent).toEqual([{ t: 'team-meetings-get' }, { t: 'team-meeting-start', question: 'q', participantIds: ['a', 'b'], moderatorId: 'a' }]);
+  });
 });

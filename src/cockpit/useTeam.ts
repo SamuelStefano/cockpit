@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import type { ClientMsg, ServerMsg, TeamBot, TeamBotInput, TeamPendingQuestion } from '../../shared/protocol';
+import type { MeetingInput, TeamMeeting } from '../../shared/team-meeting';
 import { mergeTeamMessages, type TeamMessage } from '../../shared/team-messages';
 
 export interface AgentBuildResult { reqId: string; ok: boolean; text?: string; error?: string }
@@ -13,6 +14,9 @@ export interface Team {
   teamMessages: TeamMessage[];
   teamPaused: boolean;
   pendingQuestions: TeamPendingQuestion[];
+  meetings: TeamMeeting[];
+  onMeetingsGet: () => void;
+  onMeetingStart: (input: MeetingInput) => void;
   onTeamGet: () => void;
   onTeamSave: (bot: TeamBotInput) => void;
   onTeamDelete: (id: string) => void;
@@ -31,6 +35,7 @@ export function useTeam(send: (m: ClientMsg) => boolean): Team {
   const [teamPaused, setTeamPaused] = useState(false);
   const [agentBuild, setAgentBuild] = useState<AgentBuildResult | null>(null);
   const [pendingQuestions, setPendingQuestions] = useState<TeamPendingQuestion[]>([]);
+  const [meetings, setMeetings] = useState<TeamMeeting[]>([]);
 
   const onMsg = useCallback((msg: ServerMsg) => {
     switch (msg.t) {
@@ -50,6 +55,12 @@ export function useTeam(send: (m: ClientMsg) => boolean): Team {
       case 'agent-build-result':
         setAgentBuild({ reqId: msg.reqId, ok: msg.ok, text: msg.text, error: msg.error });
         return true;
+      case 'team-meetings':
+        setMeetings(msg.items);
+        return true;
+      case 'team-meeting':
+        setMeetings((prev) => [msg.item, ...prev.filter((m) => m.id !== msg.item.id)].sort((a, b) => b.createdAt - a.createdAt));
+        return true;
       case 'team-pending':
         setPendingQuestions(msg.items);
         return true;
@@ -64,6 +75,9 @@ export function useTeam(send: (m: ClientMsg) => boolean): Team {
     teamMessages,
     teamPaused,
     pendingQuestions,
+    meetings,
+    onMeetingsGet: useCallback(() => { send({ t: 'team-meetings-get' }); }, [send]),
+    onMeetingStart: useCallback((input: MeetingInput) => { send({ t: 'team-meeting-start', ...input }); }, [send]),
     agentBuild,
     onAgentBuild: useCallback((req: AgentBuildRequest) => send({ t: 'agent-build', ...req }), [send]),
     onTeamGet: useCallback(() => { send({ t: 'team-get' }); }, [send]),

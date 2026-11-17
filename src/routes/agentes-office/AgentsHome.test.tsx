@@ -23,4 +23,15 @@ describe('AgentsHome', () => {
     expect(screen.getByRole('region', { name: 'Engenharia' })).toBeTruthy();
     expect(onSkillList).toHaveBeenCalled();
   });
+
+  it('shows the meeting room on the Reuniões tab and asks for the list', () => {
+    const onMeetingsGet = vi.fn();
+    const onTab = vi.fn();
+    render(<AgentsHome {...base} tab="reunioes" onTab={onTab} onMeetingsGet={onMeetingsGet} />);
+    expect(screen.getByRole('tab', { name: 'Reuniões' }).getAttribute('aria-selected')).toBe('true');
+    expect(screen.getByRole('button', { name: /Nova reunião/ })).toBeTruthy();
+    expect(onMeetingsGet).toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('tab', { name: 'Loja' }));
+    expect(onTab).toHaveBeenCalledWith('loja');
+  });
 });
