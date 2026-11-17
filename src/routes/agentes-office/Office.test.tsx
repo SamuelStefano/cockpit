@@ -49,4 +49,17 @@ describe('Office', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Novo agente' }));
     expect(onNew).toHaveBeenCalled();
   });
+
+  it('shows no executor chip when it is absent or not configured', () => {
+    render(<Office views={team} onOpen={() => {}} executor={{ configured: false, label: '', online: null }} />);
+    expect(screen.queryByText(/online|offline/)).toBeNull();
+  });
+
+  it('shows the executor chip with the queue and opens the tab on click', () => {
+    const onOpenExecutor = vi.fn();
+    const jobs = [{ id: 'h1', repo: 'r', branch: 'b', command: 'c', requestedBy: 'human', status: 'queued' as const, tail: '', createdAt: 1 }];
+    render(<Office views={team} onOpen={() => {}} executor={{ configured: true, label: 'PC', online: false }} heavyJobs={jobs} onOpenExecutor={onOpenExecutor} />);
+    fireEvent.click(screen.getByRole('button', { name: 'PC offline · 1 na fila' }));
+    expect(onOpenExecutor).toHaveBeenCalled();
+  });
 });

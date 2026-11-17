@@ -36,6 +36,7 @@ const AGENTS = '/agentes/';
 export const AGENT_NEW = 'novo';
 export const AGENT_STORE = 'loja';
 export const AGENT_MEETINGS = 'reunioes';
+export const AGENT_EXECUTOR = 'executor';
 const SKILLS = '/skills/';
 
 export interface RouteState { route: Route; chatId: string; agentId: string; agentTab: AgentTab; skillId: string }

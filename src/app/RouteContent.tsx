@@ -13,7 +13,7 @@ import type { ChatPanelProps } from '../components/chat/chat-panel-props';
 import type { TerminalsPanelProps } from '../components/Terminals';
 import type { Terminal } from '../data/types';
 import type { useCockpit } from '../useCockpit';
-import { AGENT_MEETINGS, AGENT_STORE, type AgentTab, type Route } from '../useRoute';
+import { AGENT_EXECUTOR, AGENT_MEETINGS, AGENT_STORE, type AgentTab, type Route } from '../useRoute';
 import { SkeletonCards } from '../components/primitives';
 import { AgentsHome } from '../routes/agentes-office/AgentsHome';
 import { navigateTo } from '../lib/route-nav';
@@ -147,14 +147,15 @@ export function RouteContent({ route, agentRoute, skillRoute, isMobile, isAdmin,
           manage={{ provedores: <ManageProviders {...manage} />, ferramentas: <ManageTools {...manage} />, chaves: isRoot ? <VaultPanel api={c} /> : undefined }} />
       );
     }
-    if (route === '/agentes' && agentRoute && (!agentRoute.id || agentRoute.id === AGENT_STORE || agentRoute.id === AGENT_MEETINGS)) {
+    if (route === '/agentes' && agentRoute && (!agentRoute.id || agentRoute.id === AGENT_STORE || agentRoute.id === AGENT_MEETINGS || agentRoute.id === AGENT_EXECUTOR)) {
       return (
         <div className="scroll-thin min-h-0 flex-1 overflow-y-auto">
           <div className="mx-auto w-full max-w-350 px-4 pb-8 pt-6 max-lg:pt-2 sm:px-8">
             {c.teamLoaded
-              ? <AgentsHome tab={agentRoute.id === AGENT_MEETINGS ? 'reunioes' : agentRoute.id ? 'loja' : 'escritorio'}
-                  onTab={(t) => agentRoute.open(t === 'loja' ? AGENT_STORE : t === 'reunioes' ? AGENT_MEETINGS : '')}
+              ? <AgentsHome tab={agentRoute.id === AGENT_MEETINGS ? 'reunioes' : agentRoute.id === AGENT_EXECUTOR ? 'executor' : agentRoute.id ? 'loja' : 'escritorio'}
+                  onTab={(t) => agentRoute.open(t === 'loja' ? AGENT_STORE : t === 'reunioes' ? AGENT_MEETINGS : t === 'executor' ? AGENT_EXECUTOR : '')}
                   meetings={c.meetings} onMeetingsGet={c.onMeetingsGet} onMeetingStart={c.onMeetingStart}
+                  executor={c.executor} heavyJobs={c.heavyJobs} onHeavyGet={c.onHeavyGet} onHeavyRun={c.onHeavyRun} onHeavyCancel={c.onHeavyCancel}
                   views={agent.views} bots={c.bots} skills={c.skills} connected={connected} canEdit={isAdmin} onSkillList={c.onSkillList}
                   onSave={c.onTeamSave} onOpen={agent.open} onProfile={(id) => agentRoute.open(id)} onNew={agent.openNew} />
               : <SkeletonCards />}

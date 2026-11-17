@@ -1,15 +1,17 @@
 import { useEffect } from 'react';
 import type { SkillMeta, TeamBot, TeamBotInput } from '../../../shared/protocol';
 import type { MeetingInput, TeamMeeting } from '../../../shared/team-meeting';
+import type { ExecutorState, HeavyJob, JobInput } from '../../../shared/heavy-job';
 import { Tabs, type TabItem } from '../../components/primitives';
 import type { BotView } from '../equipe/team-view';
 import { Office } from './Office';
 import { AgentStore } from './store/AgentStore';
 import { MeetingsTab } from './meetings/MeetingsTab';
+import { ExecutorTab } from './executor/ExecutorTab';
 
-export type OfficeTab = 'escritorio' | 'loja' | 'reunioes';
+export type OfficeTab = 'escritorio' | 'loja' | 'reunioes' | 'executor';
 
-const TABS: TabItem<OfficeTab>[] = [{ id: 'escritorio', label: 'Escritório' }, { id: 'loja', label: 'Loja' }, { id: 'reunioes', label: 'Reuniões' }];
+const TABS: TabItem<OfficeTab>[] = [{ id: 'escritorio', label: 'Escritório' }, { id: 'loja', label: 'Loja' }, { id: 'reunioes', label: 'Reuniões' }, { id: 'executor', label: 'Executor' }];
 
 interface AgentsHomeProps {
   tab: OfficeTab;
@@ -27,20 +29,29 @@ interface AgentsHomeProps {
   meetings?: TeamMeeting[];
   onMeetingsGet?: () => void;
   onMeetingStart?: (input: MeetingInput) => void;
+  executor?: ExecutorState;
+  heavyJobs?: HeavyJob[];
+  onHeavyGet?: () => void;
+  onHeavyRun?: (input: JobInput) => void;
+  onHeavyCancel?: (id: string) => void;
 }
 
 const noop = () => {};
+const NO_EXECUTOR: ExecutorState = { configured: false, label: '', online: null };
 
-export function AgentsHome({ tab, onTab, views, bots, skills, connected, canEdit, onSkillList, onSave, onOpen, onProfile, onNew, meetings = [], onMeetingsGet, onMeetingStart }: AgentsHomeProps) {
+export function AgentsHome({ tab, onTab, views, bots, skills, connected, canEdit, onSkillList, onSave, onOpen, onProfile, onNew, meetings = [], onMeetingsGet, onMeetingStart, executor, heavyJobs = [], onHeavyGet, onHeavyRun, onHeavyCancel }: AgentsHomeProps) {
   useEffect(() => { if (connected && tab === 'loja') onSkillList?.(); }, [connected, tab, onSkillList]);
+  useEffect(() => { if (connected && canEdit) onHeavyGet?.(); }, [connected, canEdit, onHeavyGet]);
   return (
     <div className="flex flex-col gap-4">
       <Tabs items={TABS} active={tab} onChange={onTab} />
-      {tab === 'reunioes'
+      {tab === 'executor'
+        ? <ExecutorTab executor={executor ?? NO_EXECUTOR} jobs={heavyJobs} bots={bots} canEdit={canEdit} onRun={onHeavyRun ?? noop} onCancel={onHeavyCancel ?? noop} />
+        : tab === 'reunioes'
         ? <MeetingsTab meetings={meetings} bots={bots} connected={connected} canEdit={canEdit} onGet={onMeetingsGet ?? noop} onStart={onMeetingStart ?? noop} />
         : tab === 'loja'
         ? <AgentStore bots={bots} skills={skills} canEdit={canEdit} onSave={onSave} onHired={(firstId, count) => (count === 1 ? onProfile(firstId) : onTab('escritorio'))} />
-        : <Office views={views} onOpen={onOpen} onNew={onNew} heading={false} />}
+        : <Office views={views} onOpen={onOpen} onNew={onNew} heading={false} executor={executor} heavyJobs={heavyJobs} onOpenExecutor={() => onTab('executor')} />}
     </div>
   );
 }
