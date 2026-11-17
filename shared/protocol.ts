@@ -15,6 +15,7 @@ import type { ByoKeyView } from './byo-providers';
 import type { AgentView, AgentPreset, AgentStatus, AgentCustomField } from './agents';
 import type { TeamMessage } from './team-messages';
 import type { TeamMeeting } from './team-meeting';
+import type { ExecutorState, HeavyJob } from './heavy-job';
 import type { PrDetail, PrDiff, PrsSnapshot, SessionPrs } from './prs';
 import type { BoxHealth, SmokeResult } from './box-health';
 import type { VersionKind, VersionMeta } from './versions';
@@ -854,6 +855,9 @@ export type ClientMsg =
   | { t: 'team-pause-set'; paused: boolean }
   | { t: 'team-meeting-start'; question: string; participantIds: string[]; moderatorId: string }
   | { t: 'team-meetings-get' }
+  | { t: 'heavy-run'; repo: string; branch: string; dir?: string; command: string; requestedBy?: string }
+  | { t: 'heavy-cancel'; id: string }
+  | { t: 'heavy-get' }
   | { t: 'team-files-get'; botId: string }
   | { t: 'team-file-get'; botId: string; path: string }
   | { t: 'team-computer-get'; botId: string }
@@ -1071,6 +1075,7 @@ export type ServerMsg =
   | { t: 'team-paused'; paused: boolean }
   | { t: 'team-meetings'; items: TeamMeeting[] }
   | { t: 'team-meeting'; item: TeamMeeting }
+  | { t: 'heavy'; executor: ExecutorState; jobs: HeavyJob[] }
   | { t: 'team-pending'; items: TeamPendingQuestion[] }
   | { t: 'team-files'; botId: string; items: BotFile[]; error?: string }
   | { t: 'team-file'; botId: string; path: string; mime?: string; size?: number; dataB64?: string; error?: string }

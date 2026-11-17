@@ -149,6 +149,14 @@ describe('authorize', () => {
     }
   });
 
+  it('executor frames are admin-only and never owner-only', () => {
+    for (const t of ['heavy-run', 'heavy-cancel', 'heavy-get'] as const) {
+      expect(authorize('admin', t)).toBe(true);
+      expect(authorize('student', t)).toBe(false);
+      expect(ROOT_ONLY.has(t)).toBe(false);
+    }
+  });
+
   it('connections-get is admin-only and never owner-only', () => {
     expect(authorize('admin', 'connections-get')).toBe(true);
     expect(authorize('student', 'connections-get')).toBe(false);

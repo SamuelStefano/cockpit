@@ -23,6 +23,7 @@ import {
   PLANNER_COLUMNS, PLANNER_LIMITS, PLANNER_REF_RE, type PlannerColumn, type PlannerDifficulty, type PlannerLink, type PlannerTask,
 } from '../shared/planner';
 import { MEETING_LIMITS, type TeamMeeting } from '../shared/team-meeting';
+import { isActive, jobExitCode, type ExecutorState, type HeavyJob } from '../shared/heavy-job';
 import { buildTaskPrompt, buildContinuePrompt } from '../shared/canvas-prompt';
 import { ctxWindow } from '../src/routes/canvas/term-stats-view';
 import { mergeBoard } from '../src/routes/canvas/canvas-board';
@@ -1739,6 +1740,117 @@ async function cmdMeeting(positional: string[], flags: Flags, json: boolean): Pr
   } finally { client.close(); }
 }
 
+// --- heavy executor ------------------------------------------------------------
+
+export interface HeavyRunArgs { repo: string; branch: string; dir?: string; command: string; requestedBy?: string; wait: boolean }
+
+// Everything after the first "--" is the command; --wait is boolean wherever it sits.
+export function parseHeavyRun(team: Pick<TeamBot, 'id' | 'name'>[], args: string[]): HeavyRunArgs {
+  const sep = args.indexOf('--');
+  const head = (sep < 0 ? args : args.slice(0, sep)).filter((a) => a !== '--wait');
+  const wait = (sep < 0 ? args : args.slice(0, sep)).includes('--wait');
+  const command = sep < 0 ? '' : args.slice(sep + 1).join(' ').trim();
+  const { positional, flags } = parseFlags(head);
+  if (positional.length !== 2) throw new Error('usage: deckctl heavy run <repo> <branch> [--dir d] [--as <bot>] [--wait] -- <command...>');
+  if (!command) throw new Error('the command goes after "--": deckctl heavy run <repo> <branch> -- <command...>');
+  const dir = flagStr(flags, 'dir');
+  const as = flagStr(flags, 'as');
+  return { repo: positional[0], branch: positional[1], ...(dir ? { dir } : {}), command, ...(as ? { requestedBy: resolveBot(team, as).id } : {}), wait };
+}
+
+const heavyWho = (j: HeavyJob, nameOf: (id: string) => string) => (j.requestedBy === 'human' ? 'you' : nameOf(j.requestedBy));
+
+export function formatHeavyList(jobs: HeavyJob[], nameOf: (id: string) => string): string[] {
+  if (!jobs.length) return ['no jobs yet'];
+  return [...jobs].sort((a, b) => b.createdAt - a.createdAt).map((j) =>
+    `${shortId(j.id)}  ${j.status.padEnd(9)}  ${fmtBrt(j.createdAt)}  ${j.repo}@${j.branch}  ${heavyWho(j, nameOf)}  ${oneLine(j.command, 50)}`);
+}
+
+export function formatHeavyJob(j: HeavyJob, nameOf: (id: string) => string): string[] {
+  const out = [`${j.id}  ${j.status}${j.exitCode !== undefined ? `  exit ${j.exitCode}` : ''}  ${fmtBrt(j.createdAt)}`, `${j.repo}@${j.branch}${j.dir ? `  dir ${j.dir}` : ''}  asked by ${heavyWho(j, nameOf)}`, `$ ${j.command}`];
+  if (j.error) out.push(`error: ${j.error}`);
+  if (j.tail) out.push('', j.tail.replace(/\n$/, ''));
+  return out;
+}
+
+export function heavyWaitNote(executor: ExecutorState, job: HeavyJob): string | null {
+  if (job.status !== 'queued' || !executor.configured || executor.online !== false) return null;
+  return `job ${shortId(job.id)} is waiting for the executor (${executor.label}) to come online; this is not a failure`;
+}
+
+// "--json" typed after the separator belongs to the command.
+function withoutJsonFlag(args: string[]): string[] {
+  const sep = args.indexOf('--');
+  const head = sep < 0 ? args : args.slice(0, sep);
+  return [...head.filter((a) => a !== '--json'), ...(sep < 0 ? [] : args.slice(sep))];
+}
+
+async function fetchHeavy(client: Client): Promise<Extract<ServerMsg, { t: 'heavy' }>> {
+  client.send({ t: 'heavy-get' });
+  const m = await client.waitFor(isServerMsg('heavy'), DEFAULT_TIMEOUT_MS, { fresh: true });
+  if (!m) fail('backend did not answer heavy-get (timeout)');
+  return m;
+}
+
+async function waitHeavy(client: Client, id: string, nameOf: (id: string) => string, first: Extract<ServerMsg, { t: 'heavy' }>): Promise<number> {
+  let msg = first;
+  let noted = false;
+  for (;;) {
+    const job = msg.jobs.find((j) => j.id === id);
+    if (!job) fail(`job ${id} vanished from the queue`);
+    const note = heavyWaitNote(msg.executor, job);
+    if (note && !noted) { console.log(note); noted = true; }
+    if (!isActive(job)) {
+      console.log(formatHeavyJob(job, nameOf).join('\n'));
+      return jobExitCode(job);
+    }
+    const next = await client.waitFor(isServerMsg('heavy'), 30_000, { fresh: true });
+    if (next) { msg = next; continue; }
+    msg = await fetchHeavy(client);
+  }
+}
+
+async function cmdHeavy(args: string[], json: boolean): Promise<void> {
+  const [sub, ...rest] = args;
+  if (sub !== 'run' && sub !== 'list' && sub !== 'show' && sub !== 'cancel') fail(`unknown heavy subcommand "${sub ?? ''}" — run|list|show|cancel`);
+  if ((sub === 'show' || sub === 'cancel') && !rest[0]) fail(`usage: deckctl heavy ${sub} <id>`);
+  const client = await connect();
+  try {
+    const team = await fetchTeam(client);
+    const nameOf = (id: string) => team.find((b) => b.id === id)?.name ?? id;
+    if (sub === 'run') {
+      const req = orFail(() => parseHeavyRun(team, withoutJsonFlag(rest)));
+      const before = new Set((await fetchHeavy(client)).jobs.map((j) => j.id));
+      const { wait, ...frame } = req;
+      client.send({ t: 'heavy-run', ...frame });
+      const ack = await mutationAck(client, (m): m is Extract<ServerMsg, { t: 'heavy' }> =>
+        m.t === 'heavy' && m.jobs.some((j) => !before.has(j.id) && j.repo === req.repo && j.branch === req.branch && j.command === req.command), 'heavy-run');
+      const job = ack.jobs.find((j) => !before.has(j.id) && j.command === req.command) as HeavyJob;
+      if (!wait) {
+        console.log(json ? JSON.stringify(job, null, 2) : `job ${job.id} ${job.status} — follow with: deckctl heavy show ${shortId(job.id)}`);
+        return;
+      }
+      const code = await waitHeavy(client, job.id, nameOf, ack);
+      client.close();
+      process.exit(code);
+    }
+    const snap = await fetchHeavy(client);
+    if (sub === 'list') {
+      console.log(json ? JSON.stringify(snap.jobs, null, 2) : formatHeavyList(snap.jobs, nameOf).join('\n'));
+      return;
+    }
+    const hits = snap.jobs.filter((j) => j.id.startsWith(rest[0]));
+    if (hits.length !== 1) fail(hits.length ? `ambiguous job id "${rest[0]}"` : `no job "${rest[0]}"`);
+    if (sub === 'show') {
+      console.log(json ? JSON.stringify(hits[0], null, 2) : formatHeavyJob(hits[0], nameOf).join('\n'));
+      return;
+    }
+    client.send({ t: 'heavy-cancel', id: hits[0].id });
+    await mutationAck(client, (m): m is Extract<ServerMsg, { t: 'heavy' }> => m.t === 'heavy' && m.jobs.some((j) => j.id === hits[0].id && !isActive(j)), 'heavy-cancel');
+    console.log(`job ${shortId(hits[0].id)} cancelled`);
+  } finally { client.close(); }
+}
+
 // --- main --------------------------------------------------------------
 
 const HELP = `deckctl — orchestrate the Deck canvas from a terminal
@@ -1773,6 +1885,8 @@ Usage: deckctl <command> [args] [--json]
   task rm <id>                              delete a task
   meeting start --q "<question>" --with a,b,c [--moderator x]   blind two-round meeting between bots, ends in minutes (ata)
   meeting list | meeting show <id>          meetings, newest first / one meeting (round 1 stays sealed until it closes)
+  heavy run <repo> <branch> [--dir d] [--as BOT] [--wait] -- <command...>   queue heavy work (tests, build, e2e, render) on the executor; --wait blocks and exits with the job's code
+  heavy list | heavy show <id> | heavy cancel <id>   executor jobs, newest first / status + log tail / cancel a queued or running job
   status                                    one-screen overview + alerts (pending questions, hot-context sessions)
   triage [--apply] [--limit N]              score every session KEEP/PURGE/REVIEW (dry-run by default; --apply acts)
 
@@ -1857,6 +1971,7 @@ async function main(): Promise<void> {
     }
     case 'task': return cmdTask(rest);
     case 'meeting': return cmdMeeting(positional, flags, json);
+    case 'heavy': return cmdHeavy(rest, json);
     case 'status': return cmdStatus();
     case 'triage': return cmdTriage(flags, json);
     default:

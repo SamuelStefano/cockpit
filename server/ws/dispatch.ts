@@ -26,9 +26,11 @@ import { fireCron, type CronFire } from './runs';
 import { getTeam, saveBot, deleteBot } from '../team';
 import { getMemories, saveMemory, deleteMemory, validateMemoryInput, readMemoriesSafe } from '../memories';
 import { botTurnFor, botDenyRules } from '../team-prompt';
+import { executorConfigured } from '../heavy-executor';
 import { refreshAgentSource, removeAgentSource } from '../agent-source';
 import { agentBuilderTurn } from '../engine/triage';
 import { sendMeetings, startMeetingFrame } from './team-meeting-frames';
+import { cancelHeavyFrame, runHeavyFrame, sendHeavy } from './heavy-frames';
 import { cleanBuildRequest } from './agent-build';
 import { parseTtsText, synthesize, mintSttToken } from '../tts';
 import { sendTeamMessages, sendTeamPaused, setTeamPause } from './team-frames';
@@ -983,6 +985,18 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       await startMeetingFrame(ws, msg);
       return;
     }
+    case 'heavy-get': {
+      await sendHeavy(ws);
+      return;
+    }
+    case 'heavy-run': {
+      await runHeavyFrame(ws, msg);
+      return;
+    }
+    case 'heavy-cancel': {
+      await cancelHeavyFrame(ws, msg.id);
+      return;
+    }
     case 'team-pause-set': {
       await setTeamPause(ws, msg.paused);
       return;
@@ -1332,7 +1346,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       // Skills selecionadas pela UI viram regras de negação das NÃO-selecionadas
       // (Skill(id)). Resolvido aqui (async) e passado adiante; vazio = todas ativas.
       const team = await getTeam();
-      const bot = botTurnFor(team, msg.sessionKey, msg.sessionId, role, await readMemoriesSafe());
+      const bot = botTurnFor(team, msg.sessionKey, msg.sessionId, role, await readMemoriesSafe(), executorConfigured());
       if (bot?.profile === 'full') await refreshAndBroadcast(team.find((b) => b.id === bot.botId));
       const disallowedSkills = [...new Set([...(await resolveSkillDeny(msg.skills)), ...(await botDenyRules(bot))])];
       // The human's next message in the bot's thread is the answer, picked or typed.
@@ -1474,7 +1488,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     // depender do browser aberto. Mesma resolução de skills do 'send'. Broadcast do
     // snapshot pra todos os aparelhos verem a fila mudar ao vivo.
     case 'queue-add': {
-      const bot = botTurnFor(await getTeam(), msg.sessionKey, msg.sessionId, role, await readMemoriesSafe());
+      const bot = botTurnFor(await getTeam(), msg.sessionKey, msg.sessionId, role, await readMemoriesSafe(), executorConfigured());
       const disallowedSkills = [...new Set([...(await resolveSkillDeny(msg.skills)), ...(await botDenyRules(bot))])];
       const r = addParked(msg.sessionKey, {
         prompt: msg.text,
