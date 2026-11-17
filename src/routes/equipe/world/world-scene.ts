@@ -204,14 +204,14 @@ class WorldScene extends Phaser.Scene {
   // Stepped (pixel) radial light, drawn once and reused as an additive sprite.
   private makeGlow(): void {
     const g = this.make.graphics({ x: 0, y: 0 }, false);
-    for (const [r, a] of [[30, 0.07], [23, 0.09], [16, 0.12], [9, 0.16]] as const) { g.fillStyle(0xffffff, a); g.fillCircle(32, 32, r); }
+    for (const [r, a] of [[30, 0.03], [23, 0.04], [16, 0.06], [9, 0.09]] as const) { g.fillStyle(0xffffff, a); g.fillCircle(32, 32, r); }
     g.generateTexture('glow', 64, 64);
     g.destroy();
   }
 
-  private glowAt(x: number, y: number, k: number, tint = 0xffc66b): void {
-    const s = this.add.image(x, y, 'glow').setTint(tint).setBlendMode(Phaser.BlendModes.ADD).setDepth(8).setAlpha(0.75 * k).setScale(k);
-    this.tweens.add({ targets: s, alpha: 0.55 * k, duration: 1600 + ((x * 7 + y * 3) % 900), yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+  private glowAt(x: number, y: number, k: number, tint = 0xffb347): void {
+    const s = this.add.image(x, y, 'glow').setTint(tint).setBlendMode(Phaser.BlendModes.ADD).setDepth(8).setAlpha(0.6 * k).setScale(k);
+    this.tweens.add({ targets: s, alpha: 0.4 * k, duration: 1600 + ((x * 7 + y * 3) % 900), yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
   }
 
   private buildGround(): void {
