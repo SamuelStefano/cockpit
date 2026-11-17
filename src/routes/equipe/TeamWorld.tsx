@@ -112,7 +112,7 @@ export function TeamWorld({ state, connected, onRefresh, bots, meetings, onMeeti
             <button type="button" className={`${chip} ${ui.mode === 'avatar' ? chipOn : chipOff}`} aria-pressed={ui.mode === 'avatar'} onClick={() => dispatch({ t: 'set-mode', mode: 'avatar' })}>Deck</button>
             <button type="button" className={`${chip} ${ui.mode === 'god' ? chipOn : chipOff}`} aria-pressed={ui.mode === 'god'} onClick={() => dispatch({ t: 'set-mode', mode: 'god' })}>Modo Deus</button>
           </div>
-          <div className="absolute right-2 top-2 flex items-center gap-1.5">
+          <div className="absolute right-2 top-2 flex items-center gap-1.5 max-sm:left-2 max-sm:right-auto max-sm:top-12">
             {demo && <span className="rounded-md border border-amber-400/30 bg-amber-500/15 px-2 py-1 text-[11px] text-amber-200">demo</span>}
             <button type="button" className={`${chip} ${panel ? chipOn : chipOff}`} aria-pressed={panel} onClick={() => setPanel((v) => !v)}>Reunião</button>
             <button type="button" className={`${chip} ${chipOff}`} aria-pressed={false} onClick={() => dispatch({ t: 'toggle-recording' })}>Gravação</button>
