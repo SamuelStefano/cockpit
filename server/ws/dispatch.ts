@@ -29,6 +29,7 @@ import { botTurnFor, botDenyRules } from '../team-prompt';
 import { refreshAgentSource, removeAgentSource } from '../agent-source';
 import { agentBuilderTurn } from '../engine/triage';
 import { sendMeetings, startMeetingFrame } from './team-meeting-frames';
+import { cancelHeavyFrame, runHeavyFrame, sendHeavy } from './heavy-frames';
 import { cleanBuildRequest } from './agent-build';
 import { parseTtsText, synthesize, mintSttToken } from '../tts';
 import { sendTeamMessages, sendTeamPaused, setTeamPause } from './team-frames';
@@ -981,6 +982,18 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     }
     case 'team-meeting-start': {
       await startMeetingFrame(ws, msg);
+      return;
+    }
+    case 'heavy-get': {
+      await sendHeavy(ws);
+      return;
+    }
+    case 'heavy-run': {
+      await runHeavyFrame(ws, msg);
+      return;
+    }
+    case 'heavy-cancel': {
+      await cancelHeavyFrame(ws, msg.id);
       return;
     }
     case 'team-pause-set': {
