@@ -18,11 +18,11 @@ import { runDflSync } from '../dfl-sync-runner';
 import { runDflWrite } from '../dfl-write-runner';
 import { buildAgentTasksPrompt, agentSessionKey, MAX_NOTE_BYTES } from '../pontos-agent';
 import { buildStageDraftsPrompt } from '../pontos-stage-prompt';
-import { getCrons, saveCron, deleteCron, runCronNow, recordFire, pauseBotRoutines } from '../crons';
+import { getCrons, saveCron, deleteCron, runCronNow, pauseBotRoutines } from '../crons';
 import { coerceBotForRole, visibleCrons, cronWriteError, coerceCronForRole } from './student-team';
 import { botRoutineError } from '../../shared/bot-routine';
 import { scheduleValid } from '../../shared/cron-schedule';
-import { fireAnyCron, validateCronAction, type CronFireResult } from './cron-fire';
+import { fireCron, type CronFire } from './runs';
 import { getTeam, saveBot, deleteBot } from '../team';
 import { getMemories, saveMemory, deleteMemory, validateMemoryInput, readMemoriesSafe } from '../memories';
 import { botTurnFor, botDenyRules } from '../team-prompt';
@@ -941,13 +941,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
         send(ws, { t: 'error', message: 'cron inválido' });
         return;
       }
-      let cron = c;
-      if (c.action !== undefined) {
-        const v = validateCronAction(c.action, role, await getTeam());
-        if (!v.ok) { send(ws, { t: 'error', message: v.error }); return; }
-        cron = { ...c, action: v.action };
-      }
-      const coerced = coerceCronForRole(cron, (await getCrons()).find((x) => x.id === c.id), role);
+      const coerced = coerceCronForRole(c, (await getCrons()).find((x) => x.id === c.id), role);
       if ('error' in coerced) { send(ws, { t: 'error', message: coerced.error }); return; }
       const routineError = coerced.cron.botId === undefined ? null : botRoutineError(coerced.cron, await getTeam());
       if (routineError) { send(ws, { t: 'error', message: routineError }); return; }
@@ -1055,15 +1049,12 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     case 'cron-run': {
       const denied = cronWriteError((await getCrons()).find((x) => x.id === msg.id), role);
       if (denied) { send(ws, { t: 'error', message: denied }); return; }
-      let fired: Promise<CronFireResult> | undefined;
-      const items = await runCronNow(msg.id, (c) => { fired = fireAnyCron(c); });
+      let fired: Promise<CronFire> | undefined;
+      const items = await runCronNow(msg.id, (c) => { fired = fireCron(c); });
       if (!items) { send(ws, { t: 'error', message: 'cron não encontrado' }); return; }
       send(ws, { t: 'crons', items: visibleCrons(items, role) });
       const outcome = await fired;
-      if (outcome && typeof outcome === 'object') {
-        await recordFire(msg.id, 'failed', Date.now(), outcome.error);
-        send(ws, { t: 'error', message: outcome.error });
-      } else if (outcome === 'bot-busy') send(ws, { t: 'error', message: 'o bot está no meio de um turno — a rotina roda no próximo horário' });
+      if (outcome === 'bot-busy') send(ws, { t: 'error', message: 'o bot está no meio de um turno — a rotina roda no próximo horário' });
       else if (outcome === 'bot-gone') send(ws, { t: 'error', message: 'o bot desta rotina foi removido' });
       return;
     }

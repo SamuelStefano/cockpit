@@ -16,6 +16,7 @@ export const DEMO_BOTS: TeamStateBot[] = [
   bot('arthur', 'Arthur', 'working', 'itera'),
   bot('mari', 'Mari', 'idle'),
   bot('usopp', 'Usopp', 'idle'),
+  bot('malu', 'Malu', 'idle'),
   bot('robin', 'Robin', 'idle'),
   bot('bulma', 'Bulma', 'working', 'dfl'),
   bot('ada', 'Ada', 'working', 'dfl'),

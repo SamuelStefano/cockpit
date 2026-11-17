@@ -58,7 +58,7 @@ export function EquipePage(p: EquipePageProps) {
         <Tabs items={items} active={tab} onChange={onTab} className="mb-2.5 lg:mb-4" />
         <TeamWorld
           state={p.teamState ?? null} connected={connected} onRefresh={p.onTeamStateGet} bots={p.bots} meetings={p.meetings ?? []}
-          onMeetingsGet={p.onMeetingsGet ?? (() => {})} onMeetingStart={p.onMeetingStart ?? (() => {})} onCronSave={p.cron.onCronSave} />
+          onMeetingsGet={p.onMeetingsGet ?? (() => {})} onMeetingStart={p.onMeetingStart ?? (() => {})} />
       </div>
     );
   }

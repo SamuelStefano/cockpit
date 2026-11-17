@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import type { Cron, TeamBot } from '../../../shared/protocol';
+import type { TeamBot } from '../../../shared/protocol';
 import type { TeamState } from '../../../shared/team-state';
 import { isRunning, MEETING_LIMITS, type MeetingInput, type TeamMeeting } from '../../../shared/team-meeting';
 import { MeetingPanel } from './MeetingPanel';
@@ -19,7 +19,6 @@ interface TeamWorldProps {
   meetings: TeamMeeting[];
   onMeetingsGet: () => void;
   onMeetingStart: (input: MeetingInput) => void;
-  onCronSave: (cron: Cron) => void;
 }
 
 const DEMO_TEAM: TeamBot[] = DEMO_BOTS.map((b) => ({ id: b.id, name: b.name, label: '', instructions: '', mascot: { shape: 'blob', color: '#3fd17f' }, profile: 'full', createdAt: 0, updatedAt: 0 }));
@@ -33,7 +32,7 @@ const chipOn = 'border-emerald-400/40 bg-emerald-500/20 text-emerald-200';
 
 // 2D team world: bots as NPCs on a plaza, projects as houses on a street. The
 // canvas only ever receives names, states and counts (see world-state.ts).
-export function TeamWorld({ state, connected, onRefresh, bots, meetings, onMeetingsGet, onMeetingStart, onCronSave }: TeamWorldProps) {
+export function TeamWorld({ state, connected, onRefresh, bots, meetings, onMeetingsGet, onMeetingStart }: TeamWorldProps) {
   const demo = useMemo(() => isDemo(location.search), []);
   const [ui, dispatch] = useReducer(worldUiReducer, location.search, (s) => initialWorldUi(parseInitialMode(s)));
   const [ready, setReady] = useState(false);
@@ -126,7 +125,6 @@ export function TeamWorld({ state, connected, onRefresh, bots, meetings, onMeeti
             <MeetingPanel
               bots={demo ? DEMO_TEAM : bots} running={!!meeting} picked={picked} onPick={setPicked} onClose={() => setPanel(false)}
               onStart={(i) => { if (demo) setDemoMeet(true); else onMeetingStart(i); }}
-              onSchedule={(c) => { if (!demo) onCronSave(c); }}
             />
           )}
           <p className="pointer-events-none absolute bottom-2 left-2 rounded bg-neutral-950/70 px-2 py-1 text-[11px] text-neutral-400 max-sm:hidden">
