@@ -204,7 +204,7 @@ def sidewalk_curb(sides):
     im = sidewalk()
     a = arr(im)
     ys, xs = np.mgrid[0:T, 0:T]
-    for s in sides:
+    for s in sorted(sides):
         if s == "s":
             paint(a, ys == 27, "t4")
             paint(a, (ys >= 28) & (ys <= 30), "t2")
@@ -222,7 +222,7 @@ def sidewalk_curb(sides):
             paint(a, xs == 1, "t4")
             paint(a, (xs >= 2) & (xs <= 3), "t2")
     # joints on the curb every 16px
-    for s in sides:
+    for s in sorted(sides):
         for k in (15, 31):
             if s in "ns":
                 y0 = 27 if s == "s" else 0
