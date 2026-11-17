@@ -9,6 +9,7 @@ import { ChatEmpty, ChatInput } from './chat/ChatInput';
 import { ChatHeader } from './chat/ChatHeader';
 import { SidePanelButton } from './chat/SidePanelButton';
 import { TeamSidePanel } from './chat/team-panel/TeamSidePanel';
+import { panelPlacement } from './chat/team-panel/placement';
 import { FocusCollapse } from './chat/FocusCollapse';
 import { useFocusMode, blurActiveEditable } from './chat/useFocusMode';
 import { CallDock } from './chat/call/CallDock';
@@ -82,6 +83,7 @@ export function ChatPanel({ session, messages, phase, settled = false, terminalB
       paused={locked} capacityFull={capacityFull} quotaResetsAt={resetAt} agentOut={agentOut && useAgent ? { name: agentOut.displayName, use: useAgent } : undefined} sideButton={sidePanel ? <SidePanelButton open={sidePanel.api.open} count={sidePanel.api.panel ? (sidePanel.api.panel.redacted ? sidePanel.api.panel.needsYou : sidePanel.api.panel.needsYou.length) : 0} onToggle={() => sidePanel.api.setOpen(!sidePanel.api.open)} /> : undefined} focusMode={focus} onCall={call.supported ? call.dial : undefined} />
   );
   const hero = c.isEmpty && phase === 'idle' && !botDecor && !restoring;
+  const placement = sidePanel ? panelPlacement({ open: sidePanel.api.open, isMobile: sidePanel.isMobile, hero }) : 'none';
 
   return (
     <div className="flex h-full min-w-0">
@@ -111,7 +113,7 @@ export function ChatPanel({ session, messages, phase, settled = false, terminalB
       {/* Wrapper relativo: as afordâncias de scroll ancoram no fim da ÁREA DE
           SCROLL, não do painel — antes (bottom fixo no painel) um composer alto
           engolia os botões pra dentro do input. */}
-      {hero ? <ChatEmpty compact={keyboardOpen} onPrompt={onPrompt} onSeed={setDraft} needsProvider={!claudeReady && !isAgentModel(model)}>{composer}</ChatEmpty> : (
+      {hero ? <ChatEmpty compact={keyboardOpen} drawer={placement === 'hero-drawer' && sidePanel ? <TeamSidePanel api={sidePanel.api} isMobile onOpenBot={sidePanel.onOpenBot} /> : undefined} onPrompt={onPrompt} onSeed={setDraft} needsProvider={!claudeReady && !isAgentModel(model)}>{composer}</ChatEmpty> : (
       <div className="relative flex min-h-0 flex-1 flex-col">
       <div ref={c.scrollRef} onScroll={c.onScroll} onPointerDown={keyboardOpen ? blurActiveEditable : undefined} className="print-thread scroll-thin flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-3">
         {c.isEmpty && phase === 'idle' && !botDecor?.extras.length ? (
@@ -161,7 +163,7 @@ export function ChatPanel({ session, messages, phase, settled = false, terminalB
       <CallDock call={call} />
       </FocusCollapse>
 
-      {sidePanel && sidePanel.isMobile && <TeamSidePanel api={sidePanel.api} isMobile onOpenBot={sidePanel.onOpenBot} />}
+      {sidePanel && placement === 'drawer' && <TeamSidePanel api={sidePanel.api} isMobile onOpenBot={sidePanel.onOpenBot} />}
 
       {!hero && composer}
 
