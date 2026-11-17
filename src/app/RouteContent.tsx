@@ -59,10 +59,11 @@ export function RouteContent({ route, agentRoute, isMobile, isAdmin, isRoot, con
     [isRoot, connected, onOpenSession, onSendTo, onLaunchAgent],
   );
   const view = (() => {
-    if (route === '/equipe/rotinas' || route === '/equipe/memoria') {
+    if (route === '/equipe/rotinas' || route === '/equipe/memoria' || route === '/equipe/mundo') {
       return (
         <EquipePage
-          tab={route === '/equipe/memoria' ? 'memoria' : 'rotinas'}
+          tab={route === '/equipe/memoria' ? 'memoria' : route === '/equipe/mundo' ? 'mundo' : 'rotinas'}
+          teamState={c.teamState} onTeamStateGet={c.onTeamStateGet} meetings={c.meetings} onMeetingsGet={c.onMeetingsGet} onMeetingStart={c.onMeetingStart}
           memory={{ memories: c.memories, loaded: c.memoriesLoaded, onList: c.onMemList, onSave: c.onMemSave, onDelete: c.onMemDelete }}
           views={agent.views} connected={connected} isAdmin={isAdmin}
           bots={c.bots} onOpenChat={agent.open}

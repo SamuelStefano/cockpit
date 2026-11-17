@@ -37,6 +37,26 @@ describe('validateBotInput', () => {
   });
 });
 
+describe('bot project', () => {
+  it('keeps a valid project slug and drops anything else', () => {
+    expect(validateBotInput({ ...ok, project: 'corte-radar' })).toMatchObject({ ok: true, bot: { project: 'corte-radar' } });
+    for (const bad of ['Itera', 'a b', '', 'x'.repeat(33), 5, null]) {
+      const r = validateBotInput({ ...ok, project: bad });
+      expect(r.ok && 'project' in r.bot).toBe(false);
+    }
+  });
+});
+
+describe('bot sprite', () => {
+  it('keeps a valid sprite key and drops anything else', () => {
+    expect(validateBotInput({ ...ok, sprite: 'workers' })).toMatchObject({ ok: true, bot: { sprite: 'workers' } });
+    for (const bad of ['Workers', '../x', '', 'x'.repeat(25), 5, null]) {
+      const r = validateBotInput({ ...ok, sprite: bad });
+      expect(r.ok && 'sprite' in r.bot).toBe(false);
+    }
+  });
+});
+
 describe('wouldCycle', () => {
   const bots = [{ id: 'a' }, { id: 'b', parentId: 'a' }, { id: 'c', parentId: 'b' }];
   it('detects a loop through the chain', () => {
