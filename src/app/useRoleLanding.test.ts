@@ -36,15 +36,26 @@ describe('useRoleLanding', () => {
   it('admin stays on its own routes', () => {
     expect(mount({ route: '/', capsKnown: true, role: 'admin' }).nav).not.toHaveBeenCalled();
     expect(mount({ route: '/canvas', capsKnown: true, role: 'admin' }).nav).not.toHaveBeenCalled();
-    expect(mount({ route: '/conexoes', capsKnown: true, role: 'admin' }).nav).not.toHaveBeenCalled();
+    expect(mount({ route: '/configuracoes/conexoes', capsKnown: true, role: 'admin' }).nav).not.toHaveBeenCalled();
     expect(mount({ route: '/ds', capsKnown: true, role: 'admin' }).nav).not.toHaveBeenCalled();
   });
   it('admin opening /pontos goes to chat (root only)', () => {
     expect(mount({ route: '/pontos', capsKnown: true, role: 'admin' }).nav).toHaveBeenCalledWith('/');
   });
   it('root is never moved', () => {
-    for (const route of ['/', '/pontos', '/conexoes', '/ds'] as Route[]) {
+    for (const route of ['/', '/pontos', '/configuracoes/conexoes', '/ds'] as Route[]) {
       expect(mount({ route, capsKnown: true, role: 'root' }).nav).not.toHaveBeenCalled();
     }
+  });
+  it('root and admin opening the bare URL land on the Equipe home once; a student does not', () => {
+    const nav = vi.fn();
+    const h = renderHook((p: P) => useRoleLanding({ ...p, nav, landOnTeam: true }), { initialProps: { route: '/', capsKnown: true, role: 'root' } as P });
+    expect(nav).toHaveBeenCalledWith('/equipe');
+    nav.mockClear();
+    h.rerender({ route: '/', capsKnown: true, role: 'root' });
+    expect(nav).not.toHaveBeenCalled();
+    const nav2 = vi.fn();
+    renderHook(() => useRoleLanding({ route: '/', capsKnown: true, role: 'student', nav: nav2, landOnTeam: true }));
+    expect(nav2).not.toHaveBeenCalled();
   });
 });

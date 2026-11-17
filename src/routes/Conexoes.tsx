@@ -141,7 +141,7 @@ export function Conexoes({ connected, items, loaded, bots, mcpsState, mcpsBusy, 
         {active === 'chaves' && manage?.chaves}
         {active === 'aparelhos' && sealed && <PairDevice link={link} />}
       </div>
-      {probe && <AddProvider open={providerOpen} onClose={() => { setProviderOpen(false); if (location.hash === ADD_PROVIDER_HASH) history.replaceState(null, '', '/conexoes'); }} probe={probe} onLogin={() => onGo('/onboarding')} />}
+      {probe && <AddProvider open={providerOpen} onClose={() => { setProviderOpen(false); if (location.hash === ADD_PROVIDER_HASH) history.replaceState(null, '', '/configuracoes/conexoes'); }} probe={probe} onLogin={() => onGo('/onboarding')} />}
       <ConnectTool github={github} open={toolOpen} onClose={() => setToolOpen(false)} />
       <Modal open={!!removing} onClose={() => setRemoving(null)} title="Remover aparelho?" icon="smartphone" maxWidth="max-w-sm">
         <p className="text-[13px] leading-relaxed text-neutral-400">{removing?.label} perde o acesso agora e precisa ser pareado de novo para voltar.</p>

@@ -36,8 +36,8 @@ describe('Conexões manage panels', () => {
   });
 
   it('a student never reaches Conexões', () => {
-    expect(roleRedirect('student', '/conexoes')).toBe('/');
-    expect(roleRedirect('admin', '/conexoes')).toBeNull();
-    expect(roleRedirect('root', '/conexoes')).toBeNull();
+    expect(roleRedirect('student', '/configuracoes/conexoes')).toBe('/');
+    expect(roleRedirect('admin', '/configuracoes/conexoes')).toBeNull();
+    expect(roleRedirect('root', '/configuracoes/conexoes')).toBeNull();
   });
 });

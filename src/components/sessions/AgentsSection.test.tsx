@@ -23,7 +23,7 @@ describe('AgentsSection', () => {
     expect(container.firstChild).toBeNull();
   });
 
-  const expand = () => fireEvent.click(screen.getByRole('button', { name: 'Mostrar agentes' }));
+  const expand = () => { const b = screen.queryByRole('button', { name: 'Mostrar agentes' }); if (b) fireEvent.click(b); };
 
   it('lists agents once expanded and opens one on click', () => {
     const onOpen = vi.fn();
@@ -65,11 +65,12 @@ describe('AgentsSection', () => {
     view('w1', 'grok-a', { parentId: 'l' }), view('w2', 'grok-b', { parentId: 'l' }),
   ];
 
-  it('starts collapsed, showing only the open, working and unread agents', () => {
+  it('once collapsed, shows only the open, working and unread agents', () => {
     const views = team();
     (views[2] as { state: string }).state = 'working';
     (views[3] as { unread: boolean }).unread = true;
     render(<AgentsSection views={views} activeId="c" onOpen={() => {}} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Recolher agentes' }));
     expect(screen.getByRole('button', { name: 'Mostrar agentes' }).getAttribute('aria-expanded')).toBe('false');
     expect(screen.getByRole('button', { name: 'orchestrator' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'grok-a' })).toBeTruthy();
@@ -80,6 +81,7 @@ describe('AgentsSection', () => {
 
   it('shows no rows collapsed when nothing is open, working or unread', () => {
     render(<AgentsSection views={team()} activeId={null} onOpen={() => {}} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Recolher agentes' }));
     expect(screen.queryByRole('button', { name: 'orchestrator' })).toBeNull();
   });
 
@@ -110,5 +112,18 @@ describe('AgentsSection', () => {
     const first = renders.roster;
     rerender(<AgentsSection compact views={views} activeId={null} onOpen={onOpen} />);
     expect(renders.roster).toBe(first);
+  });
+
+  it('starts expanded and shows a working bot\'s static task line, not the rotating phrase', () => {
+    const v = { ...view('a', 'davi'), state: 'working', preview: 'Fix checkout rounding' } as BotView;
+    render(<AgentsSection views={[v]} activeId={null} onOpen={() => {}} />);
+    expect(screen.getByRole('button', { name: 'Recolher agentes' })).toBeTruthy();
+    expect(screen.getByText('Fix checkout rounding')).toBeTruthy();
+  });
+
+  it('keeps the phone drawer without task lines', () => {
+    const v = { ...view('a', 'davi'), state: 'idle', preview: 'Fix checkout rounding' } as BotView;
+    render(<AgentsSection compact views={[v]} activeId={null} onOpen={() => {}} />);
+    expect(screen.queryByText('Fix checkout rounding')).toBeNull();
   });
 });

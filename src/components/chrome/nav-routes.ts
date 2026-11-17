@@ -28,18 +28,16 @@ export interface NavItem {
 
 export const NAV: NavItem[] = [
   { to: '/', label: 'Chat', icon: 'message', student: true },
+  { to: '/equipe', label: 'Equipe', icon: 'users' },
   { to: '/canvas', label: 'Canvas', icon: 'grip', side: true, tile: 'bg-amber-500/20 text-amber-300' },
   { to: '/base', label: 'Base', icon: 'layers' },
   { to: '/prs', label: 'Pull requests', icon: 'gitPullRequest', root: true, side: true, tile: 'bg-orange-500/20 text-orange-300' },
   { to: '/pontos', label: 'Pontos', icon: 'star', root: true, side: true, tile: 'bg-green-500/20 text-green-300' },
-  { to: '/skills', label: 'Skills', icon: 'sparkles', side: true, tile: 'bg-violet-500/20 text-violet-300' },
-  { to: '/conexoes', label: 'Conexões', icon: 'link', side: true, tile: 'bg-emerald-500/20 text-emerald-300' },
   { to: '/graph', label: 'Graph', icon: 'globe' },
   { to: '/agentes', label: 'Agente', icon: 'users', student: true },
   { to: '/equipe/rotinas', label: 'Rotinas', icon: 'clock', side: true, tile: 'bg-sky-500/20 text-sky-300' },
   { to: '/equipe/memoria', label: 'Memória', icon: 'brain' },
   { to: '/equipe/mundo', label: 'Mundo', icon: 'globe' },
-  { to: '/docs', label: 'Docs', icon: 'book', side: true, tile: 'bg-neutral-500/20 text-neutral-300' },
   { to: '/configuracoes', label: 'Configurações', icon: 'sliders', student: true },
 ];
 
@@ -55,6 +53,9 @@ export function navFor(role: NavRole) {
   if (role === 'admin') return NAV.filter((n) => !n.root);
   return NAV.filter((n) => n.student);
 }
+
+// Where root/admin land when the app opens on the bare URL.
+export const TEAM_HOME: Route = '/equipe';
 
 export const STUDENT_HOME: Route = '/';
 
