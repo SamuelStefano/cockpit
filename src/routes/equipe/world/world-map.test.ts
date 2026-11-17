@@ -182,6 +182,15 @@ describe('world.tmj', () => {
     expect(() => parseWorldMap(broken)).toThrow('house "dfl" is missing prop "label"');
   });
 
+  it('reads an optional house department and rejects an invalid one', () => {
+    const m = fresh();
+    const dfl = objectsOf(m).find((o) => o.name === 'dfl')!;
+    dfl.properties = [...dfl.properties!, { name: 'department', type: 'string', value: 'engineering' }];
+    expect(parseWorldMap(m).houses.find((h) => h.id === 'dfl')?.department).toBe('engineering');
+    dfl.properties = dfl.properties.map((p) => (p.name === 'department' ? { ...p, value: 'nope' } : p));
+    expect(validateWorldMap(m)).toContain('house "dfl" has invalid department "nope"');
+  });
+
   it('reports a meeting room without chairs', () => {
     const broken = fresh();
     const m = broken.layers.find((l) => l.type === 'objectgroup')!;

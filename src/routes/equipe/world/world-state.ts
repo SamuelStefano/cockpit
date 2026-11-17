@@ -1,8 +1,9 @@
 import type { TeamState, TeamBotStatus } from '../../../../shared/team-state';
-import type { BuildingId } from './world-map';
+import { HOUSES, type BuildingId } from './world-map';
 
-const PROJECT_IDS = ['itera', 'dfl', 'corte-radar', 'escritorio', 'deck'] as const;
-export type ProjectId = (typeof PROJECT_IDS)[number];
+export type ProjectId = string;
+const OFFICE = 'escritorio';
+const TASK_KEYWORDS: readonly (readonly [string, string])[] = [['itera', 'itera'], ['dfl', 'dfl'], ['radar', 'corte-radar']];
 
 // What the world is allowed to know about a bot: name, state, counts. The snapshot
 // also carries task titles and message previews; they are dropped here on purpose,
@@ -32,9 +33,17 @@ export interface WorldView {
 export type NpcAnim = 'work' | 'idle' | 'wait';
 export interface NpcSprite { anim: NpcAnim; bubble: 'zz' | '!' | null; tool: boolean }
 
-// Reads the bot's own project field; anything missing or unknown sits in the office.
-export function projectOf(project?: string): ProjectId {
-  return PROJECT_IDS.find((p) => p === project) ?? 'escritorio';
+type HouseRef = { id: string; department?: string };
+
+// Order: the bot's project field (a known house id), a keyword in its task, its department's house, the office.
+export function projectOf(bot: { project?: string; task?: string; sector?: string }, houses: readonly HouseRef[] = HOUSES): ProjectId {
+  const known = (id: string): boolean => houses.some((h) => h.id === id);
+  if (bot.project && known(bot.project)) return bot.project;
+  const task = bot.task?.toLowerCase() ?? '';
+  const hit = TASK_KEYWORDS.find(([kw, id]) => task.includes(kw) && known(id));
+  if (hit) return hit[1];
+  const byDept = bot.sector ? houses.find((h) => h.department === bot.sector) : undefined;
+  return byDept?.id ?? OFFICE;
 }
 
 export type Station = 'plaza' | 'sala' | BuildingId;
@@ -76,7 +85,7 @@ export function deriveWorld(state: TeamState | null, opts: DeriveOptions = {}): 
   const inMeeting = new Set((opts.meeting?.participantIds ?? []).filter((id) => ids.has(id)));
   const npcs = state.bots.map((b): NpcView => ({
     id: b.id, name: b.name, mode: b.status, badge: badgeText(opts.counts?.[b.id]),
-    project: projectOf(b.project), meeting: inMeeting.has(b.id),
+    project: projectOf(b), meeting: inMeeting.has(b.id),
   }));
   const flights = state.handoffs
     .filter((h) => ids.has(h.to) && now - h.at <= FLIGHT_WINDOW_MS)

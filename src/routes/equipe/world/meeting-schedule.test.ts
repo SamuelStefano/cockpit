@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { meetingCron, parseTime } from './meeting-schedule';
+import { meetingCron, meetingCronId, parseTime } from './meeting-schedule';
 
 const input = { question: "what's next for Itera?", participantIds: ['a', 'b'], moderatorId: 'a' };
 
@@ -20,6 +20,15 @@ describe('meeting schedule', () => {
     expect(r.cron.prompt).not.toContain('deckctl');
     expect(r.cron.enabled).toBe(true);
     expect(/^[a-zA-Z0-9_-]{1,59}$/.test(r.cron.id)).toBe(true);
+  });
+
+  it('derives a stable id independent of participant order', () => {
+    const id = meetingCronId(input, '09:30');
+    expect(meetingCronId({ ...input, participantIds: ['b', 'a'] }, '09:30')).toBe(id);
+    expect(meetingCron(input, '09:30', 1).ok && meetingCronId(input, '09:30')).toBe(id);
+    expect(meetingCronId(input, '10:00')).not.toBe(id);
+    expect(meetingCronId({ ...input, participantIds: ['a', 'c'] }, '09:30')).not.toBe(id);
+    expect(meetingCronId({ ...input, moderatorId: 'b' }, '09:30')).not.toBe(id);
   });
 
   it('rejects a bad time or an empty question', () => {

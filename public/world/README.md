@@ -30,7 +30,7 @@ Open `world.tmj` in [Tiled](https://www.mapeditor.org/). Phaser cannot read exte
 
 | Object | Shape | Properties |
 |---|---|---|
-| house | rectangle | `kind=house`, `project`, `label`, `tint` (color), `door` (`bottom`/`east`/`west`), `icon` (`sheet:frame`, e.g. `town:17`) |
+| house | rectangle | `kind=house`, `project`, `label`, `tint` (color), `door` (`bottom`/`east`/`west`), `icon` (`sheet:frame`, e.g. `town:17`), optional `department` (a department id such as `engineering`; bots of that department with no project work here) |
 | desk | point on the seat tile | `project`, `seat` (order bots are seated, from 0), `face` (`up`/`down`/`left`/`right`) |
 | meeting room | rectangle | `kind=meeting`, `id=sala`, `label`, `tint`, `door`, `icon` |
 | chair | point | `room=sala`, `seat` (order), `face` |
@@ -51,4 +51,8 @@ Doors are 2 tiles: `bottom` = columns 4-5 of the bottom row, `east`/`west` = row
 5. For each seat, add a point on the chair tile with `project`, `seat` (0, 1, ...), `face`.
 6. Save. The house, its label pill, its seats and its walkable area show up in the Deck with no TypeScript change.
 
-The only thing in code is the bot-to-project mapping (`TL_PROJECT` in `world-state.ts`, e.g. `goku: 'deck'`); bots without a fixed project are matched by the task text and fall back to `escritorio`.
+## Bot to house mapping
+
+Nothing about bots is in code. A bot is placed by, in order: its `project` field (set in the bot config, must equal a house `project` id), a keyword in its current task (`itera`, `dfl`, `radar`), its department matching a house `department` prop, then `escritorio`. Set Luffy to `itera`, Zoro to `dfl` and Goku to `deck` in the bot config (`project`, a slug `[a-z0-9-]{1,32}`), not in TypeScript.
+
+Badges and house counts shown today are demo-only (`?demo`); the real data source is a separate PR.

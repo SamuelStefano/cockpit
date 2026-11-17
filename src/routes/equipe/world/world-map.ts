@@ -1,6 +1,7 @@
 // Pure layout of the team world, read from the Tiled map in public/world/world.tmj.
 // No Phaser here, so it is unit-testable and stays out of the lazy chunk.
 import worldRaw from '../../../../public/world/world.tmj?raw';
+import { isDepartmentId, type DepartmentId } from '../../../../shared/departments';
 
 export const TILE = 16;
 
@@ -23,6 +24,8 @@ export interface HouseDef {
   h: number;
   tint: number;
   door: Door;
+  // Optional: bots of this department work here when they have no project of their own.
+  department?: DepartmentId;
   // Frame in a sheet used as the pixel icon on the house sign.
   icon: { s: Sheet; f: number };
   // Where a bot sits (tiles relative to the house); the order is the order seats are given out.
@@ -100,6 +103,7 @@ export function validateWorldMap(m: TiledMap): string[] {
     const name = nameOf(o, p, isMeeting ? 'id' : 'project');
     need(what, name, p, [isMeeting ? 'id' : 'project', 'label', 'door', 'tint', 'icon']);
     if (typeof p.door === 'string' && !DOORS.includes(p.door)) errs.push(`${what} "${name}" has invalid door "${p.door}"`);
+    if (!isMeeting && p.department !== undefined && !isDepartmentId(p.department)) errs.push(`${what} "${name}" has invalid department "${String(p.department)}"`);
     if (p.tint !== undefined && parseColor(p.tint) === null) errs.push(`${what} "${name}" has invalid tint "${String(p.tint)}"`);
     if (p.icon !== undefined && p.icon !== '' && !parseIcon(p.icon)) errs.push(`${what} "${name}" has invalid icon "${String(p.icon)}"`);
     if (isMeeting) meeting = String(p.id ?? name); else if (typeof p.project === 'string') houses.add(p.project);
@@ -163,6 +167,7 @@ export function parseWorldMap(m: TiledMap): WorldMap {
     houses.push({
       id, label: String(p.label), x: hx, y: hy, w: Math.round(o.width / TILE), h: Math.round(o.height / TILE),
       tint: parseColor(p.tint)!, door: p.door as Door, icon: parseIcon(p.icon)!, seats,
+      ...(p.kind === 'house' && isDepartmentId(p.department) ? { department: p.department } : {}),
     });
   }
 

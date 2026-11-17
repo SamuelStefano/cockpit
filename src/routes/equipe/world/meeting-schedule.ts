@@ -9,6 +9,14 @@ export function parseTime(hhmm: string): number | null {
   return h < 24 && min < 60 ? h * 60 + min : null;
 }
 
+// Stable id per (participants, moderator, time): scheduling the same meeting twice upserts one cron.
+export function meetingCronId(input: Pick<MeetingInput, 'participantIds' | 'moderatorId'>, hhmm: string): string {
+  const raw = `${[...input.participantIds].sort().join(',')}|${input.moderatorId}|${hhmm}`;
+  let h = 0x811c9dc5;
+  for (let i = 0; i < raw.length; i++) h = Math.imul(h ^ raw.charCodeAt(i), 0x01000193) >>> 0;
+  return `meeting-${h.toString(36)}`;
+}
+
 export type ScheduleResult = { ok: true; cron: Cron } | { ok: false; error: string };
 
 // A daily cron whose server-side action starts the meeting: no LLM turn, participant ids only.
@@ -19,7 +27,7 @@ export function meetingCron(input: MeetingInput, hhmm: string, now: number): Sch
   return {
     ok: true,
     cron: {
-      id: `meeting-${now.toString(36)}`,
+      id: meetingCronId(input, hhmm),
       name: `Reunião às ${hhmm}`,
       prompt: `Reunião: ${input.question.slice(0, 80)}`,
       action: { kind: 'team-meeting', ...input },

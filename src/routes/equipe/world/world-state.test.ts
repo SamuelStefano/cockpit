@@ -77,17 +77,34 @@ describe('deriveWorld', () => {
 });
 
 describe('projectOf', () => {
-  it('reads the bot project field and falls back to the shared office', () => {
-    expect(projectOf('itera')).toBe('itera');
-    expect(projectOf('deck')).toBe('deck');
-    expect(projectOf('corte-radar')).toBe('corte-radar');
-    expect(projectOf('nope')).toBe('escritorio');
-    expect(projectOf()).toBe('escritorio');
+  const houses = [{ id: 'itera' }, { id: 'dfl' }, { id: 'corte-radar' }, { id: 'eng-hall', department: 'engineering' }];
+
+  it('lets the project field win over task and department', () => {
+    expect(projectOf({ project: 'dfl', task: 'itera work', sector: 'engineering' }, houses)).toBe('dfl');
   });
 
-  it('ignores names and task text', () => {
-    const w = deriveWorld(state({ bots: [{ id: 'z', name: 'Luffy', role: 'r', status: 'working', task: 'DFL invoice' }] }));
-    expect(w.npcs[0]?.project).toBe('escritorio');
+  it('ignores an unknown project and falls through', () => {
+    expect(projectOf({ project: 'nope' }, houses)).toBe('escritorio');
+    expect(projectOf({ project: 'nope', task: 'fix radar crop' }, houses)).toBe('corte-radar');
+  });
+
+  it('uses a task keyword only when that house exists', () => {
+    expect(projectOf({ task: 'DFL invoice' }, houses)).toBe('dfl');
+    expect(projectOf({ task: 'DFL invoice' }, [{ id: 'itera' }])).toBe('escritorio');
+  });
+
+  it('falls back to the house of the bot department', () => {
+    expect(projectOf({ sector: 'engineering' }, houses)).toBe('eng-hall');
+    expect(projectOf({ sector: 'growth' }, houses)).toBe('escritorio');
+  });
+
+  it('falls back to the office', () => {
+    expect(projectOf({}, houses)).toBe('escritorio');
+  });
+
+  it('resolves through the real map in deriveWorld', () => {
+    const w = deriveWorld(state({ bots: [{ id: 'z', name: 'X', role: 'r', status: 'working', task: 'DFL invoice' }] }));
+    expect(w.npcs[0]?.project).toBe('dfl');
   });
 });
 
