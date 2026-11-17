@@ -68,4 +68,4 @@ Badges and house counts shown today are demo-only (`?demo`); the real data sourc
 
 `fx.png`: 16x16 frames. 0-3 dust puff (spawn at the feet while walking), 4-7 sparkle (play when a PR merges), 8 soft shadow (14x5), 9 small shadow (for jumps).
 
-The Sala de Reunião seats six: a round table with two chairs north, two south, one west, one east.
+`props.png` (4x4 tiles, original, tileset `props`, firstgid 1237) holds the round meeting table as a 3x3 block (tiles 0-2, 4-6, 8-10, all blocking). The Sala de Reunião seats six around it: two chairs north, two south, one west, one east.

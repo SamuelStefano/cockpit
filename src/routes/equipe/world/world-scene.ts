@@ -19,7 +19,7 @@ const F = {
   flowerB: tf(2, 0), treeTop: tf(4, 0), treeBase: tf(4, 1), autumnTop: tf(3, 0), autumnBase: tf(3, 1), bush: tf(5, 0),
   potion: tf(8, 9),
 };
-const TILESETS = ['town', 'dungeon', 'indoor', 'urban'] as const;
+const TILESETS = ['town', 'dungeon', 'indoor', 'urban', 'props'] as const;
 const DOOR_TINT = 0xb59a74;
 const SIDEWALK_TINT = 0xd9d3c6;
 // Decor tiles pick their depth from the tile property `layer`; "top" sits on a desk, drawn 4px up.
@@ -170,6 +170,7 @@ class WorldScene extends Phaser.Scene {
     this.load.spritesheet('town', `${BASE}world/town.png`, sheet);
     this.load.spritesheet('dungeon', `${BASE}world/dungeon.png`, sheet);
     this.load.spritesheet('urban', `${BASE}world/urban.png`, sheet);
+    this.load.spritesheet('props', `${BASE}world/props.png`, sheet);
     this.load.spritesheet('indoor', `${BASE}world/indoor.png`, { ...sheet, spacing: 1 });
     this.load.tilemapTiledJSON('world', `${BASE}world/world.tmj`);
   }
