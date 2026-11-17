@@ -46,7 +46,7 @@ export function validateJobInput(raw: unknown): JobValidation {
   const r = (raw ?? {}) as Record<string, unknown>;
   const repo = typeof r.repo === 'string' ? r.repo.trim() : '';
   if (!repo) return { ok: false, error: 'informe o repositório' };
-  if (repo.length > HEAVY_LIMITS.repo || !REPO_RE.test(repo) || repo.includes('..')) return { ok: false, error: 'repositório inválido' };
+  if (repo.length > HEAVY_LIMITS.repo || !REPO_RE.test(repo) || repo.includes('..') || /(^|\/)-/.test(repo)) return { ok: false, error: 'repositório inválido' };
   const branch = typeof r.branch === 'string' ? r.branch.trim() : '';
   if (!branch) return { ok: false, error: 'informe a branch' };
   const branchErr = pathError(branch, 'branch', HEAVY_LIMITS.branch);
