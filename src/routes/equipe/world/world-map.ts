@@ -1,5 +1,5 @@
 // Pure layout of the team world, read from the Tiled map in public/world/world.tmj.
-// No Phaser here, so it is unit-testable and stays out of the lazy chunk.
+// No Phaser here, so it is unit-testable.
 import worldRaw from '../../../../public/world/world.tmj?raw';
 import { isDepartmentId, type DepartmentId } from '../../../../shared/departments';
 
@@ -30,7 +30,11 @@ export interface HouseDef {
   icon: { s: Sheet; f: number };
   // Where a bot sits (tiles relative to the house); the order is the order seats are given out.
   seats: Seat[];
+  // Walkable gap tiles on the door edge, derived from the map.
+  doors: Point[];
 }
+
+export const MIN_HOUSE = 5;
 
 export interface Tree { x: number; y: number; kind: string }
 export interface Rect { x0: number; x1: number; y0: number; y1: number }
@@ -95,6 +99,13 @@ export function validateWorldMap(m: TiledMap): string[] {
   const objs = objectsOf(m);
   const houses = new Set<string>();
   let meeting: string | null = null;
+  const blocked = baseBlocked(m);
+  for (const ts of m.tilesets) {
+    for (const t of ts.tiles ?? []) {
+      const tint = propsOf(t).tint;
+      if (tint !== undefined && parseColor(tint) === null) errs.push(`tileset "${ts.name}" tile ${t.id} has invalid tint "${String(tint)}"`);
+    }
+  }
   for (const o of objs.filter((x) => !x.point)) {
     const p = propsOf(o);
     if (p.kind !== 'house' && p.kind !== 'meeting') continue;
@@ -106,7 +117,17 @@ export function validateWorldMap(m: TiledMap): string[] {
     if (!isMeeting && p.department !== undefined && !isDepartmentId(p.department)) errs.push(`${what} "${name}" has invalid department "${String(p.department)}"`);
     if (p.tint !== undefined && parseColor(p.tint) === null) errs.push(`${what} "${name}" has invalid tint "${String(p.tint)}"`);
     if (p.icon !== undefined && p.icon !== '' && !parseIcon(p.icon)) errs.push(`${what} "${name}" has invalid icon "${String(p.icon)}"`);
-    if (isMeeting) meeting = String(p.id ?? name); else if (typeof p.project === 'string') houses.add(p.project);
+    const w = Math.round(o.width / TILE);
+    const h = Math.round(o.height / TILE);
+    if (w < MIN_HOUSE || h < MIN_HOUSE) errs.push(`${what} "${name}" is ${w}x${h} tiles, the minimum is ${MIN_HOUSE}x${MIN_HOUSE}`);
+    else if (typeof p.door === 'string' && DOORS.includes(p.door) && doorGap(m, blocked, tileX(o), tileY(o), w, h, p.door as Door).length === 0) errs.push(`${what} "${name}" has no walkable door tile on its ${p.door} edge`);
+    if (isMeeting) {
+      if (meeting !== null) errs.push(`meeting room "${name}" is a second meeting room`);
+      else meeting = String(p.id ?? name);
+    } else if (typeof p.project === 'string') {
+      if (houses.has(p.project)) errs.push(`house "${name}" repeats project "${p.project}"`);
+      houses.add(p.project);
+    }
   }
   if (meeting === null) errs.push('meeting room is missing (a rectangle with prop kind=meeting)');
   const seen = new Set<string>();
@@ -116,12 +137,14 @@ export function validateWorldMap(m: TiledMap): string[] {
     if (p.room !== undefined) {
       const name = nameOf(o, p, 'room');
       need('chair', name, p, ['room', 'seat', 'face']);
+      if (p.seat !== undefined && typeof p.seat !== 'number') errs.push(`chair "${name}" has non-numeric seat "${String(p.seat)}"`);
       if (typeof p.face === 'string' && !FACES.includes(p.face)) errs.push(`chair "${name}" has invalid face "${p.face}"`);
       if (meeting !== null && p.room !== meeting) errs.push(`chair "${name}" belongs to unknown room "${String(p.room)}"`);
       chairs++;
     } else if (p.kind === undefined) {
       const name = nameOf(o, p, 'project');
       need('desk', name, p, ['project', 'seat', 'face']);
+      if (p.seat !== undefined && typeof p.seat !== 'number') errs.push(`desk "${name}" has non-numeric seat "${String(p.seat)}"`);
       if (typeof p.face === 'string' && !FACES.includes(p.face)) errs.push(`desk "${name}" has invalid face "${p.face}"`);
       if (typeof p.project === 'string' && !houses.has(p.project)) errs.push(`desk "${name}" points to unknown project "${p.project}"`);
       const dup = `${String(p.project)}#${String(p.seat)}`;
@@ -145,10 +168,35 @@ export function validateWorldMap(m: TiledMap): string[] {
 
 export const key = (x: number, y: number, w: number = MAP_W): number => y * w + x;
 
+function baseBlocked(m: TiledMap): Set<number> {
+  const W = m.width;
+  const blocked = new Set<number>();
+  for (let x = 0; x < W; x++) { blocked.add(key(x, 0, W)); blocked.add(key(x, m.height - 1, W)); }
+  for (let y = 0; y < m.height; y++) { blocked.add(key(0, y, W)); blocked.add(key(W - 1, y, W)); }
+  const blockGids = new Set<number>();
+  for (const ts of m.tilesets) for (const t of ts.tiles ?? []) if (propsOf(t).block === true) blockGids.add(ts.firstgid + t.id);
+  for (const l of m.layers) {
+    if (l.type !== 'tilelayer' || !BLOCKING_LAYERS.includes(l.name)) continue;
+    (l.data ?? []).forEach((g, i) => { if (g && blockGids.has(g)) blocked.add(i); });
+  }
+  return blocked;
+}
+
+// Walkable tiles on the door edge of a house, corners excluded.
+function doorGap(m: TiledMap, blocked: Set<number>, x: number, y: number, w: number, h: number, door: Door): Point[] {
+  const out: Point[] = [];
+  const free = (px: number, py: number): void => { if (!blocked.has(key(px, py, m.width))) out.push({ x: px, y: py }); };
+  if (door === 'bottom') for (let i = 1; i < w - 1; i++) free(x + i, y + h - 1);
+  else for (let i = 1; i < h - 1; i++) free(door === 'east' ? x + w - 1 : x, y + i);
+  return out;
+}
+
+
 export function parseWorldMap(m: TiledMap): WorldMap {
   const errs = validateWorldMap(m);
   if (errs.length > 0) throw new Error(`invalid world map: ${errs.join('; ')}`);
   const W = m.width;
+  const blocked = baseBlocked(m);
   const objs = objectsOf(m);
   const rects = (kind: string) => objs.filter((o) => !o.point && propsOf(o).kind === kind);
   const toRect = (o: TiledObject): Rect => ({ x0: tileX(o), x1: Math.floor((o.x + o.width) / TILE) - 1, y0: tileY(o), y1: Math.floor((o.y + o.height) / TILE) - 1 });
@@ -167,19 +215,11 @@ export function parseWorldMap(m: TiledMap): WorldMap {
     houses.push({
       id, label: String(p.label), x: hx, y: hy, w: Math.round(o.width / TILE), h: Math.round(o.height / TILE),
       tint: parseColor(p.tint)!, door: p.door as Door, icon: parseIcon(p.icon)!, seats,
+      doors: doorGap(m, blocked, hx, hy, Math.round(o.width / TILE), Math.round(o.height / TILE), p.door as Door),
       ...(p.kind === 'house' && isDepartmentId(p.department) ? { department: p.department } : {}),
     });
   }
 
-  const blocked = new Set<number>();
-  for (let x = 0; x < W; x++) { blocked.add(key(x, 0, W)); blocked.add(key(x, m.height - 1, W)); }
-  for (let y = 0; y < m.height; y++) { blocked.add(key(0, y, W)); blocked.add(key(W - 1, y, W)); }
-  const blockGids = new Set<number>();
-  for (const ts of m.tilesets) for (const t of ts.tiles ?? []) if (propsOf(t).block === true) blockGids.add(ts.firstgid + t.id);
-  for (const l of m.layers) {
-    if (l.type !== 'tilelayer' || !BLOCKING_LAYERS.includes(l.name)) continue;
-    (l.data ?? []).forEach((g, i) => { if (g && blockGids.has(g)) blocked.add(i); });
-  }
   const trees = objs.filter((o) => o.point && propsOf(o).kind === 'tree').map((o): Tree => ({ x: tileX(o), y: tileY(o), kind: String(propsOf(o).variant) }));
   for (const t of trees) blocked.add(key(t.x, t.y, W));
   const flowerBeds = rects('flowerbed').map((o): Bed => ({ x: tileX(o), y: tileY(o), w: Math.round(o.width / TILE), h: Math.round(o.height / TILE) }));
@@ -202,7 +242,25 @@ export function parseWorldMap(m: TiledMap): WorldMap {
   };
 }
 
-export const WORLD: WorldMap = parseWorldMap(JSON.parse(worldRaw) as TiledMap);
+const EMPTY_RECT: Rect = { x0: 0, x1: 0, y0: 0, y1: 0 };
+const EMPTY_WORLD: WorldMap = {
+  width: 1, height: 1, houses: [], blocked: new Set(), trees: [], flowerBeds: [], signs: [],
+  street: { ...EMPTY_RECT, tint: 0xffffff }, road: EMPTY_RECT, plaza: { ...EMPTY_RECT, tint: 0xffffff, tint2: 0xffffff },
+  plazaCenter: { x: 0, y: 0 }, plazaRadius: { rx: 1, ry: 1 }, avatarSpawn: { x: 0, y: 0 },
+};
+
+// Never throws: a broken map must not take the whole route chunk down with it.
+export function loadWorld(raw: string): { world: WorldMap; error: string | null } {
+  try {
+    return { world: parseWorldMap(JSON.parse(raw) as TiledMap), error: null };
+  } catch (e) {
+    return { world: EMPTY_WORLD, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+const loaded = loadWorld(worldRaw);
+export const WORLD: WorldMap = loaded.world;
+export const WORLD_ERROR: string | null = loaded.error;
 
 export const MAP_W = WORLD.width;
 export const MAP_H = WORLD.height;
@@ -216,11 +274,7 @@ export const PLAZA_CENTER: Point = WORLD.plazaCenter;
 export const PLAZA_RADIUS = WORLD.plazaRadius;
 export const AVATAR_SPAWN: Point = WORLD.avatarSpawn;
 
-export function doorTiles(h: HouseDef): Point[] {
-  if (h.door === 'east') return [{ x: h.x + h.w - 1, y: h.y + 3 }, { x: h.x + h.w - 1, y: h.y + 4 }];
-  if (h.door === 'west') return [{ x: h.x, y: h.y + 3 }, { x: h.x, y: h.y + 4 }];
-  return [{ x: h.x + 4, y: h.y + h.h - 1 }, { x: h.x + 5, y: h.y + h.h - 1 }];
-}
+export const doorTiles = (h: HouseDef): Point[] => h.doors;
 
 // The tile just outside / inside the first door tile.
 export function outsideDoor(h: HouseDef): Point {

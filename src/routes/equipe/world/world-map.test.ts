@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import worldRaw from '../../../../public/world/world.tmj?raw';
 import {
   AVATAR_SPAWN, HOUSES, MAP_H, MAP_W, PLAZA_CENTER, WORLD, doorTiles, insideDoor, outsideDoor, seatTile, findPath, isBlocked, nearestFree, plazaSlots,
-  parseWorldMap, validateWorldMap, type TiledMap,
+  loadWorld, parseWorldMap, validateWorldMap, type TiledMap,
 } from './world-map';
 
 // Values captured from the previous hardcoded map (absolute tiles), to prove the move to Tiled kept the layout.
@@ -196,5 +196,62 @@ describe('world.tmj', () => {
     const m = broken.layers.find((l) => l.type === 'objectgroup')!;
     m.objects = m.objects!.filter((o) => !o.name?.startsWith('sala-chair'));
     expect(validateWorldMap(broken)).toContain('meeting room "sala" has no chairs (points with prop room=sala)');
+  });
+
+  const prop = (o: { properties?: { name: string; value: unknown }[] }, n: string) => o.properties?.find((p) => p.name === n);
+
+  it('derives door tiles from the map geometry', () => {
+    for (const h of HOUSES) {
+      expect(h.doors.length, h.id).toBeGreaterThan(0);
+      for (const d of h.doors) {
+        expect(d.x >= h.x && d.x < h.x + h.w && d.y >= h.y && d.y < h.y + h.h, h.id).toBe(true);
+        expect(isBlocked(d.x, d.y)).toBe(false);
+      }
+    }
+    expect(doorTiles(HOUSES.find((h) => h.id === 'itera')!)).toEqual([{ x: 6, y: 10 }, { x: 7, y: 10 }]);
+  });
+
+  it('rejects a house that is too small or has no door opening', () => {
+    const small = fresh();
+    objectsOf(small).find((o) => o.name === 'deck')!.width = 3 * 16;
+    expect(validateWorldMap(small).some((e) => e.startsWith('house "deck" is 3x'))).toBe(true);
+    const walled = fresh();
+    const dfl = objectsOf(walled).find((o) => o.name === 'dfl')!;
+    const w = walled.layers.find((l) => l.name === 'walls')!;
+    const x0 = dfl.x / 16;
+    const y = (dfl.y + dfl.height) / 16 - 1;
+    for (let x = x0 + 1; x < x0 + dfl.width / 16 - 1; x++) w.data![y * walled.width + x] = 1;
+    walled.tilesets.push({ firstgid: 1, name: 'x', tilecount: 1, tiles: [{ id: 0, properties: [{ name: 'block', type: 'bool', value: true }] }] });
+    expect(validateWorldMap(walled)).toContain('house "dfl" has no walkable door tile on its bottom edge');
+  });
+
+  it('rejects a bad tile tint', () => {
+    const m = fresh();
+    m.tilesets[0]!.tiles = [{ id: 0, properties: [{ name: 'tint', type: 'string', value: 'red' }] }];
+    expect(validateWorldMap(m)).toContain(`tileset "${m.tilesets[0]!.name}" tile 0 has invalid tint "red"`);
+  });
+
+  it('rejects a repeated project, a non-numeric seat and a second meeting room', () => {
+    const m = fresh();
+    const objs = objectsOf(m);
+    const dfl = objs.find((o) => o.name === 'dfl')!;
+    const itera = objs.find((o) => o.name === 'itera')!;
+    prop(itera, 'project')!.value = prop(dfl, 'project')!.value;
+    expect(validateWorldMap(m)).toContain('house "dfl" repeats project "dfl"');
+    const m2 = fresh();
+    prop(objectsOf(m2).find((o) => o.name === 'itera-desk-0')!, 'seat')!.value = 'one';
+    expect(validateWorldMap(m2)).toContain('desk "itera-desk-0" has non-numeric seat "one"');
+    const m3 = fresh();
+    const sala = objectsOf(m3).find((o) => prop(o, 'kind')?.value === 'meeting')!;
+    objectsOf(m3).push({ ...sala, id: 9999, name: 'sala2', properties: sala.properties!.map((p) => (p.name === 'id' ? { ...p, value: 'sala2' } : p)) });
+    expect(validateWorldMap(m3)).toContain('meeting room "sala2" is a second meeting room');
+  });
+
+  it('loadWorld reports a broken map instead of throwing', () => {
+    const bad = loadWorld(JSON.stringify({ ...fresh(), layers: [] }));
+    expect(bad.error).toContain('invalid world map');
+    expect(bad.world.houses).toEqual([]);
+    expect(loadWorld('{not json').error).toBeTruthy();
+    expect(loadWorld(worldRaw).error).toBeNull();
   });
 });

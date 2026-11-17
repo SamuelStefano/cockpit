@@ -8,6 +8,7 @@ import { agentPath } from '../../useRoute';
 import { demoMeeting, initialWorldUi, isDemo, parseInitialMode, worldUiReducer, type CameraMode } from './world/camera-mode';
 import { DEMO_BOTS, DEMO_COUNTS, DEMO_MEETING, DEMO_PROJECTS, demoTeamState } from './world/demo-data';
 import { deriveWorld } from './world/world-state';
+import { WORLD_ERROR } from './world/world-map';
 import type { WorldHandle } from './world/world-scene';
 
 interface TeamWorldProps {
@@ -68,7 +69,7 @@ export function TeamWorld({ state, connected, onRefresh, bots, meetings, onMeeti
 
   useEffect(() => {
     const el = host.current;
-    if (!el) return;
+    if (!el || WORLD_ERROR) return;
     let dead = false;
     let ro: ResizeObserver | null = null;
     import('./world/world-scene').then(async ({ createWorld, loadWorldFont }) => {
@@ -108,6 +109,7 @@ export function TeamWorld({ state, connected, onRefresh, bots, meetings, onMeeti
     <div className={wrap} data-world-ready={ready ? '1' : '0'} data-world-mode={ui.mode}>
       <div ref={host} className="absolute inset-0 touch-none" />
       {!ready && !failed && <div className="pointer-events-none absolute inset-0 grid place-items-center text-xs text-neutral-400">Carregando o mundo...</div>}
+      {WORLD_ERROR && <div role="alert" className="absolute inset-0 grid place-items-center p-4 text-center text-xs text-red-300">Mapa do mundo inválido: {WORLD_ERROR}</div>}
       {failed && <div className="absolute inset-0 grid place-items-center text-xs text-red-300">Não foi possível carregar o mundo.</div>}
       {!ui.recording && (
         <>

@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import {
   AVATAR_SPAWN, FLOWER_BEDS, HOUSES, MAP_H, MAP_W, PLAZA, ROAD, STREET, TILE, TREES, WORLD,
-  doorTiles, findPath, inf, isBlocked, tf, tileCenter, toTile, type Face, type HouseDef, type Point, type Sheet,
+  doorTiles, findPath, parseColor, inf, isBlocked, tf, tileCenter, toTile, type Face, type HouseDef, type Point, type Sheet,
 } from './world-map';
 import { assignSpots, type Spot } from './world-layout';
 import { nudgePills } from './pill-layout';
@@ -299,11 +299,11 @@ class WorldScene extends Phaser.Scene {
 
   // Tile properties `glow` (warm lamp) and `screen` (animated monitor).
   private tileEffects(p: Record<string, unknown>, x: number, y: number, dy: number): void {
-    if (p.glow) this.glowAt(x * TILE + 8, y * TILE + 6, 1);
+    if (p.glow) this.glowAt(x * TILE + 8, y * TILE + 6 + dy, 1);
     if (!p.screen) return;
     const on = this.add.rectangle(x * TILE + 4, y * TILE + 5 + dy, 8, 5, hash(x, y) % 2 === 0 ? 0x7fd0ff : 0x9cffc0, 0.55).setOrigin(0, 0).setDepth(8).setBlendMode(Phaser.BlendModes.ADD);
     this.tweens.add({ targets: on, alpha: 0.35, duration: 900 + hash(x, y) * 8, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
-    this.glowAt(x * TILE + 8, y * TILE + 8, 0.35, 0x7fd0ff);
+    this.glowAt(x * TILE + 8, y * TILE + 8 + dy, 0.35, 0x7fd0ff);
   }
 
   // Floor tiles (tile property `floor`) take their tint from the zone they sit in: plaza, street, house interior, doors.
@@ -321,7 +321,7 @@ class WorldScene extends Phaser.Scene {
     ground.forEachTile((t) => {
       if (t.index < 0) return;
       const p = props(t.index);
-      if (typeof p.tint === 'string') { t.tint = parseInt(p.tint.slice(-6), 16); return; }
+      if (typeof p.tint === 'string') { t.tint = parseColor(p.tint) ?? 0xffffff; return; }
       if (!p.floor) return;
       const k = `${t.x},${t.y}`;
       const house = HOUSES.find((h) => t.x > h.x && t.x < h.x + h.w - 1 && t.y > h.y && t.y < h.y + h.h - 1);
