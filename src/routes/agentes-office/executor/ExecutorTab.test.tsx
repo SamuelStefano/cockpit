@@ -12,7 +12,7 @@ describe('ExecutorTab status card', () => {
   it('shows label and online state', () => {
     render(<ExecutorTab {...props} />);
     const card = within(screen.getByRole('region', { name: 'Status do executor' }));
-    expect(card.getByText('PC do Samuel')).toBeTruthy();
+    expect(card.getByText('Build box')).toBeTruthy();
     expect(card.getByText('online')).toBeTruthy();
   });
   it('shows offline with the amber stall warning', () => {

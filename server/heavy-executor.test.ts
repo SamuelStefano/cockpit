@@ -6,7 +6,7 @@ import { executorConfigured, readExecutorConfig } from './heavy-executor';
 
 let dir: string;
 const write = (v: unknown) => writeFileSync(process.env.COCKPIT_EXECUTOR as string, typeof v === 'string' ? v : JSON.stringify(v));
-const good = { label: 'PC do Samuel', probe: ['ssh', 'pc', 'true'], run: ['ssh', 'pc', '{command}'] };
+const good = { label: 'Build box', probe: ['ssh', 'pc', 'true'], run: ['ssh', 'pc', '{command}'] };
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'ex-'));
