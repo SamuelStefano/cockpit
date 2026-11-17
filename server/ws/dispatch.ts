@@ -59,7 +59,8 @@ import { probe } from '../providers';
 import { scanClaudeImport, applyClaudeImport } from '../claude-import';
 import { copyHintCommand, IMPORT_KINDS } from '../../shared/claude-import';
 import { detach } from './detach';
-import { startRun, routeSend, drainParked, runParkedInBackground, runParkedNow, acceptResumeOffer, refreshBusyElsewhere, orchestratorPaneTarget, type BgRunReject, type NowRunReject } from './runs';
+import { rotateBot } from '../team-rotate';
+import { botLiveKey, startRun, routeSend, drainParked, runParkedInBackground, runParkedNow, acceptResumeOffer, refreshBusyElsewhere, orchestratorPaneTarget, type BgRunReject, type NowRunReject } from './runs';
 import { threads, stopSession, resolveThreadKey, runningSessionIds } from './threads';
 import { clearAwaiting } from './awaiting';
 import { addParked, removeParked, editParked, moveParked, clearParked, retryParked, retargetParked, parkedView, isQueuePaused, setQueuePaused, REJECT_MESSAGE } from './parked';
@@ -991,6 +992,13 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     }
     case 'team-meeting-start': {
       await startMeetingFrame(ws, msg);
+      return;
+    }
+    case 'team-rotate': {
+      const botId = typeof msg.botId === 'string' ? msg.botId : '';
+      const r = await rotateBot(botId, (b) => !!botLiveKey(b.id, b.sessionId));
+      if (r.ok) { broadcast({ t: 'team', bots: r.bots }); send(ws, { t: 'team-rotate-result', botId, ok: true, words: r.words }); }
+      else send(ws, { t: 'team-rotate-result', botId, ok: false, error: r.error });
       return;
     }
     case 'team-pause-set': {

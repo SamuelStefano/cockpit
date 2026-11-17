@@ -467,6 +467,8 @@ export interface TeamBot {
   sprite?: string;
   primary?: boolean;
   sessionId?: string;
+  // Set by `team rotate`: the next turn starts a fresh session carrying the bot's handoff file. Cleared once it binds.
+  rotatedAt?: number;
   profile: TeamProfile;
   model?: string;
   // Stored only for now: the automatic switch to it is a later slice.
@@ -485,7 +487,7 @@ export interface TeamBot {
 export interface AgentSource { repo: string; path: string }
 export interface AgentSourceSync { at: number; commit?: string; error?: string }
 // What the browser may send: sessionId/createdAt/updatedAt/sourceSync are the server's.
-export type TeamBotInput = Omit<TeamBot, 'sessionId' | 'createdAt' | 'updatedAt' | 'sourceSync'>;
+export type TeamBotInput = Omit<TeamBot, 'sessionId' | 'rotatedAt' | 'createdAt' | 'updatedAt' | 'sourceSync'>;
 // A bot's AskUserQuestion still waiting on the human. Persisted server-side
 // (~/.cockpit/team-pending.json) so a question asked by a routine or a bot↔bot
 // turn, with nobody watching, survives a reload and reaches another device.
@@ -857,6 +859,7 @@ export type ClientMsg =
   | { t: 'agent-build'; reqId: string; history: { role: 'user' | 'assistant'; text: string }[]; draft: { name: string; label: string; instructions: string; skills: string[] } }
   | { t: 'team-messages-get'; botId?: string; peer?: string; before?: number }
   | { t: 'team-pause-set'; paused: boolean }
+  | { t: 'team-rotate'; botId: string }
   | { t: 'team-meeting-start'; question: string; participantIds: string[]; moderatorId: string }
   | { t: 'team-meetings-get' }
   | { t: 'team-state-get'; followUpHours?: number }
@@ -1076,6 +1079,7 @@ export type ServerMsg =
   | { t: 'team-messages'; items: TeamMessage[]; botId?: string; peer?: string; before?: number }
   | { t: 'team-message'; item: TeamMessage }
   | { t: 'team-paused'; paused: boolean }
+  | { t: 'team-rotate-result'; botId: string; ok: boolean; error?: string; words?: number }
   | { t: 'team-meetings'; items: TeamMeeting[] }
   | { t: 'team-state'; state: TeamState }
   | { t: 'team-panel'; panel: TeamPanelPayload }
