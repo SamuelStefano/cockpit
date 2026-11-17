@@ -36,16 +36,16 @@ export interface WorldView {
 export type NpcAnim = 'work' | 'idle' | 'wait';
 export interface NpcSprite { anim: NpcAnim; bubble: 'zz' | '!' | null; tool: boolean }
 
-type HouseRef = { id: string; department?: string };
+type HouseRef = { id: string; kind?: string; department?: string };
 
 // Order: the bot's project field (a known house id), a keyword in its task, its department's house, the office.
 export function projectOf(bot: { project?: string; task?: string; sector?: string }, houses: readonly HouseRef[] = HOUSES): ProjectId {
-  const known = (id: string): boolean => houses.some((h) => h.id === id);
+  const known = (id: string): boolean => houses.some((h) => h.id === id && (h.kind ?? 'house') === 'house');
   if (bot.project && known(bot.project)) return bot.project;
   const task = bot.task?.toLowerCase() ?? '';
   const hit = TASK_KEYWORDS.find(([kw, id]) => task.includes(kw) && known(id));
   if (hit) return hit[1];
-  const byDept = bot.sector ? houses.find((h) => h.department === bot.sector) : undefined;
+  const byDept = bot.sector ? houses.find((h) => h.department === bot.sector && (h.kind ?? 'house') === 'house') : undefined;
   return byDept?.id ?? OFFICE;
 }
 

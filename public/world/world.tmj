@@ -7471,10 +7471,10 @@
       {
        "name": "kind",
        "type": "string",
-       "value": "house"
+       "value": "board"
       },
       {
-       "name": "project",
+       "name": "id",
        "type": "string",
        "value": "quadro"
       },
@@ -7513,7 +7513,7 @@
      "visible": true,
      "properties": [
       {
-       "name": "project",
+       "name": "room",
        "type": "string",
        "value": "quadro"
       },
@@ -7542,7 +7542,7 @@
      "visible": true,
      "properties": [
       {
-       "name": "project",
+       "name": "room",
        "type": "string",
        "value": "quadro"
       },

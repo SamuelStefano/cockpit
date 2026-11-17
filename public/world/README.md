@@ -72,7 +72,7 @@ Badges and house counts shown today are demo-only (`?demo`); the real data sourc
 
 ## Quadro de tarefas (village)
 
-A 5x6 building on the plaza (project `quadro`, door at the bottom, two standing spots in front of the board). The cork board is 3x2 blocking tiles of `props.png` (ids 12-14 top row, 16-18 bottom row) on the back wall; its three hooks sit at x = 10, 23 and 36 px of the 48 px board, on the bottom rim, where the "feito" plaque hangs.
+A 5x6 building on the plaza (object `kind=board`, `id=quadro`, never a bot project: `kind=house` takes bots by `project`, `board` and `meeting` are destinations only; its standing spots are points with `room=quadro`, door at the bottom, two standing spots in front of the board). The cork board is 3x2 blocking tiles of `props.png` (ids 12-14 top row, 16-18 bottom row) on the back wall; its three hooks sit at x = 10, 23 and 36 px of the 48 px board, on the bottom rim, where the "feito" plaque hangs.
 
 - `props.png` is 4x5 tiles. Frame 15: the "feito" plaque (16x16, transparent, hanging string at the top; draw it at a hook, origin top centre).
 - `taskbox.png`: 5 frames of 12x12 (0 left, 1 down, 2 up, 3 right, 4 on the ground). Draw it above the bot's head or in front of its body, per facing.

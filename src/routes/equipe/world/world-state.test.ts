@@ -131,4 +131,9 @@ describe('deriveWorld celebrate', () => {
     const list = ['a'];
     expect(deriveWorld(state(), { celebrate: list }).celebrate).toBe(list);
   });
+
+  it('never sends a bot to a board or the meeting room as its project', () => {
+    expect(projectOf({ project: 'quadro' })).toBe('escritorio');
+    expect(projectOf({ project: 'sala' })).toBe('escritorio');
+  });
 });

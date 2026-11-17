@@ -17,6 +17,8 @@ export type Door = 'bottom' | 'east' | 'west';
 
 export interface HouseDef {
   id: BuildingId;
+  // 'house' takes bots by project; 'meeting' and 'board' are destinations only.
+  kind: 'house' | 'meeting' | 'board';
   label: string;
   x: number;
   y: number;
@@ -99,6 +101,7 @@ export function validateWorldMap(m: TiledMap): string[] {
   const objs = objectsOf(m);
   const houses = new Set<string>();
   let meeting: string | null = null;
+  const boards = new Set<string>();
   const blocked = baseBlocked(m);
   for (const ts of m.tilesets) {
     for (const t of ts.tiles ?? []) {
@@ -108,13 +111,14 @@ export function validateWorldMap(m: TiledMap): string[] {
   }
   for (const o of objs.filter((x) => !x.point)) {
     const p = propsOf(o);
-    if (p.kind !== 'house' && p.kind !== 'meeting') continue;
+    if (p.kind !== 'house' && p.kind !== 'meeting' && p.kind !== 'board') continue;
     const isMeeting = p.kind === 'meeting';
-    const what = isMeeting ? 'meeting room' : 'house';
-    const name = nameOf(o, p, isMeeting ? 'id' : 'project');
-    need(what, name, p, [isMeeting ? 'id' : 'project', 'label', 'door', 'tint', 'icon']);
+    const byId = isMeeting || p.kind === 'board';
+    const what = isMeeting ? 'meeting room' : p.kind === 'board' ? 'board' : 'house';
+    const name = nameOf(o, p, byId ? 'id' : 'project');
+    need(what, name, p, [byId ? 'id' : 'project', 'label', 'door', 'tint', 'icon']);
     if (typeof p.door === 'string' && !DOORS.includes(p.door)) errs.push(`${what} "${name}" has invalid door "${p.door}"`);
-    if (!isMeeting && p.department !== undefined && !isDepartmentId(p.department)) errs.push(`${what} "${name}" has invalid department "${String(p.department)}"`);
+    if (p.kind === 'house' && p.department !== undefined && !isDepartmentId(p.department)) errs.push(`${what} "${name}" has invalid department "${String(p.department)}"`);
     if (p.tint !== undefined && parseColor(p.tint) === null) errs.push(`${what} "${name}" has invalid tint "${String(p.tint)}"`);
     if (p.icon !== undefined && p.icon !== '' && !parseIcon(p.icon)) errs.push(`${what} "${name}" has invalid icon "${String(p.icon)}"`);
     const w = Math.round(o.width / TILE);
@@ -124,7 +128,9 @@ export function validateWorldMap(m: TiledMap): string[] {
     if (isMeeting) {
       if (meeting !== null) errs.push(`meeting room "${name}" is a second meeting room`);
       else meeting = String(p.id ?? name);
-    } else if (typeof p.project === 'string') {
+    } else if (p.kind === 'board') {
+      if (typeof p.id === 'string') boards.add(p.id);
+    } else if (p.kind === 'house' && typeof p.project === 'string') {
       if (houses.has(p.project)) errs.push(`house "${name}" repeats project "${p.project}"`);
       houses.add(p.project);
     }
@@ -139,8 +145,8 @@ export function validateWorldMap(m: TiledMap): string[] {
       need('chair', name, p, ['room', 'seat', 'face']);
       if (p.seat !== undefined && typeof p.seat !== 'number') errs.push(`chair "${name}" has non-numeric seat "${String(p.seat)}"`);
       if (typeof p.face === 'string' && !FACES.includes(p.face)) errs.push(`chair "${name}" has invalid face "${p.face}"`);
-      if (meeting !== null && p.room !== meeting) errs.push(`chair "${name}" belongs to unknown room "${String(p.room)}"`);
-      chairs++;
+      if (meeting !== null && p.room !== meeting && !boards.has(String(p.room))) errs.push(`chair "${name}" belongs to unknown room "${String(p.room)}"`);
+      if (p.room === meeting) chairs++;
     } else if (p.kind === undefined) {
       const name = nameOf(o, p, 'project');
       need('desk', name, p, ['project', 'seat', 'face']);
@@ -206,14 +212,14 @@ export function parseWorldMap(m: TiledMap): WorldMap {
     .sort((a, b) => Number(propsOf(a).seat) - Number(propsOf(b).seat));
   for (const o of objs.filter((x) => !x.point)) {
     const p = propsOf(o);
-    if (p.kind !== 'house' && p.kind !== 'meeting') continue;
-    const id = String(p.kind === 'meeting' ? p.id : p.project);
+    if (p.kind !== 'house' && p.kind !== 'meeting' && p.kind !== 'board') continue;
+    const id = String(p.kind === 'house' ? p.project : p.id);
     const hx = tileX(o);
     const hy = tileY(o);
-    const seats = seatsOf((q) => (p.kind === 'meeting' ? q.room === id : q.room === undefined && q.kind === undefined && q.project === id))
+    const seats = seatsOf((q) => (p.kind !== 'house' ? q.room === id : q.room === undefined && q.kind === undefined && q.project === id))
       .map((s): Seat => ({ x: tileX(s) - hx, y: tileY(s) - hy, face: propsOf(s).face as Face }));
     houses.push({
-      id, label: String(p.label), x: hx, y: hy, w: Math.round(o.width / TILE), h: Math.round(o.height / TILE),
+      id, kind: p.kind as HouseDef['kind'], label: String(p.label), x: hx, y: hy, w: Math.round(o.width / TILE), h: Math.round(o.height / TILE),
       tint: parseColor(p.tint)!, door: p.door as Door, icon: parseIcon(p.icon)!, seats,
       doors: doorGap(m, blocked, hx, hy, Math.round(o.width / TILE), Math.round(o.height / TILE), p.door as Door),
       ...(p.kind === 'house' && isDepartmentId(p.department) ? { department: p.department } : {}),
