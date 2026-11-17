@@ -97,7 +97,7 @@ export function claimMessage(task: PlannerTask): string {
     desc ? quote(`Description: ${desc}`) : '',
     'If anything turns out unsafe (production, database, money, secrets, irreversible), stop and ask the human.',
   ];
-  lines.push('Report to the primary bot when done or blocked.');
+  lines.push('Write your result as a file in your own workspace, report to the primary bot with team_send, and close the task with team_task_done (taskId above, one or two sentences). You have no shell, so work only with files in your workspace.');
   return lines.filter((l) => l !== '').join('\n');
 }
 
