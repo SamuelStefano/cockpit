@@ -23,6 +23,13 @@ describe('buildTeamState', () => {
     expect(s.bots[2].manager).toBeUndefined();
   });
 
+  it('passes the doing set through, absent by default', () => {
+    const s = buildTeamState({ ...base, tasks: [], log: [], team: [bot('a'), bot('b')], doing: new Set(['b']) });
+    expect(s.bots[0].doing).toBeUndefined();
+    expect(s.bots[1].doing).toBe(true);
+    expect(buildTeamState({ ...base, tasks: [], log: [], team: [bot('a')] }).bots[0].doing).toBeUndefined();
+  });
+
   it('picks the nearest open owned task as the current one', () => {
     const s = buildTeamState({
       ...base, team: [bot('a')], log: [],

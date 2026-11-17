@@ -4,12 +4,13 @@ import {
   doorTiles, findPath, parseColor, inf, isBlocked, tf, tileCenter, toTile, type Face, type HouseDef, type Point, type Sheet,
 } from './world-map';
 import { assignSpots, type Spot } from './world-layout';
-import { nudgePills } from './pill-layout';
+import { nudgePills, type PillBox } from './pill-layout';
 import { clampZoom, initialZoom, parseFocus, stepZoom, wheelStep, type CameraMode } from './camera-mode';
 import { sheetFrame, spriteKey, spritePath, textureKey } from './bot-sprite';
 import { npcSprite, type Flight, type NpcView, type WorldView } from './world-state';
 import { pickWanderTile, tileKey, wanderDelay, wanderTiles } from './world-wander';
 import { planCarry } from './world-carry';
+import { BOARD_PX, PLAQUE_FRAME, TASKBOX_FRAME_GROUND, advance, doingEdges, hangPlaque, newErrand, plaquePos, stepOf, taskboxFrame, type Errand, type ErrandKind, type Plaque } from './world-board';
 import { FX_SHADOW, FX_SHADOW_SMALL, ParticleSim, fxFrame, jumpLift, stepPhase, walkBob, type Particle } from './world-juice';
 import { CHIBI_FRAME_H, CHIBI_FRAME_W, FX_FRAME, assignVariants, chibiFrame, hashId, idleAnim, shirtTint, walkAnim } from './world-chibi';
 
@@ -84,6 +85,7 @@ interface Pill {
   icon: Phaser.GameObjects.Image | null;
   badge: Phaser.GameObjects.Text | null;
   anchor: 'center' | 'left';
+  fixed: boolean;
   h: number;
   w: number;
 }
@@ -117,6 +119,10 @@ interface Npc {
   lift: number;
   jumpAt: number;
   carry: Carry | null;
+  errand: Errand | null;
+  errandUntil: number;
+  errandBox: Phaser.GameObjects.Image | null;
+  deskBox: Phaser.GameObjects.Image | null;
 }
 
 interface Carry { phase: 'go' | 'back'; receiver: string; box: Phaser.GameObjects.Image; prevStand: Point | null }
@@ -140,6 +146,7 @@ class WorldScene extends Phaser.Scene {
   private pills: Pill[] = [];
   private housePills = new Map<string, Pill>();
   private labelScale = 1;
+  private pillSlots = new Map<string, number>();
   private avatar!: Phaser.GameObjects.Sprite;
   private avatarPill!: Pill;
   private route: Point[] = [];
@@ -160,6 +167,9 @@ class WorldScene extends Phaser.Scene {
   private wanderPool: Point[] = [];
   private lastCelebrate: string[] | null = null;
   private variants = new Map<string, number>();
+  private doingPrev = new Map<string, boolean>();
+  private plaques: (Plaque & { img: Phaser.GameObjects.Image })[] = [];
+  private plaqueSerial = 0;
 
   constructor(opts: WorldOptions) {
     super('world');
@@ -202,6 +212,7 @@ class WorldScene extends Phaser.Scene {
     this.load.spritesheet('props', `${BASE}world/props.png`, sheet);
     this.load.spritesheet('chibi', `${BASE}world/chibi.png`, { frameWidth: CHIBI_FRAME_W, frameHeight: CHIBI_FRAME_H });
     this.load.spritesheet('chibi-shirt', `${BASE}world/chibi-shirt.png`, { frameWidth: CHIBI_FRAME_W, frameHeight: CHIBI_FRAME_H });
+    this.load.spritesheet('taskbox', `${BASE}world/taskbox.png`, { frameWidth: 12, frameHeight: 12 });
     this.load.spritesheet('fx', `${BASE}world/fx.png`, { frameWidth: FX_FRAME, frameHeight: FX_FRAME });
     this.load.spritesheet('indoor', `${BASE}world/indoor.png`, { ...sheet, spacing: 1 });
     this.load.tilemapTiledJSON('world', `${BASE}world/world.tmj`);
@@ -244,6 +255,10 @@ class WorldScene extends Phaser.Scene {
     const live = new Set(view.npcs.map((n) => n.id));
     for (const [id, npc] of this.npcs) if (!live.has(id)) this.removeNpc(id, npc);
     view.npcs.forEach((v, i) => this.upsertNpc(v, spots.get(v.id)!, i));
+    const edges = doingEdges(this.doingPrev, view.npcs);
+    this.doingPrev = edges.next;
+    for (const id of edges.started) this.startErrand(id, 'start');
+    for (const id of edges.stopped) this.startErrand(id, 'finish');
     for (const f of view.flights) {
       if (this.seenFlights.has(f.key)) continue;
       this.seenFlights.add(f.key);
@@ -426,7 +441,7 @@ class WorldScene extends Phaser.Scene {
     this.rect(STREET.x0 * TILE, ROAD.y0 * TILE - 1, (STREET.x1 - STREET.x0 + 1) * TILE, 2, 0x2f2a25, 0.9, 2);
     this.rect(STREET.x0 * TILE, (ROAD.y1 + 1) * TILE - 1, (STREET.x1 - STREET.x0 + 1) * TILE, 2, 0x2f2a25, 0.9, 2);
     for (const sign of WORLD.signs) {
-      const pill = this.makePill({ text: sign.label, anchor: 'left', dot: null, icon: null });
+      const pill = this.makePill({ text: sign.label, anchor: 'left', fixed: true, dot: null, icon: null });
       pill.c.setPosition(sign.x * TILE, sign.y * TILE - 2);
     }
   }
@@ -450,7 +465,7 @@ class WorldScene extends Phaser.Scene {
     this.rect((h.x + 1) * TILE, (h.y + 1) * TILE, 3, (h.h - 2) * TILE, INK, 0.12, 3);
     this.rect((h.x + h.w - 1) * TILE - 3, (h.y + 1) * TILE, 3, (h.h - 2) * TILE, INK, 0.12, 3);
     this.rect(h.x * TILE, (h.y + h.h) * TILE, h.w * TILE, 4, INK, 0.25, 1);
-    const pill = this.makePill({ text: h.label, anchor: 'center', dot: null, icon: h.icon });
+    const pill = this.makePill({ text: h.label, anchor: 'center', fixed: true, dot: null, icon: h.icon });
     pill.c.setPosition((h.x + h.w / 2) * TILE, h.y * TILE - 3);
     this.housePills.set(h.id, pill);
   }
@@ -468,12 +483,12 @@ class WorldScene extends Phaser.Scene {
 
   // ---- pills ----
 
-  private makePill(o: { text: string; anchor: 'center' | 'left'; dot: number | null; icon: { s: Sheet; f: number } | null; badge?: string | null }): Pill {
+  private makePill(o: { text: string; anchor: 'center' | 'left'; fixed?: boolean; dot: number | null; icon: { s: Sheet; f: number } | null; badge?: string | null }): Pill {
     const g = this.add.graphics();
     const text = this.add.text(0, 0, o.text, { fontFamily: `${FONT}, monospace`, fontSize: '16px', color: '#ffffff' }).setOrigin(0, 0.5);
     const icon = o.icon ? this.add.image(0, 0, o.icon.s, o.icon.f).setOrigin(0, 0.5) : null;
     const c = this.add.container(0, 0, [g, ...(icon ? [icon] : []), text]).setDepth(10_000);
-    const pill: Pill = { c, text, g, icon, badge: null, anchor: o.anchor, h: 22, w: 0 };
+    const pill: Pill = { c, text, g, icon, badge: null, anchor: o.anchor, fixed: o.fixed ?? false, h: 22, w: 0 };
     this.pills.push(pill);
     this.drawPill(pill, o.text, o.dot, o.badge ?? null);
     c.setScale(this.labelScale);
@@ -559,16 +574,18 @@ class WorldScene extends Phaser.Scene {
       const shadow = this.add.image(f.x, f.y - 1, 'fx', FX_SHADOW).setDepth(100 + f.y - 0.5);
       npc = {
         view: v, sprite, pill, extras: [], tweens: [], mode: null, spot, index, busyUntil: 0, route: [], walking: false, char, own, chibi, variant, shirt, tint, face: spot.face,
-        shadow, stand: null, nextWander: this.time.now + wanderDelay(v.id, 0), wanderN: 0, phase: 0, dust: 0, lift: 0, jumpAt: -1e9, carry: null,
+        shadow, stand: null, nextWander: this.time.now + wanderDelay(v.id, 0), wanderN: 0, phase: 0, dust: 0, lift: 0, jumpAt: -1e9, carry: null, errand: null, errandUntil: 0, errandBox: null, deskBox: null,
       };
       this.npcs.set(v.id, npc);
     } else if (npc.spot.tile.x !== spot.tile.x || npc.spot.tile.y !== spot.tile.y) {
       // Walk from where the bot stands now: out of its house, across the street or plaza, into the next one.
-      this.cancelCarry(npc);
-      npc.stand = null;
-      npc.route = findPath(this.tileOf(npc), spot.tile);
+      if (!npc.errand) {
+        this.cancelCarry(npc);
+        npc.stand = null;
+        npc.route = findPath(this.tileOf(npc), spot.tile);
+      }
       npc.nextWander = this.time.now + wanderDelay(v.id, npc.wanderN);
-    } else if (npc.stand && (v.mode !== 'idle' || v.meeting)) {
+    } else if (npc.stand && !npc.errand && (v.mode !== 'idle' || v.meeting)) {
       npc.stand = null;
       npc.route = findPath(this.tileOf(npc), spot.tile);
     }
@@ -588,14 +605,38 @@ class WorldScene extends Phaser.Scene {
     this.drawPill(n.pill, n.view.name, dot, n.view.badge);
   }
 
-  // Pills sit above the head; when two would touch, the later one is lifted (pill-layout).
+  // Every visible pill shares one layout: house and sign pills stay put, bot and avatar pills
+  // are moved around them (pill-layout).
   private layoutPills(): void {
-    const boxes = [...this.npcs.values()].map((n) => ({
-      id: n.view.id, x: n.sprite.x, y: n.sprite.y - 17 - (n.pill.h * this.labelScale) / 2,
-      w: n.pill.w * this.labelScale, h: n.pill.h * this.labelScale,
-    }));
-    const lifts = nudgePills(boxes);
-    for (const n of this.npcs.values()) n.pill.c.setPosition(Math.round(n.sprite.x), Math.round(n.sprite.y - 17 - n.lift - (n.carry?.phase === 'go' ? 9 : 0) - (lifts.get(n.view.id) ?? 0)));
+    const k = this.labelScale;
+    const box = (id: string, p: Pill, x: number, y: number, fixed: boolean): PillBox => ({
+      id, x: p.anchor === 'left' ? x + (p.w * k) / 2 : x, y: y - (p.h * k) / 2, w: p.w * k, h: p.h * k, ...(fixed ? { fixed } : {}),
+    });
+    const base = new Map<string, { x: number; y: number; pill: Pill }>();
+    const boxes: PillBox[] = [];
+    this.pills.forEach((p, i) => {
+      if (p.fixed && p.c.visible) boxes.push(box(`fixed:${i}`, p, p.c.x, p.c.y, true));
+    });
+    for (const n of this.npcs.values()) {
+      if (!n.sprite.visible || !n.pill.c.visible) continue;
+      const x = Math.round(n.sprite.x);
+      const y = Math.round(n.sprite.y - 17 - n.lift - (n.carry?.phase === 'go' ? 9 : 0) - (n.errandBox ? 14 : 0));
+      base.set(n.view.id, { x, y, pill: n.pill });
+      boxes.push(box(n.view.id, n.pill, x, y, false));
+    }
+    if (this.avatar.visible && this.avatarPill.c.visible) {
+      const x = Math.round(this.avatar.x);
+      const y = Math.round(this.avatar.y) - 17;
+      base.set('avatar', { x, y, pill: this.avatarPill });
+      boxes.push(box('avatar', this.avatarPill, x, y, false));
+    }
+    const offsets = nudgePills(boxes, this.pillSlots);
+    this.pillSlots = new Map();
+    for (const [id, b] of base) {
+      const o = offsets.get(id);
+      if (o && o.slot > 0) this.pillSlots.set(id, o.slot);
+      b.pill.c.setPosition(Math.round(b.x + (o?.dx ?? 0)), Math.round(b.y + (o?.dy ?? 0)));
+    }
   }
 
   private tileOf(n: Npc): Point {
@@ -607,7 +648,7 @@ class WorldScene extends Phaser.Scene {
   }
 
   private canWander(n: Npc): boolean {
-    return n.view.mode === 'idle' && !n.view.meeting && n.spot.station === 'plaza' && !n.carry && n.route.length === 0 && !n.walking;
+    return n.view.mode === 'idle' && !n.view.meeting && n.spot.station === 'plaza' && !n.carry && !n.errand && n.route.length === 0 && !n.walking;
   }
 
   private maybeWander(n: Npc, now: number): void {
@@ -657,14 +698,16 @@ class WorldScene extends Phaser.Scene {
       }
       if (n.chibi && !n.walking && !next) sp.setFrame(this.frameOf(n, 0));
       this.stepCarry(n);
+      this.stepErrand(n, now);
       this.maybeWander(n, now);
       const jk = (now - n.jumpAt) / JUMP_MS;
       n.lift = bob.lift + (jk >= 0 && jk < 1 ? jumpLift(jk) : 0);
       sp.setOrigin(0.5, 1 + n.lift / sp.height);
       sp.setDepth(100 + sp.y);
-      const seatedStill = n.spot.seated && !n.stand && !n.walking && !n.carry;
+      const seatedStill = n.spot.seated && !n.stand && !n.walking && !n.carry && !n.errand;
       n.shadow.setVisible(!seatedStill).setPosition(Math.round(sp.x), Math.round(sp.y) - 1).setDepth(sp.depth - 0.5).setFrame(n.lift > 0.5 ? FX_SHADOW_SMALL : FX_SHADOW);
       this.syncShirt(n);
+      if (n.errandBox) n.errandBox.setFrame(taskboxFrame(n.face)).setPosition(Math.round(sp.x), Math.round(sp.y - 16 - n.lift)).setDepth(sp.depth + 1);
       if (n.carry?.phase === 'go') n.carry.box.setPosition(Math.round(sp.x), Math.round(sp.y - 15 - n.lift)).setDepth(sp.depth + 1);
     }
   }
@@ -683,7 +726,7 @@ class WorldScene extends Phaser.Scene {
     const from = f.from ? this.npcs.get(f.from) : undefined;
     const to = this.npcs.get(f.to);
     if (!from || !to || from === to) return false;
-    if (from.carry || from.walking || from.route.length > 0 || to.walking || to.route.length > 0) return false;
+    if (from.errand || to.errand || from.carry || from.walking || from.route.length > 0 || to.walking || to.route.length > 0) return false;
     const taken = new Set<string>();
     for (const o of this.npcs.values()) if (o !== to) { taken.add(tileKey(this.target(o))); taken.add(tileKey(this.tileOf(o))); }
     const plan = planCarry(this.tileOf(from), this.tileOf(to), (p) => !isBlocked(p.x, p.y) && !taken.has(tileKey(p)), findPath);
@@ -726,6 +769,117 @@ class WorldScene extends Phaser.Scene {
     n.stand = c.prevStand;
     n.route = findPath(this.tileOf(n), this.target(n));
     if (n.route.length === 0) n.carry = null;
+  }
+
+  // ---- task board errands ----
+
+  private board(): HouseDef | undefined {
+    return HOUSES.find((h) => h.kind === 'board' && h.seats.length > 0);
+  }
+
+  private startErrand(id: string, kind: ErrandKind): void {
+    const n = this.npcs.get(id);
+    const b = this.board();
+    if (!n || !b || n.view.meeting) return;
+    const seat = kind === 'finish' ? (b.seats[1] ?? b.seats[0]!) : b.seats[0]!;
+    const front = { x: b.x + seat.x, y: b.y + seat.y };
+    if (isBlocked(front.x, front.y)) return;
+    const route = this.routeTo(n, front);
+    if (!route) return;
+    this.dropErrand(n);
+    if (n.deskBox) {
+      const box = n.deskBox;
+      n.deskBox = null;
+      if (kind === 'finish') this.tweens.add({ targets: box, alpha: 0, duration: 300, onComplete: () => box.destroy() });
+      else box.destroy();
+    }
+    this.cancelCarry(n);
+    n.errand = newErrand(kind);
+    n.errandUntil = 0;
+    n.stand = front;
+    n.route = route;
+  }
+
+  // null = unreachable (the caller skips silently).
+  private routeTo(n: Npc, to: Point): Point[] | null {
+    const from = this.tileOf(n);
+    if (from.x === to.x && from.y === to.y) return [];
+    const route = findPath(from, to);
+    const last = route[route.length - 1];
+    return last && last.x === to.x && last.y === to.y ? route : null;
+  }
+
+  private dropErrand(n: Npc): void {
+    n.errand = null;
+    n.errandBox?.destroy();
+    n.errandBox = null;
+  }
+
+  private abortErrand(n: Npc): void {
+    this.dropErrand(n);
+    n.stand = null;
+    n.route = [];
+  }
+
+  private stepErrand(n: Npc, now: number): void {
+    const e = n.errand;
+    if (!e || n.route.length > 0 || n.walking || now < n.errandUntil) return;
+    const step = stepOf(e);
+    const next = advance(e);
+    const walkTo = (to: Point): void => {
+      const route = this.routeTo(n, to);
+      if (!route) { this.abortErrand(n); return; }
+      n.route = route;
+      n.errand = next;
+    };
+    if (step === 'goBoard') {
+      n.face = 'up';
+      n.sprite.setFrame(this.frameOf(n, 0));
+      n.errandUntil = now + 450;
+      n.errand = next;
+    } else if (step === 'pickup') {
+      n.errandBox = this.add.image(Math.round(n.sprite.x), Math.round(n.sprite.y - 16), 'taskbox', taskboxFrame(n.face)).setOrigin(0.5, 1).setDepth(9_000);
+      n.stand = null;
+      n.errandUntil = now + 200;
+      walkTo(n.spot.tile);
+    } else if (step === 'goDesk') {
+      n.errandUntil = now + 250;
+      n.errand = next;
+    } else if (step === 'setdown') {
+      this.setDownBox(n);
+      n.errand = null;
+    } else if (step === 'hang') {
+      this.hangOnBoard();
+      n.stand = null;
+      n.errandUntil = now + 300;
+      walkTo(n.spot.tile);
+    } else {
+      n.errand = null;
+    }
+    if (!n.errand) n.stand = null;
+  }
+
+  private setDownBox(n: Npc): void {
+    const box = n.errandBox;
+    n.errandBox = null;
+    if (!box) return;
+    const f = this.feet(n.spot.tile);
+    const ahead = { left: { x: -9, y: -3 }, right: { x: 9, y: -3 }, up: { x: 0, y: -10 }, down: { x: 0, y: 4 } }[n.spot.face];
+    const at = n.spot.seated ? { x: f.x + ahead.x, y: f.y + ahead.y } : { x: f.x + 8, y: f.y };
+    box.setFrame(TASKBOX_FRAME_GROUND).setPosition(Math.round(at.x), Math.round(at.y)).setDepth(100 + at.y);
+    n.deskBox = box;
+  }
+
+  private hangOnBoard(): void {
+    const b = this.board();
+    if (!b) return;
+    const upd = hangPlaque(this.plaques, this.plaqueSerial++);
+    if (upd.removed) this.plaques.find((p) => p.serial === upd.removed!.serial)?.img.destroy();
+    const pos = plaquePos((b.x + 1) * TILE, (b.y + 1) * TILE + BOARD_PX.h, upd.hook);
+    const img = this.add.image(pos.x, pos.y, 'props', PLAQUE_FRAME).setOrigin(0.5, 0).setDepth(8).setScale(0.2);
+    this.tweens.add({ targets: img, scaleX: 1, scaleY: 1, duration: 220, ease: 'Back.easeOut' });
+    const kept = this.plaques.filter((p) => upd.list.some((l) => l.serial === p.serial));
+    this.plaques = [...kept, { hook: upd.hook, serial: upd.list[upd.list.length - 1]!.serial, img }];
   }
 
   private cancelCarry(n: Npc): void {
@@ -788,6 +942,8 @@ class WorldScene extends Phaser.Scene {
 
   private removeNpc(id: string, n: Npc): void {
     this.cancelCarry(n);
+    this.dropErrand(n);
+    n.deskBox?.destroy();
     n.shadow.destroy();
     for (const t of n.tweens) t.stop();
     for (const e of n.extras) e.destroy();

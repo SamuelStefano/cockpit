@@ -22,6 +22,8 @@ export interface NpcView {
   // True while an existing meeting that includes this bot is running.
   meeting: boolean;
   moderator?: boolean;
+  // True while the bot has a task claimed (a flag only, never the task).
+  doing?: boolean;
 }
 
 export interface Flight { key: string; from: string | null; to: string }
@@ -100,6 +102,7 @@ export function deriveWorld(state: TeamState | null, opts: DeriveOptions = {}): 
     id: b.id, name: b.name, mode: b.status, badge: badgeText(opts.counts?.[b.id]),
     project: projectOf(b), ...(b.sprite ? { sprite: b.sprite } : {}), ...(HEX.test(b.color ?? '') ? { color: b.color } : {}), meeting: inMeeting.has(b.id),
     ...(b.id === moderatorId ? { moderator: true } : {}),
+    ...(b.doing === true ? { doing: true } : {}),
   }));
   const flights = state.handoffs
     .filter((h) => ids.has(h.to) && now - h.at <= FLIGHT_WINDOW_MS)

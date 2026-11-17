@@ -22,6 +22,7 @@ export interface TeamStateBot {
   manager?: string;
   status: TeamBotStatus;
   task?: string;
+  doing?: boolean;
   lastSend?: TeamStateSend;
 }
 export interface TeamStateHandoff { from?: string; to: string; point: string; at: number; taskId: string }
@@ -40,6 +41,7 @@ export interface TeamStateInput {
   log: TeamMessage[];
   running: ReadonlySet<string>;
   waiting: ReadonlySet<string>;
+  doing?: ReadonlySet<string>;
   now: number;
   followUpHours?: number;
 }
@@ -103,6 +105,7 @@ export function buildTeamState(i: TeamStateInput): TeamState {
       ...(b.parentId && ids.has(b.parentId) ? { manager: b.parentId } : {}),
       status: i.waiting.has(b.id) ? 'waiting' : i.running.has(b.id) ? 'working' : 'idle',
       ...(task ? { task: task.title } : {}),
+      ...(i.doing?.has(b.id) ? { doing: true } : {}),
       ...(last ? { lastSend: { to: last.to, at: last.ts, preview: preview(last.text) } } : {}),
     };
   });
