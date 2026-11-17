@@ -333,7 +333,8 @@ class WorldScene extends Phaser.Scene {
   // Pills are drawn at 1 screen px per font px: scale = 1 / zoom (zoom is whole).
   private applyLabelScale(force = false): void {
     const z = this.cameras.main.zoom;
-    const s = 1 / z;
+    // At 1x a 16px pill would swamp 16px characters: the font is drawn at half size (8px grid, still whole).
+    const s = z <= 1 ? 0.5 : 1 / z;
     if (!force && Math.abs(s - this.labelScale) < 0.001) return;
     this.labelScale = s;
     for (const p of this.pills) p.c.setScale(s);
@@ -371,8 +372,8 @@ class WorldScene extends Phaser.Scene {
 
   private placeNpcLabels(n: Npc): void {
     const { x, y } = n.sprite;
-    // At 1x neighbours are closer than a pill is wide: odd slots sit one pill higher.
-    const lift = this.cameras.main.zoom < 2 && n.index % 2 === 1 ? (n.pill.h + 1) * this.labelScale : 0;
+    // Neighbours are closer than a pill is wide: odd slots sit one pill higher.
+    const lift = n.index % 2 === 1 ? (n.pill.h + 1) * this.labelScale : 0;
     n.pill.c.setPosition(x, y - 17 - lift);
   }
 

@@ -38,7 +38,6 @@ const FRAMES = {
   roundTable: [inf(3, 0), inf(4, 0), inf(3, 1), inf(4, 1)], sofa: [inf(10, 6), inf(11, 6)],
   console: [inf(23, 8), inf(24, 8)], bench: [inf(10, 3), inf(11, 3)],
   monitor: tf(7, 4), shelfA: tf(3, 5), shelfB: tf(3, 6), sign: tf(11, 6),
-  fountain: [tf(7, 2), tf(8, 2), tf(7, 3), tf(8, 3)],
 };
 
 function rug(frames: number[], x: number, y: number): Item[] {
@@ -145,7 +144,8 @@ export const FLOWER_BEDS: readonly { x: number; y: number; w: number; h: number 
   { x: 10, y: 20, w: 2, h: 2 }, { x: 28, y: 20, w: 2, h: 2 }, { x: 15, y: 16, w: 2, h: 1 }, { x: 23, y: 16, w: 2, h: 1 },
 ];
 export const PLAZA_ITEMS: Item[] = [
-  ...block2x2('dungeon', FRAMES.fountain, 19, 19),
+  ...[[19, 19], [21, 19], [19, 21], [21, 21], [19, 20], [21, 20], [20, 19], [20, 21]].map(([x, y]) => it('town', tf(7, 3), x!, y!, false, 'floor')),
+  it('town', tf(8, 7), 20, 19, true), it('town', tf(8, 8), 20, 20, true),
   ind(FRAMES.bench[0]!, 14, 23, true), ind(FRAMES.bench[1]!, 15, 23, true), ind(FRAMES.bench[0]!, 24, 23, true), ind(FRAMES.bench[1]!, 25, 23, true),
   ind(FRAMES.bench[0]!, 13, 19, true),
   ...lamp(13, 17), ...lamp(26, 17), ...lamp(13, 21), ...lamp(26, 21),
@@ -195,7 +195,7 @@ export function plazaSlots(n: number): Point[] {
   const out: Point[] = [];
   for (let i = 0; i < n; i++) {
     const a = (i / Math.max(1, n)) * Math.PI * 2 - Math.PI / 2;
-    const p = { x: Math.round(PLAZA_CENTER.x + Math.cos(a) * 5.5), y: Math.round(PLAZA_CENTER.y + Math.sin(a) * 3) };
+    const p = { x: Math.round(PLAZA_CENTER.x + Math.cos(a) * 6), y: Math.round(PLAZA_CENTER.y + Math.sin(a) * 3) };
     out.push(isBlocked(p.x, p.y) ? (nearestFree(p) ?? p) : p);
   }
   return out;
