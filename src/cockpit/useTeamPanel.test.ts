@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RedactedTeamPanel } from '../../shared/team-panel';
 import { useTeamPanel } from './useTeamPanel';
 
-const panel: RedactedTeamPanel = { redacted: true, at: 1, needsYou: 0, sectors: [] };
+const panel: RedactedTeamPanel = { redacted: true, at: 1, needsYou: 0, needs: [], sectors: [] };
 beforeEach(() => localStorage.clear());
 
 describe('useTeamPanel', () => {

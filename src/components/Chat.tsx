@@ -161,13 +161,15 @@ export function ChatPanel({ session, messages, phase, settled = false, terminalB
       <CallDock call={call} />
       </FocusCollapse>
 
+      {sidePanel && sidePanel.isMobile && <TeamSidePanel api={sidePanel.api} isMobile onOpenBot={sidePanel.onOpenBot} />}
+
       {!hero && composer}
 
       {!keyboardOpen && footer}
 
       {attPreview && onAttClose && <AttachmentModal att={attPreview} onClose={onAttClose} />}
     </div>
-    {sidePanel && <TeamSidePanel api={sidePanel.api} isMobile={sidePanel.isMobile} />}
+    {sidePanel && !sidePanel.isMobile && <TeamSidePanel api={sidePanel.api} isMobile={false} onOpenBot={sidePanel.onOpenBot} />}
     </div>
   );
 }

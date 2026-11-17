@@ -93,7 +93,6 @@ export function ChatInput(props: ChatInputProps) {
   // itens da lista. O composer precisa de um contexto próprio acima dele.
   return (
     <div className="relative z-20 shrink-0 px-3 py-3">
-      {props.sideButton && <div className="absolute -top-10 right-3">{props.sideButton}</div>}
       <div className="mx-auto w-full max-w-[760px]">
       {mic.error && <ComposerNotice icon="mic" onDismiss={mic.dismissError}>{mic.error}</ComposerNotice>}
       <FocusCollapse hidden={!!focusMode}>
@@ -149,6 +148,7 @@ export function ChatInput(props: ChatInputProps) {
         <div className="flex shrink-0 items-center pointer-coarse:ml-auto">
           <ModelPicker compact model={model} setModel={setModel} models={models} onRefreshModels={onRefreshModels} canManage={caps?.role === 'admin' || caps?.role === 'root'} locked={modelLocked} effort={effort} setEffort={setEffort} />
         </div>
+        {props.sideButton}
         <ComposerActions
           mic={mic}
           busy={disabled}

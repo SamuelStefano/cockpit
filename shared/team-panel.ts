@@ -1,11 +1,14 @@
 import type { PrSummary, PrsSnapshot } from './prs';
-import type { TeamBot, TeamPendingQuestion } from './protocol';
+import type { TeamBot, TeamMascot, TeamPendingQuestion } from './protocol';
 import type { TeamBotStatus, TeamState } from './team-state';
 import { DEPARTMENTS, type DepartmentId } from './departments';
 
-export const MERGED_WINDOW_DAYS = 7;
+const BRT_OFFSET_MS = -3 * 3_600_000;
 export const UNOWNED_SECTOR_ID = 'unowned';
 const DAY_MS = 86_400_000;
+
+export const startOfBrtDay = (now: number): number =>
+  Math.floor((now + BRT_OFFSET_MS) / DAY_MS) * DAY_MS - BRT_OFFSET_MS;
 
 export type PrBlocker = 'checks' | 'conflict' | 'changes';
 
@@ -17,6 +20,7 @@ export interface TeamPanelPr {
   branch: string;
   state: 'open' | 'merged';
   mergedAt?: string;
+  updatedAt?: number;
   blocker?: PrBlocker;
 }
 
@@ -33,6 +37,7 @@ export interface TeamPanelBot {
   id: string;
   name: string;
   status: TeamBotStatus;
+  mascot?: TeamMascot;
   task?: string;
   openPrs: TeamPanelPr[];
   mergedPrs: TeamPanelPr[];
@@ -56,21 +61,25 @@ export interface TeamPanel {
   sectors: TeamPanelSector[];
 }
 
+export interface RedactedNeed { botName: string; at?: number }
+
 export interface RedactedBot {
   name: string;
   status: TeamBotStatus;
+  mascot?: TeamMascot;
   openPrs: number;
   mergedPrs: number;
   blockers: number;
   needsYou: number;
 }
 
-export interface RedactedSector { name: string; bots: RedactedBot[]; unassignedPrs: number }
+export interface RedactedSector { name: string; bots: RedactedBot[]; unassignedPrs: number; openPrs: number; mergedPrs: number; blockers: number }
 
 export interface RedactedTeamPanel {
   redacted: true;
   at: number;
   needsYou: number;
+  needs: RedactedNeed[];
   sectors: RedactedSector[];
 }
 
@@ -111,11 +120,12 @@ function slim(pr: PrSummary): TeamPanelPr {
     state: pr.state === 'merged' ? 'merged' : 'open',
     ...(pr.mergedAt ? { mergedAt: pr.mergedAt } : {}),
     ...(blocker ? { blocker } : {}),
+    ...(Date.parse(pr.updatedAt) ? { updatedAt: Date.parse(pr.updatedAt) } : {}),
   };
 }
 
-const needOf = (pr: TeamPanelPr, bot?: { id: string; name: string }): TeamPanelNeed => ({
-  kind: 'blocker', botName: bot?.name ?? 'Sem dono', ...(bot ? { botId: bot.id } : {}),
+const needOf = (pr: TeamPanelPr, bot?: { id: string; name: string }, at?: number): TeamPanelNeed => ({
+  kind: 'blocker', ...(at ? { at } : {}), botName: bot?.name ?? 'Sem dono', ...(bot ? { botId: bot.id } : {}),
   text: `${BLOCKER_TEXT[pr.blocker!]}: ${pr.repo}#${pr.number} ${pr.title}`, prUrl: pr.url,
 });
 
@@ -128,7 +138,7 @@ export interface TeamPanelInput {
 }
 
 export function buildTeamPanel(i: TeamPanelInput): TeamPanel {
-  const since = i.now - MERGED_WINDOW_DAYS * DAY_MS;
+  const since = startOfBrtDay(i.now);
   const seen = new Set<string>();
   const open: PrSummary[] = [];
   const merged: PrSummary[] = [];
@@ -153,6 +163,7 @@ export function buildTeamPanel(i: TeamPanelInput): TeamPanel {
   merged.forEach((p) => place(p, 'merged'));
 
   const questionsOf = new Map<string, TeamPanelNeed[]>();
+  const mascotOf = new Map(i.team.map((t) => [t.id, t.mascot]));
   const nameOf = new Map(i.state.bots.map((b) => [b.id, b.name]));
   for (const q of i.pending) {
     const list = questionsOf.get(q.botId) ?? [];
@@ -164,13 +175,13 @@ export function buildTeamPanel(i: TeamPanelInput): TeamPanel {
     const prs = byBot.get(b.id) ?? { open: [], merged: [] };
     const needs: TeamPanelNeed[] = [
       ...(questionsOf.get(b.id) ?? []),
-      ...prs.open.filter((p) => p.blocker).map((p) => needOf(p, b)),
+      ...prs.open.filter((p) => p.blocker).map((p) => needOf(p, b, p.updatedAt)),
     ];
     if (b.status === 'waiting' && !questionsOf.has(b.id)) {
       needs.push({ kind: 'blocker', botId: b.id, botName: b.name, text: 'Waiting for an answer' });
     }
     return {
-      id: b.id, name: b.name, status: b.status, ...(b.task ? { task: b.task } : {}),
+      id: b.id, name: b.name, status: b.status, ...(mascotOf.has(b.id) ? { mascot: mascotOf.get(b.id) } : {}), ...(b.task ? { task: b.task } : {}),
       openPrs: prs.open, mergedPrs: prs.merged, needs, ...(b.sector ? { sector: b.sector } : {}),
     };
   });
@@ -181,7 +192,7 @@ export function buildTeamPanel(i: TeamPanelInput): TeamPanel {
   })).filter((s) => s.bots.length > 0);
   const loose = bots.filter((b) => !b.sector);
   if (loose.length) sectors.push({ id: 'none', name: 'No sector', bots: loose.map(strip), openPrs: [], mergedPrs: [] });
-  const unownedNeeds = orphanOpen.filter((p) => p.blocker).map((p) => needOf(p));
+  const unownedNeeds = orphanOpen.filter((p) => p.blocker).map((p) => needOf(p, undefined, p.updatedAt));
   if (orphanOpen.length || orphanMerged.length) {
     sectors.push({ id: UNOWNED_SECTOR_ID, name: 'Sem dono', bots: [], openPrs: orphanOpen, mergedPrs: orphanMerged });
   }
@@ -200,12 +211,17 @@ export function redactTeamPanel(p: TeamPanel): RedactedTeamPanel {
     redacted: true,
     at: p.at,
     needsYou: p.needsYou.length,
+    needs: p.needsYou.map((n) => ({ botName: n.botName, ...(n.at ? { at: n.at } : {}) })),
     sectors: p.sectors.map((s) => ({
       name: s.name,
       unassignedPrs: s.openPrs.length + s.mergedPrs.length,
+      openPrs: s.openPrs.length + s.bots.reduce((n, b) => n + b.openPrs.length, 0),
+      mergedPrs: s.mergedPrs.length + s.bots.reduce((n, b) => n + b.mergedPrs.length, 0),
+      blockers: s.bots.reduce((n, b) => n + b.needs.filter((x) => x.kind === 'blocker').length, 0),
       bots: s.bots.map((b) => ({
         name: b.name,
         status: b.status,
+        ...(b.mascot ? { mascot: b.mascot } : {}),
         openPrs: b.openPrs.length,
         mergedPrs: b.mergedPrs.length,
         blockers: b.needs.filter((n) => n.kind === 'blocker').length,

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { PrSummary, PrsSnapshot } from './prs';
 import type { TeamBot } from './protocol';
 import type { TeamState } from './team-state';
-import { assignPrToBot, buildTeamPanel, panelFor, prBlocker, redactTeamPanel } from './team-panel';
+import { assignPrToBot, buildTeamPanel, panelFor, prBlocker, redactTeamPanel, startOfBrtDay } from './team-panel';
 
 const NOW = Date.parse('2026-11-17T12:00:00Z');
 const team = [{ id: 'ana1', sessionId: 'sess-a' }, { id: 'bob2' }] as unknown as TeamBot[];
@@ -47,14 +47,15 @@ describe('prBlocker', () => {
 
 describe('buildTeamPanel', () => {
   const old = pr({ url: 'u-old', state: 'merged', mergedAt: '2026-11-01T00:00:00Z' });
-  const recent = pr({ url: 'u-new', state: 'merged', mergedAt: '2026-11-15T00:00:00Z', headRef: 'ana1/x' });
+  const recent = pr({ url: 'u-new', state: 'merged', mergedAt: '2026-11-17T08:00:00Z', headRef: 'ana1/x' });
+  const yesterday = pr({ url: 'u-yest', state: 'merged', mergedAt: '2026-11-17T02:00:00Z', headRef: 'ana1/y' });
   const input = {
     team, state, now: NOW, pending: [question],
-    prs: snap([pr({ url: 'u1', headRef: 'ana1/x', checks: 'failure' }), pr({ url: 'u2', mergeable: 'conflict' })], [old, recent]),
+    prs: snap([pr({ url: 'u1', headRef: 'ana1/x', checks: 'failure' }), pr({ url: 'u2', mergeable: 'conflict' })], [old, yesterday, recent]),
   };
   const panel = buildTeamPanel(input);
 
-  it('groups per sector, keeps only 7-day merges, and files orphans under Sem dono', () => {
+  it('groups per sector, keeps only merges since midnight BRT, and files orphans under Sem dono', () => {
     const eng = panel.sectors.find((s) => s.id === 'engineering')!;
     expect(eng.bots[0].openPrs.map((p) => p.url)).toEqual(['u1']);
     expect(eng.bots[0].mergedPrs.map((p) => p.url)).toEqual(['u-new']);
@@ -65,6 +66,13 @@ describe('buildTeamPanel', () => {
     expect(panel.needsYou.filter((n) => n.kind === 'question')).toHaveLength(1);
     expect(panel.needsYou.filter((n) => n.kind === 'blocker')).toHaveLength(2);
     expect(buildTeamPanel({ ...input, pending: [] }).needsYou.some((n) => n.text === 'Waiting for an answer')).toBe(true);
+  });
+});
+
+describe('startOfBrtDay', () => {
+  it('returns 03:00Z of the same BRT day', () => {
+    expect(startOfBrtDay(NOW)).toBe(Date.parse('2026-11-17T03:00:00Z'));
+    expect(startOfBrtDay(Date.parse('2026-11-17T02:00:00Z'))).toBe(Date.parse('2026-11-16T03:00:00Z'));
   });
 });
 
@@ -80,6 +88,12 @@ describe('redaction', () => {
     }
     expect(json).toContain('Ana');
     expect(redactTeamPanel(panel).sectors[0].bots[0]).toMatchObject({ openPrs: 1, blockers: 1 });
+  });
+  it('exposes sector totals, need names and ages as numbers only', () => {
+    const r = redactTeamPanel(panel);
+    expect(r.needs.every((n) => Object.keys(n).every((k) => k === 'botName' || k === 'at'))).toBe(true);
+    expect(r.sectors[0]).toMatchObject({ openPrs: 1, blockers: 1 });
+    expect(Object.keys(r.sectors[0]).sort()).toEqual(['blockers', 'bots', 'mergedPrs', 'name', 'openPrs', 'unassignedPrs']);
   });
   it('panelFor switches on the flag', () => {
     expect(panelFor(panel, true).redacted).toBe(true);
