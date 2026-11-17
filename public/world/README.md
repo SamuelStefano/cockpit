@@ -69,3 +69,10 @@ Badges and house counts shown today are demo-only (`?demo`); the real data sourc
 `fx.png`: 16x16 frames. 0-3 dust puff (spawn at the feet while walking), 4-7 sparkle (play when a PR merges), 8 soft shadow (14x5), 9 small shadow (for jumps).
 
 `props.png` (4x4 tiles, original, tileset `props`, firstgid 1237) holds the round meeting table as a 3x3 block (tiles 0-2, 4-6, 8-10, all blocking). The Sala de Reunião seats eight around it (six participants, the moderator and one spare): seat 0 is the head of the table (east end, opposite the door) and belongs to the moderator; seats 1-3 north, 4-6 south, 7 west.
+
+## Quadro de tarefas (village)
+
+A 5x6 building on the plaza (object `kind=board`, `id=quadro`, never a bot project: `kind=house` takes bots by `project`, `board` and `meeting` are destinations only; its standing spots are points with `room=quadro`, door at the bottom, two standing spots in front of the board). The cork board is 3x2 blocking tiles of `props.png` (ids 12-14 top row, 16-18 bottom row) on the back wall; its three hooks sit at x = 10, 23 and 36 px of the 48 px board, on the bottom rim, where the "feito" plaque hangs.
+
+- `props.png` is 4x5 tiles. Frame 15: the "feito" plaque (16x16, transparent, hanging string at the top; draw it at a hook, origin top centre).
+- `taskbox.png`: 5 frames of 12x12 (0 left, 1 down, 2 up, 3 right, 4 on the ground). Draw it above the bot's head or in front of its body, per facing.
