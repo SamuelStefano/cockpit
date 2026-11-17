@@ -145,3 +145,14 @@ export async function agentBuilderTurn(system: string, prompt: string, sessionKe
   const args = ['--model', 'sonnet', ...leanOneShotArgs(system, true)];
   return (await oneShot(prompt, BUILDER_TIMEOUT_MS, BUILDER_CAP, sessionKey, args)).trim();
 }
+
+export const MEETING_TIMEOUT_MS = 180_000;
+const MEETING_CAP = 262144;
+
+// A meeting turn is text only: lean args are forced on whatever CONFIG.leanOneShots
+// says (no tools, no skills, no user settings, no transcript), and the bot's own
+// identity is the whole system prompt. A bot without a model speaks as sonnet.
+export async function meetingTurn(system: string, prompt: string, model: string | undefined, sessionKey = '_'): Promise<string> {
+  const args = ['--model', model || 'sonnet', ...leanOneShotArgs(system, true)];
+  return (await oneShot(prompt, MEETING_TIMEOUT_MS, MEETING_CAP, sessionKey, args)).trim();
+}

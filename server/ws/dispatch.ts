@@ -28,6 +28,7 @@ import { getMemories, saveMemory, deleteMemory, validateMemoryInput, readMemorie
 import { botTurnFor, botDenyRules } from '../team-prompt';
 import { refreshAgentSource, removeAgentSource } from '../agent-source';
 import { agentBuilderTurn } from '../engine/triage';
+import { sendMeetings, startMeetingFrame } from './team-meeting-frames';
 import { cleanBuildRequest } from './agent-build';
 import { parseTtsText, synthesize, mintSttToken } from '../tts';
 import { sendTeamMessages, sendTeamPaused, setTeamPause } from './team-frames';
@@ -972,6 +973,14 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     }
     case 'team-messages-get': {
       await sendTeamMessages(ws, msg);
+      return;
+    }
+    case 'team-meetings-get': {
+      await sendMeetings(ws);
+      return;
+    }
+    case 'team-meeting-start': {
+      await startMeetingFrame(ws, msg);
       return;
     }
     case 'team-pause-set': {

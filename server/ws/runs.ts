@@ -763,6 +763,7 @@ function echoPaneDelivery(sessionKey: string, msgId: string | undefined, prompt:
 // socket the sender gets an error; without one (auto-resume, a resume click, the
 // in-turn queue) the caller must keep the work, or it vanishes silently.
 // Same admission rule startRun applies (memory-aware cap; replacing always passes).
+export const hasFreeRunSlot = (): boolean => hasRoom('');
 function hasRoom(sessionKey: string): boolean {
   const effCap = memoryRunCap(readMemInfo().availMb, CONFIG.maxConcurrentRuns, threads.size);
   return admitRun(threads.size, threads.has(sessionKey), effCap);

@@ -141,6 +141,14 @@ describe('authorize', () => {
     expect(ROOT_ONLY.has('mcps-get')).toBe(false);
   });
 
+  it('meeting frames are admin-only and never owner-only', () => {
+    for (const t of ['team-meeting-start', 'team-meetings-get'] as const) {
+      expect(authorize('admin', t)).toBe(true);
+      expect(authorize('student', t)).toBe(false);
+      expect(ROOT_ONLY.has(t)).toBe(false);
+    }
+  });
+
   it('connections-get is admin-only and never owner-only', () => {
     expect(authorize('admin', 'connections-get')).toBe(true);
     expect(authorize('student', 'connections-get')).toBe(false);
