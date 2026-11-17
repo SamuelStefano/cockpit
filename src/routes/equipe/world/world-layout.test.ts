@@ -62,3 +62,27 @@ describe('roomEdgeTiles', () => {
     for (const d of sala.doors) expect(tiles.some((t) => Math.abs(t.x - (d.x + 1)) <= 1 && Math.abs(t.y - d.y) <= 1)).toBe(false);
   });
 });
+
+describe('meeting moderator', () => {
+  const sala = buildingById('sala');
+  const seat0 = seatTile(sala, sala.seats[0]!);
+  const seat1 = seatTile(sala, sala.seats[1]!);
+
+  it('seats the moderator at seat 0 whatever the bot order', () => {
+    const spots = assignSpots([npc('a', { meeting: true }), npc('b', { meeting: true }), npc('m', { meeting: true, moderator: true })]);
+    expect(spots.get('m')?.tile).toEqual(seat0);
+    expect(spots.get('a')?.tile).toEqual(seat1);
+  });
+
+  it('keeps the bot order without a moderator', () => {
+    const spots = assignSpots([npc('a', { meeting: true }), npc('b', { meeting: true })]);
+    expect(spots.get('a')?.tile).toEqual(seat0);
+    expect(spots.get('b')?.tile).toEqual(seat1);
+  });
+
+  it('ignores a moderator who is not in the room', () => {
+    const spots = assignSpots([npc('a', { meeting: true }), npc('m', { moderator: true })]);
+    expect(spots.get('a')?.tile).toEqual(seat0);
+    expect(spots.get('m')?.station).toBe('plaza');
+  });
+});

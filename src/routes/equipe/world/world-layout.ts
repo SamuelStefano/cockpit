@@ -43,7 +43,8 @@ export function assignSpots(npcs: NpcView[]): Map<string, Spot> {
     edgeUsed++;
     return { station: 'sala', tile, face: 'down', seated: false };
   };
-  for (const n of npcs) {
+  const ordered = [...npcs.filter((n) => n.moderator && n.meeting), ...npcs.filter((n) => !(n.moderator && n.meeting))];
+  for (const n of ordered) {
     const st = stationOf(n);
     if (st === 'plaza') { plaza.push(n); continue; }
     const spot = take(buildingById(st)) ?? (st !== 'sala' && st !== 'escritorio' ? take(buildingById('escritorio')) : null);
