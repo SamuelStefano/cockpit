@@ -59,8 +59,8 @@ export function TeamWorld({ state, connected, onRefresh, bots, meetings, onMeeti
   }, [demo]);
 
   const view = useMemo(
-    () => (demo ? deriveWorld(demoTeamState(Date.now(), tick), { counts: DEMO_COUNTS, projects: DEMO_PROJECTS, meeting }) : deriveWorld(state)),
-    [demo, state, tick],
+    () => (demo ? deriveWorld(demoTeamState(Date.now(), tick), { counts: DEMO_COUNTS, projects: DEMO_PROJECTS, meeting }) : deriveWorld(state, { meeting })),
+    [demo, state, tick, meeting],
   );
   const viewRef = useRef(view);
   viewRef.current = view;
@@ -114,8 +114,16 @@ export function TeamWorld({ state, connected, onRefresh, bots, meetings, onMeeti
           </div>
           <div className="absolute right-2 top-2 flex items-center gap-1.5">
             {demo && <span className="rounded-md border border-amber-400/30 bg-amber-500/15 px-2 py-1 text-[11px] text-amber-200">demo</span>}
+            <button type="button" className={`${chip} ${panel ? chipOn : chipOff}`} aria-pressed={panel} onClick={() => setPanel((v) => !v)}>Reunião</button>
             <button type="button" className={`${chip} ${chipOff}`} aria-pressed={false} onClick={() => dispatch({ t: 'toggle-recording' })}>Gravação</button>
           </div>
+          {panel && (
+            <MeetingPanel
+              bots={demo ? DEMO_TEAM : bots} running={!!meeting} onClose={() => setPanel(false)}
+              onStart={(i) => { if (demo) setDemoMeet(true); else onMeetingStart(i); }}
+              onSchedule={(c) => { if (!demo) onCronSave(c); }}
+            />
+          )}
           <p className="pointer-events-none absolute bottom-2 left-2 rounded bg-neutral-950/70 px-2 py-1 text-[11px] text-neutral-400 max-sm:hidden">
             {ui.mode === 'avatar' ? 'WASD ou setas · botão direito para andar · clique num bot para abrir o computador dele' : 'arraste para mover · roda ou pinça para o zoom · clique num bot'}
           </p>

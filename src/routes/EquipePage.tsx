@@ -9,6 +9,7 @@ import type { CronApi } from './equipe/equipe-props';
 import { Memoria } from './equipe/Memoria';
 import { TeamWorld } from './equipe/TeamWorld';
 import type { TeamState } from '../../shared/team-state';
+import type { MeetingInput, TeamMeeting } from '../../shared/team-meeting';
 
 export type Tab = 'rotinas' | 'memoria' | 'mundo';
 
@@ -25,6 +26,9 @@ interface EquipePageProps {
   memory?: MemoryProps;
   teamState?: TeamState | null;
   onTeamStateGet?: () => void;
+  meetings?: TeamMeeting[];
+  onMeetingsGet?: () => void;
+  onMeetingStart?: (input: MeetingInput) => void;
   views: BotView[];
   connected: boolean;
   isAdmin: boolean;
@@ -52,7 +56,9 @@ export function EquipePage(p: EquipePageProps) {
     return (
       <div className="flex min-h-0 flex-1 flex-col p-4 max-lg:pt-1 md:p-8">
         <Tabs items={items} active={tab} onChange={onTab} className="mb-2.5 lg:mb-4" />
-        <TeamWorld state={p.teamState ?? null} connected={connected} onRefresh={p.onTeamStateGet} />
+        <TeamWorld
+          state={p.teamState ?? null} connected={connected} onRefresh={p.onTeamStateGet} bots={p.bots} meetings={p.meetings ?? []}
+          onMeetingsGet={p.onMeetingsGet ?? (() => {})} onMeetingStart={p.onMeetingStart ?? (() => {})} onCronSave={p.cron.onCronSave} />
       </div>
     );
   }
