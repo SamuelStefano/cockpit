@@ -16,7 +16,7 @@ export interface TaskHandoff {
   switchPoint: string;
 }
 
-export interface TaskClaim { botId: string; at: number }
+export interface TaskClaim { botId: string; at: number; sentAt?: number; turnStartedAt?: number }
 
 export interface PlannerTask {
   id: string;

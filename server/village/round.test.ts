@@ -8,9 +8,9 @@ const task = (o: Partial<PlannerTask>): PlannerTask => ({
   ready: true, ownerBotId: 'bob', ...o,
 });
 const team = [
-  { id: 'iris', primary: true, department: 'direction' as const },
-  { id: 'bob', department: 'engineering' as const },
-  { id: 'amy', department: 'engineering' as const },
+  { id: 'iris', sessionId: 's-iris', primary: true, department: 'direction' as const },
+  { id: 'bob', sessionId: 's-bob', department: 'engineering' as const },
+  { id: 'amy', sessionId: 's-amy', department: 'engineering' as const },
 ];
 const input = (o: Partial<RoundInput>): RoundInput => ({
   tasks: [], team, state: { turns: {} }, now: NOW, config: { dailyCap: 6 }, running: new Set(), paused: false, ...o,
@@ -23,12 +23,12 @@ describe('planRound', () => {
 
   it('does nothing when no task is ready, even with an owner', () => {
     const plan = planRound(input({ tasks: [task({ ready: undefined }), task({ id: 't2', ready: undefined, ownerSector: 'engineering', ownerBotId: undefined })] }));
-    expect(plan).toEqual({ claims: [], releases: [] });
+    expect(plan).toEqual({ claims: [], releases: [], skips: [] });
   });
 
   it('does nothing when paused', () => {
     const stale = task({ claim: { botId: 'bob', at: NOW - 2 * CLAIM_STALE_MS } });
-    expect(planRound(input({ tasks: [task({ id: 't9', ownerBotId: 'amy' }), stale], paused: true }))).toEqual({ claims: [], releases: [] });
+    expect(planRound(input({ tasks: [task({ id: 't9', ownerBotId: 'amy' }), stale], paused: true }))).toEqual({ claims: [], releases: [], skips: [] });
   });
 
   it('skips unsafe, claimed and done tasks', () => {

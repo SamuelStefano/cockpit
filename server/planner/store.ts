@@ -58,7 +58,10 @@ function sanitizeOwner(v: unknown): string | undefined {
 function sanitizeClaim(v: unknown): TaskClaim | undefined {
   const c = v as Partial<TaskClaim> | null | undefined;
   if (!c || typeof c !== 'object' || typeof c.botId !== 'string' || !PLANNER_ID_RE.test(c.botId) || !finite(c.at) || c.at <= 0) return undefined;
-  return { botId: c.botId, at: c.at };
+  const out: TaskClaim = { botId: c.botId, at: c.at };
+  if (finite(c.sentAt) && c.sentAt > 0) out.sentAt = c.sentAt;
+  if (finite(c.turnStartedAt) && c.turnStartedAt > 0) out.turnStartedAt = c.turnStartedAt;
+  return out;
 }
 
 export interface SanitizeOpts { trusted?: boolean; humanConfirmed?: boolean }
@@ -90,9 +93,13 @@ export function sanitizeTask(raw: unknown, prev: PlannerTask | undefined, now: n
   if (column !== 'done') {
     const open = opts.trusted || opts.humanConfirmed;
     const wantReady = 'ready' in r ? r.ready === true : prev?.ready === true;
-    if (wantReady && (open || prev?.ready === true)) task.ready = true;
     const wantUnsafe = 'unsafe' in r ? r.unsafe === true : prev?.unsafe === true;
     if (wantUnsafe || (prev?.unsafe === true && !open)) task.unsafe = true;
+    const ownerSectorNext = 'ownerSector' in r ? (isDepartmentId(r.ownerSector) ? r.ownerSector : undefined) : prev?.ownerSector;
+    const edited = !!prev && (task.title !== prev.title || task.description !== prev.description
+      || JSON.stringify(task.links) !== JSON.stringify(prev.links) || !!task.unsafe !== !!prev.unsafe
+      || task.ownerBotId !== prev.ownerBotId || ownerSectorNext !== prev.ownerSector);
+    if (wantReady && (open || (prev?.ready === true && !edited))) task.ready = true;
   }
   const ownerSector = 'ownerSector' in r ? (isDepartmentId(r.ownerSector) ? r.ownerSector : undefined) : prev?.ownerSector;
   if (ownerSector) task.ownerSector = ownerSector;

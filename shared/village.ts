@@ -3,7 +3,7 @@ export const VILLAGE_MAX_DAILY_CAP = 24;
 export const VILLAGE_EVENTS_CAP = 50;
 export const VILLAGE_TURN_DAYS = 7;
 
-export interface VillageEvent { at: number; type: 'claim' | 'release'; botId: string; taskId: string; reason?: string }
+export interface VillageEvent { at: number; type: 'claim' | 'release' | 'skip'; botId: string; taskId: string; reason?: string }
 export interface VillageState {
   enabled: boolean;
   dailyCap: number;

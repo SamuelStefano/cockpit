@@ -39,7 +39,7 @@ export function sanitizeState(raw: unknown): VillageState {
   }
   if (Array.isArray(r.events)) {
     for (const e of r.events as Partial<VillageEvent>[]) {
-      if (!e || (e.type !== 'claim' && e.type !== 'release') || typeof e.botId !== 'string' || typeof e.taskId !== 'string' || typeof e.at !== 'number') continue;
+      if (!e || (e.type !== 'claim' && e.type !== 'release' && e.type !== 'skip') || typeof e.botId !== 'string' || typeof e.taskId !== 'string' || typeof e.at !== 'number') continue;
       out.events.push({ at: e.at, type: e.type, botId: e.botId, taskId: e.taskId, ...(typeof e.reason === 'string' ? { reason: e.reason.slice(0, 200) } : {}) });
     }
     out.events = out.events.slice(-VILLAGE_EVENTS_CAP);

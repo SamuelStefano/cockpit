@@ -10,7 +10,7 @@ import { readVillage, setVillageSettings } from './store';
 import { runRound, type RoundDeps } from './round';
 
 const bot = (id: string, o: Partial<TeamBot> = {}): TeamBot => ({ id, name: id, label: '', instructions: '', mascot: { shape: 'blob', color: '#fff' }, profile: 'full', createdAt: 0, updatedAt: 0, ...o });
-const team = [bot('iris', { primary: true }), bot('bob', { department: 'engineering' })];
+const team = [bot('iris', { primary: true, sessionId: 's-iris' }), bot('bob', { department: 'engineering', sessionId: 's-bob' })];
 const task = (o: Partial<PlannerTask> = {}): PlannerTask => ({ id: 't1', title: 'Write docs', description: 'polish', links: [], difficulty: 1, column: 'today', order: 1, createdAt: 1, updatedAt: 1, ...o });
 
 let dir: string;
@@ -52,7 +52,7 @@ describe('runRound', () => {
     const r = await runRound(deps('delivered', calls));
     expect(r.claimed).toEqual([{ taskId: 't1', botId: 'bob' }]);
     const [t] = await readTasks();
-    expect(t.claim).toEqual({ botId: 'bob', at: 10_000_000 });
+    expect(t.claim).toEqual({ botId: 'bob', at: 10_000_000, sentAt: 10_000_000 });
     expect(t.handoffs?.at(-1)).toMatchObject({ toBotId: 'bob', reason: 'village round' });
     const v = await readVillage();
     expect(Object.values(v.turns)[0]).toEqual({ bob: 1 });
