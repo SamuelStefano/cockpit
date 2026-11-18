@@ -35,4 +35,13 @@ describe('talkReducer', () => {
     const s = talkReducer(talkReducer(initialTalk, { t: 'open', botId: 'a' }), { t: 'close' });
     expect(talkReducer(s, { t: 'chunk', botId: 'a', chunk: { kind: 'delta', text: 'x' } })).toBe(s);
   });
+  it('explains paused and busy refusals', () => {
+    let s = talkReducer(initialTalk, { t: 'open', botId: 'a' });
+    s = talkReducer(s, { t: 'sent', msgId: 'm1' });
+    const paused = talkReducer(s, { t: 'chunk', botId: 'a', msgId: 'm1', chunk: { kind: 'refused', reason: 'paused' as never } });
+    expect(paused.sending).toBe(false);
+    expect(paused.notice).toContain('pausada');
+    const busy = talkReducer(s, { t: 'chunk', botId: 'a', msgId: 'm1', chunk: { kind: 'refused', reason: 'busy' as never } });
+    expect(busy.notice).toContain('Aguarde');
+  });
 });

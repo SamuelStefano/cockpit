@@ -22,6 +22,8 @@ const REFUSED: Record<string, string> = {
   'no-session': 'Este bot ainda não tem sessão.',
   empty: 'Escreva uma mensagem.',
   'too-long': 'Mensagem longa demais.',
+  paused: 'A vila está pausada.',
+  busy: 'Aguarde, o bot ainda está respondendo.',
 };
 
 export function talkReducer(s: TalkState, a: TalkAction): TalkState {
@@ -33,7 +35,7 @@ export function talkReducer(s: TalkState, a: TalkAction): TalkState {
     case 'chunk': {
       if (s.botId !== a.botId) return s;
       const c = a.chunk;
-      if (c.kind === 'refused') return a.msgId && a.msgId !== s.msgId ? s : { ...s, sending: false, notice: REFUSED[c.reason] ?? 'Recusado.' };
+      if (c.kind === 'refused') return a.msgId && a.msgId !== s.msgId ? s : { ...s, sending: c.reason === 'busy' ? s.sending : false, notice: REFUSED[c.reason] ?? 'Recusado.' };
       if (c.kind === 'delta') return 'redacted' in c ? s : s.sending ? { ...s, reply: s.reply + c.text } : s;
       if (c.kind === 'done') return { ...s, sending: false };
       return { ...s, sending: false, notice: 'redacted' in c ? 'Erro no bot.' : c.message };
