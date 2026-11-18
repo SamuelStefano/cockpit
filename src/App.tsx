@@ -44,7 +44,7 @@ import { boxStore } from './cockpit/boxes-store';
 import { takePendingPrompt, PROMPT_LINK_MAX } from './cockpit/prompt-link';
 import { toast } from './components/primitives/toast-bus';
 import { takeNewIntent } from './cockpit/box-intent';
-import { AGENT_MEETINGS, AGENT_NEW, AGENT_STORE, useRoute } from './useRoute';
+import { AGENT_MEETINGS, AGENT_NEW, AGENT_STORE, menuRoute, useRoute } from './useRoute';
 import { capacityBlocksSend } from './lib/capacity';
 import { loadPref } from './lib/persist';
 import { SUPABASE_ENABLED } from './lib/supabase';
@@ -246,7 +246,7 @@ function CockpitBody() {
   const closeDrawer = useCallback(() => setDrawer(false), [setDrawer]);
   const drawerNav = drawer ? (
     <Sidebar
-      route={route} nav={(to) => { setDrawer(false); nav(to); }} role={role}
+      route={menuRoute(route, agentId)} nav={(to) => { setDrawer(false); nav(to); }} role={role}
       onNew={handleNew} onPalette={openPalette}
       bitState={bitState} conn={conn.ws} account={account}
       sessions={<SessionsPanel {...sidebarProps} embedded onCloseMobile={closeDrawer} />}
@@ -312,7 +312,7 @@ function CockpitBody() {
       <div className="flex min-h-0 flex-1">
         {!isMobile && (
           <Sidebar
-            route={route} nav={nav} role={role} navCounts={navCounts} onNew={handleNew} onPalette={() => setPalette(true)}
+            route={menuRoute(route, agentId)} nav={nav} role={role} navCounts={navCounts} onNew={handleNew} onPalette={() => setPalette(true)}
             bitState={bitState} conn={conn.ws} account={account}
             sessions={<SessionsPanel {...sidebarProps} embedded />}
             rail={<RailChats sessions={sidebarSessions} running={runningAnywhere} activeId={activeSessionId} onSelect={selectSession} />}

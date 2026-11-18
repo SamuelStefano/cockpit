@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import { useRoute, skillPath, legacyRedirect } from './useRoute';
+import { useRoute, skillPath, legacyRedirect, menuRoute } from './useRoute';
 
 describe('useRoute', () => {
   beforeEach(() => history.replaceState(null, '', '/'));
@@ -252,5 +252,15 @@ describe('legacyRedirect', () => {
     expect(legacyRedirect('/conexoes/github', '', '?installation_id=1')).toBe('/configuracoes/conexoes?installation_id=1');
     expect(legacyRedirect('/docs', '#x', '')).toBe('/configuracoes/docs#x');
     expect(legacyRedirect('/configuracoes/skills', '', '')).toBeNull();
+  });
+
+  it('opens the Store as the reserved agent id under /agentes', () => {
+    const { result } = renderHook(() => useRoute());
+    act(() => result.current.nav('/agentes/loja'));
+    expect(location.pathname).toBe('/agentes/loja');
+    expect(result.current.route).toBe('/agentes');
+    expect(result.current.agentId).toBe('loja');
+    expect(menuRoute(result.current.route, result.current.agentId)).toBe('/agentes/loja');
+    expect(menuRoute('/agentes', '')).toBe('/agentes');
   });
 });
