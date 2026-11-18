@@ -1,0 +1,88 @@
+{
+  "homes": {
+    "iris": {
+      "house": "prefeitura",
+      "seat": 0
+    },
+    "ada": {
+      "house": "servidores",
+      "seat": 0
+    },
+    "otto": {
+      "house": "deck",
+      "seat": 0
+    },
+    "goku": {
+      "house": "deck",
+      "seat": 1
+    },
+    "nami": {
+      "house": "deck",
+      "seat": 2
+    },
+    "vegeta": {
+      "house": "deck",
+      "seat": 3
+    },
+    "lara": {
+      "house": "deck",
+      "seat": 4
+    },
+    "anderson": {
+      "house": "qa",
+      "seat": 0
+    },
+    "raquel": {
+      "house": "qa",
+      "seat": 1
+    },
+    "luffy": {
+      "house": "itera",
+      "seat": 0
+    },
+    "malu": {
+      "house": "itera",
+      "seat": 1
+    },
+    "zoro": {
+      "house": "dfl",
+      "seat": 0
+    },
+    "lorena": {
+      "house": "seguranca",
+      "seat": 0
+    },
+    "arthur": {
+      "house": "estudio",
+      "seat": 0
+    },
+    "usopp": {
+      "house": "estudio",
+      "seat": 1
+    },
+    "mari": {
+      "house": "radio",
+      "seat": 0
+    },
+    "naruto": {
+      "house": "corte-radar",
+      "seat": 0
+    },
+    "sasuke": {
+      "house": "corte-radar",
+      "seat": 1
+    },
+    "hinata": {
+      "house": "corte-radar",
+      "seat": 2
+    },
+    "robin": {
+      "house": "banco",
+      "seat": 0
+    },
+    "bulma": {
+      "house": "banco",
+      "seat": 1
+    }
+  }
+}
