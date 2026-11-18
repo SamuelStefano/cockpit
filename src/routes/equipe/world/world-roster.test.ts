@@ -63,7 +63,7 @@ describe('real roster', () => {
   it('puts a bot on the plaza only during its stroll window after 30 minutes idle', () => {
     const id = 'zoro';
     const secondsOnPlaza: number[] = [];
-    for (let s = 0; s <= 120; s++) {
+    for (let s = 0; s <= 11 * 60; s++) {
       const idleMs = BREAK_AFTER_MS + s * 1000;
       const state = buildTeamState({ team: team(true), tasks: [], log: [], running: new Set(), waiting: new Set(), lastTurnEnd: new Map([[id, NOW - idleMs]]), now: NOW });
       if (assignSpots(deriveWorld(state, { now: NOW }).npcs).get(id)?.station === 'plaza') secondsOnPlaza.push(s);

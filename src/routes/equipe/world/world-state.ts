@@ -1,6 +1,6 @@
 import type { TeamState, TeamBotStatus } from '../../../../shared/team-state';
 import type { BuildingId } from './world-map';
-import { breakPlace } from './world-break';
+import { plazaBreakers } from './world-break';
 import { homeOf } from './world-home';
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
@@ -87,9 +87,10 @@ export function deriveWorld(state: TeamState | null, opts: DeriveOptions = {}): 
   const ids = new Set(state.bots.map((b) => b.id));
   const moderatorId = opts.meeting?.moderatorId && ids.has(opts.meeting.moderatorId) ? opts.meeting.moderatorId : undefined;
   const inMeeting = new Set([...(opts.meeting?.participantIds ?? []), ...(moderatorId ? [moderatorId] : [])].filter((id) => ids.has(id)));
+  const breakers = plazaBreakers(now, state.bots.filter((b) => b.status === 'idle'));
   const npcs = state.bots.map((b): NpcView => ({
     id: b.id, name: b.name, mode: b.status, badge: badgeText(opts.counts?.[b.id]),
-    home: homeOf(b), ...(b.homeSeat !== undefined && b.home === homeOf(b) ? { homeSeat: b.homeSeat } : {}), onBreak: b.status === 'idle' && breakPlace(now, b.idleSince, b.id) === 'plaza', ...(b.sprite ? { sprite: b.sprite } : {}), ...(HEX.test(b.color ?? '') ? { color: b.color } : {}), meeting: inMeeting.has(b.id),
+    home: homeOf(b), ...(b.homeSeat !== undefined && b.home === homeOf(b) ? { homeSeat: b.homeSeat } : {}), onBreak: breakers.has(b.id), ...(b.sprite ? { sprite: b.sprite } : {}), ...(HEX.test(b.color ?? '') ? { color: b.color } : {}), meeting: inMeeting.has(b.id),
     ...(b.id === moderatorId ? { moderator: true } : {}),
   }));
   const flights = state.handoffs
