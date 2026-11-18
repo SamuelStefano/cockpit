@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { TeamState } from '../../../../shared/team-state';
-import { badgeText, deriveWorld, npcSprite, projectOf, stationOf } from './world-state';
+import { badgeText, deriveWorld, npcSprite, stationOf } from './world-state';
 
 const state = (over: Partial<TeamState> = {}): TeamState => ({
   at: 1_000_000,
@@ -41,9 +41,9 @@ describe('deriveWorld', () => {
   it('keeps only name, mode and badge per bot', () => {
     const w = deriveWorld(state(), { counts: { a: 3 } });
     expect(w.npcs).toEqual([
-      { id: 'a', name: 'Íris', mode: 'working', badge: '3', project: 'escritorio', meeting: false },
-      { id: 'b', name: 'Otto', mode: 'idle', badge: null, project: 'escritorio', meeting: false },
-      { id: 'c', name: 'Luffy', mode: 'waiting', badge: null, project: 'itera', meeting: false },
+      { id: 'a', name: 'Íris', mode: 'working', badge: '3', home: 'escritorio', onBreak: false, meeting: false },
+      { id: 'b', name: 'Otto', mode: 'idle', badge: null, home: 'escritorio', onBreak: false, meeting: false },
+      { id: 'c', name: 'Luffy', mode: 'waiting', badge: null, home: 'itera', onBreak: false, meeting: false },
     ]);
     const dump = JSON.stringify(w);
     expect(dump).not.toContain('secret');
@@ -76,45 +76,19 @@ describe('deriveWorld', () => {
   });
 });
 
-describe('projectOf', () => {
-  const houses = [{ id: 'itera' }, { id: 'dfl' }, { id: 'corte-radar' }, { id: 'eng-hall', department: 'engineering' }];
-
-  it('lets the project field win over task and department', () => {
-    expect(projectOf({ project: 'dfl', task: 'itera work', sector: 'engineering' }, houses)).toBe('dfl');
-  });
-
-  it('ignores an unknown project and falls through', () => {
-    expect(projectOf({ project: 'nope' }, houses)).toBe('escritorio');
-    expect(projectOf({ project: 'nope', task: 'fix radar crop' }, houses)).toBe('corte-radar');
-  });
-
-  it('uses a task keyword only when that house exists', () => {
-    expect(projectOf({ task: 'DFL invoice' }, houses)).toBe('dfl');
-    expect(projectOf({ task: 'DFL invoice' }, [{ id: 'itera' }])).toBe('escritorio');
-  });
-
-  it('falls back to the house of the bot department', () => {
-    expect(projectOf({ sector: 'engineering' }, houses)).toBe('eng-hall');
-    expect(projectOf({ sector: 'growth' }, houses)).toBe('escritorio');
-  });
-
-  it('falls back to the office', () => {
-    expect(projectOf({}, houses)).toBe('escritorio');
-  });
-
-  it('resolves through the real map in deriveWorld', () => {
-    const w = deriveWorld(state({ bots: [{ id: 'z', name: 'X', role: 'r', status: 'working', task: 'DFL invoice' }] }));
-    expect(w.npcs[0]?.project).toBe('dfl');
+describe('deriveWorld home', () => {
+  it('resolves the home through the real map', () => {
+    const w = deriveWorld(state({ bots: [{ id: 'z', name: 'X', role: 'r', status: 'working', home: 'deck' }, { id: 'y', name: 'Y', role: 'r', status: 'idle', sector: 'growth' }] }));
+    expect(w.npcs.map((n) => n.home)).toEqual(['deck', 'corte-radar']);
   });
 });
 
 describe('stationOf', () => {
-  it('sends working bots to their project, meeting bots to the room, others to the plaza', () => {
-    expect(stationOf({ mode: 'working', project: 'dfl', meeting: false })).toBe('dfl');
-    expect(stationOf({ mode: 'idle', project: 'dfl', meeting: false })).toBe('plaza');
-    expect(stationOf({ mode: 'waiting', project: 'dfl', meeting: false })).toBe('plaza');
-    expect(stationOf({ mode: 'idle', project: 'dfl', meeting: true })).toBe('sala');
-    expect(stationOf({ mode: 'working', project: 'dfl', meeting: true })).toBe('sala');
+  it('keeps every bot at home, sends meeting bots to the room and strollers to the plaza', () => {
+    expect(stationOf({ home: 'dfl', onBreak: false, meeting: false })).toBe('dfl');
+    expect(stationOf({ home: 'dfl', onBreak: true, meeting: false })).toBe('plaza');
+    expect(stationOf({ home: 'dfl', onBreak: false, meeting: true })).toBe('sala');
+    expect(stationOf({ home: 'dfl', onBreak: true, meeting: true })).toBe('sala');
   });
 
   it('marks meeting participants from the running meeting only', () => {
@@ -130,11 +104,6 @@ describe('deriveWorld celebrate', () => {
     expect(w.celebrate).toEqual(['a']);
     const list = ['a'];
     expect(deriveWorld(state(), { celebrate: list }).celebrate).toBe(list);
-  });
-
-  it('never sends a bot to a board or the meeting room as its project', () => {
-    expect(projectOf({ project: 'quadro' })).toBe('escritorio');
-    expect(projectOf({ project: 'sala' })).toBe('escritorio');
   });
 });
 

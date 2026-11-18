@@ -78,3 +78,18 @@ describe('pendingFollowUps', () => {
     expect(pendingFollowUps(log, team, now, 4)).toHaveLength(30);
   });
 });
+
+describe('buildTeamState home and idleSince', () => {
+  const base = { tasks: [], waiting: new Set<string>(), now: 10_000 };
+  it('carries home and sets idleSince from the last turn end or the last message, only while idle', () => {
+    const s = buildTeamState({
+      ...base, team: [bot('a', { home: 'deck' }), bot('b'), bot('c'), bot('d')], log: [msg('1', 'b', 'a', 4000)],
+      running: new Set(['c']), lastTurnEnd: new Map([['a', 3000], ['c', 2000]]),
+    });
+    const by = (id: string) => s.bots.find((x) => x.id === id)!;
+    expect(by('a')).toMatchObject({ home: 'deck', idleSince: 3000 });
+    expect(by('b').idleSince).toBe(4000);
+    expect(by('c').idleSince).toBeUndefined();
+    expect(by('d').idleSince).toBeUndefined();
+  });
+});

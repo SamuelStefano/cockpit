@@ -1081,6 +1081,7 @@ export function startRun(o: StartRunOptions): 'pane' | 'rejected' | undefined {
       });
       if (thread.sessionId && !thread.stopped && !unattended) void summarize(thread.sessionId);
       threads.delete(sessionKey);
+      if (thread.params.botId) botTurnEnds.set(thread.params.botId, Date.now());
       scheduleTeamStatePush();
       // época só vive enquanto há turno/triagem; senão vaza monotônico. A triage
       // or quick answer still waiting on this key needs it: clearing it back to 0
@@ -1417,6 +1418,9 @@ export function fireCron(cron: Cron): Promise<CronFire> {
 
 // The bot's live turn, under whatever key it runs: its draft key, `bot-<id>`, or the
 // key a tab gave the bound session.
+const botTurnEnds = new Map<string, number>();
+export const botLastTurnEnds = (): ReadonlyMap<string, number> => botTurnEnds;
+
 export function botLiveKey(botId: string, sessionId?: string): string | undefined {
   for (const [k, t] of threads) if (t.params.botId === botId || (sessionId && t.sessionId === sessionId)) return k;
   return undefined;

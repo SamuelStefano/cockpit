@@ -3,38 +3,41 @@ import { assignSpots, roomEdgeTiles } from './world-layout';
 import { buildingById, seatTile } from './world-map';
 import type { NpcView } from './world-state';
 
-const npc = (id: string, over: Partial<NpcView> = {}): NpcView => ({ id, name: id, mode: 'idle', badge: null, project: 'escritorio', meeting: false, ...over });
+const npc = (id: string, over: Partial<NpcView> = {}): NpcView => ({ id, name: id, mode: 'idle', badge: null, home: 'escritorio', onBreak: false, meeting: false, ...over });
 
 describe('assignSpots', () => {
-  it('keeps idle bots on distinct plaza tiles', () => {
-    const spots = assignSpots(Array.from({ length: 11 }, (_, i) => npc(`b${i}`)));
-    const tiles = [...spots.values()].map((s) => `${s.tile.x},${s.tile.y}`);
-    expect(new Set(tiles).size).toBe(11);
-    expect([...spots.values()].every((s) => s.station === 'plaza' && !s.seated)).toBe(true);
-  });
-
-  it('seats a working bot at a desk of its project', () => {
-    const spots = assignSpots([npc('t', { mode: 'working', project: 'itera' }), npc('d', { mode: 'working', project: 'dfl' }), npc('i')]);
+  it('keeps idle bots at their home desks, never on the plaza', () => {
+    const spots = assignSpots([npc('t', { home: 'itera' }), npc('d', { home: 'dfl' }), npc('i')]);
     const itera = buildingById('itera');
     expect(spots.get('t')).toMatchObject({ station: 'itera', seated: true, tile: seatTile(itera, itera.seats[0]!) });
     expect(spots.get('d')?.station).toBe('dfl');
-    expect(spots.get('i')?.station).toBe('plaza');
+    expect(spots.get('i')?.station).toBe('escritorio');
   });
 
-  it('overflows a full house to the shared office, then to the plaza', () => {
-    const bots = Array.from({ length: 9 }, (_, i) => npc(`w${i}`, { mode: 'working', project: 'corte-radar' }));
-    const stations = assignSpots(bots);
-    const count = (s: string) => [...stations.values()].filter((x) => x.station === s).length;
-    expect(count('corte-radar')).toBe(4);
-    expect(count('escritorio')).toBe(4);
-    expect(count('plaza')).toBe(1);
+  it('puts a bot on a break on distinct plaza tiles', () => {
+    const spots = assignSpots(Array.from({ length: 6 }, (_, i) => npc(`b${i}`, { onBreak: true })));
+    const tiles = [...spots.values()].map((s) => `${s.tile.x},${s.tile.y}`);
+    expect(new Set(tiles).size).toBe(6);
+    expect([...spots.values()].every((s) => s.station === 'plaza' && !s.seated)).toBe(true);
+  });
+
+  it('stands the overflow of a full house inside the same house, never on the plaza', () => {
+    const deck = buildingById('deck');
+    const bots = Array.from({ length: 4 }, (_, i) => npc(`d${i}`, { home: 'deck' }));
+    const spots = [...assignSpots(bots).values()];
+    expect(spots.every((s) => s.station === 'deck')).toBe(true);
+    expect(spots.filter((s) => s.seated).length).toBe(deck.seats.length);
+    expect(new Set(spots.map((s) => `${s.tile.x},${s.tile.y}`)).size).toBe(4);
+    for (const s of spots.filter((x) => !x.seated)) {
+      expect(s.tile.x > deck.x && s.tile.x < deck.x + deck.w - 1 && s.tile.y > deck.y && s.tile.y < deck.y + deck.h - 1).toBe(true);
+    }
   });
 
   it('sends meeting participants to the meeting room, whatever they were doing', () => {
-    const spots = assignSpots([npc('a', { meeting: true }), npc('b', { meeting: true, mode: 'working', project: 'dfl' }), npc('c')]);
+    const spots = assignSpots([npc('a', { meeting: true }), npc('b', { meeting: true, home: 'dfl' }), npc('c')]);
     expect(spots.get('a')?.station).toBe('sala');
     expect(spots.get('b')?.station).toBe('sala');
-    expect(spots.get('c')?.station).toBe('plaza');
+    expect(spots.get('c')?.station).toBe('escritorio');
   });
 });
 
@@ -83,6 +86,6 @@ describe('meeting moderator', () => {
   it('ignores a moderator who is not in the room', () => {
     const spots = assignSpots([npc('a', { meeting: true }), npc('m', { moderator: true })]);
     expect(spots.get('a')?.tile).toEqual(seat0);
-    expect(spots.get('m')?.station).toBe('plaza');
+    expect(spots.get('m')?.station).toBe('escritorio');
   });
 });

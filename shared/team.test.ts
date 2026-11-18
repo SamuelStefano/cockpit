@@ -80,3 +80,13 @@ describe('bot keys', () => {
     expect(validateBotInput({ ...ok, id: newBotId() }).ok).toBe(true);
   });
 });
+
+describe('bot home', () => {
+  it('keeps a valid building id and drops anything else', () => {
+    expect(validateBotInput({ ...ok, home: 'corte-radar' })).toMatchObject({ ok: true, bot: { home: 'corte-radar' } });
+    for (const bad of ['Deck', 'a b', '', 'x'.repeat(41), 5, null]) {
+      const r = validateBotInput({ ...ok, home: bad });
+      expect(r.ok && 'home' in r.bot).toBe(false);
+    }
+  });
+});

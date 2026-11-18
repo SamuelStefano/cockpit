@@ -17,6 +17,9 @@ export interface TeamStateBot {
   role: string;
   sector?: DepartmentId;
   project?: string;
+  home?: string;
+  // Epoch ms when the bot's last turn ended; only set while it is idle.
+  idleSince?: number;
   sprite?: string;
   color?: string;
   manager?: string;
@@ -40,6 +43,8 @@ export interface TeamStateInput {
   log: TeamMessage[];
   running: ReadonlySet<string>;
   waiting: ReadonlySet<string>;
+  // Epoch ms of each bot's last finished turn (server memory).
+  lastTurnEnd?: ReadonlyMap<string, number>;
   now: number;
   followUpHours?: number;
 }
@@ -92,16 +97,20 @@ export function buildTeamState(i: TeamStateInput): TeamState {
   const bots = i.team.map((b): TeamStateBot => {
     const task = currentTask(b.id, i.tasks);
     const last = lastSend.get(b.id);
+    const status: TeamBotStatus = i.waiting.has(b.id) ? 'waiting' : i.running.has(b.id) ? 'working' : 'idle';
+    const since = Math.max(i.lastTurnEnd?.get(b.id) ?? 0, last?.ts ?? 0);
     return {
       id: b.id,
       name: b.name,
       role: b.label,
       ...(b.department ? { sector: b.department } : {}),
       ...(b.project ? { project: b.project } : {}),
+      ...(b.home ? { home: b.home } : {}),
       ...(b.sprite ? { sprite: b.sprite } : {}),
       ...(b.mascot?.color ? { color: b.mascot.color } : {}),
       ...(b.parentId && ids.has(b.parentId) ? { manager: b.parentId } : {}),
-      status: i.waiting.has(b.id) ? 'waiting' : i.running.has(b.id) ? 'working' : 'idle',
+      status,
+      ...(status === 'idle' && since > 0 ? { idleSince: since } : {}),
       ...(task ? { task: task.title } : {}),
       ...(last ? { lastSend: { to: last.to, at: last.ts, preview: preview(last.text) } } : {}),
     };
