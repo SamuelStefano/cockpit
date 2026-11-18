@@ -53,6 +53,11 @@ describe('validateBotInput with access fields', () => {
     const bad = validateBotInput({ ...base, department: 'sales' });
     expect(bad).toEqual({ ok: false, error: 'setor inválido' });
   });
+  it('accepts plugin skills as <plugin>:<skill> and rejects malformed ids', () => {
+    const ok = validateBotInput({ ...base, skills: ['supabase:supabase', 'plain-skill'] });
+    expect(ok.ok && ok.bot.skills).toEqual(['supabase:supabase', 'plain-skill']);
+    for (const bad of ['a:', ':a', 'a:b:c', 'a b', 'a:b c', 'x'.repeat(81)]) expect(validateBotInput({ ...base, skills: [bad] }).ok).toBe(false);
+  });
   it('rejects malformed fields', () => {
     expect(validateBotInput({ ...base, permissions: { read: 1 } }).ok).toBe(false);
     expect(validateBotInput({ ...base, skills: 'a' }).ok).toBe(false);
