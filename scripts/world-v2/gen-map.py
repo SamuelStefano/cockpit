@@ -415,19 +415,24 @@ def facade(w, b, by, F, door_x):
         b["sign_px"] = (sx * T + it["text"][0], sy * T + it["text"][1], it["text"][2], it["text"][3])
         if "pr_slot" in it:
             b["slot_px"] = (sx * T + it["pr_slot"][0], sy * T + it["pr_slot"][1], it["pr_slot"][2], it["pr_slot"][3])
-    lm = b.get("landmark")
+    annex = b.get("annex")
+    lm = b.get("landmark") or annex
     if lm:
         lts = b.get("lm_ts", "ext")
         it = SETS[lts][1][lm]
         lw, lh = it["w"], it["h"]
         lx = b["lm_x"]
         ly = wy + 2 - lh
-        if "text" in it:
+        if annex:
+            for j in range(lh):
+                for i in range(lw):
+                    w.reserved.add((lx + i, ly + j))
+        elif "text" in it:
             b["sign_px"] = (lx * T + it["text"][0], ly * T + it["text"][1], it["text"][2], it["text"][3])
         else:
             b["sign_px"] = (lx * T, ly * T, lw * T, (lh - 2) * T)
             b["sign_builtin"] = True
-        if "pr_slot" in it:
+        if "pr_slot" in it and not annex:
             b["slot_px"] = (lx * T + it["pr_slot"][0], ly * T + it["pr_slot"][1], it["pr_slot"][2], it["pr_slot"][3])
         for j in range(lh):
             for i in range(lw):
@@ -771,14 +776,14 @@ def zone_growth(w, homes):
     item(w, "plant_ficus", 88, 19)
     house_obj(w, rad, homes)
 
-    tor = building(w, {"id": "corte-radar", "label": "Torre Corte Radar", "x": 62, "y": 33, "w": 8, "h": 13,
+    tor = building(w, {"id": "corte-radar", "label": "Torre Corte Radar", "x": 62, "y": 33, "w": 7, "h": 13,
                        "door": "bottom", "door_x": 65, "band": "south", "wall": "blue", "roof": "slate",
-                       "roof_rows": 1, "bays": ["window_square"], "landmark": "radar_tower", "lm_ts": "xt",
-                       "lm_x": 64, "iwall": "sky", "floor": "floor_checker_warm", "department": "growth",
+                       "roof_rows": 1, "bays": ["window_square"], "annex": "radar_tower", "lm_ts": "xt",
+                       "lm_x": 69, "iwall": "sky", "floor": "floor_checker_warm", "department": "growth",
                        "tint": "#ffa970d8", "icon": "xt:radar_tower"})
     wall_decor(w, tor, 2, "screen")
-    seat_desks(w, tor, homes, [(63, 37), (67, 37), (63, 40), (67, 40)])
-    item(w, "plant_ficus", 68, 41)
+    seat_desks(w, tor, homes, [(63, 37), (66, 37), (63, 40), (66, 40)])
+    item(w, "plant_ficus", 67, 42)
     house_obj(w, tor, homes)
 
     # Feira / jardim
@@ -917,7 +922,7 @@ def neighbourhood_trees(w, full):
              (8, 13, "round"), (40, 42, "round"), (43, 40, "autumn"), (2, 38, "pine"), (2, 33, "round"),
              (90, 22, "round"), (79, 21, "pine"), (66, 12, "round"), (79, 13, "autumn"), (88, 13, "round"),
              (39, 51, "round"), (21, 52, "autumn"), (2, 52, "round"), (2, 56, "pine"), (43, 52, "pine"),
-             (74, 51, "autumn"), (90, 31, "pine"), (60, 44, "round"), (71, 44, "autumn")]
+             (74, 51, "autumn"), (90, 31, "pine"), (60, 44, "round"), (74, 44, "autumn")]
     for x, y, v in base + (extra if full else []):
         tree(w, x, y, v)
     for x, y in ((38, 23), (58, 24), (44, 18), (52, 20)):

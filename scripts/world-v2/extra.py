@@ -24,6 +24,7 @@ SIGNS = {
     "dfl": ("CASA DFL", "chip", "green", 4, True),
     "deck": ("CASA DECK", "robot", "slate", 5, True),
     "qa": ("OFICINA QA", "magnifier", "terra", 5, True),
+    "corte-radar": ("CORTE RADAR", "clap", "slate", 5, True),
     "servidores": ("SERVIDORES", None, "slate", 4, False),
 }
 PILL = (14, 9)
@@ -258,24 +259,19 @@ ICONS["clap"] = icon_clap
 
 
 def tower(frame):
+    """annex tower: standing beside the Corte Radar house, a plain navy plinth with two windows and no door"""
     im = radar_tower(frame)
-    b, info = tower_board()
-    im.alpha_composite(b, (0, 224))
-    # door (column 1) and windows
-    rect(im, 38, 258, 57, 285, "ol0")
-    rect(im, 40, 260, 55, 285, "a1")
-    rect(im, 41, 261, 46, 284, "a2")
-    rect(im, 49, 261, 54, 284, "a2")
-    vline(im, 47, 260, 285, "ol0")
-    vline(im, 48, 260, 285, "ol0")
-    vline(im, 42, 262, 270, "a3")
-    for x in (72, 96):
-        rect(im, x, 262, x + 17, 277, "ol0")
-        rect(im, x + 1, 263, x + 16, 276, "a2")
-        vline(im, x + 9, 263, 276, "p1")
-        hline(im, x + 1, x + 16, 269, "p1")
-        vline(im, x + 2, 264, 268, "a3")
-    return im, {k: [v[0], v[1] + 224, v[2], v[3]] for k, v in info.items()}
+    rect(im, 14, 224, 113, 287, "ol0")
+    rect(im, 16, 226, 111, 287, "p1")
+    hline(im, 16, 111, 226, "p2")
+    hline(im, 16, 111, 227, "p2")
+    for x in (34, 78):
+        rect(im, x, 244, x + 15, 267, "ol0")
+        rect(im, x + 1, 245, x + 14, 266, "a2")
+        vline(im, x + 8, 245, 266, "p1")
+        hline(im, x + 1, x + 14, 255, "p1")
+        vline(im, x + 2, 246, 251, "a3")
+    return im, {}
 
 
 # ---------------------------------------------------------------- atlas
@@ -294,12 +290,10 @@ def build():
 
     def tower_props(i, j):
         if j >= 7:
-            if j == 8 and i == 1:
-                return {"door": True}
             return {"block": True}
         return {"layer": "above"}
     A.add("radar_tower", frames, tile_props=tower_props, fps=2, sparse=True,
-          info={"house": "corte-radar", "label": "CORTE RADAR", "door_col": 1, **tinfo})
+          info={"house": "corte-radar", "label": "CORTE RADAR", **tinfo})
     return A
 
 

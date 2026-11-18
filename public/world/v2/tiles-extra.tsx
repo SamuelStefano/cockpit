@@ -96,22 +96,47 @@
    <property name="layer" value="above"/>
   </properties>
  </tile>
- <tile id="21" type="sign_servidores">
+ <tile id="21" type="sign_corte-radar">
   <properties>
    <property name="layer" value="above"/>
   </properties>
  </tile>
- <tile id="22" type="sign_servidores">
+ <tile id="22" type="sign_corte-radar">
   <properties>
    <property name="layer" value="above"/>
   </properties>
  </tile>
- <tile id="23" type="sign_servidores">
+ <tile id="23" type="sign_corte-radar">
   <properties>
    <property name="layer" value="above"/>
   </properties>
  </tile>
- <tile id="24" type="sign_servidores">
+ <tile id="24" type="sign_corte-radar">
+  <properties>
+   <property name="layer" value="above"/>
+  </properties>
+ </tile>
+ <tile id="25" type="sign_corte-radar">
+  <properties>
+   <property name="layer" value="above"/>
+  </properties>
+ </tile>
+ <tile id="26" type="sign_servidores">
+  <properties>
+   <property name="layer" value="above"/>
+  </properties>
+ </tile>
+ <tile id="27" type="sign_servidores">
+  <properties>
+   <property name="layer" value="above"/>
+  </properties>
+ </tile>
+ <tile id="28" type="sign_servidores">
+  <properties>
+   <property name="layer" value="above"/>
+  </properties>
+ </tile>
+ <tile id="29" type="sign_servidores">
   <properties>
    <property name="layer" value="above"/>
   </properties>
@@ -283,7 +308,7 @@
  </tile>
  <tile id="161" type="radar_tower">
   <properties>
-   <property name="door" type="bool" value="true"/>
+   <property name="block" type="bool" value="true"/>
   </properties>
  </tile>
  <tile id="162" type="radar_tower">

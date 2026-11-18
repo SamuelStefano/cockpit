@@ -17,7 +17,7 @@ V2 = os.path.join(os.path.dirname(os.path.dirname(HERE)), "public", "world", "v2
 ORDER = ["ground", "ground2", "walls", "furniture_low", "@objects", "furniture_high", "lights"]
 CROPS = {"praca": (36, 0, 26, 48), "casas": (0, 12, 42, 36), "sul": (0, 44, 96, 20)}
 # the four project houses and the Corte Radar tower, side by side
-FACADES = [(6, 15, 25, 28), (61, 31, 10, 16)]
+FACADES = [(6, 15, 25, 28), (61, 31, 14, 16)]
 
 
 def tiles_of(m):
