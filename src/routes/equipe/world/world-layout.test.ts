@@ -21,6 +21,16 @@ describe('assignSpots', () => {
     expect([...spots.values()].every((s) => s.station === 'plaza' && !s.seated)).toBe(true);
   });
 
+  it('seats a bot at its preferred desk when free, else the next free one, else standing', () => {
+    const deck = buildingById('deck');
+    const spots = assignSpots([npc('a', { home: 'deck' }), npc('b', { home: 'deck', homeSeat: 0 }), npc('c', { home: 'deck', homeSeat: 0 }), npc('d', { home: 'dfl', homeSeat: 99 })]);
+    const seat = (id: string) => deck.seats.findIndex((s) => seatTile(deck, s).x === spots.get(id)!.tile.x && seatTile(deck, s).y === spots.get(id)!.tile.y);
+    expect(seat('b')).toBe(0);
+    expect(seat('c')).toBe(1);
+    expect(spots.get('a')!.seated).toBe(false);
+    expect(spots.get('d')).toMatchObject({ station: 'dfl', seated: true });
+  });
+
   it('stands the overflow of a full house inside the same house, never on the plaza', () => {
     const deck = buildingById('deck');
     const bots = Array.from({ length: 4 }, (_, i) => npc(`d${i}`, { home: 'deck' }));

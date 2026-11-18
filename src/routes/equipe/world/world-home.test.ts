@@ -12,7 +12,9 @@ describe('homeOf', () => {
     expect(homeOf({ home: 'banco' }, houses)).toBe('escritorio');
     expect(homeOf({ home: 'seguranca' }, houses)).toBe('escritorio');
     expect(homeOf({ home: 'servidores' }, houses)).toBe('escritorio');
+    expect(homeOf({ home: 'qa' }, houses)).toBe('escritorio');
     expect(homeOf({ home: 'estudio' }, houses)).toBe('corte-radar');
+    expect(homeOf({ home: 'radio' }, houses)).toBe('corte-radar');
   });
   it('lets a real building win over its alias', () => {
     expect(homeOf({ home: 'banco' }, [...houses, { id: 'banco' }])).toBe('banco');

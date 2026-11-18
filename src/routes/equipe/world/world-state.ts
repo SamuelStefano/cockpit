@@ -15,6 +15,8 @@ export interface NpcView {
   badge: string | null;
   // The building the bot lives in (an id, never text).
   home: string;
+  // Preferred desk index inside the home, when the bot has one and the house is its own.
+  homeSeat?: number;
   // True during the short plaza stroll of a bot that has been idle for a long time.
   onBreak: boolean;
   sprite?: string;
@@ -87,7 +89,7 @@ export function deriveWorld(state: TeamState | null, opts: DeriveOptions = {}): 
   const inMeeting = new Set([...(opts.meeting?.participantIds ?? []), ...(moderatorId ? [moderatorId] : [])].filter((id) => ids.has(id)));
   const npcs = state.bots.map((b): NpcView => ({
     id: b.id, name: b.name, mode: b.status, badge: badgeText(opts.counts?.[b.id]),
-    home: homeOf(b), onBreak: b.status === 'idle' && breakPlace(now, b.idleSince, b.id) === 'plaza', ...(b.sprite ? { sprite: b.sprite } : {}), ...(HEX.test(b.color ?? '') ? { color: b.color } : {}), meeting: inMeeting.has(b.id),
+    home: homeOf(b), ...(b.homeSeat !== undefined && b.home === homeOf(b) ? { homeSeat: b.homeSeat } : {}), onBreak: b.status === 'idle' && breakPlace(now, b.idleSince, b.id) === 'plaza', ...(b.sprite ? { sprite: b.sprite } : {}), ...(HEX.test(b.color ?? '') ? { color: b.color } : {}), meeting: inMeeting.has(b.id),
     ...(b.id === moderatorId ? { moderator: true } : {}),
   }));
   const flights = state.handoffs

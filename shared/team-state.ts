@@ -18,6 +18,7 @@ export interface TeamStateBot {
   sector?: DepartmentId;
   project?: string;
   home?: string;
+  homeSeat?: number;
   // Epoch ms when the bot's last turn ended; only set while it is idle.
   idleSince?: number;
   sprite?: string;
@@ -106,6 +107,7 @@ export function buildTeamState(i: TeamStateInput): TeamState {
       ...(b.department ? { sector: b.department } : {}),
       ...(b.project ? { project: b.project } : {}),
       ...(b.home ? { home: b.home } : {}),
+      ...(b.homeSeat !== undefined ? { homeSeat: b.homeSeat } : {}),
       ...(b.sprite ? { sprite: b.sprite } : {}),
       ...(b.mascot?.color ? { color: b.mascot.color } : {}),
       ...(b.parentId && ids.has(b.parentId) ? { manager: b.parentId } : {}),

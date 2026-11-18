@@ -76,6 +76,13 @@ describe('deriveWorld', () => {
   });
 });
 
+describe('deriveWorld homeSeat', () => {
+  it('keeps homeSeat only when the house is the bot own', () => {
+    const w = deriveWorld(state({ bots: [{ id: 'z', name: 'X', role: 'r', status: 'idle', home: 'deck', homeSeat: 2 }, { id: 'y', name: 'Y', role: 'r', status: 'idle', home: 'qa', homeSeat: 1 }] }));
+    expect(w.npcs.map((n) => n.homeSeat)).toEqual([2, undefined]);
+  });
+});
+
 describe('deriveWorld home', () => {
   it('resolves the home through the real map', () => {
     const w = deriveWorld(state({ bots: [{ id: 'z', name: 'X', role: 'r', status: 'working', home: 'deck' }, { id: 'y', name: 'Y', role: 'r', status: 'idle', sector: 'growth' }] }));

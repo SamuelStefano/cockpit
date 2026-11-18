@@ -1,12 +1,13 @@
 import { HOUSES } from './world-map';
 
 type HouseRef = { id: string; kind?: string };
-type HomeBot = { home?: string; project?: string; sector?: string };
+type HomeBot = { home?: string; homeSeat?: number; project?: string; sector?: string };
 
 const OFFICE = 'escritorio';
-// Buildings of the design doc that the 16 px map does not have yet.
-const ALIASES: Readonly<Record<string, string>> = {
-  prefeitura: OFFICE, banco: OFFICE, seguranca: OFFICE, servidores: OFFICE, estudio: 'corte-radar',
+// Buildings of the 32 px map (scripts/team-homes.json) that the 16 px map does not have yet.
+export const ALIASES: Readonly<Record<string, string>> = {
+  prefeitura: OFFICE, banco: OFFICE, seguranca: OFFICE, servidores: OFFICE, qa: OFFICE,
+  estudio: 'corte-radar', radio: 'corte-radar',
 };
 const DEPARTMENT_HOME: Readonly<Record<string, string>> = {
   direction: 'prefeitura', finance: 'banco', growth: 'estudio', operations: 'servidores', engineering: OFFICE,

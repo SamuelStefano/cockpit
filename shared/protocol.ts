@@ -466,6 +466,8 @@ export interface TeamBot {
   project?: string;
   // Building the bot lives in on the team world (a building id, e.g. 'deck').
   home?: string;
+  // Desk index inside that building (0..63); the world uses it when the desk is free.
+  homeSeat?: number;
   sprite?: string;
   primary?: boolean;
   sessionId?: string;

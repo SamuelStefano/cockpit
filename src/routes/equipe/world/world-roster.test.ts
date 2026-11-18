@@ -2,11 +2,15 @@ import { describe, it, expect } from 'vitest';
 import type { TeamBot } from '../../../../shared/protocol';
 import type { DepartmentId } from '../../../../shared/departments';
 import { buildTeamState } from '../../../../shared/team-state';
-import homes from '../../../../scripts/team-homes.json';
+// Copy of the 32 px map's team-homes.json (arrives with the city map PR).
+import file from './fixtures/team-homes.json';
 import { assignSpots } from './world-layout';
 import { deriveWorld } from './world-state';
 import { breakPlace, BREAK_AFTER_MS } from './world-break';
 import { buildingById } from './world-map';
+
+const homes = file.homes as Record<string, { house: string; seat: number }>;
+const slug = (n: string): string => n.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 
 const MIN = 60_000;
 const NOW = 1_800_000_000_000;
@@ -22,9 +26,9 @@ const ROSTER: [string, DepartmentId | undefined, string | undefined][] = [
 ];
 
 const team = (withHomes: boolean): TeamBot[] => ROSTER.map(([name, department, project]) => ({
-  id: name.toLowerCase().replace('í', 'i'), name, label: 'x', instructions: '', mascot: { shape: 'drop', color: '#112233' }, profile: 'full', createdAt: 0, updatedAt: 0,
+  id: slug(name), name, label: 'x', instructions: '', mascot: { shape: 'drop', color: '#112233' }, profile: 'full', createdAt: 0, updatedAt: 0,
   ...(department ? { department } : {}), ...(project ? { project } : {}),
-  ...(withHomes && (homes as Record<string, string>)[name] ? { home: (homes as Record<string, string>)[name] } : {}),
+  ...(withHomes && homes[slug(name)] ? { home: homes[slug(name)]!.house, homeSeat: homes[slug(name)]!.seat } : {}),
 }));
 
 const world = (withHomes: boolean, idleMs: number) => {
@@ -39,11 +43,11 @@ const world = (withHomes: boolean, idleMs: number) => {
 const onPlaza = (w: ReturnType<typeof world>): string[] => [...w.spots].filter(([, s]) => s.station === 'plaza').map(([id]) => id);
 
 describe('real roster', () => {
-  it('maps every roster name in scripts/team-homes.json', () => {
-    expect(Object.keys(homes).sort()).toEqual(ROSTER.map(([n]) => n).filter((n) => !n.endsWith('-e2e')).sort());
+  it('maps every roster name in the homes file', () => {
+    expect(Object.keys(homes).sort()).toEqual(ROSTER.map(([n]) => slug(n)).filter((n) => !n.endsWith('-e2e')).sort());
   });
 
-  it('keeps every bot off the plaza when all are idle for 5 minutes', () => {
+  it('keeps all 23 bots off the plaza when all are idle for 5 minutes', () => {
     expect(onPlaza(world(true, 5 * MIN))).toEqual([]);
     expect(onPlaza(world(false, 5 * MIN))).toEqual([]);
   });
