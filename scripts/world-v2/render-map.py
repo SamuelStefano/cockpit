@@ -4,7 +4,7 @@ dock sign) so the preview proves the map file. Frame 0 of every animated tile, d
 
 Run: python3 scripts/world-v2/render-map.py OUTDIR [--fx DIR_WITH_porto-sign.png] [--no-lights]
 Writes OUTDIR/vila-mapa-v2.png (1x), vila-mapa-v2-half.png, vila-mapa-v2-praca.png,
-vila-mapa-v2-casas.png and vila-mapa-v2-sul.png (2x crops).
+vila-mapa-v2-casas.png, vila-mapa-v2-sul.png and vila-mapa-v2-fachadas.png (2x crops).
 """
 import json
 import os
@@ -16,6 +16,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 V2 = os.path.join(os.path.dirname(os.path.dirname(HERE)), "public", "world", "v2")
 ORDER = ["ground", "ground2", "walls", "furniture_low", "@objects", "furniture_high", "lights"]
 CROPS = {"praca": (36, 0, 26, 48), "casas": (0, 12, 42, 36), "sul": (0, 44, 96, 20)}
+# the four project houses and the Corte Radar tower, side by side
+FACADES = [(6, 15, 25, 28), (61, 31, 10, 16)]
 
 
 def tiles_of(m):
@@ -82,6 +84,13 @@ def main():
     for name, (x, y, w, h) in CROPS.items():
         c = im.crop((x * T, y * T, (x + w) * T, (y + h) * T))
         c.resize((c.width * 2, c.height * 2), Image.NEAREST).save(os.path.join(out, "vila-mapa-v2-%s.png" % name))
+    parts = [im.crop((x * T, y * T, (x + w) * T, (y + h) * T)) for x, y, w, h in FACADES]
+    sheet = Image.new("RGBA", (sum(p.width for p in parts) + T, max(p.height for p in parts)), (20, 24, 20, 255))
+    ox = 0
+    for p in parts:
+        sheet.alpha_composite(p, (ox, 0))
+        ox += p.width + T
+    sheet.resize((sheet.width * 2, sheet.height * 2), Image.NEAREST).save(os.path.join(out, "vila-mapa-v2-fachadas.png"))
     print("rendered", im.size)
 
 

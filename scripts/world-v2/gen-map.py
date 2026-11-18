@@ -65,7 +65,8 @@ def load_tileset(name, firstgid):
 
 TS_EXT, ITEMS_EXT, PROPS_EXT = load_tileset("tiles-exterior", 1)
 TS_INT, ITEMS_INT, PROPS_INT = load_tileset("tiles-interior", 1 + TS_EXT["tilecount"])
-SETS = {"ext": (TS_EXT, ITEMS_EXT, PROPS_EXT), "int": (TS_INT, ITEMS_INT, PROPS_INT)}
+TS_XT, ITEMS_XT, PROPS_XT = load_tileset("tiles-extra", TS_INT["firstgid"] + TS_INT["tilecount"])
+SETS = {"ext": (TS_EXT, ITEMS_EXT, PROPS_EXT), "int": (TS_INT, ITEMS_INT, PROPS_INT), "xt": (TS_XT, ITEMS_XT, PROPS_XT)}
 
 
 def h32(*a):
@@ -164,6 +165,8 @@ class World:
 
 
 def props_of(g):
+    if g >= TS_XT["firstgid"]:
+        return PROPS_XT.get(g - TS_XT["firstgid"], {})
     if g >= TS_INT["firstgid"]:
         return PROPS_INT.get(g - TS_INT["firstgid"], {})
     return PROPS_EXT.get(g - 1, {})
@@ -402,19 +405,37 @@ def facade(w, b, by, F, door_x):
                 w.put("ext", "wall_lamp_day", X, wy, "furniture_low")
                 w.put("ext", "wall_lamp_glow", X, wy, "lights")
                 break
+    sign = "sign_" + b["id"]
+    if not b.get("landmark") and sign in ITEMS_XT:
+        it = ITEMS_XT[sign]
+        assert it["roof"] == roof, (b["id"], it["roof"], roof)
+        sx = x + (bw - it["w"]) // 2
+        sy = by + roof_rows - 1
+        w.put("xt", sign, sx, sy, "furniture_high")
+        b["sign_px"] = (sx * T + it["text"][0], sy * T + it["text"][1], it["text"][2], it["text"][3])
+        if "pr_slot" in it:
+            b["slot_px"] = (sx * T + it["pr_slot"][0], sy * T + it["pr_slot"][1], it["pr_slot"][2], it["pr_slot"][3])
     lm = b.get("landmark")
     if lm:
-        it = ITEMS_EXT[lm]
+        lts = b.get("lm_ts", "ext")
+        it = SETS[lts][1][lm]
         lw, lh = it["w"], it["h"]
         lx = b["lm_x"]
         ly = wy + 2 - lh
+        if "text" in it:
+            b["sign_px"] = (lx * T + it["text"][0], ly * T + it["text"][1], it["text"][2], it["text"][3])
+        else:
+            b["sign_px"] = (lx * T, ly * T, lw * T, (lh - 2) * T)
+            b["sign_builtin"] = True
+        if "pr_slot" in it:
+            b["slot_px"] = (lx * T + it["pr_slot"][0], ly * T + it["pr_slot"][1], it["pr_slot"][2], it["pr_slot"][3])
         for j in range(lh):
             for i in range(lw):
                 tid = it["ids"][j][i]
                 X, Y = lx + i, ly + j
                 if tid < 0:
                     continue
-                gid = 1 + tid
+                gid = SETS[lts][0]["firstgid"] + tid
                 if Y >= by:
                     w.clear(X, Y, ["walls", "furniture_low", "furniture_high", "ground2"])
                 if j < lh - 2:
@@ -478,6 +499,13 @@ def house_obj(w, b, homes):
     props["doorX"], props["doorY"] = dx, dy
     w.rect_obj(b["id"], b["x"], b["y"], b["w"], b["h"], **props)
     w.zone(b["label"], "building", b["x"], b["y"], b["w"], b["h"])
+    if "sign_px" in b:
+        sx, sy, sw, sh = b["sign_px"]
+        w.obj("%s-sign" % b["id"], sx, sy, sw, sh, kind="sign", house=b["id"], label=b["label"].upper(),
+              builtin=bool(b.get("sign_builtin")))
+    if "slot_px" in b:
+        sx, sy, sw, sh = b["slot_px"]
+        w.obj("%s-pr-slot" % b["id"], sx, sy, sw, sh, kind="pr-slot", house=b["id"])
 
 
 # ---------------------------------------------------------------- zones
@@ -743,15 +771,14 @@ def zone_growth(w, homes):
     item(w, "plant_ficus", 88, 19)
     house_obj(w, rad, homes)
 
-    tor = building(w, {"id": "corte-radar", "label": "Torre Corte Radar", "x": 62, "y": 33, "w": 9, "h": 10,
-                       "door": "top", "door_x": 66, "band": "north", "wall": "blue", "roof": "terra",
-                       "roof_rows": 2, "bays": ["window_arched", "window_square"], "floor": "floor_checker_warm",
-                       "department": "growth", "tint": "#ffa970d8", "icon": "ext:sign_gear",
-                       "signs": {2: "sign_gear"}, "door_item": "door_glass"})
-    w.put("ext", "dormer", 64, 33, "furniture_high")
-    w.put("ext", "dormer", 68, 33, "furniture_high")
-    seat_desks(w, tor, homes, [(63, 38), (68, 38), (63, 40), (68, 40)])
-    item(w, "server_rack", 66, 39)
+    tor = building(w, {"id": "corte-radar", "label": "Torre Corte Radar", "x": 62, "y": 33, "w": 8, "h": 13,
+                       "door": "bottom", "door_x": 65, "band": "south", "wall": "blue", "roof": "slate",
+                       "roof_rows": 1, "bays": ["window_square"], "landmark": "radar_tower", "lm_ts": "xt",
+                       "lm_x": 64, "iwall": "sky", "floor": "floor_checker_warm", "department": "growth",
+                       "tint": "#ffa970d8", "icon": "xt:radar_tower"})
+    wall_decor(w, tor, 2, "screen")
+    seat_desks(w, tor, homes, [(63, 37), (67, 37), (63, 40), (67, 40)])
+    item(w, "plant_ficus", 68, 41)
     house_obj(w, tor, homes)
 
     # Feira / jardim
@@ -962,7 +989,7 @@ def write(w, path):
          "orthogonal", "renderorder": "right-down", "width": W, "height": H, "tilewidth": T, "tileheight": T,
          "infinite": False, "nextlayerid": lid + 1, "nextobjectid": len(w.objects) + len(zones) + 1,
          "properties": [prop("generator", "scripts/world-v2/gen-map.py")],
-         "tilesets": [TS_EXT, TS_INT], "layers": layers}
+         "tilesets": [TS_EXT, TS_INT, TS_XT], "layers": layers}
     s = json.dumps(m, indent=1, ensure_ascii=False)
     for n in LAYERS:
         rows = [",".join(str(v) for v in w.L[n][y]) for y in range(H)]
