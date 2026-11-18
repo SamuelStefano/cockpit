@@ -45,6 +45,8 @@ export function saveBot(input: TeamBotInput, now = Date.now()): Promise<SaveResu
     // rewind the bot's thread to an older session.
     const bot: TeamBot = { ...input, createdAt: prev?.createdAt ?? now, updatedAt: now };
     if (prev?.sessionId) bot.sessionId = prev.sessionId;
+    // The bot form does not edit `home` yet: a save without it keeps the stored one.
+    if (bot.home === undefined && prev?.home) bot.home = prev.home;
     if (prev?.sourceSync && bot.source && sameSource(prev.source, bot.source)) bot.sourceSync = prev.sourceSync;
     if (bot.primary) for (const b of all) if (b.id !== bot.id) delete b.primary;
     if (i >= 0) all[i] = bot; else all.push(bot);
