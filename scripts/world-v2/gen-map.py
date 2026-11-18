@@ -2,7 +2,7 @@
 """Builds public/world/v2/world.tmj: the 96x64 city map (32 px tiles) of the village, from Lara's
 zones (mapa-cidade-zonas.json) and the v2 tilesets. Deterministic.
 
-Run: python3 scripts/world-v2/gen-map.py
+Run: python3 scripts/world-v2/gen-map.py [--stage base|full]  (base = the civic centre only)
 
 Buildings are drawn cut away: the facade band (roof + front wall, or a landmark facade) sits on the
 door side, the rest of the footprint is the visible interior. Collision = tiles with `block` in the
@@ -639,6 +639,222 @@ def seat_desks(w, b, homes, spots, face="up"):
         desk(w, b, x, y, s, by_seat.get(s), face)
 
 
+# ---------------------------------------------------------------- stage 2 zones
+
+def zone_engenharia(w, homes):
+    w.zone("Bairro Engenharia", "area", 2, 15, 37, 31)
+    qa = building(w, {"id": "qa", "label": "Oficina QA", "x": 7, "y": 18, "w": 10, "h": 10, "door": "bottom",
+                      "door_x": 12, "band": "south", "wall": "brick", "roof": "terra", "roof_rows": 1,
+                      "bays": ["window_shop", "window_square"], "iwall": "mint", "floor": "floor_wood_v",
+                      "department": "engineering", "tint": "#ff6fa8dc", "icon": "ext:sign_gear",
+                      "signs": {2: "sign_gear"}, "door_item": "door_glass"})
+    wall_decor(w, qa, 1, "whiteboard")
+    wall_decor(w, qa, 4, "window_g")
+    wall_decor(w, qa, 6, "clock")
+    item(w, "bookshelf_1", 15, 20)
+    item(w, "plant_succulent", 14, 21)
+    seat_desks(w, qa, homes, [(8, 21), (11, 21), (14, 22)][:2] + [(8, 23)])
+    item(w, "plant_monstera", 15, 23)
+    house_obj(w, qa, homes)
+
+    deck = building(w, {"id": "deck", "label": "Casa Deck", "x": 20, "y": 16, "w": 10, "h": 12, "door": "bottom",
+                        "door_x": 25, "band": "south", "wall": "blue", "roof": "slate", "roof_rows": 1,
+                        "bays": ["window_pair", "window_square"], "iwall": "cream", "floor": "floor_wood_h",
+                        "department": "engineering", "tint": "#fff08a3c", "icon": "ext:sign_cup",
+                        "awnings": {1: "awning_blue_l", 2: "awning_blue_r", 7: "awning_blue_l",
+                                    8: "awning_blue_r"}, "door_item": "door_arched"})
+    wall_decor(w, deck, 1, "window_r")
+    wall_decor(w, deck, 3, "art_landscape")
+    wall_decor(w, deck, 4, "clock")
+    wall_decor(w, deck, 6, "wall_cabinet")
+    wall_decor(w, deck, 7, "hood")
+    item(w, "counter", 25, 18)
+    item(w, "counter_sink", 26, 18)
+    item(w, "counter_stove", 27, 18)
+    item(w, "fridge", 28, 18)
+    item(w, "bookshelf_0", 21, 18)
+    item(w, "bookshelf_2", 22, 18)
+    rug(w, "rug_rect", 23, 21)
+    seat_desks(w, deck, homes, [(21, 20), (27, 20), (21, 23), (24, 23), (27, 23), (24, 20)])
+    house_obj(w, deck, homes)
+
+    dfl = building(w, {"id": "dfl", "label": "Casa DFL", "x": 7, "y": 33, "w": 10, "h": 9, "door": "top",
+                       "door_x": 12, "band": "north", "wall": "cream", "roof": "green", "roof_rows": 1,
+                       "bays": ["window_arched", "window_pair"], "floor": "floor_wood_light",
+                       "department": "engineering", "tint": "#ff8ab87a", "icon": "ext:sign_flower",
+                       "signs": {7: "sign_flower"}})
+    seat_desks(w, dfl, homes, [(8, 37), (14, 37)])
+    item(w, "sofa", 8, 39)
+    item(w, "plant_monstera", 15, 39)
+    rug(w, "rug_round", 10, 38)
+    item(w, "lamp_floor", 11, 36)
+    house_obj(w, dfl, homes)
+
+    itera = building(w, {"id": "itera", "label": "Casa Itera", "x": 20, "y": 33, "w": 10, "h": 9, "door": "top",
+                         "door_x": 25, "band": "north", "wall": "pink", "roof": "brown", "roof_rows": 1,
+                         "bays": ["window_shop", "window_arched"], "floor": "floor_wood_v",
+                         "department": "engineering", "tint": "#ff3fd17f", "icon": "ext:sign_bread",
+                         "awnings": {1: "awning_green_l", 2: "awning_green_r", 7: "awning_green_l",
+                                     8: "awning_green_r"}})
+    seat_desks(w, itera, homes, [(21, 37), (27, 37), (21, 39)])
+    item(w, "bookshelf_1", 28, 39)
+    item(w, "plant_ficus", 24, 39)
+    rug(w, "rug_rect", 24, 37)
+    house_obj(w, itera, homes)
+
+    seg = building(w, {"id": "seguranca", "label": "Segurança", "x": 32, "y": 33, "w": 7, "h": 8, "door": "top",
+                       "door_x": 35, "band": "north", "wall": "cream", "roof": "slate", "roof_rows": 1,
+                       "landmark": "security", "lm_x": 34, "floor": "floor_checker_bw",
+                       "department": "engineering", "tint": "#ff4a6fa5", "icon": "ext:security"})
+    w.put("ext", "siren", 35, 32, "furniture_high")
+    w.put("ext", "siren_glow", 35, 32, "lights")
+    seat_desks(w, seg, homes, [(33, 36), (33, 38)])
+    item(w, "vault_door", 36, 36)
+    item(w, "server_rack", 37, 38)
+    house_obj(w, seg, homes)
+
+
+def zone_growth(w, homes):
+    w.zone("Bairro Growth", "area", 61, 15, 32, 31)
+    est = building(w, {"id": "estudio", "label": "Estúdio", "x": 67, "y": 16, "w": 12, "h": 12,
+                       "door": "bottom", "door_x": 73, "band": "south", "wall": "blue", "roof": "slate",
+                       "roof_rows": 1, "bays": ["window_square"], "landmark": "studio", "lm_x": 72,
+                       "iwall": "cream", "floor": "floor_wood_h", "department": "growth", "tint": "#fff08a24",
+                       "icon": "ext:studio"})
+    wall_decor(w, est, 2, "screen")
+    wall_decor(w, est, 8, "window_r")
+    wall_decor(w, est, 10, "art_abstract")
+    w.put("int", "stage", 68, 19, "furniture_low")
+    w.put("int", "stage_shadow", 68, 19, "ground2")
+    item(w, "easel", 76, 18)
+    item(w, "lamp_floor", 77, 18)
+    seat_desks(w, est, homes, [(68, 22), (75, 21), (71, 21)])
+    item(w, "plant_monstera", 77, 22)
+    house_obj(w, est, homes)
+
+    rad = building(w, {"id": "radio", "label": "Rádio", "x": 81, "y": 17, "w": 9, "h": 11, "door": "bottom",
+                       "door_x": 85, "band": "south", "wall": "pink", "roof": "green", "roof_rows": 1,
+                       "bays": ["window_pair"], "landmark": "radio", "lm_x": 84, "iwall": "mint",
+                       "floor": "floor_wood_v", "department": "growth", "tint": "#ffe86fa0", "icon": "ext:radio"})
+    wall_decor(w, rad, 2, "window_g")
+    wall_decor(w, rad, 5, "art_landscape")
+    seat_desks(w, rad, homes, [(82, 20), (86, 20)])
+    item(w, "sofa", 82, 22)
+    item(w, "plant_ficus", 88, 19)
+    house_obj(w, rad, homes)
+
+    tor = building(w, {"id": "corte-radar", "label": "Torre Corte Radar", "x": 62, "y": 33, "w": 9, "h": 10,
+                       "door": "top", "door_x": 66, "band": "north", "wall": "blue", "roof": "terra",
+                       "roof_rows": 2, "bays": ["window_arched", "window_square"], "floor": "floor_checker_warm",
+                       "department": "growth", "tint": "#ffa970d8", "icon": "ext:sign_gear",
+                       "signs": {2: "sign_gear"}, "door_item": "door_glass"})
+    w.put("ext", "dormer", 64, 33, "furniture_high")
+    w.put("ext", "dormer", 68, 33, "furniture_high")
+    seat_desks(w, tor, homes, [(63, 38), (68, 38), (63, 40), (68, 40)])
+    item(w, "server_rack", 66, 39)
+    house_obj(w, tor, homes)
+
+    # Feira / jardim
+    w.zone("Feira / jardim", "area", 77, 34, 13, 9)
+    hedge_h(w, 77, 82, 34)
+    hedge_h(w, 85, 89, 34)
+    hedge_h(w, 77, 89, 42)
+    w.paint(83, 34, 84, 41, "D", inset=True)
+    w.paint(77, 37, 89, 38, "D", inset=True)
+    for x, y in ((78, 35), (80, 35), (87, 35), (78, 40), (80, 40), (82, 40)):
+        decal(w, x, y, "flower_patch")
+    for x, y in ((79, 39), (89, 40), (88, 35)):
+        bush(w, x, y, "flower")
+    bench(w, 80, 36, "down")
+    bench(w, 86, 36, "down")
+    for i, p in enumerate("lmr"):
+        w.put("ext", "awning_yellow_" + p, 86 + i, 39, "furniture_high")
+    w.put("int", "shop_counter", 86, 40, "furniture_low")
+    w.put("int", "shop_counter_shadow", 86, 40, "ground2")
+    item(w, "barrel", 85, 40, "ext")
+
+
+def zone_sul(w, homes):
+    ban = building(w, {"id": "banco", "label": "Banco", "x": 6, "y": 51, "w": 12, "h": 10, "door": "top",
+                       "door_x": 12, "band": "north", "wall": "cream", "roof": "terra", "roof_rows": 2,
+                       "bays": ["window_arched"], "landmark": "bank", "lm_x": 10, "floor": "floor_checker_warm",
+                       "department": "finance", "tint": "#ff9ccf6a", "icon": "ext:bank"})
+    seat_desks(w, ban, homes, [(7, 56), (14, 56), (7, 58)])
+    item(w, "vault_door", 15, 58)
+    item(w, "counter", 10, 57)
+    item(w, "counter", 11, 57)
+    item(w, "plant_ficus", 16, 55)
+    house_obj(w, ban, homes)
+
+    lib = building(w, {"id": "biblioteca", "label": "Biblioteca", "x": 26, "y": 51, "w": 12, "h": 10,
+                       "door": "top", "door_x": 32, "band": "north", "wall": "brick", "roof": "slate",
+                       "roof_rows": 2, "bays": ["window_square"], "landmark": "library", "lm_x": 30,
+                       "floor": "floor_wood_h", "department": "operations", "tint": "#ffa970d8",
+                       "icon": "ext:library"})
+    for i, x in enumerate((27, 28, 35, 36)):
+        item(w, "bookshelf_%d" % (i % 3), x, 55)
+    rug(w, "rug_round", 31, 56)
+    seat_desks(w, lib, homes, [(27, 58), (30, 58), (33, 58), (35, 57)])
+    house_obj(w, lib, homes)
+
+    # Parque
+    w.zone("Parque (ociosos)", "area", 52, 51, 22, 12)
+    w.paint(52, 54, 73, 55, "D", inset=True)
+    w.paint(62, 50, 63, 62, "D", inset=True)
+    water = {(x, y) for x in range(55, 59) for y in range(60, 63)} | {(56, 59), (57, 59), (54, 61), (59, 61)}
+    for (x, y) in water:
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                w.corner[y + dy][x + dx] = "S"
+    for (x, y) in water:
+        w.corner[y][x] = "W"
+    for x, y, v in ((52, 51, "round"), (55, 51, "autumn"), (66, 51, "round"), (70, 51, "pine"), (51, 57, "pine"),
+                    (66, 58, "autumn"), (70, 58, "round"), (60, 51, "round")):
+        tree(w, x, y, v)
+    for x, y, f in ((57, 53, "down"), (65, 53, "down"), (65, 57, "up"), (69, 61, "down")):
+        bench(w, x, y, f)
+    for x, y in ((55, 56), (68, 56), (60, 60), (65, 61)):
+        decal(w, x, y, "flower_patch")
+    lamp(w, 60, 53)
+    lamp(w, 68, 53)
+
+    # Porto
+    w.zone("Porto (deploys)", "area", 77, 46, 19, 18)
+    w.paint(77, 46, 95, 63, "S")
+    w.paint(82, 52, 95, 63, "W")
+    w.paint(84, 51, 91, 51, "W")
+    w.paint(80, 57, 82, 63, "W")
+    w.paint(79, 60, 80, 63, "W")
+    w.paint(93, 50, 95, 51, "W")
+    for y in range(49, 60):
+        for x in (85, 86):
+            w.reserved.add((x, y))
+    w.rect_obj("pier", 85, 49, 2, 11, kind="pier", id="pier", label="Píer")
+    w.zone("píer", "pier", 85, 49, 2, 11)
+
+
+def pier_detail(w):
+    for y in range(49, 60):
+        for x in (85, 86):
+            set_ground(w, x, y, "ext", "dock_planks_v")
+    for y in range(52, 59):
+        w.put("ext", "dock_edge_w", 85, y, "ground2")
+        w.put("ext", "dock_edge_e", 86, y, "ground2")
+    w.put("ext", "dock_edge_s", 85, 59, "furniture_low")
+    w.put("ext", "dock_edge_s", 86, 59, "furniture_low")
+    w.put("ext", "dock_bollard", 87, 50, "furniture_low")
+    w.put("ext", "dock_rope_coil", 83, 50, "furniture_low")
+    for k, (bt, x, y) in enumerate((("fish", 87, 55), ("row", 83, 56))):
+        w.put("ext", "boat_shadow", x, y, "ground2")
+        w.put("ext", "boat_" + bt, x, y, "furniture_low")
+        w.rect_obj("boat-%d" % k, x, y, 2, 2, kind="boat", variant=bt)
+    item(w, "barrel", 80, 50, "ext")
+    item(w, "crate", 81, 50, "ext")
+    item(w, "crate_stack", 79, 49, "ext")
+    w.rect_obj("porto-sign", 87, 47, 3, 2, kind="dock-sign", image="fx/porto-sign.png", label="PORTO")
+    lamp(w, 84, 49)
+
+
 # ---------------------------------------------------------------- decoration
 
 def scatter(w):
@@ -760,7 +976,8 @@ def load_homes(path):
     return {slug: {"house": e["house"], "seat": e["seat"]} for slug, e in json.load(open(path))["homes"].items()}
 
 
-def build(full):
+def build(stage):
+    full = stage == "full"
     homes = load_homes(HOMES)
     w = World()
     zone_roads(w)
@@ -768,6 +985,10 @@ def build(full):
     zone_cabine(w, homes)
     zone_prefeitura(w, homes)
     zone_sala(w)
+    if full:
+        zone_engenharia(w, homes)
+        zone_growth(w, homes)
+        zone_sul(w, homes)
     for b in w.buildings:
         stub(w, b)
     terrain(w)
@@ -778,6 +999,8 @@ def build(full):
             i, j = x - b["x"], y - b["y"]
             w.L["ground"][y][x] = w.gid("int", fl(i, j) if callable(fl) else fl)
     plaza_detail(w)
+    if full:
+        pier_detail(w)
     neighbourhood_trees(w, full)
     border_trees(w, full)
     scatter(w)
@@ -786,7 +1009,10 @@ def build(full):
 
 
 def main():
-    w, errs = build(False)
+    stage = "full"
+    if "--stage" in sys.argv:
+        stage = sys.argv[sys.argv.index("--stage") + 1]
+    w, errs = build(stage)
     for e in errs:
         print("WALK:", e)
     write(w, OUT)

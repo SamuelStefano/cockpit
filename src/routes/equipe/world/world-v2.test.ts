@@ -6,10 +6,9 @@ import {
 } from './world-v2-check';
 
 const map = JSON.parse(raw) as V2Map;
-// Stage 1 draws only the civic centre; bots whose house is not on the map yet are left out.
-const built = new Set(objects(map).map((o) => String(propsOf(o).id)));
+// Every house is on the map now, so every bot in the file is checked.
 const allHomes = (JSON.parse(homesRaw) as { homes: Homes }).homes;
-const homes: Homes = Object.fromEntries(Object.entries(allHomes).filter(([, h]) => built.has(h.house)));
+const homes: Homes = allHomes;
 const clone = (): V2Map => JSON.parse(raw) as V2Map;
 const find = (m: V2Map, id: string) => objects(m).find((o) => propsOf(o).id === id)!;
 
@@ -38,6 +37,17 @@ describe('world v2 map', () => {
     expect(map.tilewidth).toBe(32);
     expect(map.tileheight).toBe(32);
     expect(new TextEncoder().encode(raw).length).toBeLessThan(1.5 * 1024 * 1024);
+  });
+
+  it('builds a house for every home in team-homes.json and staffs every house but the library', () => {
+    const ids = new Set(objects(map).map((o) => String(propsOf(o).id)));
+    const missing = Object.entries(homes).filter(([, h]) => !ids.has(h.house)).map(([n, h]) => `bot "${n}" lives in house "${h.house}", which is not on the map`);
+    expect(missing).toEqual([]);
+    const staffed = new Set(Object.values(homes).map((h) => h.house));
+    const empty = objects(map).filter((o) => propsOf(o).kind === 'house' && propsOf(o).id !== 'biblioteca' && !staffed.has(String(propsOf(o).id)))
+      .map((o) => `house "${String(propsOf(o).id)}" has no bot in team-homes.json`);
+    expect(empty).toEqual([]);
+    expect(Object.keys(homes)).toHaveLength(21);
   });
 
   it('passes the validator', () => {
@@ -81,6 +91,15 @@ describe('world v2 map', () => {
       const t = tileOf(map, c);
       expect(blocked.has(t.y * map.width + t.x)).toBe(false);
     }
+  });
+
+  it('has a pier with two boats and the PORTO sign', () => {
+    const pier = rectOf(map, objects(map).find((o) => propsOf(o).kind === 'pier')!);
+    expect(objects(map).filter((o) => propsOf(o).kind === 'boat')).toHaveLength(2);
+    const sign = objects(map).find((o) => propsOf(o).kind === 'dock-sign')!;
+    expect(propsOf(sign).image).toBe('fx/porto-sign.png');
+    const blocked = blockedTiles(map);
+    for (let y = pier.y; y < pier.y + pier.h - 1; y++) expect(blocked.has(y * map.width + pier.x)).toBe(false);
   });
 
   it('places the shop and the board on the plaza with two standing spots each', () => {
