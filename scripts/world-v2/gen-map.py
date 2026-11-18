@@ -755,19 +755,9 @@ def write(w, path):
         f.write(s + "\n")
 
 
-def bot_id(name):
-    """display name in team-homes.json -> bot id (Íris -> iris)"""
-    return unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode().lower()
-
-
 def load_homes(path):
-    """team-homes.json is {"<bot display name>": "<house id>"}; seats follow the file order per house"""
-    homes, per_house = {}, {}
-    for name, house in json.load(open(path)).items():
-        seat = per_house.get(house, 0)
-        per_house[house] = seat + 1
-        homes[bot_id(name)] = {"house": house, "seat": seat, "name": name}
-    return homes
+    """team-homes.json is {"homes": {"<slug>": {"house": "<house id>", "seat": <n>}}}; slug = bot id (Íris -> iris)"""
+    return {slug: {"house": e["house"], "seat": e["seat"]} for slug, e in json.load(open(path))["homes"].items()}
 
 
 def build(full):

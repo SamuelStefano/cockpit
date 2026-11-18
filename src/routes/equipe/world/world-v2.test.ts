@@ -8,10 +8,28 @@ import {
 const map = JSON.parse(raw) as V2Map;
 // Stage 1 draws only the civic centre; bots whose house is not on the map yet are left out.
 const built = new Set(objects(map).map((o) => String(propsOf(o).id)));
-const allHomes = JSON.parse(homesRaw) as Homes;
-const homes: Homes = Object.fromEntries(Object.entries(allHomes).filter(([, h]) => built.has(h)));
+const allHomes = (JSON.parse(homesRaw) as { homes: Homes }).homes;
+const homes: Homes = Object.fromEntries(Object.entries(allHomes).filter(([, h]) => built.has(h.house)));
 const clone = (): V2Map => JSON.parse(raw) as V2Map;
 const find = (m: V2Map, id: string) => objects(m).find((o) => propsOf(o).id === id)!;
+
+describe('team-homes.json', () => {
+  it('lists the 21 bots, one seat each per house, with a desk on the map for every built house', () => {
+    const slugs = Object.keys(allHomes);
+    expect(slugs).toHaveLength(21);
+    for (const s of slugs) expect(s).toBe(botId(s));
+    const seats = Object.values(allHomes).map((h) => `${h.house}#${h.seat}`);
+    expect(new Set(seats).size).toBe(seats.length);
+    const desks = objects(map).filter((o) => o.point && propsOf(o).kind === undefined && propsOf(o).bot !== undefined);
+    expect(Object.keys(homes).length).toBeGreaterThan(0);
+    for (const [slug, h] of Object.entries(homes)) {
+      const mine = desks.filter((d) => propsOf(d).bot === slug);
+      expect(mine).toHaveLength(1);
+      expect(propsOf(mine[0]!).project).toBe(h.house);
+      expect(propsOf(mine[0]!).seat).toBe(h.seat);
+    }
+  });
+});
 
 describe('world v2 map', () => {
   it('is a 96x64 orthogonal map of 32px tiles under 1.5 MB', () => {
@@ -107,10 +125,10 @@ describe('world v2 map', () => {
   it('reports a gid outside the embedded tilesets and a bot without a desk', () => {
     const m = clone();
     m.layers.find((l) => l.name === 'ground')!.data![0] = 99999;
-    const errs = validateWorldV2(m, { ...homes, Ghost: 'prefeitura', Ünder: 'escritorio' });
+    const errs = validateWorldV2(m, { ...homes, ghost: { house: 'prefeitura', seat: 1 }, under: { house: 'escritorio', seat: 0 } });
     expect(errs).toContain('tile layer "ground" uses gid 99999 outside every embedded tileset');
-    expect(errs).toContain('bot "Ghost" has 0 desks, expected 1');
-    expect(errs).toContain('bot "Ünder" lives in house "escritorio", which is not on the map');
+    expect(errs).toContain('bot "ghost" has 0 desks, expected 1');
+    expect(errs).toContain('bot "under" lives in house "escritorio", which is not on the map');
     expect(botId('Íris')).toBe('iris');
   });
 });

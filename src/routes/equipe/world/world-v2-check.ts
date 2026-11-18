@@ -15,8 +15,9 @@ interface V2Tile { id: number; type?: string; properties?: TProp[] }
 export interface V2Tileset { firstgid: number; name: string; tilecount: number; image?: string; tiles?: V2Tile[] }
 interface V2Layer { name: string; type: string; data?: number[]; objects?: V2Object[] }
 export interface V2Map { width: number; height: number; tilewidth: number; tileheight: number; tilesets: V2Tileset[]; layers: V2Layer[] }
-// scripts/team-homes.json: { "<bot display name>": "<house id>" }.
-export type Homes = Record<string, string>;
+// scripts/team-homes.json: { "homes": { "<slug>": { "house": "<house id>", "seat": <n> } } }, slug = bot id.
+export interface HomeEntry { house: string; seat: number }
+export type Homes = Record<string, HomeEntry>;
 // Display name to bot id, as the generator writes it on desks and PCs (Íris -> iris).
 export const botId = (name: string): string => name.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 export interface Pt { x: number; y: number }
@@ -154,19 +155,26 @@ export function validateWorldV2(m: V2Map, homes: Homes): string[] {
 
   const desks = objs.filter((o) => o.point && propsOf(o).kind === undefined && propsOf(o).project !== undefined);
   const pcs = objs.filter((o) => o.point && propsOf(o).kind === 'pc');
-  for (const [name, house] of Object.entries(homes)) {
-    const bot = botId(name);
+  const claimed = new Map<string, string>();
+  for (const [slug, { house, seat }] of Object.entries(homes)) {
     const r = houseRect.get(house);
-    if (!r) { errs.push(`bot "${name}" lives in house "${house}", which is not on the map`); continue; }
-    const mine = desks.filter((o) => propsOf(o).bot === bot);
-    if (mine.length !== 1) errs.push(`bot "${name}" has ${mine.length} desks, expected 1`);
-    for (const d of mine) if (propsOf(d).project !== house || !inside(r, tileOf(m, d))) errs.push(`bot "${name}" desk is not in its house "${house}"`);
-    const pc = pcs.filter((o) => propsOf(o).bot === bot);
-    if (pc.length !== 1) errs.push(`bot "${name}" has ${pc.length} PCs, expected 1`);
-    for (const c of pc) if (!inside(r, tileOf(m, c))) errs.push(`bot "${name}" PC is not in its house "${house}"`);
+    if (!r) { errs.push(`bot "${slug}" lives in house "${house}", which is not on the map`); continue; }
+    const seatKey = `${house}#${seat}`;
+    const holder = claimed.get(seatKey);
+    if (holder) errs.push(`bots "${holder}" and "${slug}" share seat ${seat} of house "${house}"`);
+    else claimed.set(seatKey, slug);
+    const mine = desks.filter((o) => propsOf(o).bot === slug);
+    if (mine.length !== 1) errs.push(`bot "${slug}" has ${mine.length} desks, expected 1`);
+    for (const d of mine) {
+      if (propsOf(d).project !== house || !inside(r, tileOf(m, d))) errs.push(`bot "${slug}" desk is not in its house "${house}"`);
+      else if (propsOf(d).seat !== seat) errs.push(`bot "${slug}" desk is seat ${String(propsOf(d).seat)} of "${house}", expected seat ${seat}`);
+    }
+    const pc = pcs.filter((o) => propsOf(o).bot === slug);
+    if (pc.length !== 1) errs.push(`bot "${slug}" has ${pc.length} PCs, expected 1`);
+    for (const c of pc) if (!inside(r, tileOf(m, c))) errs.push(`bot "${slug}" PC is not in its house "${house}"`);
   }
-  const listed = new Set(Object.values(homes).map((h) => String(h)));
-  const ids = new Set(Object.keys(homes).map(botId));
+  const listed = new Set(Object.values(homes).map((h) => h.house));
+  const ids = new Set(Object.keys(homes));
   for (const d of desks) {
     const p = propsOf(d);
     if (p.bot !== undefined && !ids.has(String(p.bot))) errs.push(`desk "${d.name ?? d.id}" of house "${String(p.project)}" belongs to bot "${String(p.bot)}", who is not in team-homes.json`);
