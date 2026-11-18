@@ -114,11 +114,12 @@ describe('AgentsSection', () => {
     expect(renders.roster).toBe(first);
   });
 
-  it('starts expanded and shows a working bot\'s static task line, not the rotating phrase', () => {
-    const v = { ...view('a', 'davi'), state: 'working', preview: 'Fix checkout rounding' } as BotView;
+  it('starts expanded and shows a working bot\'s role, not its task line', () => {
+    const v = { ...view('a', 'davi', { label: 'QA' }), state: 'working', preview: 'Fix checkout rounding' } as BotView;
     render(<AgentsSection views={[v]} activeId={null} onOpen={() => {}} />);
     expect(screen.getByRole('button', { name: 'Recolher agentes' })).toBeTruthy();
-    expect(screen.getByText('Fix checkout rounding')).toBeTruthy();
+    expect(screen.getByText('QA')).toBeTruthy();
+    expect(screen.queryByText('Fix checkout rounding')).toBeNull();
   });
 
   it('keeps the phone drawer without task lines', () => {

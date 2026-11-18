@@ -44,7 +44,7 @@ import { boxStore } from './cockpit/boxes-store';
 import { takePendingPrompt, PROMPT_LINK_MAX } from './cockpit/prompt-link';
 import { toast } from './components/primitives/toast-bus';
 import { takeNewIntent } from './cockpit/box-intent';
-import { AGENT_MEETINGS, AGENT_NEW, AGENT_STORE, useRoute } from './useRoute';
+import { AGENT_MEETINGS, AGENT_NEW, AGENT_STORE, menuRoute, useRoute } from './useRoute';
 import { capacityBlocksSend } from './lib/capacity';
 import { loadPref } from './lib/persist';
 import { SUPABASE_ENABLED } from './lib/supabase';
@@ -239,18 +239,14 @@ function CockpitBody() {
   const sidebarProps = { ...sessionsProps, agents: agent.views, activeAgentId: agent.active?.bot.id ?? null, onOpenAgent: agent.open, onNewAgent: isAdmin ? agent.openNew : undefined };
   const quotaNotice = claudeQuota && quotaGate.warn && !quotaClosed && rate ? <QuotaBanner reset={relReset(rate.resetsAt)} onClose={() => setQuotaClosed(true)} /> : null;
   const bodyFooter = isMobile ? null : <BodyFooter end={quotaNotice} />;
-  const openPanelBot = (ref: { id?: string; name: string }) => {
-    const bot = cockpit.bots.find((b) => (ref.id ? b.id === ref.id : b.name === ref.name));
-    if (bot) cockpit.onOpenBot(bot.id, bot.sessionId, bot.name);
-  };
-  const chatWithTeam = { ...chatProps, teamSlot: isAdmin ? <><VilaButton route={route} isAdmin={isAdmin} onGo={nav} />{cockpit.planner && <KanbanButton planner={cockpit.planner} bots={cockpit.bots} />}</> : undefined, footer: bodyFooter, sidePanel: isAdmin ? { api: cockpit.teamPanel, isMobile, onOpenBot: openPanelBot } : undefined };
+  const chatWithTeam = { ...chatProps, teamSlot: isAdmin ? <><VilaButton route={route} isAdmin={isAdmin} onGo={nav} />{cockpit.planner && <KanbanButton planner={cockpit.planner} bots={cockpit.bots} />}</> : undefined, footer: bodyFooter };
   const openPalette = () => { setDrawer(false); setPalette(true); };
   const account = { userId: sbAuth.session?.user.id, onSignOut: SUPABASE_ENABLED ? sbAuth.signOut : undefined, onChangePassword: SUPABASE_ENABLED ? sbAuth.changePassword : undefined, drops: dropApi };
 
   const closeDrawer = useCallback(() => setDrawer(false), [setDrawer]);
   const drawerNav = drawer ? (
     <Sidebar
-      route={route} nav={(to) => { setDrawer(false); nav(to); }} role={role}
+      route={menuRoute(route, agentId)} nav={(to) => { setDrawer(false); nav(to); }} role={role}
       onNew={handleNew} onPalette={openPalette}
       bitState={bitState} conn={conn.ws} account={account}
       sessions={<SessionsPanel {...sidebarProps} embedded onCloseMobile={closeDrawer} />}
@@ -316,7 +312,7 @@ function CockpitBody() {
       <div className="flex min-h-0 flex-1">
         {!isMobile && (
           <Sidebar
-            route={route} nav={nav} role={role} navCounts={navCounts} onNew={handleNew} onPalette={() => setPalette(true)}
+            route={menuRoute(route, agentId)} nav={nav} role={role} navCounts={navCounts} onNew={handleNew} onPalette={() => setPalette(true)}
             bitState={bitState} conn={conn.ws} account={account}
             sessions={<SessionsPanel {...sidebarProps} embedded />}
             rail={<RailChats sessions={sidebarSessions} running={runningAnywhere} activeId={activeSessionId} onSelect={selectSession} />}

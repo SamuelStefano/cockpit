@@ -32,3 +32,14 @@ describe('navLabel', () => {
     expect(navLabel('/configuracoes/uso')).toBe('Configurações');
   });
 });
+
+describe('Loja (agent Store)', () => {
+  it('is in the admin and root menus only, pointing at /agentes/loja', () => {
+    for (const role of ['root', 'admin'] as const) expect(navFor(role).find((n) => n.label === 'Loja')?.to).toBe('/agentes/loja');
+    expect(navFor('student').some((n) => n.to === '/agentes/loja')).toBe(false);
+  });
+
+  it('keeps a student off the Store URL', () => {
+    expect(roleRedirect('student', '/agentes/loja')).toBe('/');
+  });
+});

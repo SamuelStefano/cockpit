@@ -1,4 +1,3 @@
-import type { TeamPanelApi } from '../../cockpit/useTeamPanel';
 import type { ReactNode } from 'react';
 import type { UsageDockProps } from '../chrome/sidebar/UsageDock';
 import type { ComposerCost } from './send-cost';
@@ -40,7 +39,6 @@ export interface ChatPanelProps {
   turnStatus?: ReactNode;
   // Header chip for the team (stack + sheet) when the rail does not fit.
   teamSlot?: ReactNode;
-  sidePanel?: { api: TeamPanelApi; isMobile: boolean; onOpenBot: (bot: { id?: string; name: string }) => void };
   // Slim line under the composer (machine chip, quota reset): lives in the chat column so it
   // tracks the team rail instead of sliding under it.
   footer?: ReactNode;

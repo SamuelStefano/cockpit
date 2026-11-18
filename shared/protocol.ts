@@ -16,7 +16,6 @@ import type { AgentView, AgentPreset, AgentStatus, AgentCustomField } from './ag
 import type { TeamMessage } from './team-messages';
 import type { TeamMeeting } from './team-meeting';
 import type { TeamState } from './team-state';
-import type { TeamPanelPayload } from './team-panel';
 import type { PrDetail, PrDiff, PrsSnapshot, SessionPrs } from './prs';
 import type { BoxHealth, SmokeResult } from './box-health';
 import type { VersionKind, VersionMeta } from './versions';
@@ -468,6 +467,8 @@ export interface TeamBot {
   sprite?: string;
   primary?: boolean;
   sessionId?: string;
+  // Set by `team rotate`: the next turn starts a fresh session carrying the bot's handoff file. Cleared once it binds.
+  rotatedAt?: number;
   profile: TeamProfile;
   model?: string;
   // Stored only for now: the automatic switch to it is a later slice.
@@ -486,7 +487,7 @@ export interface TeamBot {
 export interface AgentSource { repo: string; path: string }
 export interface AgentSourceSync { at: number; commit?: string; error?: string }
 // What the browser may send: sessionId/createdAt/updatedAt/sourceSync are the server's.
-export type TeamBotInput = Omit<TeamBot, 'sessionId' | 'createdAt' | 'updatedAt' | 'sourceSync'>;
+export type TeamBotInput = Omit<TeamBot, 'sessionId' | 'rotatedAt' | 'createdAt' | 'updatedAt' | 'sourceSync'>;
 // A bot's AskUserQuestion still waiting on the human. Persisted server-side
 // (~/.cockpit/team-pending.json) so a question asked by a routine or a bot↔bot
 // turn, with nobody watching, survives a reload and reaches another device.
@@ -861,10 +862,10 @@ export type ClientMsg =
   | { t: 'village-get' }
   | { t: 'village-config'; enabled?: boolean; dailyCap?: number }
   | { t: 'village-dry' }
+  | { t: 'team-rotate'; botId: string }
   | { t: 'team-meeting-start'; question: string; participantIds: string[]; moderatorId: string }
   | { t: 'team-meetings-get' }
   | { t: 'team-state-get'; followUpHours?: number }
-  | { t: 'team-panel-get'; recording?: boolean }
   | { t: 'team-files-get'; botId: string }
   | { t: 'team-file-get'; botId: string; path: string }
   | { t: 'team-computer-get'; botId: string }
@@ -1083,9 +1084,9 @@ export type ServerMsg =
   | { t: 'team-paused'; paused: boolean }
   | { t: 'village'; village: VillageView }
   | { t: 'village-plan'; plan: VillagePlanView }
+  | { t: 'team-rotate-result'; botId: string; ok: boolean; error?: string; words?: number }
   | { t: 'team-meetings'; items: TeamMeeting[] }
   | { t: 'team-state'; state: TeamState }
-  | { t: 'team-panel'; panel: TeamPanelPayload }
   | { t: 'team-meeting'; item: TeamMeeting }
   | { t: 'team-pending'; items: TeamPendingQuestion[] }
   | { t: 'team-files'; botId: string; items: BotFile[]; error?: string }

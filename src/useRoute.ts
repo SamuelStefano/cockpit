@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 
 // Router minúsculo (sem dep): só troca a VIEW principal. useCockpit fica ACIMA
 // deste switch no App, então o WebSocket/terminais nunca desmontam ao navegar.
-export type Route = '/' | '/equipe' | '/equipe/memoria' | '/pontos' | '/equipe/rotinas' | '/equipe/mundo' | '/configuracoes' | '/configuracoes/uso' | '/configuracoes/pessoas' | '/configuracoes/maquina' | '/configuracoes/maquinas' | '/configuracoes/avancado' | '/configuracoes/skills' | '/configuracoes/conexoes' | '/configuracoes/docs' | '/graph' | '/canvas' | '/ds' | '/onboarding' | '/agentes' | '/base' | '/arcade' | '/prs';
+export type Route = '/' | '/equipe' | '/equipe/memoria' | '/pontos' | '/equipe/rotinas' | '/equipe/mundo' | '/configuracoes' | '/configuracoes/uso' | '/configuracoes/pessoas' | '/configuracoes/maquina' | '/configuracoes/maquinas' | '/configuracoes/avancado' | '/configuracoes/skills' | '/configuracoes/conexoes' | '/configuracoes/docs' | '/graph' | '/canvas' | '/ds' | '/onboarding' | '/agentes' | '/agentes/loja' | '/base' | '/arcade' | '/prs';
 
 const ROUTES: Route[] = ['/', '/equipe', '/equipe/memoria', '/pontos', '/equipe/rotinas', '/equipe/mundo', '/configuracoes', '/configuracoes/uso', '/configuracoes/pessoas', '/configuracoes/maquina', '/configuracoes/maquinas', '/configuracoes/avancado', '/configuracoes/skills', '/configuracoes/conexoes', '/configuracoes/docs', '/graph', '/canvas', '/ds', '/onboarding', '/agentes', '/base', '/arcade', '/prs'];
 
@@ -45,6 +45,10 @@ const AGENTS = '/agentes/';
 export const AGENT_NEW = 'novo';
 export const AGENT_STORE = 'loja';
 export const AGENT_MEETINGS = 'reunioes';
+// The menu entry for the Store: current() reads it back as route '/agentes' + agentId AGENT_STORE.
+export const STORE_ROUTE: Route = '/agentes/loja';
+// The menu route to highlight: the Store is a page under /agentes, so it needs its own key.
+export const menuRoute = (route: Route, agentId: string): Route => (route === '/agentes' && agentId === AGENT_STORE ? STORE_ROUTE : route);
 const SETTINGS_SKILL = SETTINGS_SKILLS + '/';
 
 export interface RouteState { route: Route; chatId: string; agentId: string; agentTab: AgentTab; skillId: string }
@@ -87,7 +91,8 @@ export function useRoute() {
   const nav = useCallback((to: Route) => {
     if (location.pathname === to) return;
     history.pushState(null, '', to);
-    setState(plain(to));
+    // The Store is the reserved agent id under /agentes, not a route of its own.
+    setState(to === STORE_ROUTE ? { ...plain('/agentes'), agentId: AGENT_STORE } : plain(to));
   }, []);
   // replace=true pros ajustes DERIVADOS (rascunho new-xxx que virou sessionId
   // real, F5 restaurando a última sessão): corrige a URL sem empilhar history.

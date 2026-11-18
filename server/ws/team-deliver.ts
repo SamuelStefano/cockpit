@@ -60,7 +60,9 @@ export async function deliverTeamMessage(m: SpoolMessage, team: TeamBot[]): Prom
   if (raced) return queueLive(raced);
   const r = startRun({ ...params, ws: null, sessionKey: key, prompt, resumeId: resume, msgId: `team-${m.id}` });
   if (r === 'pane' || threads.has(key)) return 'delivered';
+  if (r === 'parked') return 'queued';
   if (r === 'rejected') return park(parkKey, params, prompt, resume);
+  console.error(`[team-deliver] ${m.id} to ${m.to}: startRun returned ${String(r)} and no thread is live`);
   return 'failed';
 }
 
