@@ -1,3 +1,4 @@
+import { VILLAGE_SENDER } from './team-messages';
 import type { DepartmentId } from './departments';
 import type { Effort, MascotShape, PermMode, TeamBot, TeamBotInput, TeamProfile } from './protocol';
 import { isDepartmentId } from './departments';
@@ -46,7 +47,7 @@ export function validateBotInput(raw: unknown): BotValidation {
   if (!raw || typeof raw !== 'object') return { ok: false, error: 'bot inválido' };
   const r = raw as Record<string, unknown>;
   const id = str(r.id);
-  if (!id || !ID_RE.test(id)) return { ok: false, error: 'id inválido' };
+  if (!id || !ID_RE.test(id) || id === VILLAGE_SENDER) return { ok: false, error: 'id inválido' };
   const name = str(r.name)?.trim();
   if (!name || !NAME_RE.test(name)) return { ok: false, error: `nome inválido (letras, números, - _ . e até ${MAX_NAME} caracteres)` };
   const label = (str(r.label) ?? '').trim();
