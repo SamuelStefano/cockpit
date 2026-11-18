@@ -107,13 +107,30 @@
    ],
    "blend": "normal",
    "loop": true,
-   "note": "64x64 seamless overlay, tile it over the view in screen space; 2 depth layers",
+   "note": "NEAR layer: 64x64 seamless overlay, tile it over the view in screen space; speed (-16,+48) px/frame",
+   "layer": "screen"
+  },
+  "rain_far": {
+   "sheet": "rain.png",
+   "x": 0,
+   "y": 64,
+   "frame_w": 48,
+   "frame_h": 48,
+   "frames": 4,
+   "fps": 10,
+   "anchor": [
+    0,
+    0
+   ],
+   "blend": "normal",
+   "loop": true,
+   "note": "FAR layer: its own 48x48 seamless tile, drawn under the near layer, slower: (-12,+36) px/frame; the 48 and 64 px periods do not line up, so the pattern never visibly repeats",
    "layer": "screen"
   },
   "rain_splash": {
    "sheet": "rain.png",
    "x": 0,
-   "y": 64,
+   "y": 112,
    "frame_w": 32,
    "frame_h": 16,
    "frames": 4,
@@ -129,7 +146,7 @@
   "rain_ripple": {
    "sheet": "rain.png",
    "x": 0,
-   "y": 80,
+   "y": 128,
    "frame_w": 32,
    "frame_h": 16,
    "frames": 6,
@@ -145,7 +162,7 @@
   "rain_puddle": {
    "sheet": "rain.png",
    "x": 0,
-   "y": 96,
+   "y": 144,
    "frame_w": 32,
    "frame_h": 16,
    "frames": 1,
@@ -162,7 +179,7 @@
   "sky_tint": {
    "sheet": "rain.png",
    "x": 0,
-   "y": 112,
+   "y": 160,
    "frame_w": 32,
    "frame_h": 32,
    "frames": 3,

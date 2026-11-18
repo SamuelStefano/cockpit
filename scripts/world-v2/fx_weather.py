@@ -1,9 +1,9 @@
 """Rain overlay (64x64 seamless, 4 frames), ground splash, puddle + ripple, and the dim-sky tint.
 
 Seamless in space: every streak is drawn with wrap-around (mod 64).
-Seamless in time: the near layer moves (-16, +48) px per frame, so after 4 frames it has moved
-(-64, +192) = a whole number of tiles; the far layer moves (-8, +24) on a 32 px lattice (its drop
-field repeats every 32 px), so 4 frames = (-32, +96), again whole periods. Slope is 1:3 for both.
+Seamless in time: the near layer (64x64 tile) moves (-16, +48) px per frame, so after 4 frames it has moved
+(-64, +192) = whole tiles; the far layer is a separate 48x48 tile at a slower (-12, +36) px per frame,
+4 frames = (-48, +144) = whole tiles. Slope is 1:3 for both; the two periods (64 and 48) do not share a repeat.
 """
 import numpy as np
 from PIL import Image
@@ -26,30 +26,40 @@ def _streak(al, colours, x, y, length, alpha, col, period):
 
 
 def rain_frames():
-    near_rnd, far_rnd = lcg(31), lcg(57)
+    """Near layer: 64x64 tile, (-16, +48) px per frame, bright streaks with a white head."""
+    near_rnd = lcg(31)
     near = [(near_rnd() * 64, near_rnd() * 64) for _ in range(13)]
-    far = [(far_rnd() * 32, far_rnd() * 32) for _ in range(4)]
     frames = []
     for f in range(NR):
         al = np.zeros((RW, RW))
-        col = np.zeros((RW, RW), int)   # 0 = a2 (far), 1 = a3 (near), 2 = wh (near head)
-        # far layer on a 32px lattice, tiled 2x2 into the 64 tile
-        fal = np.zeros((32, 32))
-        fcol = np.zeros((32, 32), int)
-        for (x, y) in far:
-            _streak(fal, fcol, x - 8 * f, y + 24 * f, 4, 95, 0, 32)
-        al[:] = np.tile(fal, (2, 2))
-        col[:] = np.tile(fcol, (2, 2))
+        col = np.zeros((RW, RW), int)   # 1 = a3 (near), 2 = wh (near head)
         for (x, y) in near:
             _streak(al, col, x - 16 * f, y + 48 * f, 8, 165, 1, 64)
-            # white head pixel
             hy, hx = int(round(y + 48 * f + 7)) % 64, int(round(x - 16 * f - 7 / 3.0)) % 64
             al[hy, hx] = 200
             col[hy, hx] = 2
         layers = []
-        for k, c in enumerate(("a2", "a3", "wh")):
+        for k, c in ((1, "a3"), (2, "wh")):
             layers.append((np.where(col == k, al, 0), c))
         frames.append(stack_alpha(layers))
+    return frames
+
+
+FW = 48
+
+
+def rain_far_frames():
+    """Far layer: its own 48x48 tile (not a divisor of the 64 near tile) and a slower speed,
+    (-12, +36) px per frame, so after 4 frames it moved (-48, +144) = whole tiles."""
+    far_rnd = lcg(57)
+    far = [(far_rnd() * FW, far_rnd() * FW) for _ in range(7)]
+    frames = []
+    for f in range(NR):
+        al = np.zeros((FW, FW))
+        col = np.zeros((FW, FW), int)
+        for (x, y) in far:
+            _streak(al, col, x - 12 * f, y + 36 * f, 4, 95, 0, FW)
+        frames.append(stack_alpha([(al, "a2")]))
     return frames
 
 

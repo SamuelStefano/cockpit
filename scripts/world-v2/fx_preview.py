@@ -74,6 +74,7 @@ def gif_weather(out):
     W, H = 10, 7
     day, _ = ff.fountain_rows()
     rain = fw.rain_frames()
+    rain_far = fw.rain_far_frames()
     splash = fw.splash_frames()
     ripple = fw.ripple_frames()
     puddle = fw.puddle()
@@ -105,6 +106,9 @@ def gif_weather(out):
         im.alpha_composite(Image.new("RGBA", im.size, (0, 0, 0, 0)))
         tint_full = tint.resize(im.size, Image.NEAREST)
         im.alpha_composite(tint_full)
+        for y in range(0, H * T, 48):
+            for x in range(0, W * T, 48):
+                im.alpha_composite(rain_far[t % 4], (x, y))
         for y in range(0, H * T, 64):
             for x in range(0, W * T, 64):
                 im.alpha_composite(rain[t % 4], (x, y))

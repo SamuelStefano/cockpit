@@ -45,7 +45,9 @@ def smoke():
 def rain():
     S = Sheet("rain.png")
     S.add("rain", fw.rain_frames(), 10, (0, 0), layer="screen",
-          note="64x64 seamless overlay, tile it over the view in screen space; 2 depth layers")
+          note="NEAR layer: 64x64 seamless overlay, tile it over the view in screen space; speed (-16,+48) px/frame")
+    S.add("rain_far", fw.rain_far_frames(), 10, (0, 0), layer="screen",
+          note="FAR layer: its own 48x48 seamless tile, drawn under the near layer, slower: (-12,+36) px/frame; the 48 and 64 px periods do not line up, so the pattern never visibly repeats")
     S.add("rain_splash", fw.splash_frames(), 10, (16, 12), loop=False,
           note="ground splash, spawn at random walkable spots")
     S.add("rain_ripple", fw.ripple_frames(), 8, (16, 8), loop=False, note="puddle / water ripple")
