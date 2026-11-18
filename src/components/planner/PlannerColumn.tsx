@@ -31,11 +31,12 @@ interface PlannerColumnProps {
   onAdd: (title: string) => void;
   onOpen: (id: string) => void;
   onMove: (id: string, column: Column, index: number) => void;
+  onToggleReady?: (id: string, ready: boolean) => void;
 }
 
 const EMPTY: Record<Column, string> = { today: 'Nada para hoje.', week: 'Semana livre.', backlog: 'Sem pendências.', done: 'Nada feito ainda.' };
 
-export function PlannerColumn({ column, tasks, bots, filtering, coarse, hiddenDone, showAllDone, dnd, className = '', onToggleAllDone, onAdd, onOpen, onMove }: PlannerColumnProps) {
+export function PlannerColumn({ column, tasks, bots, filtering, coarse, hiddenDone, showAllDone, dnd, className = '', onToggleAllDone, onAdd, onOpen, onMove, onToggleReady }: PlannerColumnProps) {
   const page = useColumnPage(tasks);
   const over = dnd.overIndex !== null;
   return (
@@ -55,6 +56,7 @@ export function PlannerColumn({ column, tasks, bots, filtering, coarse, hiddenDo
           <PlannerCard
             key={t.id} task={t} bots={bots} dragging={dnd.dragId === t.id} coarse={coarse} dropBefore={dnd.overIndex === i}
             onOpen={() => onOpen(t.id)} onMoveTo={(to) => onMove(t.id, to, 0)}
+            onToggleReady={onToggleReady ? () => onToggleReady(t.id, t.ready !== true) : undefined}
             onDragStart={(e) => dnd.startDrag(e, t.id)} onDragEnd={dnd.reset} onDragOver={(e) => dnd.overCard(e, i)}
           />
         ))}

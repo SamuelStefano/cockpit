@@ -1,0 +1,1820 @@
+{
+ "tilewidth": 32,
+ "tileheight": 32,
+ "columns": 16,
+ "rows": 28,
+ "items": {
+  "floor_wood_h": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     0
+    ]
+   ]
+  },
+  "floor_wood_v": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     1
+    ]
+   ]
+  },
+  "floor_wood_light": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     2
+    ]
+   ]
+  },
+  "floor_checker_bw": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     3
+    ]
+   ]
+  },
+  "floor_checker_warm": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     4
+    ]
+   ]
+  },
+  "carpet_red": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     5
+    ]
+   ]
+  },
+  "carpet_blue": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     6
+    ]
+   ]
+  },
+  "carpet_green": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     7
+    ]
+   ]
+  },
+  "carpet_navy": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     8
+    ]
+   ]
+  },
+  "carpet_pink": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     9
+    ]
+   ]
+  },
+  "carpet_mustard": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     10
+    ]
+   ]
+  },
+  "wall_cream_l": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     16
+    ],
+    [
+     32
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "wall_cream_m": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     17
+    ],
+    [
+     33
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "wall_cream_r": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     18
+    ],
+    [
+     34
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "wall_cream_s": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     19
+    ],
+    [
+     35
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "wall_mint_l": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     20
+    ],
+    [
+     36
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "wall_mint_m": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     21
+    ],
+    [
+     37
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "wall_mint_r": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     22
+    ],
+    [
+     38
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "wall_mint_s": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     23
+    ],
+    [
+     39
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "wall_sky_l": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     24
+    ],
+    [
+     40
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "wall_sky_m": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     25
+    ],
+    [
+     41
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "wall_sky_r": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     26
+    ],
+    [
+     42
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "wall_sky_s": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     27
+    ],
+    [
+     43
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "cap_top": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     28
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "cap_bottom": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     29
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "cap_left": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     30
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "cap_right": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     31
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "cap_nw": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     44
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "cap_ne": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     45
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "cap_sw": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     46
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "cap_se": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     47
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "shadow_wall_base": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     48
+    ]
+   ],
+   "props": {
+    "overlay": "shadow"
+   }
+  },
+  "shadow_wall_left": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     49
+    ]
+   ],
+   "props": {
+    "overlay": "shadow"
+   }
+  },
+  "shadow_wall_corner": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     50
+    ]
+   ],
+   "props": {
+    "overlay": "shadow"
+   }
+  },
+  "window_r": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     51
+    ],
+    [
+     67
+    ]
+   ],
+   "props": {
+    "layer": "wall"
+   }
+  },
+  "window_g": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     52
+    ],
+    [
+     68
+    ]
+   ],
+   "props": {
+    "layer": "wall"
+   }
+  },
+  "window_k": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     53
+    ],
+    [
+     69
+    ]
+   ],
+   "props": {
+    "layer": "wall"
+   }
+  },
+  "window_light": {
+   "w": 2,
+   "h": 3,
+   "ids": [
+    [
+     54,
+     55
+    ],
+    [
+     70,
+     71
+    ],
+    [
+     86,
+     87
+    ]
+   ],
+   "props": {
+    "overlay": "light",
+    "layer": "above"
+   },
+   "offset": [
+    0,
+    2
+   ],
+   "note": "on the floor below a window"
+  },
+  "door_frame": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     56
+    ],
+    [
+     72
+    ]
+   ]
+  },
+  "desk_single": {
+   "w": 2,
+   "h": 1,
+   "ids": [
+    [
+     96,
+     97
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "desk_single_shadow": {
+   "w": 2,
+   "h": 1,
+   "ids": [
+    [
+     98,
+     99
+    ]
+   ],
+   "props": {
+    "overlay": "shadow"
+   },
+   "layer_of": "desk_single",
+   "offset": [
+    0,
+    0
+   ]
+  },
+  "desk_double": {
+   "w": 4,
+   "h": 1,
+   "ids": [
+    [
+     100,
+     101,
+     102,
+     103
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "desk_double_shadow": {
+   "w": 4,
+   "h": 1,
+   "ids": [
+    [
+     104,
+     105,
+     106,
+     107
+    ]
+   ],
+   "props": {
+    "overlay": "shadow"
+   },
+   "layer_of": "desk_double",
+   "offset": [
+    0,
+    0
+   ]
+  },
+  "desk_l": {
+   "w": 3,
+   "h": 2,
+   "ids": [
+    [
+     108,
+     109,
+     110
+    ],
+    [
+     -1,
+     -1,
+     126
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "desk_l_shadow": {
+   "w": 3,
+   "h": 2,
+   "ids": [
+    [
+     112,
+     113,
+     114
+    ],
+    [
+     128,
+     -1,
+     130
+    ]
+   ],
+   "props": {
+    "overlay": "shadow"
+   },
+   "layer_of": "desk_l",
+   "offset": [
+    0,
+    0
+   ]
+  },
+  "chair_down": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     111
+    ]
+   ],
+   "props": {
+    "seat": true,
+    "face": "down"
+   }
+  },
+  "chair_down_shadow": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     115
+    ]
+   ],
+   "props": {
+    "overlay": "shadow"
+   },
+   "layer_of": "chair_down",
+   "offset": [
+    0,
+    0
+   ]
+  },
+  "chair_up": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     116
+    ]
+   ],
+   "props": {
+    "seat": true,
+    "face": "up"
+   }
+  },
+  "chair_up_shadow": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     117
+    ]
+   ],
+   "props": {
+    "overlay": "shadow"
+   },
+   "layer_of": "chair_up",
+   "offset": [
+    0,
+    0
+   ]
+  },
+  "chair_left": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     118
+    ]
+   ],
+   "props": {
+    "seat": true,
+    "face": "left"
+   }
+  },
+  "chair_left_shadow": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     119
+    ]
+   ],
+   "props": {
+    "overlay": "shadow"
+   },
+   "layer_of": "chair_left",
+   "offset": [
+    0,
+    0
+   ]
+  },
+  "chair_right": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     120
+    ]
+   ],
+   "props": {
+    "seat": true,
+    "face": "right"
+   }
+  },
+  "chair_right_shadow": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     121
+    ]
+   ],
+   "props": {
+    "overlay": "shadow"
+   },
+   "layer_of": "chair_right",
+   "offset": [
+    0,
+    0
+   ]
+  },
+  "bookshelf_0": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     144
+    ],
+    [
+     160
+    ]
+   ]
+  },
+  "bookshelf_0_shadow": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     145
+    ],
+    [
+     161
+    ]
+   ],
+   "props": {
+    "overlay": "shadow"
+   },
+   "layer_of": "bookshelf_0",
+   "offset": [
+    0,
+    0
+   ]
+  },
+  "bookshelf_1": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     146
+    ],
+    [
+     162
+    ]
+   ]
+  },
+  "bookshelf_1_shadow": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     147
+    ],
+    [
+     163
+    ]
+   ],
+   "props": {
+    "overlay": "shadow"
+   },
+   "layer_of": "bookshelf_1",
+   "offset": [
+    0,
+    0
+   ]
+  },
+  "bookshelf_2": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     148
+    ],
+    [
+     164
+    ]
+   ]
+  },
+  "bookshelf_2_shadow": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     149
+    ],
+    [
+     165
+    ]
+   ],
+   "props": {
+    "overlay": "shadow"
+   },
+   "layer_of": "bookshelf_2",
+   "offset": [
+    0,
+    0
+   ]
+  },
+  "counter": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     150
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "counter_shadow": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     151
+    ]
+   ],
+   "props": {
+    "overlay": "shadow"
+   },
+   "layer_of": "counter",
+   "offset": [
+    0,
+    0
+   ]
+  },
+  "counter_sink": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     152
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "counter_sink_shadow": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     153
+    ]
+   ],
+   "props": {
+    "overlay": "shadow"
+   },
+   "layer_of": "counter_sink",
+   "offset": [
+    0,
+    0
+   ]
+  },
+  "counter_stove": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     154
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "counter_stove_shadow": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     155
+    ]
+   ],
+   "props": {
+    "overlay": "shadow"
+   },
+   "layer_of": "counter_stove",
+   "offset": [
+    0,
+    0
+   ]
+  },
+  "fridge": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     156
+    ],
+    [
+     172
+    ]
+   ]
+  },
+  "fridge_shadow": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     157
+    ],
+    [
+     173
+    ]
+   ],
+   "props": {
+    "overlay": "shadow"
+   },
+   "layer_of": "fridge",
+   "offset": [
+    0,
+    0
+   ]
+  },
+  "wall_cabinet": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     158
+    ]
+   ],
+   "props": {
+    "layer": "wall"
+   }
+  },
+  "hood": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     159
+    ]
+   ],
+   "props": {
+    "layer": "wall"
+   }
+  },
+  "sofa": {
+   "w": 2,
+   "h": 2,
+   "ids": [
+    [
+     176,
+     177
+    ],
+    [
+     192,
+     193
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "sofa_shadow": {
+   "w": 2,
+   "h": 2,
+   "ids": [
+    [
+     178,
+     179
+    ],
+    [
+     194,
+     195
+    ]
+   ],
+   "props": {
+    "overlay": "shadow"
+   },
+   "layer_of": "sofa",
+   "offset": [
+    0,
+    0
+   ]
+  },
+  "bed": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     180
+    ],
+    [
+     196
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "bed_shadow": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     181
+    ],
+    [
+     197
+    ]
+   ],
+   "props": {
+    "overlay": "shadow"
+   },
+   "layer_of": "bed",
+   "offset": [
+    0,
+    0
+   ]
+  },
+  "rug_round": {
+   "w": 3,
+   "h": 3,
+   "ids": [
+    [
+     182,
+     183,
+     184
+    ],
+    [
+     198,
+     199,
+     200
+    ],
+    [
+     214,
+     215,
+     216
+    ]
+   ],
+   "props": {
+    "layer": "floor"
+   }
+  },
+  "rug_rect": {
+   "w": 3,
+   "h": 2,
+   "ids": [
+    [
+     185,
+     186,
+     187
+    ],
+    [
+     201,
+     202,
+     203
+    ]
+   ],
+   "props": {
+    "layer": "floor"
+   }
+  },
+  "plant_monstera": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     188
+    ],
+    [
+     204
+    ]
+   ]
+  },
+  "plant_monstera_shadow": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     189
+    ],
+    [
+     205
+    ]
+   ],
+   "props": {
+    "overlay": "shadow"
+   },
+   "layer_of": "plant_monstera",
+   "offset": [
+    0,
+    0
+   ]
+  },
+  "plant_ficus": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     190
+    ],
+    [
+     206
+    ]
+   ]
+  },
+  "plant_ficus_shadow": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     191
+    ],
+    [
+     207
+    ]
+   ],
+   "props": {
+    "overlay": "shadow"
+   },
+   "layer_of": "plant_ficus",
+   "offset": [
+    0,
+    0
+   ]
+  },
+  "plant_succulent": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     208
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "plant_succulent_shadow": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     209
+    ]
+   ],
+   "props": {
+    "overlay": "shadow"
+   },
+   "layer_of": "plant_succulent",
+   "offset": [
+    0,
+    0
+   ]
+  },
+  "plant_hanging": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     210
+    ]
+   ],
+   "props": {
+    "layer": "wall"
+   }
+  },
+  "lamp_floor": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     211
+    ],
+    [
+     227
+    ]
+   ]
+  },
+  "lamp_floor_shadow": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     212
+    ],
+    [
+     228
+    ]
+   ],
+   "props": {
+    "overlay": "shadow"
+   },
+   "layer_of": "lamp_floor",
+   "offset": [
+    0,
+    0
+   ]
+  },
+  "lamp_desk": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     213
+    ]
+   ],
+   "props": {
+    "layer": "top"
+   }
+  },
+  "glow_floor_lamp": {
+   "w": 3,
+   "h": 3,
+   "ids": [
+    [
+     217,
+     218,
+     219
+    ],
+    [
+     233,
+     234,
+     235
+    ],
+    [
+     249,
+     250,
+     251
+    ]
+   ],
+   "props": {
+    "overlay": "glow",
+    "layer": "above"
+   },
+   "offset": [
+    -1,
+    -1
+   ]
+  },
+  "glow_desk_lamp": {
+   "w": 2,
+   "h": 2,
+   "ids": [
+    [
+     220,
+     221
+    ],
+    [
+     236,
+     237
+    ]
+   ],
+   "props": {
+    "overlay": "glow",
+    "layer": "above"
+   },
+   "offset": [
+    -1,
+    -1
+   ]
+  },
+  "art_landscape": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     256
+    ]
+   ],
+   "props": {
+    "layer": "wall"
+   }
+  },
+  "art_abstract": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     257
+    ]
+   ],
+   "props": {
+    "layer": "wall"
+   }
+  },
+  "clock": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     258
+    ]
+   ],
+   "props": {
+    "layer": "wall"
+   }
+  },
+  "whiteboard": {
+   "w": 2,
+   "h": 1,
+   "ids": [
+    [
+     259,
+     260
+    ]
+   ],
+   "props": {
+    "layer": "wall"
+   }
+  },
+  "corkboard": {
+   "w": 2,
+   "h": 1,
+   "ids": [
+    [
+     261,
+     262
+    ]
+   ],
+   "props": {
+    "layer": "wall"
+   }
+  },
+  "table_round": {
+   "w": 3,
+   "h": 3,
+   "ids": [
+    [
+     272,
+     273,
+     274
+    ],
+    [
+     288,
+     289,
+     290
+    ],
+    [
+     304,
+     305,
+     306
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "table_round_shadow": {
+   "w": 3,
+   "h": 3,
+   "ids": [
+    [
+     275,
+     276,
+     277
+    ],
+    [
+     291,
+     292,
+     293
+    ],
+    [
+     307,
+     308,
+     309
+    ]
+   ],
+   "props": {
+    "overlay": "shadow"
+   },
+   "layer_of": "table_round",
+   "offset": [
+    0,
+    0
+   ]
+  },
+  "meeting_round_8": {
+   "w": 5,
+   "h": 5,
+   "ids": [
+    [
+     278,
+     279,
+     280,
+     281,
+     282
+    ],
+    [
+     294,
+     295,
+     296,
+     297,
+     298
+    ],
+    [
+     310,
+     311,
+     312,
+     313,
+     314
+    ],
+    [
+     326,
+     327,
+     328,
+     329,
+     330
+    ],
+    [
+     -1,
+     343,
+     344,
+     345,
+     -1
+    ]
+   ]
+  },
+  "meeting_round_8_shadow": {
+   "w": 5,
+   "h": 5,
+   "ids": [
+    [
+     -1,
+     284,
+     285,
+     286,
+     287
+    ],
+    [
+     299,
+     300,
+     301,
+     302,
+     303
+    ],
+    [
+     315,
+     316,
+     317,
+     318,
+     319
+    ],
+    [
+     -1,
+     332,
+     333,
+     334,
+     335
+    ],
+    [
+     -1,
+     348,
+     349,
+     350,
+     351
+    ]
+   ],
+   "props": {
+    "overlay": "shadow"
+   },
+   "layer_of": "meeting_round_8",
+   "offset": [
+    0,
+    0
+   ]
+  },
+  "shop_counter": {
+   "w": 3,
+   "h": 2,
+   "ids": [
+    [
+     352,
+     353,
+     354
+    ],
+    [
+     368,
+     369,
+     370
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "shop_counter_shadow": {
+   "w": 3,
+   "h": 2,
+   "ids": [
+    [
+     355,
+     356,
+     357
+    ],
+    [
+     371,
+     372,
+     373
+    ]
+   ],
+   "props": {
+    "overlay": "shadow"
+   },
+   "layer_of": "shop_counter",
+   "offset": [
+    0,
+    0
+   ]
+  },
+  "shop_shelf_a": {
+   "w": 2,
+   "h": 2,
+   "ids": [
+    [
+     358,
+     359
+    ],
+    [
+     374,
+     375
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "shop_shelf_a_shadow": {
+   "w": 2,
+   "h": 2,
+   "ids": [
+    [
+     360,
+     361
+    ],
+    [
+     376,
+     377
+    ]
+   ],
+   "props": {
+    "overlay": "shadow"
+   },
+   "layer_of": "shop_shelf_a",
+   "offset": [
+    0,
+    0
+   ]
+  },
+  "shop_shelf_b": {
+   "w": 2,
+   "h": 2,
+   "ids": [
+    [
+     362,
+     363
+    ],
+    [
+     378,
+     379
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "shop_shelf_b_shadow": {
+   "w": 2,
+   "h": 2,
+   "ids": [
+    [
+     364,
+     365
+    ],
+    [
+     380,
+     381
+    ]
+   ],
+   "props": {
+    "overlay": "shadow"
+   },
+   "layer_of": "shop_shelf_b",
+   "offset": [
+    0,
+    0
+   ]
+  },
+  "vault_door": {
+   "w": 2,
+   "h": 2,
+   "ids": [
+    [
+     366,
+     367
+    ],
+    [
+     382,
+     383
+    ]
+   ],
+   "props": {
+    "layer": "wall",
+    "block": true
+   }
+  },
+  "server_rack": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     384
+    ],
+    [
+     400
+    ]
+   ],
+   "frames": [
+    [
+     [
+      384
+     ],
+     [
+      400
+     ]
+    ],
+    [
+     [
+      385
+     ],
+     [
+      386
+     ]
+    ]
+   ],
+   "fps": 3
+  },
+  "server_rack_shadow": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     387
+    ],
+    [
+     403
+    ]
+   ],
+   "props": {
+    "overlay": "shadow"
+   }
+  },
+  "easel": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     388
+    ],
+    [
+     404
+    ]
+   ]
+  },
+  "easel_shadow": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     389
+    ],
+    [
+     405
+    ]
+   ],
+   "props": {
+    "overlay": "shadow"
+   },
+   "layer_of": "easel",
+   "offset": [
+    0,
+    0
+   ]
+  },
+  "stage": {
+   "w": 4,
+   "h": 2,
+   "ids": [
+    [
+     390,
+     391,
+     392,
+     393
+    ],
+    [
+     406,
+     407,
+     408,
+     409
+    ]
+   ]
+  },
+  "stage_shadow": {
+   "w": 4,
+   "h": 2,
+   "ids": [
+    [
+     394,
+     395,
+     396,
+     397
+    ],
+    [
+     410,
+     411,
+     412,
+     413
+    ]
+   ],
+   "props": {
+    "overlay": "shadow"
+   }
+  },
+  "screen": {
+   "w": 4,
+   "h": 2,
+   "ids": [
+    [
+     416,
+     417,
+     418,
+     419
+    ],
+    [
+     432,
+     433,
+     434,
+     435
+    ]
+   ],
+   "props": {
+    "layer": "wall"
+   }
+  }
+ },
+ "palette": {
+  "ol0": "#2a1d2e",
+  "ol1": "#4a3045",
+  "s0": "#a0565a",
+  "s1": "#ee9a80",
+  "s2": "#ffc9a0",
+  "s3": "#ffe6cc",
+  "h0": "#4a1f2a",
+  "h1": "#7d3324",
+  "h2": "#b8562e",
+  "h3": "#e88a4a",
+  "g0": "#156a4e",
+  "g1": "#23a067",
+  "g2": "#3fd17f",
+  "g3": "#a8f0b8",
+  "p0": "#262e5a",
+  "p1": "#3d4a85",
+  "p2": "#5a6cb0",
+  "w0": "#52321f",
+  "w1": "#7f4f2c",
+  "w2": "#b0743f",
+  "w3": "#d9a066",
+  "t0": "#76604f",
+  "t1": "#a3836a",
+  "t2": "#c9a982",
+  "t3": "#e3cba6",
+  "t4": "#f6e7cf",
+  "q0": "#1f4a35",
+  "q1": "#2f6e35",
+  "q2": "#4c9a3c",
+  "q3": "#72c048",
+  "q4": "#a6dd5a",
+  "q5": "#e0f58a",
+  "a0": "#2b4a8a",
+  "a1": "#3a78c8",
+  "a2": "#5fb4e8",
+  "a3": "#a8e4f5",
+  "y0": "#f0a830",
+  "y1": "#ffd166",
+  "y2": "#fff4b0",
+  "r0": "#a02b3a",
+  "r1": "#e04848",
+  "r2": "#ff8a7a",
+  "wh": "#ffffff",
+  "m0": "#2e3048",
+  "m1": "#474b6b",
+  "m2": "#6b7192",
+  "k0": "#c46aa8",
+  "k1": "#f6a5d0"
+ }
+}

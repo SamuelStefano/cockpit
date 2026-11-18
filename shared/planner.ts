@@ -1,3 +1,5 @@
+import type { DepartmentId } from './departments';
+
 export const PLANNER_COLUMNS = ['today', 'week', 'backlog', 'done'] as const;
 export type PlannerColumn = (typeof PLANNER_COLUMNS)[number];
 export type PlannerDifficulty = 1 | 2 | 3;
@@ -13,6 +15,10 @@ export interface TaskHandoff {
   reason: string;
   switchPoint: string;
 }
+
+export interface TaskClaim { botId: string; at: number; sentAt?: number; turnStartedAt?: number }
+
+export interface WantReady { by: string; reason: string; at: number }
 
 export interface PlannerTask {
   id: string;
@@ -30,6 +36,13 @@ export interface PlannerTask {
   tag?: string;
   ownerBotId?: string;
   handoffs?: TaskHandoff[];
+  ready?: true;
+  readyBy?: string;
+  readyAt?: number;
+  wantReady?: WantReady;
+  ownerSector?: DepartmentId;
+  unsafe?: true;
+  claim?: TaskClaim;
 }
 
 export interface PlannerMove { id: string; column: PlannerColumn; order: number }
@@ -45,7 +58,9 @@ export const PLANNER_LIMITS = {
   tag: 24,
   handoffs: 20,
   handoffText: 600,
+  wantReadyReason: 140,
 } as const;
 
+export const READY_BY_RE = /^human:[A-Za-z0-9_:.+/=-]{1,160}$/;
 export const PLANNER_ID_RE = /^[A-Za-z0-9_-]{1,80}$/;
 export const PLANNER_REF_RE = /^[A-Za-z0-9:_.-]{1,80}$/;

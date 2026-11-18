@@ -12,13 +12,16 @@ vi.mock('./broadcast', () => ({
   addBroadcastTap: (fn: (msg: unknown) => void) => { m.taps.add(fn); return () => m.taps.delete(fn); },
 }));
 vi.mock('../team', () => ({ getTeam: async () => m.team }));
-vi.mock('./team-panel-frames', () => ({
-  build: async () => ({
-    redacted: false, at: 1, needsYou: [],
-    sectors: [{ id: 'engineering', name: 'Engenharia', openPrs: [], mergedPrs: [], bots: [{
-      id: 'ana1', name: 'Ana', status: 'working', task: 'SECRET task', needs: [{ kind: 'question', botName: 'Ana', text: 'SECRET need' }],
-      openPrs: [{ url: 'https://github.com/o/secret/pull/1', number: 1, title: 'SECRET pr', repo: 'o/secret', branch: 'b', state: 'open' }], mergedPrs: [],
-    }] }],
+vi.mock('./team-state-frames', () => ({
+  teamStateSnapshot: async () => ({ bots: [{ id: 'ana1', name: 'Ana', status: 'working', task: 'SECRET task' }] }),
+}));
+vi.mock('../team-pending', () => ({
+  readPendingQuestions: () => [{ botId: 'ana1', sessionKey: 'k', at: 1, questions: [{ question: 'SECRET need' }] }],
+}));
+vi.mock('../github/prs', () => ({
+  getPrsSnapshot: async () => ({
+    fetchedAt: 1, merged: [], review: [], mergedSinceDays: 30, mergedTruncated: false,
+    mine: [{ url: 'https://github.com/o/secret/pull/1', number: 1, title: 'SECRET pr', repo: 'o/secret', headRef: 'ana1/b', state: 'open', checks: 'success', review: 'none', mergeable: 'ok' }],
   }),
 }));
 

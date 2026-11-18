@@ -18,6 +18,7 @@ import { mcpServerDefsSync, claudeReady } from './admin-ops';
 import { refreshClaudeAiConnectors } from './mcp/claudeai-connectors';
 import { getSlashCommands } from './ws/slash';
 import { startParkedDrainer, resumeOrphanRuns } from './ws/runs';
+import { startVillageRound } from './village/timer';
 import { startTeamMessaging } from './ws/team-deliver';
 import { takeOrphanRuns } from './ws/recover';
 import { readMemInfo } from './ws/mem-guard';
@@ -231,7 +232,7 @@ function connect(relayUrl: string, id: Identity, onOpen: () => void, onClose: (c
         const sealed = new SealedHub({
           keys,
           link: ws,
-          serve: (peer) => serveConnection(peer as unknown as WebSocket, { role: AGENT_ROLE, root: AGENT_ROOT, transport: 'sealed' }),
+          serve: (peer) => serveConnection(peer as unknown as WebSocket, { role: AGENT_ROLE, root: AGENT_ROOT, transport: 'sealed', human: `${id.agentId}:${peer.devicePub.slice(0, 16)}` }),
           intercept: deviceFrameHandler(keys.pub, () => hub, id.agentId),
           onPeersChanged: () => {},
           boxId: id.agentId,
@@ -418,6 +419,7 @@ export function runAgent(relayUrl: string): void {
   // sem depender de browser aberto — é justamente o ponto: enfileirar à noite e
   // acordar com tudo drenado quando a quota voltou.
   startParkedDrainer();
+  startVillageRound();
   startTeamMessaging();
   // Reaper no agente também: um item drenado que trava mudo ("garimpando" eterno)
   // deixaria a sessão ocupada pra sempre e travaria o resto da fila overnight. No

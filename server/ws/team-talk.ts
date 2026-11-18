@@ -1,13 +1,15 @@
 import type { WebSocket } from 'ws';
 import type { ClientMsg, ServerMsg } from '../../shared/protocol';
 import { botIdFromKey, botThreadKey } from '../../shared/team';
-import { buildTalkSnapshot, talkChunkFor, talkPayloadFor, TALK_MAX_TEXT, type TalkChunk } from '../../shared/team-talk';
+import { buildTalkInfo, buildTalkSnapshot, talkChunkFor, talkPayloadFor, TALK_MAX_TEXT, type TalkChunk } from '../../shared/team-talk';
 import type { Role } from '../auth';
 import { getTeam } from '../team';
 import { authorize } from './authz';
 import { addBroadcastTap, send } from './broadcast';
 import { threads } from './threads';
-import { build as buildPanel } from './team-panel-frames';
+import { readPendingQuestions } from '../team-pending';
+import { getPrsSnapshot } from '../github/prs';
+import { teamStateSnapshot } from './team-state-frames';
 
 // Admin-only dialog with a bot, inside the game. It never opens a session: a bot
 // without one answers 'no-session'. Sending goes through the normal 'send' path
@@ -21,11 +23,12 @@ export const TALK_REFRESH_MS = 15_000;
 const ID_RE = /^[A-Za-z0-9_-]{1,80}$/;
 
 async function snapshot(botId: string) {
-  const [team, panel] = await Promise.all([getTeam(), buildPanel().catch(() => null)]);
+  const [team, state, prs] = await Promise.all([getTeam(), teamStateSnapshot().catch(() => null), getPrsSnapshot(false).catch(() => null)]);
   const bot = team.find((b) => b.id === botId);
   if (!bot) return null;
-  const pb = panel?.sectors.flatMap((s) => s.bots).find((b) => b.id === botId);
-  return buildTalkSnapshot(bot, pb, Date.now());
+  const now = Date.now();
+  const info = buildTalkInfo(bot, state?.bots.find((b) => b.id === botId), prs, readPendingQuestions(), now);
+  return buildTalkSnapshot(bot, info, now);
 }
 
 async function pushSnapshot(ws: WebSocket, botId: string, recording: boolean): Promise<void> {
