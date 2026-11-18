@@ -59,6 +59,7 @@ export function NpcDialog({ bot, talk, recording, following, side, onSend, onOpe
   const [chatting, setChatting] = useState(false);
   const [text, setText] = useState('');
   const input = useRef<HTMLTextAreaElement>(null);
+  const scroller = useRef<HTMLDivElement>(null);
   const frame = useAsset(FRAME_URL);
   const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
   const snap = talk.botId === bot.id ? talk.snapshot : null;
@@ -69,6 +70,10 @@ export function NpcDialog({ bot, talk, recording, following, side, onSend, onOpe
   const waiting = talk.sending || typing;
 
   useEffect(() => { if (chatting) input.current?.focus(); }, [chatting]);
+  useEffect(() => {
+    const el = scroller.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [shown, talk.notice, talk.sending]);
   useEffect(() => { if (recording) setChatting(false); }, [recording]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -89,8 +94,8 @@ export function NpcDialog({ bot, talk, recording, following, side, onSend, onOpe
   const pos = side === 'top' ? 'top-3 max-sm:top-auto max-sm:bottom-2' : 'bottom-3 max-sm:bottom-2';
 
   return (
-    <div role="dialog" aria-label={`Conversa com ${bot.name}`} data-npc-dialog={bot.id} data-side={side} style={{ ...PIXEL, ...skin, maxHeight: '38%' }} className={`absolute inset-x-3 z-10 mx-auto flex max-w-2xl flex-col gap-2 overflow-hidden text-[#e8e2d6] ${pos}`}>
-      <div className="flex min-h-0 items-start gap-3">
+    <div role="dialog" aria-label={`Conversa com ${bot.name}`} data-npc-dialog={bot.id} data-side={side} style={{ ...PIXEL, ...skin, maxHeight: 'min(70%, 22rem)' }} className={`absolute inset-x-3 z-10 mx-auto flex max-w-2xl flex-col gap-2 overflow-hidden text-[#e8e2d6] ${pos}`}>
+      <div ref={scroller} data-npc-scroll className="scroll-thin flex min-h-0 flex-1 items-start gap-3 overflow-y-auto">
         <Portrait bot={bot} />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-3">
@@ -101,22 +106,22 @@ export function NpcDialog({ bot, talk, recording, following, side, onSend, onOpe
           {task && <p data-npc-task style={{ fontFamily: 'inherit' }} className="mt-1 line-clamp-2 font-sans text-xs normal-case text-[#e8e2d6]"><span style={PIXEL} className="text-[#ffd166]">Tarefa: </span><span style={{ fontFamily: 'system-ui, sans-serif' }}>{task}</span></p>}
           {snap?.redacted && <p className="mt-1 text-[10px] text-[#9a948c]">{snap.openPrs} PRs abertas · {snap.mergedPrs} mergeadas · {snap.needs} pendências</p>}
           {(talk.reply || talk.sending || talk.notice) && !recording && (
-            <div data-npc-reply style={{ fontFamily: 'system-ui, sans-serif' }} className="scroll-thin mt-2 max-h-[7.5rem] overflow-y-auto whitespace-pre-wrap text-xs leading-snug">
+            <div data-npc-reply style={{ fontFamily: 'system-ui, sans-serif' }} className="mt-2 whitespace-pre-wrap text-xs leading-snug">
               {shown || (talk.sending ? '…' : '')}
               {waiting && <span data-npc-caret aria-hidden className="ml-1 inline-block animate-pulse text-[#3fd17f]">▼</span>}
               {talk.notice && <span className="block text-[#ffd166]">{talk.notice}</span>}
             </div>
           )}
         </div>
-        <button type="button" aria-label="Fechar" className="px-1 text-[#9a948c] hover:text-white" onClick={onClose}>×</button>
+        <button type="button" aria-label="Fechar" className="sticky top-0 shrink-0 self-start px-1 text-[#9a948c] hover:text-white" onClick={onClose}>×</button>
       </div>
       {chatting && canChat && (
-        <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); submit(); }}>
+        <form className="flex shrink-0 gap-2" onSubmit={(e) => { e.preventDefault(); submit(); }}>
           <textarea ref={input} value={text} rows={1} maxLength={4000} placeholder={`Diga algo para ${bot.name}`} style={{ fontFamily: 'system-ui, sans-serif' }} className="min-h-8 flex-1 resize-none border-2 border-[#e8e2d6]/40 bg-black/50 px-2 py-1 text-xs text-white placeholder:text-neutral-500 focus:border-[#3fd17f] focus:outline-none" onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); } }} />
           <button type="submit" className={`${btn} ${btnOn}`} disabled={!text.trim() || talk.sending}>Enviar</button>
         </form>
       )}
-      <div className="flex flex-wrap gap-2">
+      <div data-npc-actions className="flex shrink-0 flex-wrap gap-2">
         <button type="button" className={`${btn} ${chatting ? btnOn : btnOff}`} aria-pressed={chatting} disabled={!canChat} title={recording ? 'Indisponível na gravação' : undefined} onClick={() => setChatting((v) => !v)}>Conversar</button>
         <button type="button" className={`${btn} ${btnOff}`} onClick={onOpenPc}>Ver o PC</button>
         <button type="button" className={`${btn} ${following ? btnOn : btnOff}`} aria-pressed={following} onClick={onFollow}>{following ? 'Seguindo' : 'Seguir'}</button>

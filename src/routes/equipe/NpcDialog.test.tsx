@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { NpcDialog } from './NpcDialog';
 import { initialTalk } from './world/talk-state';
 import type { TeamBot } from '../../../shared/protocol';
@@ -30,5 +30,22 @@ describe('NpcDialog', () => {
     expect((screen.getByText('Conversar') as HTMLButtonElement).disabled).toBe(true);
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     expect(onClose).toHaveBeenCalled();
+  });
+  it('keeps the form and buttons outside the scrolling region', () => {
+    const { container } = render(<NpcDialog bot={bot} talk={{ ...initialTalk, botId: 'a', snapshot: snap, reply: 'hello' }} recording={false} following={false} side="bottom" onSend={noop} onOpenPc={noop} onFollow={noop} onClose={noop} />);
+    fireEvent.click(screen.getByText('Conversar'));
+    const root = container.querySelector('[data-npc-dialog]') as HTMLElement;
+    const scroller = root.querySelector('[data-npc-scroll]') as HTMLElement;
+    const form = root.querySelector('form') as HTMLElement;
+    const actions = root.querySelector('[data-npc-actions]') as HTMLElement;
+    expect(scroller.className).toContain('overflow-y-auto');
+    expect(scroller.className).toContain('min-h-0');
+    expect(scroller.className).toContain('flex-1');
+    expect(scroller.contains(root.querySelector('[data-npc-reply]'))).toBe(true);
+    expect(scroller.contains(form)).toBe(false);
+    expect(scroller.contains(actions)).toBe(false);
+    expect(form.className).toContain('shrink-0');
+    expect(actions.className).toContain('shrink-0');
+    expect(root.style.maxHeight).toContain('min(70%');
   });
 });
