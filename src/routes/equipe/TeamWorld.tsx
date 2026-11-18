@@ -44,6 +44,12 @@ export function TeamWorld({ state, connected, onRefresh, bots, meetings, onMeeti
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
   const [tick, setTick] = useState(0);
+  // Re-derives the world so the plaza breaks of long-idle bots start and end on time.
+  const [clock, setClock] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setClock(Date.now()), 10_000);
+    return () => clearInterval(id);
+  }, []);
   const [panel, setPanel] = useState(false);
   const [picked, setPicked] = useState<string[]>([]);
   const [demoMeet, setDemoMeet] = useState(() => demoMeeting(location.search));
@@ -69,8 +75,8 @@ export function TeamWorld({ state, connected, onRefresh, bots, meetings, onMeeti
   const celebrate = useCelebrate(merged);
 
   const view = useMemo(
-    () => (demo ? deriveWorld(demoTeamState(Date.now(), tick), { counts: DEMO_COUNTS, projects: DEMO_PROJECTS, meeting, celebrate }) : deriveWorld(state, { meeting, celebrate })),
-    [demo, state, tick, meeting, celebrate],
+    () => (demo ? deriveWorld(demoTeamState(Date.now(), tick), { counts: DEMO_COUNTS, projects: DEMO_PROJECTS, meeting, celebrate }) : deriveWorld(state, { meeting, celebrate, now: clock })),
+    [demo, state, tick, meeting, celebrate, clock],
   );
   const viewRef = useRef(view);
   viewRef.current = view;

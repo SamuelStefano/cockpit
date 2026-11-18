@@ -1,10 +1,9 @@
 import type { TeamState, TeamBotStatus } from '../../../../shared/team-state';
-import { HOUSES, type BuildingId } from './world-map';
+import type { BuildingId } from './world-map';
+import { breakPlace } from './world-break';
+import { homeOf } from './world-home';
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
-export type ProjectId = string;
-const OFFICE = 'escritorio';
-const TASK_KEYWORDS: readonly (readonly [string, string])[] = [['itera', 'itera'], ['dfl', 'dfl'], ['radar', 'corte-radar']];
 
 // What the world is allowed to know about a bot: name, state, counts. The snapshot
 // also carries task titles and message previews; they are dropped here on purpose,
@@ -14,8 +13,12 @@ export interface NpcView {
   name: string;
   mode: TeamBotStatus;
   badge: string | null;
-  // Where the bot works when it is working (an id, never text).
-  project: ProjectId;
+  // The building the bot lives in (an id, never text).
+  home: string;
+  // Preferred desk index inside the home, when the bot has one and the house is its own.
+  homeSeat?: number;
+  // True during the short plaza stroll of a bot that has been idle for a long time.
+  onBreak: boolean;
   sprite?: string;
   // Mascot colour as #rrggbb, never free text.
   color?: string;
@@ -40,25 +43,13 @@ export interface WorldView {
 export type NpcAnim = 'work' | 'idle' | 'wait';
 export interface NpcSprite { anim: NpcAnim; bubble: 'zz' | '!' | null; tool: boolean }
 
-type HouseRef = { id: string; kind?: string; department?: string };
-
-// Order: the bot's project field (a known house id), a keyword in its task, its department's house, the office.
-export function projectOf(bot: { project?: string; task?: string; sector?: string }, houses: readonly HouseRef[] = HOUSES): ProjectId {
-  const known = (id: string): boolean => houses.some((h) => h.id === id && (h.kind ?? 'house') === 'house');
-  if (bot.project && known(bot.project)) return bot.project;
-  const task = bot.task?.toLowerCase() ?? '';
-  const hit = TASK_KEYWORDS.find(([kw, id]) => task.includes(kw) && known(id));
-  if (hit) return hit[1];
-  const byDept = bot.sector ? houses.find((h) => h.department === bot.sector && (h.kind ?? 'house') === 'house') : undefined;
-  return byDept?.id ?? OFFICE;
-}
-
 export type Station = 'plaza' | 'sala' | BuildingId;
 
-// Working bots sit at a desk, bots in a meeting sit in the room, everyone else stays on the plaza.
-export function stationOf(n: Pick<NpcView, 'mode' | 'project' | 'meeting'>): Station {
+// Meeting bots sit in the room; a bot on its plaza break is on the plaza; everyone else
+// (working, idle, waiting) stays in its home building.
+export function stationOf(n: Pick<NpcView, 'home' | 'meeting' | 'onBreak'>): Station {
   if (n.meeting) return 'sala';
-  return n.mode === 'working' ? n.project : 'plaza';
+  return n.onBreak ? 'plaza' : n.home;
 }
 
 export const FLIGHT_WINDOW_MS = 10 * 60_000;
@@ -98,7 +89,7 @@ export function deriveWorld(state: TeamState | null, opts: DeriveOptions = {}): 
   const inMeeting = new Set([...(opts.meeting?.participantIds ?? []), ...(moderatorId ? [moderatorId] : [])].filter((id) => ids.has(id)));
   const npcs = state.bots.map((b): NpcView => ({
     id: b.id, name: b.name, mode: b.status, badge: badgeText(opts.counts?.[b.id]),
-    project: projectOf(b), ...(b.sprite ? { sprite: b.sprite } : {}), ...(HEX.test(b.color ?? '') ? { color: b.color } : {}), meeting: inMeeting.has(b.id),
+    home: homeOf(b), ...(b.homeSeat !== undefined && b.home === homeOf(b) ? { homeSeat: b.homeSeat } : {}), onBreak: b.status === 'idle' && breakPlace(now, b.idleSince, b.id) === 'plaza', ...(b.sprite ? { sprite: b.sprite } : {}), ...(HEX.test(b.color ?? '') ? { color: b.color } : {}), meeting: inMeeting.has(b.id),
     ...(b.id === moderatorId ? { moderator: true } : {}),
   }));
   const flights = state.handoffs

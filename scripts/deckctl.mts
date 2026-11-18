@@ -127,7 +127,7 @@ export class Client {
   }
 }
 
-async function connect(): Promise<Client> {
+export async function connect(): Promise<Client> {
   const token = readToken();
   if (!token) fail('no COCKPIT_TOKEN found — set env COCKPIT_TOKEN or add it to ~/.cockpit-local.env');
   const client = new Client(token);
@@ -1527,7 +1527,7 @@ async function saveTask(client: Client, task: PlannerTask): Promise<void> {
   await mutationAck(client, boardWithTask((list) => list.some((t) => sameTaskContent(t, task))), 'planner-task-save');
 }
 
-async function fetchTeam(client: Client): Promise<TeamBot[]> {
+export async function fetchTeam(client: Client): Promise<TeamBot[]> {
   client.send({ t: 'team-get' });
   const m = await client.waitFor(isServerMsg('team'), DEFAULT_TIMEOUT_MS);
   if (!m) fail('backend did not answer team-get (timeout)');
