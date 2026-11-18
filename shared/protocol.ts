@@ -19,6 +19,7 @@ import type { TeamState } from './team-state';
 import type { PrDetail, PrDiff, PrsSnapshot, SessionPrs } from './prs';
 import type { BoxHealth, SmokeResult } from './box-health';
 import type { VersionKind, VersionMeta } from './versions';
+import type { VillagePlanView, VillageView } from './village';
 
 export interface ToolDiff {
   path: string;
@@ -858,6 +859,9 @@ export type ClientMsg =
   | { t: 'agent-build'; reqId: string; history: { role: 'user' | 'assistant'; text: string }[]; draft: { name: string; label: string; instructions: string; skills: string[] } }
   | { t: 'team-messages-get'; botId?: string; peer?: string; before?: number }
   | { t: 'team-pause-set'; paused: boolean }
+  | { t: 'village-get' }
+  | { t: 'village-config'; enabled?: boolean; dailyCap?: number }
+  | { t: 'village-dry' }
   | { t: 'team-rotate'; botId: string }
   | { t: 'team-meeting-start'; question: string; participantIds: string[]; moderatorId: string }
   | { t: 'team-meetings-get' }
@@ -955,6 +959,7 @@ export type ClientMsg =
   | { t: 'canvas-card-delete'; id: string }
   | { t: 'planner-get' }
   | { t: 'planner-task-save'; task: PlannerTask }
+  | { t: 'planner-task-ready'; id: string; ready: boolean }
   | { t: 'planner-task-delete'; id: string }
   | { t: 'planner-reorder'; moves: PlannerMove[] }
   | { t: 'planner-task-handoff'; id: string; handoff: Omit<TaskHandoff, 'at'> }
@@ -1077,6 +1082,8 @@ export type ServerMsg =
   | { t: 'team-messages'; items: TeamMessage[]; botId?: string; peer?: string; before?: number }
   | { t: 'team-message'; item: TeamMessage }
   | { t: 'team-paused'; paused: boolean }
+  | { t: 'village'; village: VillageView }
+  | { t: 'village-plan'; plan: VillagePlanView }
   | { t: 'team-rotate-result'; botId: string; ok: boolean; error?: string; words?: number }
   | { t: 'team-meetings'; items: TeamMeeting[] }
   | { t: 'team-state'; state: TeamState }

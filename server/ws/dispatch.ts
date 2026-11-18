@@ -32,6 +32,8 @@ import { sendMeetings, startMeetingFrame } from './team-meeting-frames';
 import { cleanBuildRequest } from './agent-build';
 import { parseTtsText, synthesize, mintSttToken } from '../tts';
 import { sendTeamMessages, sendTeamPaused, setTeamPause } from './team-frames';
+import { appendVillageLog } from '../village/store';
+import { refuseReady, sendVillage, sendVillagePlan, setVillageConfig } from './village-frames';
 import { sendTeamState } from './team-state-frames';
 import { clearBotQuestion, sendTeamPending } from './team-pending-frames';
 import { sendBotComputer, sendBotFile, sendBotFiles } from './team-files-frames';
@@ -96,7 +98,7 @@ import { startCanvasFlows } from '../canvas/flows';
 import { registerCanvasClient, emitCanvasMsg } from './canvas-clients';
 import { registerPlannerClient, emitPlannerMsg } from './planner-clients';
 import { applyHandoff } from '../../shared/task-handoff';
-import { applyMoves, readTasksChained, sanitizeTask, updateTasks, upsertTask } from '../planner/store';
+import { applyMoves, markReady, readTasksChained, readyAttempt, sanitizeTask, updateTasks, upsertTask } from '../planner/store';
 import { CARD_STATUSES, type CanvasBoard, type CardStatus } from '../../shared/canvas';
 import { updateAreaCacheFromGraph, getAreaOf } from '../canvas/autopause-loop';
 import { areaUsageFromIds } from '../../shared/canvas-budget';
@@ -163,7 +165,9 @@ const buildInFlight = new WeakSet<WebSocket>();
 const ttsInFlight = new WeakMap<WebSocket, number>();
 const MAX_TTS_IN_FLIGHT = 3;
 
-export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
+export interface HandleCtx { human?: string }
+
+export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role, ctx: HandleCtx = {}) {
   switch (msg.t) {
     case 'ping': {
       // Ecoa o pong pro MESMO socket. Barato de propósito: o cliente usa o
@@ -487,14 +491,50 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     case 'planner-task-save': {
       const now = Date.now();
       let rejected = false;
+      let refused = false;
       const tasks = await updateTasks((list) => {
-        const task = sanitizeTask(msg.task, list.find((x) => x.id === msg.task?.id), now);
+        const prev = list.find((x) => x.id === msg.task?.id);
+        if (readyAttempt(msg.task, prev)) {
+          refused = true;
+          return list;
+        }
+        const task = sanitizeTask(msg.task, prev, now, { human: ctx.human });
+        if (task && prev?.unsafe === true && task.unsafe !== true) {
+          void appendVillageLog({ at: now, event: 'ready', taskId: task.id, reason: 'unsafe cleared by human' });
+        }
         const next = task ? upsertTask(list, task) : null;
         rejected = !next;
         return next ?? list;
       });
+      if (refused) {
+        refuseReady(ws, String(msg.task?.id ?? ''), 'ready can only be set by the human UI frame', now);
+        return;
+      }
       if (rejected) send(ws, { t: 'error', message: 'task inválida' });
       emitPlannerMsg({ t: 'planner-board', tasks });
+      return;
+    }
+    case 'planner-task-ready': {
+      const now = Date.now();
+      if (typeof msg.id !== 'string' || typeof msg.ready !== 'boolean') { send(ws, { t: 'error', message: 'task inválida' }); return; }
+      if (msg.ready && !ctx.human) {
+        refuseReady(ws, msg.id, 'origin is not an admin browser session (sealed channel)', now);
+        return;
+      }
+      let failure: string | undefined;
+      const tasks = await updateTasks((list) => list.map((t) => {
+        if (t.id !== msg.id) return t;
+        if (!msg.ready) {
+          const { ready: _r, readyBy: _b, readyAt: _a, ...rest } = t;
+          return { ...rest, updatedAt: now };
+        }
+        const r = markReady(t, ctx.human!, now);
+        if (!r.ok) { failure = r.reason; return t; }
+        void appendVillageLog({ at: now, event: 'ready', taskId: t.id, reason: r.task.readyBy });
+        return r.task;
+      }));
+      if (failure) refuseReady(ws, msg.id, failure, now);
+      else emitPlannerMsg({ t: 'planner-board', tasks });
       return;
     }
     case 'planner-task-delete': {
@@ -998,6 +1038,18 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     }
     case 'team-pause-set': {
       await setTeamPause(ws, msg.paused);
+      return;
+    }
+    case 'village-get': {
+      await sendVillage(ws);
+      return;
+    }
+    case 'village-config': {
+      await setVillageConfig(ws, msg);
+      return;
+    }
+    case 'village-dry': {
+      await sendVillagePlan(ws);
       return;
     }
     case 'team-save': {

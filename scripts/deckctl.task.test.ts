@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import type { PlannerTask } from '../shared/planner';
 import {
   findByRef, findDuplicate, formatTaskList, mergeLinks, normalizeTitle, parseColumn, parseDifficulty, parseLinkSpec, parseTaskArgs,
-  sameTaskContent, parseFlags, parseRef, parseTag, parseOwner, resolveBot,
+  sameTaskContent, parseFlags, parseSeal, parseSector, applySeal, parseRef, parseTag, parseOwner, resolveBot,
 } from './deckctl.mts';
 import { topOrder } from '../src/planner/planner-logic';
 
@@ -242,5 +242,57 @@ describe('task owner', () => {
 
   it('counts an owner change as a content change', () => {
     expect(sameTaskContent(task({}), task({ ownerBotId: 'b1' }))).toBe(false);
+  });
+});
+
+describe('village flags', () => {
+  it('parses unsafe, want-ready and sector', () => {
+    const r = parseTaskArgs(['--unsafe', '--want-ready', 'looks done', '--sector', 'growth', 'Title']);
+    expect(r.positional).toEqual(['Title']);
+    expect(parseSeal(r.flags)).toEqual({ unsafe: true, wantReady: 'looks done' });
+    expect(parseSeal(parseTaskArgs([]).flags)).toEqual({});
+    expect(() => parseTaskArgs(['--sector'])).toThrow(/needs a value/);
+  });
+
+  it('refuses every flag that would mark a task ready or clear unsafe', () => {
+    for (const f of ['--ready', '--no-ready', '--unready', '--safe', '--confirm-human']) {
+      expect(() => parseTaskArgs([f]), f).toThrow(/only a human/);
+    }
+  });
+
+  it('validates the want-ready reason', () => {
+    expect(() => parseSeal({ 'want-ready': '   ' })).toThrow(/needs a reason/);
+    expect(() => parseSeal({ 'want-ready': 'a\nb' })).toThrow(/single line/);
+    expect(() => parseSeal({ 'want-ready': 'x'.repeat(141) })).toThrow(/too long/);
+    expect(parseSeal({ 'want-ready': 'x'.repeat(140) }).wantReady).toHaveLength(140);
+  });
+
+  it('validates the sector id and accepts none', () => {
+    expect(parseSector('Growth')).toBe('growth');
+    expect(parseSector('none')).toBeNull();
+    expect(() => parseSector('sales')).toThrow(/invalid sector/);
+  });
+
+  it('applySeal writes wantReady, unsafe and sector, never ready', () => {
+    const t = task({ ownerSector: 'growth' });
+    applySeal(t, { unsafe: true, wantReady: 'why' }, null, 'luffy');
+    const r = t as unknown as Record<string, unknown>;
+    expect(r.unsafe).toBe(true);
+    expect(r.ready).toBeUndefined();
+    expect(r.wantReady).toMatchObject({ by: 'luffy', reason: 'why' });
+    expect(t.ownerSector).toBeNull();
+  });
+
+  it('sameTaskContent ignores ready but notices unsafe and sector', () => {
+    expect(sameTaskContent(task({ ready: true }), task({}))).toBe(true);
+    expect(sameTaskContent(task({ unsafe: true }), task({}))).toBe(false);
+    expect(sameTaskContent(task({ ownerSector: 'growth' }), task({}))).toBe(false);
+  });
+
+  it('formatTaskList shows ready, want-ready and sector marks', () => {
+    const out = formatTaskList([task({ column: 'today', ready: true, ownerSector: 'growth' }), task({ id: 'w', column: 'today', wantReady: { by: 'a', reason: 'r', at: 1 } })], { now: NOW }).join('\n');
+    expect(out).toContain('READY');
+    expect(out).toContain('WANT-READY');
+    expect(out).toContain('sector:growth');
   });
 });

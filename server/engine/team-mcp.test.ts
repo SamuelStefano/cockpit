@@ -52,7 +52,7 @@ describe('team-mcp', () => {
       { jsonrpc: '2.0', id: 1, method: 'tools/list' },
     ]);
     expect(init.result.serverInfo.name).toBe('deck-team');
-    expect(list.result.tools.map((t: any) => t.name)).toEqual(['team_list', 'team_send', 'team_tasks', 'team_handoff']);
+    expect(list.result.tools.map((t: any) => t.name)).toEqual(['team_list', 'team_send', 'team_tasks', 'team_task_done', 'team_handoff']);
   });
 
   it('team_list names the team, the boss and who the caller is', async () => {

@@ -23,6 +23,15 @@ describe('buildTeamState', () => {
     expect(s.bots[2].manager).toBeUndefined();
   });
 
+  it('marks a bot that holds a claim as doing, ids only', () => {
+    const s = buildTeamState({
+      ...base, team: [bot('a'), bot('b')], log: [],
+      tasks: [task('t1', { claim: { botId: 'a', at: 1 } }), task('t2', { column: 'done', claim: { botId: 'b', at: 1 } })],
+    });
+    expect(s.bots[0].doing).toBe(true);
+    expect(s.bots[1].doing).toBeUndefined();
+  });
+
   it('picks the nearest open owned task as the current one', () => {
     const s = buildTeamState({
       ...base, team: [bot('a')], log: [],
