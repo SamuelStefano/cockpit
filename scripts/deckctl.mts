@@ -1713,6 +1713,20 @@ async function fetchMeetings(client: Client): Promise<TeamMeeting[]> {
   return m.items;
 }
 
+async function cmdTeam(positional: string[]): Promise<void> {
+  const [sub, bot] = positional;
+  if (sub !== 'rotate' || !bot) fail('usage: deckctl team rotate <bot>   (needs ~/.cockpit/handoffs/<bot-id>.md, up to 500 words)');
+  const client = await connect();
+  try {
+    const team = await fetchTeam(client);
+    const target = orFail(() => resolveBot(team, bot));
+    client.send({ t: 'team-rotate', botId: target.id });
+    const r = await mutationAck(client, (m): m is Extract<ServerMsg, { t: 'team-rotate-result' }> => m.t === 'team-rotate-result' && m.botId === target.id, 'team-rotate');
+    if (!r.ok) fail(`rotate refused: ${r.error}`);
+    console.log(`${target.name}: session reset; the next turn starts fresh with the handoff (${r.words} words)`);
+  } finally { client.close(); }
+}
+
 async function cmdMeeting(positional: string[], flags: Flags, json: boolean): Promise<void> {
   const [sub, ...rest] = positional;
   if (sub !== 'start' && sub !== 'list' && sub !== 'show') fail(`unknown meeting subcommand "${sub ?? ''}" — start|list|show`);
@@ -1770,6 +1784,7 @@ Usage: deckctl <command> [args] [--json]
   task done <id> [--link URL[|label]]...    finish a task, optionally attaching the PR/result links
   task edit <id> [--title T] [--desc D] [--diff N] [--ref R] [--tag T] [--owner BOT|none] [--link URL]... [--clear-links] [--col C]
   task handoff <id> --to BOT --done ".." --pending ".." --reason ".." --switch ".." [--from BOT]   record that ownership moves to another bot
+  team rotate <bot>                         reset a bot's session; its next turn starts fresh from ~/.cockpit/handoffs/<bot-id>.md (refuses if busy, no handoff, or > 500 words)
   task rm <id>                              delete a task
   meeting start --q "<question>" --with a,b,c [--moderator x]   blind two-round meeting between bots, ends in minutes (ata)
   meeting list | meeting show <id>          meetings, newest first / one meeting (round 1 stays sealed until it closes)
@@ -1856,6 +1871,7 @@ async function main(): Promise<void> {
       return;
     }
     case 'task': return cmdTask(rest);
+    case 'team': return cmdTeam(positional);
     case 'meeting': return cmdMeeting(positional, flags, json);
     case 'status': return cmdStatus();
     case 'triage': return cmdTriage(flags, json);
