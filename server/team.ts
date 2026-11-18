@@ -45,6 +45,7 @@ export function saveBot(input: TeamBotInput, now = Date.now()): Promise<SaveResu
     // rewind the bot's thread to an older session.
     const bot: TeamBot = { ...input, createdAt: prev?.createdAt ?? now, updatedAt: now };
     if (prev?.sessionId) bot.sessionId = prev.sessionId;
+    if (prev?.previousSessionIds) bot.previousSessionIds = prev.previousSessionIds;
     // The bot form does not edit `home`/`homeSeat` yet: a save without them keeps the stored ones.
     if (bot.home === undefined && prev?.home) bot.home = prev.home;
     if (bot.homeSeat === undefined && prev?.homeSeat !== undefined) bot.homeSeat = prev.homeSeat;
@@ -80,6 +81,7 @@ export function bindBotSession(id: string, sessionId: string, now = Date.now()):
     const bot = all.find((b) => b.id === id);
     if (!bot || bot.sessionId === sessionId) return null;
     bot.sessionId = sessionId;
+    if (bot.previousSessionIds) bot.previousSessionIds = bot.previousSessionIds.filter((x) => x !== sessionId);
     delete bot.rotatedAt;
     bot.updatedAt = now;
     await writeTeam(all);
@@ -98,6 +100,7 @@ export function rotateBotSession(id: string, isBusy: (bot: TeamBot) => boolean, 
     const bot = all.find((b) => b.id === id);
     if (!bot) return { ok: false, error: 'bot não encontrado' };
     if (isBusy(bot)) return { ok: false, error: 'bot ocupado' };
+    if (bot.sessionId) bot.previousSessionIds = [...(bot.previousSessionIds ?? []).filter((x) => x !== bot.sessionId), bot.sessionId].slice(-10);
     delete bot.sessionId;
     bot.rotatedAt = now;
     bot.updatedAt = now;

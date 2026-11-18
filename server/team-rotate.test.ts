@@ -85,3 +85,15 @@ describe('rotateBot', () => {
     expect((await getTeam())[0].rotatedAt).toBeDefined();
   });
 });
+
+describe('old session after rotate', () => {
+  it('keeps the old id and still speaks as the bot, resuming the current session', async () => {
+    writeHandoff('state: x');
+    await rotateBot('vegeta1', idle);
+    expect((await getTeam())[0].previousSessionIds).toEqual([OLD]);
+    await bindBotSession('vegeta1', NEW);
+    const team = await getTeam();
+    expect(team[0].previousSessionIds).toEqual([OLD]);
+    expect(botTurnParams(team, 'k1', OLD)).toMatchObject({ botId: 'vegeta1', resumeId: NEW });
+  });
+});

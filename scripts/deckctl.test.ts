@@ -3,7 +3,7 @@ import { WebSocketServer } from 'ws';
 import type { AddressInfo } from 'node:net';
 import {
   parseFlags, flagStr, flagNum, fmtBrt, shortId, oneLine, matchByPrefix, newCardIdLocal, findCard,
-  scoreSession, isNeverPurgeSession, newTranscriptScan, feedTranscriptLine, type TriageInput, Client, busySessionIds, startNewTurn,
+  scoreSession, isNeverPurgeSession, newTranscriptScan, feedTranscriptLine, type TriageInput, Client, busySessionIds, startNewTurn, botSessionTarget,
 } from './deckctl.mts';
 import type { CanvasCard } from '../shared/canvas';
 import type { ServerMsg } from '../shared/protocol';
@@ -361,5 +361,17 @@ describe('startNewTurn', () => {
 
   it('keeps the reject message', async () => {
     expect(await against((k) => ({ t: 'send-reject', sessionKey: k, message: 'too big' }))).toEqual({ kind: 'rejected', message: 'too big' });
+  });
+});
+
+describe('botSessionTarget', () => {
+  const team = [{ id: 'otto1', name: 'Otto', sessionId: 'bbbbbbbb-new', previousSessionIds: ['aaaaaaaa-old'] }];
+  it('resolves @Name to the bot current session', () => {
+    expect(botSessionTarget(team, '@otto')).toEqual({ sessionId: 'bbbbbbbb-new', botName: 'Otto' });
+    expect(() => botSessionTarget(team, '@ghost')).toThrow(/no bot/);
+  });
+  it('redirects an old session id to the current one', () => {
+    expect(botSessionTarget(team, 'aaaaaaaa')).toEqual({ sessionId: 'bbbbbbbb-new', botName: 'Otto' });
+    expect(botSessionTarget(team, 'bbbbbbbb')).toBeUndefined();
   });
 });
