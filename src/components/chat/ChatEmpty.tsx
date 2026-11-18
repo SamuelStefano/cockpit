@@ -16,8 +16,6 @@ interface ChatEmptyProps {
   needsProvider?: boolean;
   // Keyboard open: only the composer stays, the hero would eat the whole viewport.
   compact?: boolean;
-  // Phone team panel: opens above the composer and replaces the hero copy.
-  drawer?: ReactNode;
 }
 
 const FALLBACK_SUGGESTIONS = [
@@ -28,8 +26,7 @@ const FALLBACK_SUGGESTIONS = [
 
 const SUGGESTION_ICONS: IconName[] = ['clipboard', 'pencil', 'eye'];
 
-export function ChatEmpty({ onPrompt, onSeed, suggestions = FALLBACK_SUGGESTIONS, children, needsProvider = false, compact: compactProp = false, drawer }: ChatEmptyProps) {
-  const compact = compactProp || !!drawer;
+export function ChatEmpty({ onPrompt, onSeed, suggestions = FALLBACK_SUGGESTIONS, children, needsProvider = false, compact = false }: ChatEmptyProps) {
   const pick = (text: string) => (onSeed && isVirtualKeyboardOnly() ? onSeed(text) : onPrompt(text));
   // One tree for both layouts: remounting the composer here dropped its focus, which closed the
   // keyboard, which reopened the hero, so a new chat on the phone flickered and took no typing.
@@ -51,7 +48,6 @@ export function ChatEmpty({ onPrompt, onSeed, suggestions = FALLBACK_SUGGESTIONS
         </p>
       )}
       </>}
-      {drawer}
       {children && <div className="w-full">{children}</div>}
       {!compact && <>
       <div className="stagger-fade mt-5 flex w-full max-w-[760px] flex-col px-1">
