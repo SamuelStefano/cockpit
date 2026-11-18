@@ -1,3 +1,4 @@
+import { SKILL_ID_RE } from './bot-access';
 import type { SkillMeta } from './protocol';
 import { MAX_INSTRUCTIONS_BYTES, MAX_LABEL, MAX_NAME } from './team';
 
@@ -33,7 +34,6 @@ const MAX_HISTORY_TURNS = 24;
 const MAX_TURN_CHARS = 4000;
 const MAX_BLURB = 90;
 const MAX_SKILLS = 40;
-const SKILL_ID_RE = /^[a-zA-Z0-9_-]{1,80}$/;
 
 // The model sees ids so it can name them in the block; the person only ever sees the blurb.
 export function skillBlurb(s: Pick<SkillMeta, 'id' | 'name' | 'description'>): string {
