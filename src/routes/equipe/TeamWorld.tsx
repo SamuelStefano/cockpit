@@ -3,6 +3,8 @@ import type { TeamBot } from '../../../shared/protocol';
 import type { TeamState } from '../../../shared/team-state';
 import { isRunning, MEETING_LIMITS, type MeetingInput, type TeamMeeting } from '../../../shared/team-meeting';
 import { MeetingPanel } from './MeetingPanel';
+import { NpcDialog } from './NpcDialog';
+import type { TalkState } from './world/talk-state';
 import { navigateTo } from '../../lib/route-nav';
 import { agentPath } from '../../useRoute';
 import { demoMeeting, initialWorldUi, isDemo, parseInitialMode, worldUiReducer, type CameraMode } from './world/camera-mode';
@@ -25,6 +27,10 @@ interface TeamWorldProps {
   mergedCounts?: MergedCounts;
   paused?: boolean;
   onPauseSet?: (paused: boolean) => void;
+  talk?: TalkState;
+  onTalkOpen?: (botId: string, recording: boolean) => void;
+  onTalkSend?: (botId: string, text: string, recording: boolean) => void;
+  onTalkClose?: () => void;
 }
 
 const DEMO_TEAM: TeamBot[] = DEMO_BOTS.map((b) => ({ id: b.id, name: b.name, label: '', instructions: '', mascot: { shape: 'blob', color: '#3fd17f' }, profile: 'full', createdAt: 0, updatedAt: 0 }));
@@ -38,7 +44,7 @@ const chipOn = 'border-emerald-400/40 bg-emerald-500/20 text-emerald-200';
 
 // 2D team world: bots as NPCs on a plaza, projects as houses on a street. The
 // canvas only ever receives names, states and counts (see world-state.ts).
-export function TeamWorld({ state, connected, onRefresh, bots, meetings, onMeetingsGet, onMeetingStart, mergedCounts, paused = false, onPauseSet }: TeamWorldProps) {
+export function TeamWorld({ state, connected, onRefresh, bots, meetings, onMeetingsGet, onMeetingStart, mergedCounts, paused = false, onPauseSet, talk, onTalkOpen, onTalkSend, onTalkClose }: TeamWorldProps) {
   const demo = useMemo(() => isDemo(location.search), []);
   const [ui, dispatch] = useReducer(worldUiReducer, location.search, (s) => initialWorldUi(parseInitialMode(s)));
   const [ready, setReady] = useState(false);
@@ -52,11 +58,15 @@ export function TeamWorld({ state, connected, onRefresh, bots, meetings, onMeeti
   }, []);
   const [panel, setPanel] = useState(false);
   const [picked, setPicked] = useState<string[]>([]);
+  const [talkId, setTalkId] = useState<string | null>(null);
+  const [followId, setFollowId] = useState<string | null>(null);
+  const recordingRef = useRef(false);
   const [demoMeet, setDemoMeet] = useState(() => demoMeeting(location.search));
   const host = useRef<HTMLDivElement>(null);
   const world = useRef<WorldHandle | null>(null);
   const modeRef = useRef<CameraMode>(ui.mode);
   modeRef.current = ui.mode;
+  recordingRef.current = ui.recording;
 
   useEffect(() => { if (connected && !demo) { onRefresh(); onMeetingsGet(); } }, [connected, demo, onRefresh, onMeetingsGet]);
   // Only ids reach the world: never the question, answers or minutes.
@@ -78,6 +88,8 @@ export function TeamWorld({ state, connected, onRefresh, bots, meetings, onMeeti
     () => (demo ? deriveWorld(demoTeamState(Date.now(), tick), { counts: DEMO_COUNTS, projects: DEMO_PROJECTS, meeting, celebrate }) : deriveWorld(state, { meeting, celebrate, now: clock })),
     [demo, state, tick, meeting, celebrate, clock],
   );
+  const onTalkOpenRef = useRef(onTalkOpen);
+  onTalkOpenRef.current = onTalkOpen;
   const viewRef = useRef(view);
   viewRef.current = view;
 
@@ -93,7 +105,12 @@ export function TeamWorld({ state, connected, onRefresh, bots, meetings, onMeeti
         parent: el,
         mode: modeRef.current,
         coarse: isCoarse(),
-        onOpenBot: (id) => { if (!demo) navigateTo(agentPath(id, 'computador')); },
+        onOpenBot: (id) => {
+          if (demo) return;
+          setTalkId(id);
+          setFollowId(null);
+          onTalkOpenRef.current?.(id, recordingRef.current);
+        },
         onToggleBot: (id) => setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : p.length >= MEETING_LIMITS.maxParticipants ? p : [...p, id])),
         onReady: () => { setReady(true); h.update(viewRef.current); },
       });
@@ -105,6 +122,12 @@ export function TeamWorld({ state, connected, onRefresh, bots, meetings, onMeeti
   }, [demo]);
 
   useEffect(() => { world.current?.update(view); }, [view]);
+  useEffect(() => { world.current?.follow(followId); }, [followId, ready]);
+  const closeTalk = useMemo(() => () => { setTalkId(null); setFollowId(null); onTalkClose?.(); }, [onTalkClose]);
+  useEffect(() => {
+    if (talkId && onTalkOpen) onTalkOpen(talkId, ui.recording);
+  }, [ui.recording]); // eslint-disable-line react-hooks/exhaustive-deps
+  const talkBot = talkId ? bots.find((b) => b.id === talkId) : undefined;
   useEffect(() => { world.current?.setMode(ui.mode); }, [ui.mode]);
   useEffect(() => { world.current?.setSelection(panel, picked); }, [panel, picked, ready]);
   useEffect(() => {
@@ -146,9 +169,18 @@ export function TeamWorld({ state, connected, onRefresh, bots, meetings, onMeeti
             />
           )}
           <p className="pointer-events-none absolute bottom-2 left-2 rounded bg-neutral-950/70 px-2 py-1 text-[11px] text-neutral-400 max-sm:hidden">
-            {ui.mode === 'avatar' ? 'WASD ou setas · botão direito para andar · clique num bot para abrir o computador dele' : 'arraste para mover · roda ou pinça para o zoom · clique num bot'}
+            {ui.mode === 'avatar' ? 'WASD ou setas · botão direito para andar · clique num bot (ou E perto dele) para conversar' : 'arraste para mover · roda ou pinça para o zoom · clique num bot'}
           </p>
         </>
+      )}
+      {talk && talkBot && onTalkSend && (
+        <NpcDialog
+          bot={talkBot} talk={talk} recording={ui.recording} following={followId === talkBot.id}
+          onSend={(t) => onTalkSend(talkBot.id, t, ui.recording)}
+          onOpenPc={() => navigateTo(agentPath(talkBot.id, 'computador'))}
+          onFollow={() => setFollowId((f) => (f === talkBot.id ? null : talkBot.id))}
+          onClose={closeTalk}
+        />
       )}
       {ui.recording && (
         <button type="button" aria-label="Sair da gravação" className="absolute right-2 top-2 h-7 w-7 rounded-full border border-white/10 bg-white/5 text-[11px] text-white/40 opacity-30 hover:opacity-100" onClick={() => dispatch({ t: 'exit-recording' })}>×</button>

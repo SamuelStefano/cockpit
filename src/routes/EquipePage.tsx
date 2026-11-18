@@ -8,6 +8,7 @@ import { useRotinas } from './equipe/rotinas/useRotinas';
 import type { CronApi } from './equipe/equipe-props';
 import { Memoria } from './equipe/Memoria';
 import { TeamWorld } from './equipe/TeamWorld';
+import type { TalkState } from './equipe/world/talk-state';
 import type { TeamState } from '../../shared/team-state';
 import type { MeetingInput, TeamMeeting } from '../../shared/team-meeting';
 
@@ -31,6 +32,10 @@ interface EquipePageProps {
   onMeetingStart?: (input: MeetingInput) => void;
   teamPaused?: boolean;
   onTeamPauseSet?: (paused: boolean) => void;
+  talk?: TalkState;
+  onTalkOpen?: (botId: string, recording: boolean) => void;
+  onTalkSend?: (botId: string, text: string, recording: boolean) => void;
+  onTalkClose?: () => void;
   views: BotView[];
   connected: boolean;
   isAdmin: boolean;
@@ -64,7 +69,8 @@ export function EquipePage(p: EquipePageProps) {
         <TeamWorld
           state={p.teamState ?? null} connected={connected} onRefresh={p.onTeamStateGet} bots={p.bots} meetings={p.meetings ?? []}
           onMeetingsGet={p.onMeetingsGet ?? (() => {})} onMeetingStart={p.onMeetingStart ?? (() => {})}
-          paused={p.teamPaused ?? false} onPauseSet={p.onTeamPauseSet} />
+          paused={p.teamPaused ?? false} onPauseSet={p.onTeamPauseSet}
+          talk={p.talk} onTalkOpen={p.onTalkOpen} onTalkSend={p.onTalkSend} onTalkClose={p.onTalkClose} />
       </div>
     );
   }
