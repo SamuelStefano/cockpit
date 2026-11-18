@@ -2,14 +2,14 @@ import { describe, it, expect } from 'vitest';
 import raw from '../../../../public/world/v2/world.tmj?raw';
 import homesRaw from '../../../../scripts/team-homes.json?raw';
 import {
-  V2_TILE_LAYERS, blockedTiles, objects, propsOf, rectOf, tileOf, tilesOfType, validateWorldV2, type Homes, type V2Map,
+  V2_TILE_LAYERS, blockedTiles, botId, objects, propsOf, rectOf, tileOf, tilesOfType, validateWorldV2, type Homes, type V2Map,
 } from './world-v2-check';
 
 const map = JSON.parse(raw) as V2Map;
 // Stage 1 draws only the civic centre; bots whose house is not on the map yet are left out.
 const built = new Set(objects(map).map((o) => String(propsOf(o).id)));
 const allHomes = JSON.parse(homesRaw) as Homes;
-const homes: Homes = { homes: Object.fromEntries(Object.entries(allHomes.homes).filter(([, h]) => built.has(h.house))) };
+const homes: Homes = Object.fromEntries(Object.entries(allHomes).filter(([, h]) => built.has(h)));
 const clone = (): V2Map => JSON.parse(raw) as V2Map;
 const find = (m: V2Map, id: string) => objects(m).find((o) => propsOf(o).id === id)!;
 
@@ -107,8 +107,10 @@ describe('world v2 map', () => {
   it('reports a gid outside the embedded tilesets and a bot without a desk', () => {
     const m = clone();
     m.layers.find((l) => l.name === 'ground')!.data![0] = 99999;
-    const errs = validateWorldV2(m, { homes: { ...homes.homes, ghost: { house: 'prefeitura', seat: 9 } } });
+    const errs = validateWorldV2(m, { ...homes, Ghost: 'prefeitura', Ünder: 'escritorio' });
     expect(errs).toContain('tile layer "ground" uses gid 99999 outside every embedded tileset');
-    expect(errs).toContain('bot "ghost" has 0 desks, expected 1');
+    expect(errs).toContain('bot "Ghost" has 0 desks, expected 1');
+    expect(errs).toContain('bot "Ünder" lives in house "escritorio", which is not on the map');
+    expect(botId('Íris')).toBe('iris');
   });
 });

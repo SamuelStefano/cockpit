@@ -12,6 +12,7 @@ half of a doorway and roof overhangs go there.
 import json
 import os
 import sys
+import unicodedata
 import xml.etree.ElementTree as ET
 from collections import deque
 
@@ -754,8 +755,23 @@ def write(w, path):
         f.write(s + "\n")
 
 
+def bot_id(name):
+    """display name in team-homes.json -> bot id (Íris -> iris)"""
+    return unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode().lower()
+
+
+def load_homes(path):
+    """team-homes.json is {"<bot display name>": "<house id>"}; seats follow the file order per house"""
+    homes, per_house = {}, {}
+    for name, house in json.load(open(path)).items():
+        seat = per_house.get(house, 0)
+        per_house[house] = seat + 1
+        homes[bot_id(name)] = {"house": house, "seat": seat, "name": name}
+    return homes
+
+
 def build(full):
-    homes = json.load(open(HOMES))["homes"]
+    homes = load_homes(HOMES)
     w = World()
     zone_roads(w)
     zone_plaza(w)
