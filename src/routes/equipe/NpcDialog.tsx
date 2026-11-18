@@ -89,7 +89,7 @@ export function NpcDialog({ bot, talk, recording, following, side, onSend, onOpe
   };
 
   const skin: CSSProperties = frame
-    ? { borderStyle: 'solid', borderWidth: 24, borderImage: `url(${FRAME_URL}) 8 fill / 24px / 0 stretch`, imageRendering: 'pixelated' }
+    ? { borderStyle: 'solid', borderWidth: 16, borderImage: `url(${FRAME_URL}) 8 fill / 16px / 0 stretch`, imageRendering: 'pixelated' }
     : { ...fallbackFrame, padding: 14 };
   const pos = side === 'top' ? 'top-3 max-sm:top-auto max-sm:bottom-2' : 'bottom-3 max-sm:bottom-2';
 
