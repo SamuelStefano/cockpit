@@ -23,6 +23,8 @@ interface TeamWorldProps {
   onMeetingStart: (input: MeetingInput) => void;
   // Merged PR count per bot id. Not wired to a real source yet; a rise triggers the celebration.
   mergedCounts?: MergedCounts;
+  paused?: boolean;
+  onPauseSet?: (paused: boolean) => void;
 }
 
 const DEMO_TEAM: TeamBot[] = DEMO_BOTS.map((b) => ({ id: b.id, name: b.name, label: '', instructions: '', mascot: { shape: 'blob', color: '#3fd17f' }, profile: 'full', createdAt: 0, updatedAt: 0 }));
@@ -36,7 +38,7 @@ const chipOn = 'border-emerald-400/40 bg-emerald-500/20 text-emerald-200';
 
 // 2D team world: bots as NPCs on a plaza, projects as houses on a street. The
 // canvas only ever receives names, states and counts (see world-state.ts).
-export function TeamWorld({ state, connected, onRefresh, bots, meetings, onMeetingsGet, onMeetingStart, mergedCounts }: TeamWorldProps) {
+export function TeamWorld({ state, connected, onRefresh, bots, meetings, onMeetingsGet, onMeetingStart, mergedCounts, paused = false, onPauseSet }: TeamWorldProps) {
   const demo = useMemo(() => isDemo(location.search), []);
   const [ui, dispatch] = useReducer(worldUiReducer, location.search, (s) => initialWorldUi(parseInitialMode(s)));
   const [ready, setReady] = useState(false);
@@ -131,6 +133,9 @@ export function TeamWorld({ state, connected, onRefresh, bots, meetings, onMeeti
           </div>
           <div className="absolute right-2 top-2 flex items-center gap-1.5 max-sm:left-2 max-sm:right-auto max-sm:top-12">
             {demo && <span className="rounded-md border border-amber-400/30 bg-amber-500/15 px-2 py-1 text-[11px] text-amber-200">demo</span>}
+            {onPauseSet && !demo && (
+              <button type="button" className={`${chip} ${paused ? chipOn : chipOff}`} aria-pressed={paused} onClick={() => onPauseSet(!paused)}>{paused ? 'Retomar vila' : 'Pausar vila'}</button>
+            )}
             <button type="button" className={`${chip} ${panel ? chipOn : chipOff}`} aria-pressed={panel} onClick={() => setPanel((v) => !v)}>Reunião</button>
             <button type="button" className={`${chip} ${chipOff}`} aria-pressed={false} onClick={() => dispatch({ t: 'toggle-recording' })}>Gravação</button>
           </div>

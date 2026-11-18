@@ -17,3 +17,5 @@ relay/deploy/dist/
 /bin/deck-agent
 e2e-onboarding-runs/
 scripts/prs-harness/fixture.json
+__pycache__/
+*.pyc

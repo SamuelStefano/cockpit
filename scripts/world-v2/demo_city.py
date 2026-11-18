@@ -109,8 +109,8 @@ GB = (2, "blue", "brown", ["window_shop", "door_glass"], 2, ["green", None], [(1
 GC = (2, "cream", "terra", ["door_panel", "window_arched"], 2, [None, "red"], [(0, "flower")], None, (1,))
 
 
-def scene(A, t):
-    """t = gif frame (6 fps)"""
+def scene(A, t, figures=True):
+    """t = gif frame (6 fps); figures=False leaves out the stand-in characters (night preview draws real bots)"""
     wf = (t * 4 // 6) % 4
     im = ground(A, wf)
     over = blank(MW * T, MH * T)  # ground shadows
@@ -170,7 +170,8 @@ def scene(A, t):
     for x in (4, 9):
         add(item(A, "bench_front"), x, 15)
         over.alpha_composite(item(A, "shadow_wide"), (x * T, 15 * T))
-    add(silhouette("p1"), 11, 13, px=0, py=-16 + 2)
+    if figures:
+        add(silhouette("p1"), 11, 13, px=0, py=-16 + 2)
     add(item(A, "bush_berry"), 1, 11)
     over.alpha_composite(tile_of(A, "shadow_round"), (1 * T, 11 * T))
     add(item(A, "bush_flower"), 17, 11)
@@ -185,7 +186,8 @@ def scene(A, t):
         above.append((item(A, "tree_%s_canopy" % sp), x * T, y * T))
     add(item(A, "leaf_litter"), 19, 17, sort=0)
     # stand-in silhouette walking behind the round tree (north of the trunk)
-    add(silhouette(), 16, 13, px=-6, py=36)
+    if figures:
+        add(silhouette(), 16, 13, px=-6, py=36)
     # --- server towers + smoke
     for st, x in (("red", 18), ("green", 19)):
         over.alpha_composite(item(A, "tower_shadow"), (x * T, 12 * T))
@@ -216,7 +218,8 @@ def scene(A, t):
         sh = item(A, "boat_shadow")
         objs.append((y * T + 1, x * T, y * T, sh))
         add(item(A, "boat_" + bt, (t // 3 + k) % 2), x, y)
-    add(silhouette("p1"), 25, 12, py=2)
+    if figures:
+        add(silhouette("p1"), 25, 12, py=2)
     add(item(A, "lamp_night"), 28, 10)
     glows.append((item(A, "lamp_glow", (t + 2) % 4), 27 * T, 9 * T))
 

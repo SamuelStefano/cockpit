@@ -5,6 +5,7 @@ import { resolveSkillDeny } from './skills';
 import { departmentById } from '../shared/departments';
 import { botIdFromKey } from '../shared/team';
 import type { Role } from './auth';
+import { handoffPromptBlock } from './team-rotate';
 
 const MAX_IDENTITY_BYTES = 16 * 1024;
 
@@ -90,10 +91,13 @@ export function botTurnFor(team: TeamBot[], sessionKey: string, sessionId: strin
 export function botTurnParams(team: TeamBot[], sessionKey: string, sessionId?: string, memories?: Memory[]): BotTurn | undefined {
   const bot = findTurnBot(team, sessionKey, sessionId);
   if (!bot) return undefined;
+  // After `team rotate` the bot has no bound session: a stale id from a tab must not
+  // resume the old thread, and the first turn carries the bot's handoff.
+  const rotated = !!bot.rotatedAt && !bot.sessionId;
   return {
     botId: bot.id,
-    resumeId: bot.sessionId ?? sessionId,
-    appendSystemPrompt: buildBotIdentity(bot, team, memories),
+    resumeId: rotated ? undefined : bot.sessionId ?? sessionId,
+    appendSystemPrompt: buildBotIdentity(bot, team, memories) + (rotated ? handoffPromptBlock(bot.id) : ''),
     profile: bot.profile === 'full' ? 'full' : 'restricted',
     ...(bot.model ? { model: bot.model } : {}),
     ...(bot.mode ? { mode: bot.mode } : {}),

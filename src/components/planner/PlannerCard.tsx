@@ -13,12 +13,13 @@ interface PlannerCardProps {
   dropBefore: boolean;
   onOpen: () => void;
   onMoveTo: (column: PlannerColumn) => void;
+  onToggleReady?: () => void;
   onDragStart: (e: DragEvent) => void;
   onDragEnd: () => void;
   onDragOver: (e: DragEvent) => void;
 }
 
-export function PlannerCard({ task, bots, dragging, coarse, dropBefore, onOpen, onMoveTo, onDragStart, onDragEnd, onDragOver }: PlannerCardProps) {
+export function PlannerCard({ task, bots, dragging, coarse, dropBefore, onOpen, onMoveTo, onToggleReady, onDragStart, onDragEnd, onDragOver }: PlannerCardProps) {
   const done = task.column === 'done';
   return (
     <div className="relative shrink-0" onDragOver={onDragOver}>
@@ -34,7 +35,7 @@ export function PlannerCard({ task, bots, dragging, coarse, dropBefore, onOpen, 
           {coarse && <CardMoveMenu column={task.column} onMoveTo={onMoveTo} />}
         </div>
         {task.description && <p className="mt-1 truncate text-[12px] text-neutral-500">{task.description.split('\n').find((l) => l.trim())}</p>}
-        <CardMeta task={task} bots={bots} />
+        <CardMeta task={task} bots={bots} onToggleReady={done ? undefined : onToggleReady} />
       </div>
     </div>
   );

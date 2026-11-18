@@ -34,7 +34,7 @@ PALETTE = {
 assert len(PALETTE) <= 48 and len(set(PALETTE.values())) == len(PALETTE)
 
 # overlay colours: every translucent pixel must use one of these RGB values
-OVERLAY_COLOURS = {"shadow": "ol0", "glow": "y2", "light": "wh", "screen": "a3", "alert": "r1"}
+OVERLAY_COLOURS = {"shadow": "ol0", "glow": "y2", "light": "wh", "screen": "a3", "alert": "r1", "warm": "y0"}
 
 
 def rgb(name):

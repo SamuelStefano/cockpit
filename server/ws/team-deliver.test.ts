@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { TeamBot } from '../../shared/protocol';
 
-const runs = vi.hoisted(() => ({ startRun: vi.fn((_o: Record<string, unknown>): 'pane' | 'rejected' | undefined => undefined), isDrainerEnabled: vi.fn(() => false) }));
+const runs = vi.hoisted(() => ({ startRun: vi.fn((_o: Record<string, unknown>): 'pane' | 'rejected' | 'parked' | undefined => undefined), isDrainerEnabled: vi.fn(() => false) }));
 vi.mock('./runs', async () => {
   const { threads } = await import('./threads');
   const botLiveKey = (botId: string, sessionId?: string) => {
@@ -63,6 +63,11 @@ describe('deliverTeamMessage', () => {
     threads.set(SID, fakeThread(SID));
     expect(await deliverTeamMessage(msg, locked)).toBe('queued');
     expect(parked.addParked).toHaveBeenCalledWith(SID, expect.objectContaining({ botId: 'ativ1', profile: 'restricted' }));
+  });
+
+  it('a run the gate parked is queued, not "não consegui entregar"', async () => {
+    runs.startRun.mockImplementation(() => 'parked');
+    expect(await deliverTeamMessage(msg, team)).toBe('queued');
   });
 
   it('runs an unbound bot under bot-<id>', async () => {

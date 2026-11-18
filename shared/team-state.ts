@@ -27,6 +27,7 @@ export interface TeamStateBot {
   status: TeamBotStatus;
   task?: string;
   lastSend?: TeamStateSend;
+  doing?: boolean;
 }
 export interface TeamStateHandoff { from?: string; to: string; point: string; at: number; taskId: string }
 export interface TeamStateFollowUp { from: string; to: string; at: number; preview: string }
@@ -100,6 +101,7 @@ export function buildTeamState(i: TeamStateInput): TeamState {
     const last = lastSend.get(b.id);
     const status: TeamBotStatus = i.waiting.has(b.id) ? 'waiting' : i.running.has(b.id) ? 'working' : 'idle';
     const since = Math.max(i.lastTurnEnd?.get(b.id) ?? 0, last?.ts ?? 0);
+    const doing = i.tasks.some((t) => t.claim?.botId === b.id && t.column !== 'done');
     return {
       id: b.id,
       name: b.name,
@@ -114,6 +116,7 @@ export function buildTeamState(i: TeamStateInput): TeamState {
       status,
       ...(status === 'idle' && since > 0 ? { idleSince: since } : {}),
       ...(task ? { task: task.title } : {}),
+      ...(doing ? { doing: true } : {}),
       ...(last ? { lastSend: { to: last.to, at: last.ts, preview: preview(last.text) } } : {}),
     };
   });
