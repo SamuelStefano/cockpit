@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import type { TeamBot } from '../../../../shared/protocol';
 import type { DepartmentId } from '../../../../shared/departments';
 import { buildTeamState } from '../../../../shared/team-state';
-// Copy of the 32 px map's team-homes.json (arrives with the city map PR).
-import file from './fixtures/team-homes.json';
+// The real homes file shared with the 32 px map (scripts/team-homes.json).
+import file from '../../../../scripts/team-homes.json';
 import { assignSpots } from './world-layout';
 import { deriveWorld } from './world-state';
 import { breakPlace, BREAK_AFTER_MS } from './world-break';
