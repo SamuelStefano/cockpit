@@ -4,11 +4,11 @@ import type { TeamState } from '../../../shared/team-state';
 import { isRunning, MEETING_LIMITS, type MeetingInput, type TeamMeeting } from '../../../shared/team-meeting';
 import { MeetingPanel } from './MeetingPanel';
 import { NpcDialog } from './NpcDialog';
-import type { TalkState } from './world/talk-state';
+import { initialTalk, talkReducer, type TalkState } from './world/talk-state';
 import { navigateTo } from '../../lib/route-nav';
 import { agentPath } from '../../useRoute';
 import { demoMeeting, initialWorldUi, isDemo, parseInitialMode, worldUiReducer, type CameraMode } from './world/camera-mode';
-import { DEMO_BOTS, DEMO_COUNTS, DEMO_MEETING, DEMO_PROJECTS, demoMergedCounts, demoTeamState } from './world/demo-data';
+import { DEMO_BOTS, DEMO_ROLES, DEMO_COUNTS, DEMO_MEETING, DEMO_PROJECTS, demoMergedCounts, demoTeamState } from './world/demo-data';
 import { deriveWorld } from './world/world-state';
 import { useCelebrate } from './world/useCelebrate';
 import type { MergedCounts } from './world/world-celebrate';
@@ -33,7 +33,7 @@ interface TeamWorldProps {
   onTalkClose?: () => void;
 }
 
-const DEMO_TEAM: TeamBot[] = DEMO_BOTS.map((b) => ({ id: b.id, name: b.name, label: '', instructions: '', mascot: { shape: 'blob', color: '#3fd17f' }, profile: 'full', createdAt: 0, updatedAt: 0 }));
+const DEMO_TEAM: TeamBot[] = DEMO_BOTS.map((b) => ({ id: b.id, name: b.name, label: DEMO_ROLES[b.id] ?? '', instructions: '', mascot: { shape: 'blob', color: '#3fd17f' }, profile: 'full', createdAt: 0, updatedAt: 0 }));
 
 const DEMO_TICK_MS = 7000;
 const isCoarse = (): boolean => typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
@@ -58,6 +58,8 @@ export function TeamWorld({ state, connected, onRefresh, bots, meetings, onMeeti
   }, []);
   const [panel, setPanel] = useState(false);
   const [picked, setPicked] = useState<string[]>([]);
+  const [demoTalk, dispatchDemo] = useReducer(talkReducer, initialTalk);
+  const [side, setSide] = useState<'top' | 'bottom'>('bottom');
   const [talkId, setTalkId] = useState<string | null>(null);
   const [followId, setFollowId] = useState<string | null>(null);
   const recordingRef = useRef(false);
@@ -106,9 +108,14 @@ export function TeamWorld({ state, connected, onRefresh, bots, meetings, onMeeti
         mode: modeRef.current,
         coarse: isCoarse(),
         onOpenBot: (id) => {
-          if (demo) return;
           setTalkId(id);
           setFollowId(null);
+          if (demo) {
+            const b = DEMO_BOTS.find((x) => x.id === id);
+            dispatchDemo({ t: 'open', botId: id });
+            if (b) dispatchDemo({ t: 'snapshot', talk: { redacted: false, botId: id, name: b.name, label: DEMO_ROLES[id] ?? '', state: b.status, task: 'Revisar a PR da vila', prs: [], needs: [], at: Date.now() } });
+            return;
+          }
           onTalkOpenRef.current?.(id, recordingRef.current);
         },
         onToggleBot: (id) => setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : p.length >= MEETING_LIMITS.maxParticipants ? p : [...p, id])),
@@ -123,11 +130,25 @@ export function TeamWorld({ state, connected, onRefresh, bots, meetings, onMeeti
 
   useEffect(() => { world.current?.update(view); }, [view]);
   useEffect(() => { world.current?.follow(followId); }, [followId, ready]);
-  const closeTalk = useMemo(() => () => { setTalkId(null); setFollowId(null); onTalkClose?.(); }, [onTalkClose]);
+  const closeTalk = useMemo(() => () => { setTalkId(null); setFollowId(null); dispatchDemo({ t: 'close' }); onTalkClose?.(); }, [onTalkClose]);
   useEffect(() => {
-    if (talkId && onTalkOpen) onTalkOpen(talkId, ui.recording);
+    if (!talkId) return;
+    const id = setInterval(() => {
+      const p = world.current?.screenPos(talkId);
+      if (p) setSide(p.y > p.h * 0.5 ? 'top' : 'bottom');
+    }, 250);
+    return () => clearInterval(id);
+  }, [talkId]);
+  const demoSend = (botId: string, text: string) => {
+    dispatchDemo({ t: 'sent', msgId: `demo-${Date.now()}` });
+    const reply = `Recebi: "${text.slice(0, 60)}". Já estou olhando isso agora.`;
+    setTimeout(() => { dispatchDemo({ t: 'chunk', botId, chunk: { kind: 'delta', text: reply } }); dispatchDemo({ t: 'chunk', botId, chunk: { kind: 'done' } }); }, 600);
+  };
+  const activeTalk = demo ? demoTalk : talk;
+  useEffect(() => {
+    if (talkId && onTalkOpen && !demo) onTalkOpen(talkId, ui.recording);
   }, [ui.recording]); // eslint-disable-line react-hooks/exhaustive-deps
-  const talkBot = talkId ? bots.find((b) => b.id === talkId) : undefined;
+  const talkBot = talkId ? (demo ? DEMO_TEAM : bots).find((b) => b.id === talkId) : undefined;
   useEffect(() => { world.current?.setMode(ui.mode); }, [ui.mode]);
   useEffect(() => { world.current?.setSelection(panel, picked); }, [panel, picked, ready]);
   useEffect(() => {
@@ -173,11 +194,11 @@ export function TeamWorld({ state, connected, onRefresh, bots, meetings, onMeeti
           </p>
         </>
       )}
-      {talk && talkBot && onTalkSend && (
+      {activeTalk && talkBot && (demo || onTalkSend) && (
         <NpcDialog
-          bot={talkBot} talk={talk} recording={ui.recording} following={followId === talkBot.id}
-          onSend={(t) => onTalkSend(talkBot.id, t, ui.recording)}
-          onOpenPc={() => navigateTo(agentPath(talkBot.id, 'computador'))}
+          bot={talkBot} talk={activeTalk} side={side} recording={ui.recording} following={followId === talkBot.id}
+          onSend={(t) => (demo ? demoSend(talkBot.id, t) : onTalkSend?.(talkBot.id, t, ui.recording))}
+          onOpenPc={() => { if (!demo) navigateTo(agentPath(talkBot.id, 'computador')); }}
           onFollow={() => setFollowId((f) => (f === talkBot.id ? null : talkBot.id))}
           onClose={closeTalk}
         />

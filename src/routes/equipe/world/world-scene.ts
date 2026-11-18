@@ -79,6 +79,7 @@ export interface WorldHandle {
   setRecording: (recording: boolean) => void;
   setSelection: (selecting: boolean, ids: string[]) => void;
   follow: (id: string | null) => void;
+  screenPos: (id: string) => { x: number; y: number; w: number; h: number } | null;
   celebrate: (id: string) => void;
   refresh: () => void;
   destroy: () => void;
@@ -887,6 +888,13 @@ class WorldScene extends Phaser.Scene {
     this.cameras.main.setZoom(stepZoom(this.cameras.main.zoom, dir));
   }
 
+  screenPos(id: string): { x: number; y: number; w: number; h: number } | null {
+    const n = this.npcs.get(id);
+    if (!n) return null;
+    const c = this.cameras.main;
+    return { x: (n.sprite.x - c.worldView.x) * c.zoom, y: (n.sprite.y - c.worldView.y) * c.zoom, w: c.width, h: c.height };
+  }
+
   private npcNearAvatar(): string | null {
     let best: string | null = null;
     let bestD = TALK_REACH;
@@ -1047,6 +1055,7 @@ export function createWorld(opts: WorldOptions): WorldHandle {
     setRecording: (r) => scene.setRecording(r),
     setSelection: (s, ids) => scene.setSelection(s, ids),
     follow: (id) => scene.follow(id),
+    screenPos: (id) => scene.screenPos(id),
     celebrate: (id) => scene.celebrate(id),
     refresh: () => game.scale.refresh(),
     destroy: () => game.destroy(true),
