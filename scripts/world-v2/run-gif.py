@@ -229,7 +229,7 @@ def paste(dst, src, x, y):
         dst.alpha_composite(src.crop(box), (x + box[0], y + box[1]))
 
 
-def stamp(im, now_ms):
+def stamp(im, now_ms, running):
     """t=mm:ss of game time, 2x pixel digits on a dark plate, top-left"""
     import sys
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -237,6 +237,7 @@ def stamp(im, now_ms):
     ink, plate, edge = (tuple(int(PALETTE[k][i:i + 2], 16) for i in (1, 3, 5)) for k in ("t4", "ol0", "t1"))
     secs = int(now_ms // 1000)
     cells = ["T", "=", "%d" % (secs // 600 % 10), "%d" % (secs // 60 % 10), ":", "%d" % (secs % 60 // 10), "%d" % (secs % 10)]
+    cells += [" "] + list("CORRENDO" if running else "ANDANDO")
     sc, x0, y0 = 2, 8, 8
     w = len(cells) * 4 * sc + 8
     h = 5 * sc + 8
@@ -254,6 +255,8 @@ def stamp(im, now_ms):
             pts = [(gx, gy) for gy in (1, 3) for gx in range(3)]
         elif ch == ":":
             pts = [(1, 1), (1, 3)]
+        elif ch == " ":
+            pts = []
         else:
             pts = glyph_pixels(ch)
         for gx, gy in pts:
@@ -274,7 +277,7 @@ def draw(f, base, over, spr):
         paste(im, cell, px - cx, py - cy)
     im.alpha_composite(over.crop(box))
     im = im.convert("RGB")
-    stamp(im, f["now"])
+    stamp(im, f["now"], f["running"])
     return im
 
 
