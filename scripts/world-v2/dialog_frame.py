@@ -1,39 +1,25 @@
-"""Builds ui/dialog-frame.png: 24x24 nine-slice frame for the RPG dialog (8 px corners, 8x8 opaque dark centre). Deterministic."""
+"""Builds ui/dialog-frame.png: 24x24 nine-slice frame for the RPG dialog (8 px corners, stretchable centre).
+Colours come from Paleta Vila 48 (outline pedra-0, rim pele-5, fill terra-1); light from the top left:
+bright rim on top and left, inner shadow at the bottom and right. Deterministic."""
 import os
-from PIL import Image
+from PIL import Image, ImageDraw
 
 OUT = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'public', 'world', 'v2', 'ui')
-COL = {'.': (0, 0, 0, 0), 'O': (42, 29, 46, 255), 'L': (246, 231, 207, 255), 'M': (163, 131, 106, 255), 'F': (20, 17, 15, 255), 'G': (255, 209, 102, 255)}
-CORNER = [
-    "..OOOOOO",
-    ".OLLLLLL",
-    "OLMMMMMM",
-    "OLMGFFFF",
-    "OLMFFFFF",
-    "OLMFFFFF",
-    "OLMFFFFF",
-    "OLMFFFFF",
-]
-img = Image.new('RGBA', (24, 24), (0, 0, 0, 0))
-p = img.load()
-for y in range(8):
-    for x in range(8):
-        c = COL[CORNER[y][x]]
-        p[x, y] = c
-        p[23 - x, y] = c
-        p[x, 23 - y] = c
-        p[23 - x, 23 - y] = c
-for y in range(8):
-    for x in range(8, 16):
-        top = COL[CORNER[y][7]]
-        p[x, y] = top
-        p[x, 23 - y] = top
-        side = COL[CORNER[7][y]]
-        p[y, x] = side
-        p[23 - y, x] = side
-for y in range(8, 16):
-    for x in range(8, 16):
-        p[x, y] = COL['F']
+OUTLINE = '#1E1A2B'
+RIM = '#F5E6C8'
+FILL = '#51221A'
+HILIGHT = '#FFFFFF'
+
+im = Image.new('RGBA', (24, 24), (0, 0, 0, 0))
+d = ImageDraw.Draw(im)
+d.rectangle([1, 0, 22, 23], fill=OUTLINE)
+d.rectangle([0, 1, 23, 22], fill=OUTLINE)
+d.rectangle([1, 1, 22, 22], fill=RIM)
+d.rectangle([3, 3, 20, 20], fill=FILL)
+d.line([2, 2, 21, 2], fill=HILIGHT)
+d.line([2, 2, 2, 21], fill=HILIGHT)
+d.line([3, 21, 21, 21], fill=OUTLINE)
+d.line([21, 3, 21, 21], fill=OUTLINE)
 os.makedirs(OUT, exist_ok=True)
-img.save(os.path.join(OUT, 'dialog-frame.png'))
+im.save(os.path.join(OUT, 'dialog-frame.png'))
 print('dialog-frame.png 24x24 ok')
