@@ -295,3 +295,33 @@ describe('seats from the bot own home', () => {
     expect(s2.get('zzz')?.kind).toBe('desk');
   });
 });
+
+describe('ground surface under the feet', () => {
+  it('reads tile.surface from the ground layer and gates the dust on it', async () => {
+    const { dustAllowed, surfaceOfProps } = await import('./world-run');
+    const { groundProps } = await import('./world-v2-layout');
+    const ground = map.layers.find((l) => l.name === 'ground')!.data!;
+    const surfaces = new Map<string, number>();
+    ground.forEach((g, i) => {
+      if (!g) return;
+      const p = groundProps(map, (i % map.width) * map.tilewidth + 1, Math.floor(i / map.width) * map.tileheight + 1);
+      const s = surfaceOfProps(p);
+      if (!surfaces.has(s)) surfaces.set(s, i);
+    });
+    expect(surfaces.has('grass')).toBe(true);
+    expect(surfaces.has('unknown')).toBe(false);
+    expect(dustAllowed('grass')).toBe(true);
+    const loose = ['grass', 'dirt', 'sand'].some((k) => surfaces.has(k));
+    const hard = ['paved', 'wood', 'floor', 'water'].some((k) => surfaces.has(k));
+    expect(loose && hard).toBe(true);
+    const paved = surfaces.get('paved');
+    if (paved !== undefined) {
+      const p = groundProps(map, (paved % map.width) * map.tilewidth + 1, Math.floor(paved / map.width) * map.tileheight + 1);
+      expect(dustAllowed(surfaceOfProps(p))).toBe(false);
+    }
+  });
+  it('is undefined outside the map', async () => {
+    const { groundProps } = await import('./world-v2-layout');
+    expect(groundProps(map, -5, -5)).toBeUndefined();
+  });
+});

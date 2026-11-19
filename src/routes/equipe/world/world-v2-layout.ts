@@ -88,6 +88,16 @@ export function seatPoint(m: V2Map, tile: Pt, seated: boolean): Pt {
 
 export const tileAt = (m: V2Map, x: number, y: number): Pt => ({ x: Math.floor(x / m.tilewidth), y: Math.floor(y / m.tileheight) });
 
+export function groundProps(m: V2Map, x: number, y: number): Record<string, string | number | boolean> | undefined {
+  const t = tileAt(m, x, y);
+  if (t.x < 0 || t.y < 0 || t.x >= m.width || t.y >= m.height) return undefined;
+  const gid = m.layers.find((l) => l.type === 'tilelayer' && l.name === 'ground')?.data?.[t.y * m.width + t.x];
+  if (!gid) return undefined;
+  const ts = [...m.tilesets].reverse().find((s) => s.firstgid <= gid);
+  const tile = ts?.tiles?.find((x2) => x2.id === gid - ts.firstgid);
+  return tile ? propsOf(tile) : undefined;
+}
+
 export function resolveSeats(l: V2Layout, npcs: readonly SeatNpc[]): Map<string, Seat> {
   const out = new Map<string, Seat>();
   const taken = new Set<number>();
