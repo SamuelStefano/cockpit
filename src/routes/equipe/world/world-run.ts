@@ -33,10 +33,10 @@ export type Surface = 'grass' | 'dirt' | 'sand' | 'wood' | 'paved' | 'floor' | '
 // Ground item names of the v2 tilesets (tiles-exterior.json / tiles-interior.json), first match wins.
 const SURFACE_RULES: ReadonlyArray<readonly [RegExp, Surface]> = [
   [/^(grass|auto_grass_path|auto_grass_sand)/, 'grass'],
-  [/^dirt/, 'dirt'],
+  [/^(dirt|road)/, 'dirt'],
   [/^(sand|auto_sand_water)/, 'sand'],
   [/^dock_/, 'wood'],
-  [/^(plaza|auto_grass_plaza|street|road|crosswalk|sidewalk|rock_ground|cliff)/, 'paved'],
+  [/^(plaza|auto_grass_plaza|street|crosswalk|sidewalk|rock_ground|cliff)/, 'paved'],
   [/^(floor|carpet)/, 'floor'],
   [/^water/, 'water'],
 ];

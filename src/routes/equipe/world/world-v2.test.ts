@@ -235,3 +235,20 @@ describe('world v2 map', () => {
     expect(botId('Íris')).toBe('iris');
   });
 });
+
+describe('ground surfaces (run dust)', () => {
+  const surfaceByGid = new Map<number, string>();
+  for (const ts of map.tilesets) for (const t of ts.tiles ?? []) { const s = propsOf(t).surface; if (typeof s === 'string') surfaceByGid.set(ts.firstgid + t.id, s); }
+  const ground = map.layers.find((l) => l.name === 'ground')!.data!;
+  const at = (x: number, y: number): string | undefined => surfaceByGid.get(ground[y * map.width + x]! & 0x1fffffff);
+
+  it('tags every ground tile with a surface', () => {
+    const missing = ground.filter((g) => g !== 0 && !surfaceByGid.has(g & 0x1fffffff));
+    expect(missing).toHaveLength(0);
+  });
+  it('marks the plaza paved, the pier wood and the lake trail as loose ground', () => {
+    expect(at(48, 30)).toBe('paved');
+    expect(at(85, 52)).toBe('wood');
+    expect(new Set(ground.filter((g) => g !== 0).map((g) => surfaceByGid.get(g & 0x1fffffff)))).toEqual(new Set(['grass', 'dirt', 'sand', 'paved', 'floor', 'wood', 'water']));
+  });
+});

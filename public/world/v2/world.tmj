@@ -35,119 +35,322 @@
    "tiles": [
     {
      "id": 0,
-     "type": "grass_0"
+     "type": "grass_0",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "grass"
+      }
+     ]
     },
     {
      "id": 1,
-     "type": "grass_1"
+     "type": "grass_1",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "grass"
+      }
+     ]
     },
     {
      "id": 2,
-     "type": "grass_2"
+     "type": "grass_2",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "grass"
+      }
+     ]
     },
     {
      "id": 3,
-     "type": "grass_3"
+     "type": "grass_3",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "grass"
+      }
+     ]
     },
     {
      "id": 4,
-     "type": "dirt"
+     "type": "dirt",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "dirt"
+      }
+     ]
     },
     {
      "id": 5,
-     "type": "street_cobble"
+     "type": "street_cobble",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "paved"
+      }
+     ]
     },
     {
      "id": 6,
-     "type": "road"
+     "type": "road",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "dirt"
+      }
+     ]
     },
     {
      "id": 7,
-     "type": "road_lane_h"
+     "type": "road_lane_h",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "dirt"
+      }
+     ]
     },
     {
      "id": 8,
-     "type": "road_lane_v"
+     "type": "road_lane_v",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "dirt"
+      }
+     ]
     },
     {
      "id": 9,
-     "type": "crosswalk_h"
+     "type": "crosswalk_h",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "paved"
+      }
+     ]
     },
     {
      "id": 10,
-     "type": "crosswalk_v"
+     "type": "crosswalk_v",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "paved"
+      }
+     ]
     },
     {
      "id": 11,
-     "type": "sidewalk"
+     "type": "sidewalk",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "paved"
+      }
+     ]
     },
     {
      "id": 12,
-     "type": "sidewalk_curb_n"
+     "type": "sidewalk_curb_n",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "paved"
+      }
+     ]
     },
     {
      "id": 13,
-     "type": "sidewalk_curb_s"
+     "type": "sidewalk_curb_s",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "paved"
+      }
+     ]
     },
     {
      "id": 14,
-     "type": "sidewalk_curb_e"
+     "type": "sidewalk_curb_e",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "paved"
+      }
+     ]
     },
     {
      "id": 15,
-     "type": "sidewalk_curb_w"
+     "type": "sidewalk_curb_w",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "paved"
+      }
+     ]
     },
     {
      "id": 16,
-     "type": "sidewalk_curb_ne"
+     "type": "sidewalk_curb_ne",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "paved"
+      }
+     ]
     },
     {
      "id": 17,
-     "type": "sidewalk_curb_nw"
+     "type": "sidewalk_curb_nw",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "paved"
+      }
+     ]
     },
     {
      "id": 18,
-     "type": "sidewalk_curb_se"
+     "type": "sidewalk_curb_se",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "paved"
+      }
+     ]
     },
     {
      "id": 19,
-     "type": "sidewalk_curb_sw"
+     "type": "sidewalk_curb_sw",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "paved"
+      }
+     ]
     },
     {
      "id": 20,
-     "type": "plaza_checker"
+     "type": "plaza_checker",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "paved"
+      }
+     ]
     },
     {
      "id": 21,
-     "type": "plaza_pavers"
+     "type": "plaza_pavers",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "paved"
+      }
+     ]
     },
     {
      "id": 22,
-     "type": "plaza_pavers_cracked"
+     "type": "plaza_pavers_cracked",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "paved"
+      }
+     ]
     },
     {
      "id": 23,
-     "type": "plaza_terracotta"
+     "type": "plaza_terracotta",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "paved"
+      }
+     ]
     },
     {
      "id": 24,
-     "type": "sand"
+     "type": "sand",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
+      }
+     ]
     },
     {
      "id": 25,
-     "type": "dock_planks_h"
+     "type": "dock_planks_h",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "wood"
+      }
+     ]
     },
     {
      "id": 26,
-     "type": "dock_planks_v"
+     "type": "dock_planks_v",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "wood"
+      }
+     ]
     },
     {
      "id": 27,
-     "type": "rock_ground"
+     "type": "rock_ground",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "paved"
+      }
+     ]
     },
     {
      "id": 28,
-     "type": "cliff_top"
+     "type": "cliff_top",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "paved"
+      }
+     ]
     },
     {
      "id": 29,
@@ -157,6 +360,11 @@
        "name": "block",
        "type": "bool",
        "value": true
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "paved"
       }
      ]
     },
@@ -168,6 +376,11 @@
        "name": "block",
        "type": "bool",
        "value": true
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "paved"
       }
      ]
     },
@@ -179,6 +392,11 @@
        "name": "block",
        "type": "bool",
        "value": true
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "paved"
       }
      ]
     },
@@ -205,6 +423,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "water"
       }
      ],
      "animation": [
@@ -249,6 +472,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "water"
       }
      ]
     },
@@ -275,6 +503,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "water"
       }
      ]
     },
@@ -301,200 +534,541 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "water"
       }
      ]
     },
     {
      "id": 48,
-     "type": "auto_grass_path"
+     "type": "auto_grass_path",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "grass"
+      }
+     ]
     },
     {
      "id": 49,
-     "type": "auto_grass_path"
+     "type": "auto_grass_path",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "grass"
+      }
+     ]
     },
     {
      "id": 50,
-     "type": "auto_grass_path"
+     "type": "auto_grass_path",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "grass"
+      }
+     ]
     },
     {
      "id": 51,
-     "type": "auto_grass_path"
+     "type": "auto_grass_path",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "grass"
+      }
+     ]
     },
     {
      "id": 52,
-     "type": "auto_grass_plaza"
+     "type": "auto_grass_plaza",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "paved"
+      }
+     ]
     },
     {
      "id": 53,
-     "type": "auto_grass_plaza"
+     "type": "auto_grass_plaza",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "paved"
+      }
+     ]
     },
     {
      "id": 54,
-     "type": "auto_grass_plaza"
+     "type": "auto_grass_plaza",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "paved"
+      }
+     ]
     },
     {
      "id": 55,
-     "type": "auto_grass_plaza"
+     "type": "auto_grass_plaza",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "paved"
+      }
+     ]
     },
     {
      "id": 56,
-     "type": "auto_grass_sand"
+     "type": "auto_grass_sand",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "grass"
+      }
+     ]
     },
     {
      "id": 57,
-     "type": "auto_grass_sand"
+     "type": "auto_grass_sand",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "grass"
+      }
+     ]
     },
     {
      "id": 58,
-     "type": "auto_grass_sand"
+     "type": "auto_grass_sand",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "grass"
+      }
+     ]
     },
     {
      "id": 59,
-     "type": "auto_grass_sand"
+     "type": "auto_grass_sand",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "grass"
+      }
+     ]
     },
     {
      "id": 64,
-     "type": "auto_grass_path"
+     "type": "auto_grass_path",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "grass"
+      }
+     ]
     },
     {
      "id": 65,
-     "type": "auto_grass_path"
+     "type": "auto_grass_path",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "grass"
+      }
+     ]
     },
     {
      "id": 66,
-     "type": "auto_grass_path"
+     "type": "auto_grass_path",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "grass"
+      }
+     ]
     },
     {
      "id": 67,
-     "type": "auto_grass_path"
+     "type": "auto_grass_path",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "grass"
+      }
+     ]
     },
     {
      "id": 68,
-     "type": "auto_grass_plaza"
+     "type": "auto_grass_plaza",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "paved"
+      }
+     ]
     },
     {
      "id": 69,
-     "type": "auto_grass_plaza"
+     "type": "auto_grass_plaza",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "paved"
+      }
+     ]
     },
     {
      "id": 70,
-     "type": "auto_grass_plaza"
+     "type": "auto_grass_plaza",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "paved"
+      }
+     ]
     },
     {
      "id": 71,
-     "type": "auto_grass_plaza"
+     "type": "auto_grass_plaza",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "paved"
+      }
+     ]
     },
     {
      "id": 72,
-     "type": "auto_grass_sand"
+     "type": "auto_grass_sand",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "grass"
+      }
+     ]
     },
     {
      "id": 73,
-     "type": "auto_grass_sand"
+     "type": "auto_grass_sand",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "grass"
+      }
+     ]
     },
     {
      "id": 74,
-     "type": "auto_grass_sand"
+     "type": "auto_grass_sand",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "grass"
+      }
+     ]
     },
     {
      "id": 75,
-     "type": "auto_grass_sand"
+     "type": "auto_grass_sand",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "grass"
+      }
+     ]
     },
     {
      "id": 80,
-     "type": "auto_grass_path"
+     "type": "auto_grass_path",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "grass"
+      }
+     ]
     },
     {
      "id": 81,
-     "type": "auto_grass_path"
+     "type": "auto_grass_path",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "grass"
+      }
+     ]
     },
     {
      "id": 82,
-     "type": "auto_grass_path"
+     "type": "auto_grass_path",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "grass"
+      }
+     ]
     },
     {
      "id": 83,
-     "type": "auto_grass_path"
+     "type": "auto_grass_path",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "grass"
+      }
+     ]
     },
     {
      "id": 84,
-     "type": "auto_grass_plaza"
+     "type": "auto_grass_plaza",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "paved"
+      }
+     ]
     },
     {
      "id": 85,
-     "type": "auto_grass_plaza"
+     "type": "auto_grass_plaza",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "paved"
+      }
+     ]
     },
     {
      "id": 86,
-     "type": "auto_grass_plaza"
+     "type": "auto_grass_plaza",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "paved"
+      }
+     ]
     },
     {
      "id": 87,
-     "type": "auto_grass_plaza"
+     "type": "auto_grass_plaza",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "paved"
+      }
+     ]
     },
     {
      "id": 88,
-     "type": "auto_grass_sand"
+     "type": "auto_grass_sand",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "grass"
+      }
+     ]
     },
     {
      "id": 89,
-     "type": "auto_grass_sand"
+     "type": "auto_grass_sand",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "grass"
+      }
+     ]
     },
     {
      "id": 90,
-     "type": "auto_grass_sand"
+     "type": "auto_grass_sand",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "grass"
+      }
+     ]
     },
     {
      "id": 91,
-     "type": "auto_grass_sand"
+     "type": "auto_grass_sand",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "grass"
+      }
+     ]
     },
     {
      "id": 96,
-     "type": "auto_grass_path"
+     "type": "auto_grass_path",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "grass"
+      }
+     ]
     },
     {
      "id": 97,
-     "type": "auto_grass_path"
+     "type": "auto_grass_path",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "grass"
+      }
+     ]
     },
     {
      "id": 98,
-     "type": "auto_grass_path"
+     "type": "auto_grass_path",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "grass"
+      }
+     ]
     },
     {
      "id": 99,
-     "type": "auto_grass_path"
+     "type": "auto_grass_path",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "grass"
+      }
+     ]
     },
     {
      "id": 100,
-     "type": "auto_grass_plaza"
+     "type": "auto_grass_plaza",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "paved"
+      }
+     ]
     },
     {
      "id": 101,
-     "type": "auto_grass_plaza"
+     "type": "auto_grass_plaza",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "paved"
+      }
+     ]
     },
     {
      "id": 102,
-     "type": "auto_grass_plaza"
+     "type": "auto_grass_plaza",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "paved"
+      }
+     ]
     },
     {
      "id": 103,
-     "type": "auto_grass_plaza"
+     "type": "auto_grass_plaza",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "paved"
+      }
+     ]
     },
     {
      "id": 104,
-     "type": "auto_grass_sand"
+     "type": "auto_grass_sand",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "grass"
+      }
+     ]
     },
     {
      "id": 105,
-     "type": "auto_grass_sand"
+     "type": "auto_grass_sand",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "grass"
+      }
+     ]
     },
     {
      "id": 106,
-     "type": "auto_grass_sand"
+     "type": "auto_grass_sand",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "grass"
+      }
+     ]
     },
     {
      "id": 107,
-     "type": "auto_grass_sand"
+     "type": "auto_grass_sand",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "grass"
+      }
+     ]
     },
     {
      "id": 112,
@@ -514,6 +1088,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ],
      "animation": [
@@ -553,6 +1132,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ],
      "animation": [
@@ -592,6 +1176,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ],
      "animation": [
@@ -631,6 +1220,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ],
      "animation": [
@@ -670,6 +1264,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ]
     },
@@ -691,6 +1290,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ]
     },
@@ -712,6 +1316,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ]
     },
@@ -733,6 +1342,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ]
     },
@@ -754,6 +1368,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ]
     },
@@ -775,6 +1394,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ]
     },
@@ -796,6 +1420,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ]
     },
@@ -817,6 +1446,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ]
     },
@@ -838,6 +1472,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ]
     },
@@ -859,6 +1498,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ]
     },
@@ -880,6 +1524,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ]
     },
@@ -901,6 +1550,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ]
     },
@@ -922,6 +1576,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ],
      "animation": [
@@ -961,6 +1620,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ],
      "animation": [
@@ -1000,6 +1664,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ],
      "animation": [
@@ -1044,6 +1713,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ],
      "animation": [
@@ -1083,6 +1757,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ]
     },
@@ -1104,6 +1783,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ]
     },
@@ -1125,6 +1809,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ]
     },
@@ -1151,6 +1840,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ]
     },
@@ -1172,6 +1866,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ]
     },
@@ -1193,6 +1892,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ]
     },
@@ -1214,6 +1918,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ]
     },
@@ -1240,6 +1949,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ]
     },
@@ -1261,6 +1975,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ]
     },
@@ -1282,6 +2001,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ]
     },
@@ -1303,6 +2027,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ]
     },
@@ -1329,6 +2058,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ]
     },
@@ -1350,6 +2084,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ],
      "animation": [
@@ -1389,6 +2128,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ],
      "animation": [
@@ -1428,6 +2172,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ],
      "animation": [
@@ -1472,6 +2221,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ],
      "animation": [
@@ -1511,6 +2265,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ]
     },
@@ -1532,6 +2291,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ]
     },
@@ -1553,6 +2317,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ]
     },
@@ -1579,6 +2348,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ]
     },
@@ -1600,6 +2374,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ]
     },
@@ -1621,6 +2400,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ]
     },
@@ -1642,6 +2426,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ]
     },
@@ -1668,6 +2457,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ]
     },
@@ -1689,6 +2483,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ]
     },
@@ -1710,6 +2509,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ]
     },
@@ -1731,6 +2535,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ]
     },
@@ -1757,6 +2566,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ]
     },
@@ -1778,6 +2592,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ],
      "animation": [
@@ -1822,6 +2641,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ],
      "animation": [
@@ -1866,6 +2690,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ],
      "animation": [
@@ -1910,6 +2739,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ],
      "animation": [
@@ -1949,6 +2783,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ]
     },
@@ -1975,6 +2814,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ]
     },
@@ -2001,6 +2845,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ]
     },
@@ -2027,6 +2876,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ]
     },
@@ -2048,6 +2902,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ]
     },
@@ -2074,6 +2933,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ]
     },
@@ -2100,6 +2964,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ]
     },
@@ -2126,6 +2995,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ]
     },
@@ -2147,6 +3021,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ]
     },
@@ -2173,6 +3052,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ]
     },
@@ -2199,6 +3083,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ]
     },
@@ -2225,6 +3114,11 @@
        "name": "frames",
        "type": "int",
        "value": 4
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "sand"
       }
      ]
     },
@@ -5681,16 +6575,35 @@
        "name": "block",
        "type": "bool",
        "value": true
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "wood"
       }
      ]
     },
     {
      "id": 379,
-     "type": "dock_edge_w"
+     "type": "dock_edge_w",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "wood"
+      }
+     ]
     },
     {
      "id": 380,
-     "type": "dock_edge_e"
+     "type": "dock_edge_e",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "wood"
+      }
+     ]
     },
     {
      "id": 381,
@@ -5700,12 +6613,24 @@
        "name": "block",
        "type": "bool",
        "value": true
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "wood"
       }
      ]
     },
     {
      "id": 382,
-     "type": "dock_ladder"
+     "type": "dock_ladder",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "wood"
+      }
+     ]
     },
     {
      "id": 383,
@@ -5715,6 +6640,11 @@
        "name": "block",
        "type": "bool",
        "value": true
+      },
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "wood"
       }
      ]
     },
@@ -9775,47 +10705,124 @@
    "tiles": [
     {
      "id": 0,
-     "type": "floor_wood_h"
+     "type": "floor_wood_h",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "floor"
+      }
+     ]
     },
     {
      "id": 1,
-     "type": "floor_wood_v"
+     "type": "floor_wood_v",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "floor"
+      }
+     ]
     },
     {
      "id": 2,
-     "type": "floor_wood_light"
+     "type": "floor_wood_light",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "floor"
+      }
+     ]
     },
     {
      "id": 3,
-     "type": "floor_checker_bw"
+     "type": "floor_checker_bw",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "floor"
+      }
+     ]
     },
     {
      "id": 4,
-     "type": "floor_checker_warm"
+     "type": "floor_checker_warm",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "floor"
+      }
+     ]
     },
     {
      "id": 5,
-     "type": "carpet_red"
+     "type": "carpet_red",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "floor"
+      }
+     ]
     },
     {
      "id": 6,
-     "type": "carpet_blue"
+     "type": "carpet_blue",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "floor"
+      }
+     ]
     },
     {
      "id": 7,
-     "type": "carpet_green"
+     "type": "carpet_green",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "floor"
+      }
+     ]
     },
     {
      "id": 8,
-     "type": "carpet_navy"
+     "type": "carpet_navy",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "floor"
+      }
+     ]
     },
     {
      "id": 9,
-     "type": "carpet_pink"
+     "type": "carpet_pink",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "floor"
+      }
+     ]
     },
     {
      "id": 10,
-     "type": "carpet_mustard"
+     "type": "carpet_mustard",
+     "properties": [
+      {
+       "name": "surface",
+       "type": "string",
+       "value": "floor"
+      }
+     ]
     },
     {
      "id": 16,
@@ -14008,86 +15015,86 @@
    "opacity": 1,
    "visible": true,
    "data": [
-0,0,0,234,0,0,0,0,0,0,0,0,0,0,234,0,0,0,0,234,234,0,0,0,0,234,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,187,188,0,0,0,0,187,188,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,234,0,
-187,188,0,0,0,0,187,188,0,0,0,0,187,188,0,0,0,0,187,188,0,0,0,0,187,188,0,0,187,188,0,187,188,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,187,188,187,188,0,0,0,0,0,234,187,188,0,0,0,0,187,188,0,0,0,0,187,188,0,0,0,0,187,188,0,0,0,0,187,188,0,0,0,0,187,188,234,0,0,0,187,188,0,0,0,0,187,188,0,0,234,0,187,188,0,0,0,0,187,188,
-0,0,187,188,0,0,0,0,187,188,0,0,0,0,187,188,0,0,0,0,187,188,0,0,0,0,187,188,0,0,0,0,0,0,0,187,188,0,0,0,0,0,0,0,0,0,1108,1108,0,1108,0,0,0,0,0,0,0,0,187,188,0,0,0,0,0,0,0,0,0,0,187,188,0,0,0,0,187,188,0,0,0,0,187,188,0,234,0,0,187,188,0,0,0,0,187,188,0,0,0,0,187,188,0,0,0,0,187,188,0,0,234,0,187,188,0,0,0,0,187,188,0,0,0,0,187,188,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,187,188,0,0,0,0,187,188,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+187,188,0,0,0,0,187,188,0,0,0,0,187,188,0,0,0,0,187,188,0,0,0,0,187,188,0,0,187,188,0,187,188,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,187,188,187,188,0,0,0,0,0,0,187,188,0,0,0,0,187,188,0,0,0,0,187,188,0,0,0,0,187,188,0,0,0,0,187,188,0,0,0,0,187,188,0,0,0,0,187,188,0,0,0,0,187,188,0,0,0,0,187,188,0,0,0,0,187,188,
+0,0,187,188,0,0,0,0,187,188,0,0,0,0,187,188,0,0,0,0,187,188,0,0,0,0,187,188,0,0,0,0,0,0,0,187,188,0,0,0,0,0,0,0,0,0,1108,1108,0,1108,0,0,0,0,0,0,0,0,187,188,0,0,0,0,0,0,0,0,0,0,187,188,0,0,0,0,187,188,0,0,0,0,187,188,0,0,0,0,187,188,0,0,0,0,187,188,0,0,0,0,187,188,0,0,0,0,187,188,0,0,0,0,187,188,0,0,0,0,187,188,0,0,0,0,187,188,0,0,
 0,0,0,0,187,188,0,0,0,0,187,188,0,0,0,0,187,188,0,0,0,0,187,188,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,187,188,0,0,0,0,0,1124,1124,0,1124,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,187,188,0,0,0,0,187,188,0,0,0,0,187,188,0,0,0,0,187,188,0,0,0,0,187,188,0,0,0,0,187,188,0,0,0,0,187,188,0,0,0,0,187,188,0,0,0,0,187,188,0,0,0,0,187,188,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,187,188,0,0,187,188,0,0,0,0,0,0,0,0,0,0,0,0,0,771,769,769,769,769,769,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,187,188,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,187,188,0,0,0,0,187,188,0,0,0,0,187,188,
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,413,414,0,0,413,414,0,0,413,414,0,0,770,0,0,0,819,820,0,0,0,0,413,414,0,0,413,414,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,234,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,187,188,187,188,0,0,0,0,0,0,0,0,187,188,0,0,0,0,0,0,0,0,0,0,187,188,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,413,414,0,0,413,414,0,0,413,414,0,0,770,0,0,0,819,820,0,0,0,0,413,414,0,0,413,414,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,187,188,187,188,0,0,0,0,0,0,0,0,187,188,0,0,0,0,0,0,0,0,0,0,187,188,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,770,0,0,0,838,0,0,0,187,188,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,187,188,187,188,0,0,0,0,187,188,0,0,0,187,188,0,0,0,0,0,187,188,187,188,0,0,187,188,0,0,0,0,
-0,0,0,0,0,233,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,187,188,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,187,188,0,187,188,0,0,234,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,187,188,0,0,0,0,0,0,0,0,0,0,0,187,188,0,234,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,187,188,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,187,188,0,187,188,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,187,188,0,0,0,0,0,0,0,0,0,0,0,187,188,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,454,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,187,188,0,0,0,0,0,0,0,0,0,0,187,188,0,0,0,0,0,0,0,0,0,187,188,0,0,
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,233,0,0,0,0,0,0,0,0,0,0,0,0,234,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,470,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,233,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,187,188,0,0,0,0,0,187,188,0,0,233,0,187,188,0,0,0,0,187,188,187,188,0,0,0,0,233,0,0,187,188,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,470,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,187,188,0,0,0,0,0,187,188,0,0,0,0,187,188,0,0,0,0,187,188,187,188,0,0,0,0,0,0,0,187,188,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,548,548,548,548,548,548,548,548,549,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,187,188,0,0,0,0,0,0,187,188,0,0,0,0,0,0,0,0,0,0,0,187,188,187,188,0,0,0,0,0,
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,233,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,233,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,181,182,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,181,182,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,187,188,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,187,188,0,
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,233,0,0,0,0,0,0,234,0,0,0,0,0,0,0,0,0,0,0,0,0,0,233,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,233,0,0,0,0,0,0,0,0,0,0,0,0,0,0,233,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,236,237,0,0,0,0,236,237,0,0,0,233,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,236,237,0,0,0,0,236,237,0,0,0,233,0,0,0,0,0,0,0,0,
 187,188,0,0,0,0,0,0,0,0,0,0,187,188,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,866,0,0,0,912,0,912,0,0,0,870,0,0,0,0,0,0,0,0,0,0,0,0,0,181,182,0,0,0,0,0,0,0,0,0,0,197,198,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,187,188,0,0,233,0,235,233,0,0,238,0,0,0,0,0,233,235,0,0,0,0,0,0,0,0,0,0,
-0,0,0,233,0,0,0,0,0,181,182,0,0,0,0,0,0,0,0,0,0,0,0,197,198,0,0,0,0,0,0,0,0,0,0,0,0,0,234,0,0,0,0,771,769,769,769,769,769,769,769,769,769,769,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,234,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,233,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,197,198,187,188,0,
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,181,182,0,0,0,0,0,234,770,838,0,0,0,0,0,0,838,0,0,0,0,0,233,181,182,0,0,0,0,0,0,0,0,0,0,234,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,181,182,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,380,381,0,0,0,0,0,0,0,0,0,0,0,0,234,0,0,
-187,188,0,0,0,234,0,0,0,0,0,0,0,0,0,0,0,0,0,234,233,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,770,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,234,0,0,0,0,0,0,0,0,0,187,188,181,182,234,0,233,0,0,0,0,0,0,0,0,0,380,381,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,181,182,0,0,0,0,0,0,0,0,0,0,0,0,197,198,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,771,769,769,769,769,769,769,769,769,769,769,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,197,198,187,188,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,181,182,0,0,0,0,0,0,770,838,0,0,0,0,0,0,838,0,0,0,0,0,0,181,182,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,181,182,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,380,381,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+187,188,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,770,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,187,188,181,182,0,0,0,0,0,0,0,0,0,0,0,0,380,381,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,866,870,0,0,872,874,876,878,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,235,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1110,933,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,181,182,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,380,381,0,0,0,0,0,0,0,0,0,0,197,198,181,182,0,
-0,0,187,188,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,233,0,771,769,769,769,769,769,769,769,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,695,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1115,1116,1117,1118,769,769,769,769,769,769,0,0,0,0,0,0,0,0,0,0,912,0,0,0,0,0,233,0,0,0,0,0,0,234,0,0,0,0,0,0,0,0,0,380,381,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,0,181,182,0,0,0,0,0,0,0,0,0,868,0,0,0,0,0,770,820,0,819,820,0,819,820,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,711,0,0,0,235,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1131,1132,1133,1134,0,0,0,0,0,0,0,0,0,0,771,769,769,769,769,769,769,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,234,0,0,
-0,0,0,0,0,0,0,0,771,769,769,769,769,769,769,769,0,0,0,234,0,770,0,906,907,908,0,838,0,0,0,0,0,0,0,0,0,197,198,0,0,0,548,548,548,548,548,548,548,548,548,548,548,548,548,549,0,0,0,0,197,198,0,0,0,0,0,0,770,0,0,819,820,0,0,819,820,0,0,0,0,0,770,0,0,0,838,0,0,0,0,0,0,187,188,0,0,0,0,181,182,0,0,0,0,0,0,0,0,0,0,0,0,0,393,394,0,0,0,0,0,0,0,181,182,181,182,0,
-0,0,0,233,0,0,0,0,770,0,0,838,0,0,0,0,0,0,0,0,0,770,0,922,923,924,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,770,820,0,838,0,0,0,838,0,910,0,187,188,0,770,900,0,0,0,0,0,0,0,0,0,0,0,0,0,187,188,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,234,0,0,0,
-0,0,197,198,0,0,0,0,770,820,0,0,0,0,0,910,0,0,181,182,0,770,820,0,819,820,0,819,820,0,234,0,0,0,0,0,0,0,235,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,770,0,0,0,0,0,0,0,0,926,0,0,233,0,770,916,0,0,0,0,0,0,181,182,0,0,0,181,182,0,0,0,0,234,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,187,188,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,771,769,769,769,769,769,769,769,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,695,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1115,1116,1117,1118,769,769,769,769,769,769,0,0,0,0,0,0,0,0,0,0,912,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,380,381,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,181,182,0,0,0,0,0,0,0,0,0,868,0,0,0,0,0,770,820,0,819,820,0,819,820,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,711,0,0,0,235,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1131,1132,1133,1134,0,0,0,0,0,0,0,0,0,0,771,769,769,769,769,769,769,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,771,769,769,769,769,769,769,769,0,0,0,0,0,770,0,906,907,908,0,838,0,0,0,0,0,0,0,0,0,197,198,0,0,0,548,548,548,548,548,548,548,548,548,548,548,548,548,549,0,0,0,0,197,198,0,0,0,0,0,0,770,0,0,819,820,0,0,819,820,0,0,0,0,0,770,0,0,0,838,0,0,0,0,0,0,187,188,0,0,0,0,181,182,0,0,0,0,0,0,0,0,0,0,0,0,0,393,394,0,0,0,0,0,0,0,181,182,181,182,0,
+0,0,0,0,0,0,0,0,770,0,0,838,0,0,0,0,0,0,0,0,0,770,0,922,923,924,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,770,820,0,838,0,0,0,838,0,910,0,187,188,0,770,900,0,0,0,0,0,0,0,0,0,0,0,0,0,187,188,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,197,198,0,0,0,0,770,820,0,0,0,0,0,910,0,0,181,182,0,770,820,0,819,820,0,819,820,0,0,0,0,0,0,0,0,0,235,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,770,0,0,0,0,0,0,0,0,926,0,0,0,0,770,916,0,0,0,0,0,0,181,182,0,0,0,181,182,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,770,0,0,0,0,0,0,926,0,0,0,0,0,770,0,0,838,0,0,838,0,0,0,0,0,0,0,181,182,0,0,0,0,238,0,236,237,0,0,0,0,0,0,236,237,0,0,238,0,0,235,0,0,0,0,0,0,0,0,0,770,0,0,0,0,0,0,0,0,0,0,0,0,0,770,0,0,0,0,0,0,0,0,0,0,187,188,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,181,182,197,198,0,
 187,188,0,0,197,198,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,181,182,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,233,0,0,0,0,0,0,0,0,454,0,0,0,0,0,0,0,0,0,0,0,0,458,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,602,0,0,0,0,0,0,0,0,0,0,0,622,0,0,0,0,0,0,0,0,0,0,0,0,0,0,181,182,0,0,0,0,0,0,0,234,0,0,0,0,0,0,0,0,233,0,0,0,0,234,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,454,0,0,0,0,0,0,0,0,0,0,0,0,458,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,602,0,0,0,0,0,0,0,0,0,0,0,622,0,0,0,0,0,0,0,0,0,0,0,0,0,0,181,182,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,470,0,0,0,0,0,0,0,0,0,0,0,0,474,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1076,1077,1078,0,0,0,0,187,188,0,0,0,0,0,0,0,0,0,0,0,0,618,0,0,0,0,0,0,0,0,0,0,0,638,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,236,237,0,0,0,0,236,237,0,0,0,0,0,0,0,187,188,0,197,198,
 0,197,198,0,0,0,0,548,548,548,548,548,548,548,548,548,548,549,0,0,548,548,548,548,548,548,548,548,548,548,549,0,0,0,0,187,188,0,0,0,0,0,236,237,0,0,0,0,0,0,0,0,1092,1093,1094,0,0,0,0,0,0,0,0,0,0,0,0,548,548,548,548,548,548,548,548,548,548,548,548,549,0,548,548,548,548,548,548,548,548,548,549,0,0,0,0,0,238,0,0,0,0,0,0,0,0,238,0,0,0,233,0,0,233,0,0,0,233,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,235,0,0,0,0,233,0,0,0,0,0,0,235,0,0,0,0,0,0,0,0,0,
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,236,237,0,0,0,0,235,0,236,237,0,233,0,0,0,0,197,198,187,188,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,236,237,0,0,0,0,235,0,236,237,0,0,0,0,0,0,197,198,187,188,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,249,250,251,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,233,0,0,0,0,235,0,0,0,0,0,0,0,0,233,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,236,237,0,0,0,0,0,233,236,237,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,233,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,236,237,236,237,0,0,0,0,0,236,237,236,237,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,187,188,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,233,0,0,0,0,0,0,0,233,233,0,0,0,0,197,198,197,198,0,
-0,0,0,0,0,0,0,0,0,0,0,0,450,0,0,0,0,0,0,0,0,0,0,0,0,462,0,0,0,0,0,0,0,0,0,642,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,223,224,224,224,224,225,0,0,223,224,224,224,225,0,0,0,0,233,0,0,0,0,0,0,0,0,0,0,235,0,233,0,0,0,0,0,0,0,0,0,0,235,0,0,0,0,0,0,0,0,0,
-0,0,0,0,0,0,0,0,0,0,0,0,466,0,0,0,0,0,0,0,0,0,0,0,0,478,0,0,0,0,0,0,0,0,0,658,0,0,0,0,0,0,0,0,0,236,237,0,0,0,236,237,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,233,0,233,0,0,0,0,0,0,233,235,0,0,0,0,187,188,187,188,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,238,0,0,0,0,0,0,0,0,0,0,0,0,233,0,
-0,181,182,0,0,0,0,0,769,769,769,769,769,769,769,769,0,0,0,0,0,769,769,769,769,769,769,769,769,0,0,0,0,769,769,769,769,769,0,0,0,238,0,0,0,0,0,0,0,0,0,0,0,0,0,238,0,0,0,0,0,0,0,771,769,769,769,769,0,0,0,0,0,0,0,0,0,0,0,0,236,237,0,0,0,0,236,237,0,0,0,233,0,0,0,0,0,0,181,182,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,187,188,181,182,0,
-0,0,0,0,0,0,0,0,770,820,0,949,0,0,819,820,0,0,0,0,0,770,820,0,906,907,908,819,820,0,0,0,0,770,0,0,0,0,234,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,770,820,0,819,820,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,234,0,
-0,0,0,0,0,0,0,0,770,0,903,904,905,0,838,0,0,0,0,0,0,770,0,0,922,923,924,838,0,0,234,0,0,770,820,0,0,1108,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,770,0,0,838,0,0,0,233,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,181,182,0,233,181,182,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,236,237,236,237,0,0,0,0,0,236,237,236,237,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,187,188,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,233,0,0,0,0,0,0,0,233,0,0,0,0,0,197,198,197,198,0,
+0,0,0,0,0,0,0,0,0,0,0,0,450,0,0,0,0,0,0,0,0,0,0,0,0,462,0,0,0,0,0,0,0,0,0,642,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,223,224,224,224,224,225,0,0,223,224,224,224,225,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,235,0,233,0,0,0,0,0,0,0,0,0,0,235,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,466,0,0,0,0,0,0,0,0,0,0,0,0,478,0,0,0,0,0,0,0,0,0,658,0,0,0,0,0,0,0,0,0,236,237,0,0,0,236,237,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,233,0,233,0,0,0,0,0,0,233,235,0,0,0,0,187,188,187,188,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,238,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,181,182,0,0,0,0,0,769,769,769,769,769,769,769,769,0,0,0,0,0,769,769,769,769,769,769,769,769,0,0,0,0,769,769,769,769,769,0,0,0,238,0,0,0,0,0,0,0,0,0,0,0,0,0,238,0,0,0,0,0,0,0,771,769,769,769,769,0,0,0,0,0,0,0,0,0,0,0,0,236,237,0,0,0,0,236,237,0,0,0,0,0,0,0,0,0,0,181,182,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,187,188,181,182,0,
+0,0,0,0,0,0,0,0,770,820,0,949,0,0,819,820,0,0,0,0,0,770,820,0,906,907,908,819,820,0,0,0,0,770,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,770,820,0,819,820,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,770,0,903,904,905,0,838,0,0,0,0,0,0,770,0,0,922,923,924,838,0,0,0,0,0,770,820,0,0,1108,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,770,0,0,838,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,181,182,0,0,181,182,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,770,900,919,920,921,0,0,910,0,0,0,0,0,770,820,0,912,0,0,0,868,0,0,0,0,770,0,0,0,1124,0,0,0,0,0,0,0,0,0,0,0,0,0,912,0,0,0,0,0,0,933,0,0,0,0,770,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,235,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,187,188,187,188,0,
-0,187,188,0,0,0,0,0,770,916,935,936,937,0,0,926,0,0,0,0,0,770,0,0,928,0,0,0,884,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,928,0,0,0,0,0,0,949,0,0,0,0,770,820,0,819,820,0,0,0,0,0,0,0,0,0,0,233,0,233,0,233,0,0,0,1076,1077,1078,235,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,234,234,0,0,0,0,234,0,0,0,0,
-0,0,0,0,0,0,0,0,0,233,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,197,198,0,0,0,0,0,0,0,771,769,1005,1006,1007,1008,769,769,0,0,0,0,770,0,0,838,0,0,0,234,0,0,0,0,0,0,0,0,0,234,0,0,0,0,0,1092,1093,1094,0,0,0,0,0,187,188,0,0,0,0,0,0,0,0,181,182,0,187,188,0,0,0,0,181,182,181,182,181,182,181,182,0,0,0,0,0,0,0,
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,234,0,0,0,0,234,0,0,0,0,0,0,0,0,234,0,0,0,0,0,0,770,1020,1021,1022,1023,1024,0,0,0,0,0,0,770,0,0,0,912,0,0,0,0,0,0,0,0,0,223,224,224,224,224,224,224,224,224,224,224,224,225,0,0,0,0,0,0,0,0,181,182,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,187,188,197,198,0,
-0,0,0,0,0,0,0,0,0,234,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,770,1036,1037,1038,1039,1040,0,0,0,0,0,0,0,0,0,0,928,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,233,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,234,181,182,0,234,0,0,0,
-181,182,197,198,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,770,0,1053,1054,1055,1056,0,910,0,0,0,0,0,0,458,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,181,182,181,182,0,0,0,0,0,0,0,187,188,0,181,182,0,0,0,0,0,0,0,0,234,234,0,0,0,0,0,0,0,0,0,
-0,0,0,0,0,0,0,0,0,233,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,181,182,0,0,0,0,0,0,0,0,770,0,1069,1070,1071,1072,0,926,0,0,0,0,0,0,474,0,0,0,0,234,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,181,182,0,0,0,181,182,0,0,0,0,0,0,0,0,
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,234,0,0,0,0,0,0,0,0,234,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,181,182,548,548,548,548,548,548,548,549,0,0,0,0,197,198,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,187,188,0,0,0,0,0,770,916,935,936,937,0,0,926,0,0,0,0,0,770,0,0,928,0,0,0,884,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,928,0,0,0,0,0,0,949,0,0,0,0,770,820,0,819,820,0,0,0,0,0,0,0,0,0,0,233,0,233,0,233,0,0,0,1076,1077,1078,235,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,197,198,0,0,0,0,0,0,0,771,769,1005,1006,1007,1008,769,769,0,0,0,0,770,0,0,838,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1092,1093,1094,0,0,0,0,0,187,188,0,0,0,0,0,0,0,0,181,182,0,187,188,0,0,0,0,181,182,181,182,181,182,181,182,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,770,1020,1021,1022,1023,1024,0,0,0,0,0,0,770,0,0,0,912,0,0,0,0,0,0,0,0,0,223,224,224,224,224,224,224,224,224,224,224,224,225,0,0,0,0,0,0,0,0,181,182,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,187,188,197,198,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,770,1036,1037,1038,1039,1040,0,0,0,0,0,0,0,0,0,0,928,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,181,182,0,0,0,0,0,
+181,182,197,198,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,770,0,1053,1054,1055,1056,0,910,0,0,0,0,0,0,458,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,181,182,181,182,0,0,0,0,0,0,0,187,188,0,181,182,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,181,182,0,0,0,0,0,0,0,0,770,0,1069,1070,1071,1072,0,926,0,0,0,0,0,0,474,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,181,182,0,0,0,181,182,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,181,182,548,548,548,548,548,548,548,549,0,0,0,0,197,198,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 187,188,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,238,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,233,0,0,0,0,234,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,380,381,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,380,381,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,181,182,0,0,0,0,0,0,0,595,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,599,0,0,0,0,0,0,0,0,0,0,0,187,188,0,0,0,0,0,0,181,182,0,197,198,236,237,0,181,182,0,0,0,236,181,182,0,0,187,188,0,0,197,198,0,0,0,0,0,0,0,0,0,380,381,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,234,0,0,0,0,0,0,0,0,611,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,615,0,0,0,0,0,0,181,182,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,238,0,0,0,0,0,0,0,238,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,380,381,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,187,188,0,0,0,0,769,769,769,769,769,769,769,769,769,769,0,0,0,197,198,0,0,0,233,0,769,769,769,769,769,769,769,769,769,769,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,380,381,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,611,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,615,0,0,0,0,0,0,181,182,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,238,0,0,0,0,0,0,0,238,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,380,381,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,187,188,0,0,0,0,769,769,769,769,769,769,769,769,769,769,0,0,0,197,198,0,0,0,0,0,769,769,769,769,769,769,769,769,769,769,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,380,381,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,770,820,0,0,0,0,0,819,820,928,0,0,0,0,0,0,0,0,0,0,770,884,0,0,903,904,905,0,886,882,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,233,0,0,0,0,0,0,0,0,0,0,0,0,233,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,380,381,393,394,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,0,0,0,0,770,0,0,872,872,0,0,838,0,0,0,0,0,0,0,0,0,0,234,0,770,0,0,0,919,920,921,0,819,820,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,236,237,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,393,394,380,381,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,770,0,0,872,872,0,0,838,0,0,0,0,0,0,0,0,0,0,0,0,770,0,0,0,919,920,921,0,819,820,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,236,237,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,393,394,380,381,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,187,188,0,0,0,0,770,820,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,770,820,0,819,935,936,937,820,838,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,380,381,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,770,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,770,0,0,838,0,0,838,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,187,188,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,233,0,0,0,0,0,197,198,0,0,181,182,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-187,188,197,198,0,0,0,0,0,0,0,234,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,234,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,234,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,233,0,0,0,236,237,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,234,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,233,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+187,188,197,198,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,233,0,0,0,236,237,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,187,188,0,0,0,0,197,198,0,181,182,0,197,198,0,0,0,197,198,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-181,182,0,0,187,188,197,198,0,0,0,0,0,0,0,0,181,182,181,182,0,0,0,0,0,0,0,0,0,233,0,0,0,0,0,233,0,0,0,0,181,182,0,234,0,0,0,0,0,0,0,0,0,0,234,0,0,0,234,0,0,0,0,0,0,0,0,0,0,0,0,234,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,0,0,0,0,0,0,187,188,0,0,0,0,0,0,0,0,0,0,0,0,0,0,235,0,236,237,0,0,0,0,236,237,0,0,0,0,0,0,0,181,182,0,0,0,0,0,0,234,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,233,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,181,182,187,188,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,181,182,0,0,0,0,0,0,0,0,234,0,0,0,0,0,0,0,181,182,234,0,233,0,0,0,0,0,0,0,0,234,0,0,235,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,0,234,0,0,233,0,0,0,0,0,0,0,0,0,0,181,182,0,0,0,0,0,235,0,236,237,238,0,0,0,236,237,234,0,0,0,187,188,0,0,0,0,233,0,0,0,238,181,182,0,181,182,0,0,0,0,0,0,0,0,0,0,0,181,182,0,0,236,237,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,0,0,181,182,0,0,181,182,0,0,0,197,198,181,182,0,0,0,0,0,0,0,0,233,0,0,0,0,0,233,0,0,0,233,0,0,0,0,0,181,182,0,0,0,0,0,0,0,0,0,0,0,0,0,0,234,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+181,182,0,0,187,188,197,198,0,0,0,0,0,0,0,0,181,182,181,182,0,0,0,0,0,0,0,0,0,233,0,0,0,0,0,233,0,0,0,0,181,182,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,187,188,0,0,0,0,0,0,0,0,0,0,0,0,0,0,235,0,236,237,0,0,0,0,236,237,0,0,0,0,0,0,0,181,182,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,181,182,187,188,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,181,182,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,181,182,0,0,233,0,0,0,0,0,0,0,0,0,0,0,235,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,181,182,0,0,0,0,0,235,0,236,237,238,0,0,0,236,237,0,0,0,0,187,188,0,0,0,0,0,0,0,0,238,181,182,0,181,182,0,0,0,0,0,0,0,0,0,0,0,181,182,0,0,236,237,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,181,182,0,0,181,182,0,0,0,197,198,181,182,0,0,0,0,0,0,0,0,233,0,0,0,0,0,233,0,0,0,233,0,0,0,0,0,181,182,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,181,182,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,0,234,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,0,233,0,0,0,0,0,233,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,0,197,198,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,233,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,187,188,0,0,0,0,0,0,0,234,0,0,187,188,0,0,0,187,188,181,182,0,0,0,0,181,182,0,0,0,197,198,0,233,0,0,0,0,0,0,0,0,0,197,198,0,0,0,233,0,0,0,0,0,0,0,0,0,0,0,187,188,0,0,0,0,197,198,187,188,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,197,198,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,187,188,0,0,0,0,0,0,0,0,0,0,187,188,0,0,0,187,188,181,182,0,0,0,0,181,182,0,0,0,197,198,0,0,0,0,0,0,0,0,0,0,0,197,198,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,187,188,0,0,0,0,197,198,187,188,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 187,188,0,0,0,0,187,188,0,0,187,188,0,0,0,0,181,182,0,0,0,0,0,0,0,0,0,0,0,181,182,0,0,0,0,0,0,0,0,0,181,182,181,182,0,0,0,0,0,0,0,0,0,0,0,197,198,0,0,0,197,198,0,0,0,0,187,188,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,0,233,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,233,0,0,0,234,0,0,0,0,0,234,0,0,0,0,0,0,0,0,0,0,0,0,0,187,188,0,0,0,0,0,0,0,234,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,0,0,0,0,0,181,182,0,0,0,187,188,0,0,0,0,0,0,0,0,0,181,182,0,0,0,0,0,0,0,0,0,181,182,0,187,188,0,0,0,0,0,0,0,0,0,0,0,0,0,197,198,0,234,0,0,0,0,0,187,188,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,0,197,198,187,188,0,0,0,187,188,0,0,181,182,0,0,0,0,0,197,198,0,0,197,198,0,0,0,0,0,0,0,233,0,0,0,0,0,181,182,0,0,0,0,0,0,187,188,0,0,0,0,0,0,0,0,0,0,0,0,0,181,182,0,187,188,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,197,198,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,187,188,0,187,188,0,0,0,0,0,0,0,0,187,188,0,0,187,188,0,0,197,198,0,0,234,0,0,0,187,188,0,0,0,0,0,0,0,0,197,198,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,187,188,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,181,182,0,0,0,187,188,0,0,0,0,0,0,0,0,0,181,182,0,0,0,0,0,0,0,0,0,181,182,0,187,188,0,0,0,0,0,0,0,0,0,0,0,0,0,197,198,0,0,0,0,0,0,0,187,188,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,197,198,187,188,0,0,0,187,188,0,0,181,182,0,0,0,0,0,197,198,0,0,197,198,0,0,0,0,0,0,0,0,0,0,0,0,0,181,182,0,0,0,0,0,0,187,188,0,0,0,0,0,0,0,0,0,0,0,0,0,181,182,0,187,188,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,197,198,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,187,188,0,187,188,0,0,0,0,0,0,0,0,187,188,0,0,187,188,0,0,197,198,0,0,0,0,0,0,187,188,0,0,0,0,0,0,0,0,197,198,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 ]
   },
   {
