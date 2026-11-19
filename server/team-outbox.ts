@@ -1,7 +1,7 @@
 import { mkdir, readdir, readFile, rename, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { TeamBot } from '../shared/protocol';
-import { judgeTeamMessage, MAX_TEAM_TEXT_BYTES, TEAM_MSG_ID_RE, type TeamMessage, type TeamMessageStatus } from '../shared/team-messages';
+import { judgeTeamMessage, MAX_TEAM_TEXT_BYTES, TEAM_MSG_ID_RE, VILLAGE_SENDER, type TeamMessage, type TeamMessageStatus } from '../shared/team-messages';
 import { appendTeamLog, hasLogged, isTeamPaused, readTeamLog, readTeamLogSince, sentSince, teamLogFile, teamLogSize, teamOutboxDir } from './team-log';
 import { withFileLockAsync } from './ws/file-lock';
 
@@ -89,7 +89,7 @@ export function parseSpool(raw: string): SpoolMessage | null {
 }
 
 function invalid(m: SpoolMessage, team: TeamBot[]): string | undefined {
-  if (!team.some((b) => b.id === m.from)) return 'remetente não é da equipe';
+  if (m.from !== VILLAGE_SENDER && !team.some((b) => b.id === m.from)) return 'remetente não é da equipe';
   if (!team.some((b) => b.id === m.to)) return 'destinatário não é da equipe';
   if (m.from === m.to) return 'um bot não manda mensagem pra si mesmo';
   if (!m.handoff && !m.text.trim()) return 'mensagem vazia';
