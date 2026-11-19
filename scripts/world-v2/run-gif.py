@@ -2,6 +2,7 @@
 """Game-feel preview GIF on public/world/v2/world.tmj: one avatar walks from the plaza along Rua
 Leste-Oeste, Shift-runs Estrada do Bosque and the lake trail, and stops on the lake pier. The motion
 maths are a port of src/routes/equipe/world/world-run.ts and the camera follow of world-scene.ts.
+Dust only rises from grass, dirt and sand (world-run.ts dustAllowed), so the pier leg has none.
 
 Run: python3 scripts/world-v2/run-gif.py --out FILE [--frames N] [--start N] [--smoke] [--bot ID] [--max-bytes N]
 """
@@ -11,6 +12,7 @@ import io
 import json
 import math
 import os
+import re
 
 import numpy as np
 from PIL import Image
@@ -35,6 +37,17 @@ AVATAR_TILES_PER_S = 72 / 16
 FOLLOW_LERP = 0.12
 BLOCKING_LAYERS = ("ground", "walls", "furniture_low")
 OVERLAY_LAYERS = ("furniture_high", "lights")
+# world-run.ts SURFACE_RULES / dustAllowed: ground item name -> surface, first match wins
+SURFACE_RULES = (
+    (r"^(grass|auto_grass_path|auto_grass_sand)", "grass"),
+    (r"^dirt", "dirt"),
+    (r"^(sand|auto_sand_water)", "sand"),
+    (r"^dock_", "wood"),
+    (r"^(plaza|auto_grass_plaza|street|road|crosswalk|sidewalk|rock_ground|cliff)", "paved"),
+    (r"^(floor|carpet)", "floor"),
+    (r"^water", "water"),
+)
+DUST_SURFACES = ("grass", "dirt", "sand", "unknown")
 
 VIEW_W, VIEW_H = 560, 400
 SIM_HZ = 60
@@ -69,6 +82,36 @@ def blocked_tiles(m):
         if l["type"] == "tilelayer" and l["name"] in BLOCKING_LAYERS:
             out.update(i for i, g in enumerate(l["data"]) if (g & 0x1FFFFFFF) in gids)
     return out
+
+
+def surface_of_item(name):
+    for pattern, surface in SURFACE_RULES:
+        if name and re.match(pattern, name):
+            return surface
+    return "unknown"
+
+
+def ground_surfaces(m):
+    """surface of every tile of the ground layer, from the item names in tiles-*.json"""
+    names = {}
+    for ts in m["tilesets"]:
+        meta = os.path.join(V2, os.path.splitext(ts["image"])[0] + ".json")
+        if not os.path.exists(meta):
+            continue
+        for name, item in json.load(open(meta))["items"].items():
+            for row in item["ids"]:
+                for tid in row:
+                    names[ts["firstgid"] + tid] = name
+    ground = next(l for l in m["layers"] if l["name"] == "ground")
+    return [surface_of_item(names.get(g & 0x1FFFFFFF)) for g in ground["data"]]
+
+
+def dust_allowed(surfaces, m, x, y):
+    T = m["tilewidth"]
+    tx, ty = int(x // T), int((y - 1) // T)
+    if not (0 <= tx < m["width"] and 0 <= ty < m["height"]):
+        return True
+    return surfaces[ty * m["width"] + tx] in DUST_SURFACES
 
 
 def check_path(m, pts):
@@ -138,6 +181,7 @@ def simulate(m):
     map_w, map_h = m["width"] * T, m["height"] * T
     pts = [(x * T, y * T) for x, y, _ in PATH]
     check_path(m, pts)
+    surfaces = ground_surfaces(m)
     base_speed = AVATAR_TILES_PER_S * T
     dt = 1000 / SIM_HZ
     x, y = pts[0]
@@ -174,7 +218,7 @@ def simulate(m):
             if end_at is None:
                 end_at = now + HOLD_END_MS
         count, acc = dust_tick(acc, dt, running and moving)
-        for _ in range(count):
+        for _ in range(count if dust_allowed(surfaces, m, x, y) else 0):
             nxt = (nxt + 1) % DUST_POOL
             puffs[nxt] = (js_round(x - dx * 4), js_round(y - dy * 3), nxt % 2 == 0, now)
         look = lookahead(look, dx, dy, dt)

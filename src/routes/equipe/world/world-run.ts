@@ -28,6 +28,37 @@ export function dustTick(acc: number, dtMs: number, active: boolean): DustTick {
   return { count: Math.min(count, DUST_POOL), acc: total - count * DUST_INTERVAL_MS };
 }
 
+export type Surface = 'grass' | 'dirt' | 'sand' | 'wood' | 'paved' | 'floor' | 'water' | 'unknown';
+
+// Ground item names of the v2 tilesets (tiles-exterior.json / tiles-interior.json), first match wins.
+const SURFACE_RULES: ReadonlyArray<readonly [RegExp, Surface]> = [
+  [/^(grass|auto_grass_path|auto_grass_sand)/, 'grass'],
+  [/^(dirt|road)/, 'dirt'],
+  [/^(sand|auto_sand_water)/, 'sand'],
+  [/^dock_/, 'wood'],
+  [/^(plaza|auto_grass_plaza|street|crosswalk|sidewalk|rock_ground|cliff)/, 'paved'],
+  [/^(floor|carpet)/, 'floor'],
+  [/^water/, 'water'],
+];
+
+export function surfaceOfItem(name: string | undefined): Surface {
+  if (!name) return 'unknown';
+  return SURFACE_RULES.find(([re]) => re.test(name))?.[1] ?? 'unknown';
+}
+
+const SURFACES: ReadonlySet<string> = new Set(['grass', 'dirt', 'sand', 'wood', 'paved', 'floor', 'water']);
+
+// Tile properties of the ground tile under the feet: `surface` when the tileset declares it, else the
+// `floor` flag of the old map (plaza, street and indoor floors).
+export function surfaceOfProps(props: Record<string, unknown> | undefined): Surface {
+  if (!props) return 'unknown';
+  if (typeof props.surface === 'string') return SURFACES.has(props.surface) ? (props.surface as Surface) : 'unknown';
+  return props.floor === true ? 'floor' : 'unknown';
+}
+
+// Dust rises only from loose ground; a surface the map does not describe keeps the puff.
+export const dustAllowed = (surface: Surface): boolean => surface === 'grass' || surface === 'dirt' || surface === 'sand' || surface === 'unknown';
+
 export interface Offset { x: number; y: number }
 
 // Frame-rate independent ease of the camera offset toward `dir * max`; dir (0, 0) eases back to rest.

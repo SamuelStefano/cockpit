@@ -11,7 +11,8 @@ import { npcSprite, type Flight, type NpcView, type WorldView } from './world-st
 import { pickWanderTile, tileKey, wanderDelay, wanderTiles } from './world-wander';
 import { planCarry } from './world-carry';
 import { FX_SHADOW, FX_SHADOW_SMALL, ParticleSim, fxFrame, jumpLift, stepPhase, walkBob, type Particle } from './world-juice';
-import { DUST_ANCHOR, DUST_FPS, DUST_FRAME, DUST_FRAMES, DUST_POOL, dustTick, legFrameMs, lookahead, runSpeed, stickRuns } from './world-run';
+import { DUST_ANCHOR, DUST_FPS, DUST_FRAME, DUST_FRAMES, DUST_POOL, dustAllowed, dustTick, legFrameMs, lookahead, runSpeed, stickRuns, surfaceOfProps } from './world-run';
+import type { Surface } from './world-run';
 import { CHIBI_FRAME_H, CHIBI_FRAME_W, FX_FRAME, assignVariants, chibiFrame, hashId, idleAnim, shirtTint, walkAnim } from './world-chibi';
 
 // Phaser lives only in this module, loaded with a dynamic import from TeamWorld.tsx.
@@ -153,6 +154,7 @@ class WorldScene extends Phaser.Scene {
   private dustAcc = 0;
   private dustNext = 0;
   private dust: Phaser.GameObjects.Sprite[] = [];
+  private surfaceAt: (x: number, y: number) => Surface = () => 'unknown';
   private look = { x: 0, y: 0 };
   private downAt = new Map<number, Point>();
   private pinchDist = 0;
@@ -378,6 +380,10 @@ class WorldScene extends Phaser.Scene {
     const props = (index: number): Record<string, unknown> => (map.tilesets.find((t) => t.containsTileIndex(index))?.getTileProperties(index) as Record<string, unknown> | undefined) ?? {};
     const ground = map.createLayer('ground', sets, 0, 0)!.setDepth(0);
     this.tintGround(ground, props);
+    this.surfaceAt = (x, y) => {
+      const t = ground.getTileAtWorldXY(x, y);
+      return t ? surfaceOfProps(props(t.index)) : 'unknown';
+    };
     map.createLayer('walls', sets, 0, 0)!.setDepth(5);
     map.createLayer('furniture', sets, 0, 0)!.setDepth(6);
     this.buildDecor(map, sets, props);
@@ -976,7 +982,7 @@ class WorldScene extends Phaser.Scene {
       const moved = a.x !== fromX || a.y !== fromY;
       const tick = dustTick(this.dustAcc, dt, running && moved);
       this.dustAcc = tick.acc;
-      for (let i = 0; i < tick.count; i++) this.puff(a.x, a.y, vx / len, vy / len);
+      if (tick.count > 0 && dustAllowed(this.surfaceAt(a.x, a.y - 1))) for (let i = 0; i < tick.count; i++) this.puff(a.x, a.y, vx / len, vy / len);
       this.look = lookahead(this.look, moved ? vx : 0, moved ? vy : 0, dt);
     } else {
       a.setFrame(charFrame(AVATAR_CHAR, 0, this.avatarFace));
