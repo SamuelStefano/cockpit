@@ -27,8 +27,9 @@ PALETTE.update({"c0": "#7d62b8", "c1": "#c3b1ec"})
 assert len(set(PALETTE.values())) == len(PALETTE)
 
 DIRS = ["left", "down", "up", "right"]
-ANIMS = ["idle", "walk", "sit", "type", "talk", "celebrate", "carry", "sleep"]
-FPS = {"idle": 4, "walk": 10, "sit": 2, "type": 8, "talk": 6, "celebrate": 10, "carry": 10, "sleep": 2}
+# "run" is appended last so the rows of the older animations never move
+ANIMS = ["idle", "walk", "sit", "type", "talk", "celebrate", "carry", "sleep", "run"]
+FPS = {"idle": 4, "walk": 10, "sit": 2, "type": 8, "talk": 6, "celebrate": 10, "carry": 10, "sleep": 2, "run": 12}
 COLS = 8
 
 SHIRT = ["g0", "g1", "g2", "g3"]
@@ -145,7 +146,7 @@ HELD_ORDER = ("brush", "magnifier", "megaphone", "calculator", "clipboard", "not
 def pose(**kw):
     base = dict(dy=0, sq=0, head_dy=0, head_dx=0, look=0, eyes="open", mouth="smile",
                 arm_l=("side", 0), arm_r=("side", 0), legs=("stand", 0), prop=True,
-                seat=0, crate=False, side_arms=None, prop_side=None, open_hand=False)
+                seat=0, crate=False, side_arms=None, prop_side=None, open_hand=False, lean=0)
     base.update(kw)
     return base
 
@@ -181,7 +182,19 @@ def anim_poses():
                        crate=True) for k, (dy, sq) in enumerate(seq)]
     s = dict(seat=1, look=1, eyes="closed", mouth="sleep", prop=False, arm_l=("lap", 1), arm_r=("lap", 1))
     A["sleep"] = [pose(head_dy=1, head_dx=1, **s), pose(head_dy=1, head_dx=1, sq=1, **s)]
+    # run: contact (low, widest stride) -> pass (legs gathered) -> flight (airborne), then the other leg leads.
+    # The body leans forward the whole cycle and the bent arms pump opposite to the legs.
+    run = [(1, -1), (0, 0), (-2, 1), (1, 1), (0, 0), (-2, -1)]
+    A["run"] = [pose(dy=dy, legs=("run", k), lean=2, arm_l=("pump", a), arm_r=("pump", -a),
+                     mouth="open" if dy < 0 else "smile") for k, (dy, a) in enumerate(run)]
     return A
+
+
+def run_feet(k):
+    """(near, far) feet as (stride, lift); stride > 0 = ahead of the body, lift = px above the ground"""
+    half = [((1.7, 0), (-1.7, 2)), ((-0.3, 0), (1.0, 2)), ((-1.7, 1), (1.5, 2))]
+    a, b = half[k % 3]
+    return (a, b) if k < 3 else (b, a)
 
 
 def walk_feet(k):
@@ -385,6 +398,10 @@ def build_bot(spec, d, P, swap=False):
     widen = 1 if sq > 0 else (-1 if sq < 0 else 0)
     side = d == "left"
     legs, lk = P["legs"]
+    lean = P["lean"]
+    if lean and not side:   # front/back views: the lean reads as the head dropping over the chest
+        head_cy += 1
+    lean_t = 1 if (lean and side) else 0   # side view: chest 1 px forward, head `lean` px forward
 
     # ---- legs + shoes
     if seat:
@@ -407,6 +424,10 @@ def build_bot(spec, d, P, swap=False):
     else:
         if legs == "walk":
             fl, fr = walk_feet(lk)
+        elif legs == "run":
+            fl, fr = run_feet(lk)
+            if swap:   # mirrored row: the near leg is the other leg, keeps arms and legs opposed
+                fl, fr = fr, fl
         elif legs == "tuck":
             fl, fr = (0, 3), (0, 3)
         elif legs == "jump":
@@ -427,7 +448,7 @@ def build_bot(spec, d, P, swap=False):
                                   1.5 + (0.1 if s > 0 else 0), light=False))
         else:
             for (stride, lift), far in ((fr, True), (fl, False)):
-                fx = 16 - stride * 3 + (-1 if crouch and not far else (1 if crouch else 0))
+                fx = int(round(16 - stride * 3)) + (-1 if crouch and not far else (1 if crouch else 0))
                 fb = foot_base - lift
                 z = 0.6 if far else 1.6
                 hipx = 16.5
@@ -446,13 +467,15 @@ def build_bot(spec, d, P, swap=False):
     if d in ("down", "up"):
         tx0, tx1 = 10 - widen, 21 + widen
     else:
-        tx0, tx1 = 12 - widen, 20 + widen
+        tx0, tx1 = 12 - widen - lean_t, 20 + widen - lean_t
     torso = m_rrect(W, H, tx0, torso_top, tx1, hip, 2) & ~m_rect(W, H, 0, hip, W, H)
     pants = m_rrect(W, H, tx0 + 1, hip - 2, tx1 - 1, hip + 1, 1)
     parts.append(Part("pants", pants, pants_r, 2.8, light=False))
     hcx = (16.0 if d != "left" else 15.5)
     hdx = P["head_dx"]
     hcx += hdx if d == "down" else (-hdx if d == "left" else -hdx)
+    if side:
+        hcx -= lean
     cxi = int(round(hcx - 0.01))  # integer anchor for overlays
 
     if "blazer" in acc:
@@ -492,10 +515,15 @@ def build_bot(spec, d, P, swap=False):
     sh_y = torso_top + 1.5
     hand_pts = {}
 
-    def arm(name, shoulder, hand, z, sleeve=True, band=False, open_hand=False, sleeve_t=0.45):
-        parts.append(Part(name + "_arm", m_capsule(W, H, shoulder, hand, 1.45), skin, z, light=False, band=0))
+    def arm(name, shoulder, hand, z, sleeve=True, band=False, open_hand=False, sleeve_t=0.45, elbow=None):
+        am = m_capsule(W, H, shoulder, hand, 1.45)
+        if elbow is not None:   # bent arm: the sleeve covers the upper arm down to the elbow
+            am = m_capsule(W, H, shoulder, elbow, 1.45) | m_capsule(W, H, elbow, hand, 1.45)
+        parts.append(Part(name + "_arm", am, skin, z, light=False, band=0))
         sx = shoulder[0] + (hand[0] - shoulder[0]) * sleeve_t
         sy = shoulder[1] + (hand[1] - shoulder[1]) * sleeve_t
+        if elbow is not None:
+            sx, sy = elbow
         if sleeve:
             if "blazer" in acc:
                 parts.append(Part(name + "_sleeve", m_capsule(W, H, shoulder, (sx, sy), 1.75), RAMP["dark"], z + 0.01,
@@ -524,6 +552,9 @@ def build_bot(spec, d, P, swap=False):
             return (hx, sh_y + 6)
         if kind == "swing":
             return (hx, sh_y + 6 + k)
+        if kind == "pump":   # k=1 fist raised in front of the chest, k=-1 elbow out and hand back
+            return {1: (sidex - sgn * 0.5, sh_y + 2), 0: (sidex + sgn * 1.5, sh_y + 4),
+                    -1: (sidex + sgn * 2.5, sh_y + 5.5)}[k]
         if kind == "out":
             return (sidex + sgn * 3.5, sh_y + 4.5)
         if kind == "low":
@@ -548,7 +579,7 @@ def build_bot(spec, d, P, swap=False):
         # down: screen-left = character's right arm; up: screen-left = character's left arm
         kl, kr = (P["arm_r"], P["arm_l"]) if d == "down" else (P["arm_l"], P["arm_r"])
         for nm, (kind, k), sx, sgn in (("L", kl, lsx, -1), ("R", kr, rsx, 1)):
-            if kind == "swing" and d == "up":
+            if kind in ("swing", "pump") and d == "up":
                 k = -k
             hp = arm_target(kind, k, sx, sgn)
             zz = 4
@@ -559,7 +590,7 @@ def build_bot(spec, d, P, swap=False):
                 open_hand=P["open_hand"] and kind == "up")
         prop_hand = "L" if d == "down" else "R"
     else:
-        shx = 16.5
+        shx = 16.5 - lean_t
         if P["side_arms"]:
             near, far = P["side_arms"]
             prop_hand = "F" if P["prop_side"] == "far" else "N"
@@ -568,8 +599,13 @@ def build_bot(spec, d, P, swap=False):
             prop_hand = "N" if swap else "F"
         for nm, (kind, k) in (("F", far), ("N", near)):
             z = 2.5 if nm == "F" else 4
+            elbow = None
             if kind == "swing":
                 hp = (shx - k * 3.0 * (1 if nm == "N" else -1), sh_y + 5.5)
+            elif kind == "pump":   # k=1 fist driven forward and up, k=-1 elbow back, 0 = passing the hip
+                elbow, hp = {1: ((shx - 2.5, sh_y + 4), (shx - 6, sh_y + 1.5)),
+                             0: ((shx + 0.5, sh_y + 4), (shx - 2, sh_y + 5)),
+                             -1: ((shx + 3, sh_y + 3), (shx + 5.5, sh_y + 5.5))}[k]
             elif kind == "side":
                 hp = (shx - 0.5, sh_y + 6)
             elif kind == "up":  # straight up along the side of the body
@@ -590,14 +626,16 @@ def build_bot(spec, d, P, swap=False):
             else:
                 hp = (shx, sh_y + 6)
             if nm == "F":
-                if held and prop_hand == "F" and kind in ("side", "swing", "out", "low"):
+                if held and prop_hand == "F" and kind in ("side", "swing", "out", "low", "pump"):
                     hp = (shx - 5, sh_y + 4.5)   # far hand holds the prop in front of the body
+                    elbow = None
                 elif kind not in ("up",):
                     hp = (hp[0] + 1, hp[1])
             is_left_arm = (nm == "N") != swap if not P["side_arms"] else (nm == "N") != swap
             arm(nm, (shx + (1.5 if kind == "up" else 0), sh_y), hp, z,
                 band=armband if (armband and is_left_arm) else False,
-                open_hand=P["open_hand"] and kind == "up", sleeve_t=0.12 if kind == "up" else 0.45)
+                open_hand=P["open_hand"] and kind == "up", sleeve_t=0.12 if kind == "up" else 0.45,
+                elbow=elbow)
 
     # ---- head + hair
     head = m_ellipse(W, H, hcx, head_cy, 10.6, 9.2)
@@ -1401,7 +1439,7 @@ def main():
         meta = {
             "frame": {"w": FW, "h": FH, "origin": [16, GROUND],
                       "note": "origin = bottom-centre; feet on row 46, row 47 empty"},
-            "sheet": {"w": COLS * FW, "h": 32 * FH, "columns": COLS},
+            "sheet": {"w": COLS * FW, "h": len(ANIMS) * len(DIRS) * FH, "columns": COLS},
             "directions": DIRS,
             "shirt_ramp": [PALETTE[c] for c in SHIRT],
             "animations": {an: {"row": v["row"], "rows": v["rows"], "frames": v["frames"], "fps": v["fps"]}

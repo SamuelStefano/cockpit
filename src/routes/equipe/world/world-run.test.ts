@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import metaRaw from '../../../../public/world/v2/fx/dust.json?raw';
+import exteriorRaw from '../../../../public/world/v2/tiles-exterior.json?raw';
 import {
   DUST_ANCHOR, DUST_FPS, DUST_FRAME, DUST_FRAMES, DUST_INTERVAL_MS, DUST_POOL, LOOKAHEAD_MAX, RUN_FRAME_MS, WALK_FRAME_MS,
-  dustTick, legFrameMs, lookahead, runSpeed, stickRuns,
+  dustAllowed, dustTick, legFrameMs, lookahead, runSpeed, stickRuns, surfaceOfItem, surfaceOfProps,
 } from './world-run';
 
 describe('runSpeed', () => {
@@ -99,5 +100,58 @@ describe('dust atlas', () => {
     expect([a.frame_w, a.frame_h, a.frames, a.fps]).toEqual([DUST_FRAME, DUST_FRAME, DUST_FRAMES, DUST_FPS]);
     expect(a.anchor).toEqual([DUST_ANCHOR.x, DUST_ANCHOR.y]);
     expect(a.loop).toBe(false);
+  });
+});
+
+describe('dustAllowed', () => {
+  it('raises dust on grass, dirt and sand only', () => {
+    expect(['grass', 'dirt', 'sand'].map((s) => dustAllowed(s as never))).toEqual([true, true, true]);
+    expect(['wood', 'paved', 'floor', 'water'].map((s) => dustAllowed(s as never))).toEqual([false, false, false, false]);
+  });
+
+  it('keeps the puff on a surface the map does not describe', () => {
+    expect(dustAllowed('unknown')).toBe(true);
+  });
+});
+
+describe('surfaceOfItem', () => {
+  it('maps the v2 ground items to a surface', () => {
+    expect(surfaceOfItem('grass_2')).toBe('grass');
+    expect(surfaceOfItem('auto_grass_path')).toBe('grass');
+    expect(surfaceOfItem('dirt')).toBe('dirt');
+    expect(surfaceOfItem('sand')).toBe('sand');
+    expect(surfaceOfItem('dock_planks_v')).toBe('wood');
+    expect(surfaceOfItem('plaza_pavers_cracked')).toBe('paved');
+    expect(surfaceOfItem('auto_grass_plaza')).toBe('paved');
+    expect(surfaceOfItem('sidewalk_curb_ne')).toBe('paved');
+    expect(surfaceOfItem('floor_wood_h')).toBe('floor');
+    expect(surfaceOfItem('carpet_red')).toBe('floor');
+    expect(surfaceOfItem('water')).toBe('water');
+    expect(surfaceOfItem('bench_front')).toBe('unknown');
+    expect(surfaceOfItem(undefined)).toBe('unknown');
+  });
+
+  it('knows every ground item of the exterior tileset', () => {
+    const items = Object.keys((JSON.parse(exteriorRaw) as { items: Record<string, unknown> }).items);
+    const ground = items.slice(0, items.indexOf('tree_round_canopy'));
+    expect(ground.length).toBeGreaterThan(30);
+    expect(ground.filter((n) => surfaceOfItem(n) === 'unknown')).toEqual([]);
+  });
+});
+
+describe('surfaceOfProps', () => {
+  it('reads the surface tile property', () => {
+    expect(surfaceOfProps({ surface: 'wood' })).toBe('wood');
+    expect(surfaceOfProps({ surface: 'lava' })).toBe('unknown');
+  });
+
+  it('treats the floor flag of the old map as a floor', () => {
+    expect(surfaceOfProps({ floor: true })).toBe('floor');
+    expect(dustAllowed(surfaceOfProps({ floor: true }))).toBe(false);
+  });
+
+  it('is unknown without properties', () => {
+    expect(surfaceOfProps(undefined)).toBe('unknown');
+    expect(surfaceOfProps({ block: true })).toBe('unknown');
   });
 });

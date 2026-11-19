@@ -982,11 +982,54 @@ def forest(w, x0, y0, x1, y1, density, variants, seed):
     """scatter trees over the free grass of a rectangle; density = chance in 100 per tile"""
     for y in range(y0, y1 + 1):
         for x in range(x0, x1 + 1):
-            if any(cx - 2 < x < cx + cw and cy - 3 < y < cy + ch for cx, cy, cw, ch in FOREST_CLEARINGS):
+            if in_clearing(x, y):
                 continue
             r = h32(x, y, seed)
             if r % 100 < density and can_tree(w, x, y):
                 tree(w, x, y, variants[(r >> 8) % len(variants)])
+
+
+GROVE_PALETTES = [("pine", "pine", "round"), ("round", "round", "autumn"), ("autumn", "round", "pine"),
+                  ("pine", "autumn", "pine"), ("round", "pine", "round"), ("autumn", "autumn", "round")]
+
+
+def in_clearing(x, y):
+    return any(cx - 2 < x < cx + cw and cy - 3 < y < cy + ch for cx, cy, cw, ch in FOREST_CLEARINGS)
+
+
+def groves(w, x0, y0, x1, y1, seed, gap=(2, 4), vertical=False):
+    """Woods along a strip: groups of 3-5 trees of a mixed palette, loosely placed inside the strip, with a
+    clearing of gap[0]..gap[1] tiles between groups. Everything comes from h32, so the map stays reproducible."""
+    lo, hi = (y0, y1) if vertical else (x0, x1)
+    m0, m1 = (x0, x1) if vertical else (y0, y1)
+    pos = lo + h32(seed, 0) % 2
+    while pos <= hi:
+        n = 3 + h32(pos, seed, 1) % 3
+        span = n + (4 if vertical else 3) + h32(pos, seed, 5) % 2
+        pal = GROVE_PALETTES[h32(pos, seed, 2) % len(GROVE_PALETTES)]
+        placed = 0
+        for k in range(n * 6):
+            r = h32(pos, k, seed, 3)
+            a = pos + r % span
+            b = m0 + (r >> 8) % (m1 - m0 + 1)
+            x, y = (b, a) if vertical else (a, b)
+            if a > hi or in_clearing(x, y) or not can_tree(w, x, y):
+                continue
+            tree(w, x, y, pal[(r >> 16) % len(pal)])
+            placed += 1
+            if placed == n:
+                break
+        pos += span + gap[0] + h32(pos, seed, 4) % (gap[1] - gap[0] + 1)
+
+
+def jittered_tree(w, x, y, variant, seed):
+    """a hand-placed tree nudged by up to one tile, so lists of them stop reading as rows"""
+    for k in range(3):
+        r = h32(x, y, seed, k)
+        dx, dy = r % 3 - 1, (r >> 8) % 3 - 1
+        if (dx or dy) and can_tree(w, x + dx, y + dy):
+            return tree(w, x + dx, y + dy, variant)
+    tree(w, x, y, variant)
 
 
 def picnic(w, k, x, y):
@@ -1050,9 +1093,11 @@ def bosque_detail(w):
     forest(w, 123, 9, W - 2, 43, 85, ["pine", "round", "pine", "autumn"], 12)
     forest(w, OLD_W, 9, 100, 43, 16, mixed, 13)
     forest(w, 104, 39, 122, 43, 22, mixed, 14)
-    forest(w, 0, 74, 76, H - 3, 60, ["pine", "round", "pine"], 15)
-    forest(w, 0, OLD_H, 1, 73, 60, ["pine", "round"], 16)
-    forest(w, 2, OLD_H, 76, 73, 16, mixed, 17)
+    groves(w, 0, 75, 76, H - 3, 15, gap=(1, 3))
+    groves(w, 3, 71, 76, 74, 19, gap=(3, 7))
+    groves(w, 0, 61, 2, 73, 16, gap=(1, 3), vertical=True)
+    groves(w, 3, 61, 48, 63, 20, gap=(2, 5))
+    forest(w, 3, OLD_H, 76, 70, 14, mixed, 17)
     forest(w, 103, 60, 115, 70, 100, ["pine", "round"], 18)
 
 
@@ -1076,19 +1121,10 @@ def scatter(w):
 
 
 def border_trees(w, full):
-    spots = []
-    for y in range(12, 46, 4):
-        spots.append((0, y, "pine" if y % 8 else "round"))
-    for y in range(12, 44, 4):
-        spots.append((94, y, "round" if y % 8 else "autumn"))
-    for x in range(0, 50, 4):
-        spots.append((x, 61, "round" if x % 8 else "pine"))
-    # these two stood where the old map ended; the road east and the trail south now pass there
-    cut = {(94, 28), (48, 61)} if full else set()
-    for x, y, v in spots:
-        if (x, y) in cut or (not full and (y >= 44 or x >= 92)):
-            continue
-        tree(w, x, y, v)
+    """the west edge of the town and, on the full map, the old east edge; the south woods are in bosque_detail"""
+    groves(w, 0, 12, 2, 60 if full else 43, 21, gap=(1, 3), vertical=True)
+    if full:
+        groves(w, 93, 12, 95, 43, 22, gap=(2, 4), vertical=True)
 
 
 def neighbourhood_trees(w, full):
@@ -1100,7 +1136,7 @@ def neighbourhood_trees(w, full):
              (39, 51, "round"), (21, 52, "autumn"), (2, 52, "round"), (2, 56, "pine"), (43, 52, "pine"),
              (74, 51, "autumn"), (90, 31, "pine"), (60, 44, "round"), (74, 44, "autumn")]
     for x, y, v in base + (extra if full else []):
-        tree(w, x, y, v)
+        jittered_tree(w, x, y, v, 23)
     for x, y in ((38, 23), (58, 24), (44, 18), (52, 20)):
         bush(w, x, y, "berry" if (x + y) % 2 else "plain")
 
