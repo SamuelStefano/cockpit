@@ -12,6 +12,7 @@ import { useCelebrate } from './world/useCelebrate';
 import type { MergedCounts } from './world/world-celebrate';
 import { WORLD_ERROR } from './world/world-map';
 import type { WorldHandle } from './world/world-scene';
+import { WORLD_V2_STORAGE_KEY, isWorldV2 } from './world/world-v2-layout';
 
 interface TeamWorldProps {
   state: TeamState | null;
@@ -31,6 +32,10 @@ const DEMO_TEAM: TeamBot[] = DEMO_BOTS.map((b) => ({ id: b.id, name: b.name, lab
 
 const DEMO_TICK_MS = 7000;
 const isCoarse = (): boolean => typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+const storedV2 = (): string | null => { try { return localStorage.getItem(WORLD_V2_STORAGE_KEY); } catch { return null; } };
+const loadFactory = (v2: boolean) => (v2
+  ? import('./world/world-scene-v2').then((m) => ({ create: m.createWorldV2, loadFont: m.loadWorldFont }))
+  : import('./world/world-scene').then((m) => ({ create: m.createWorld, loadFont: m.loadWorldFont })));
 
 const chip = 'inline-flex items-center justify-center rounded-md border px-3 py-1.5 text-xs font-medium backdrop-blur pointer-coarse:min-h-11 pointer-coarse:px-4';
 const chipOff = 'border-white/10 bg-neutral-950/75 text-neutral-200 hover:bg-neutral-900/90';
@@ -40,6 +45,8 @@ const chipOn = 'border-emerald-400/40 bg-emerald-500/20 text-emerald-200';
 // canvas only ever receives names, states and counts (see world-state.ts).
 export function TeamWorld({ state, connected, onRefresh, bots, meetings, onMeetingsGet, onMeetingStart, mergedCounts, paused = false, onPauseSet }: TeamWorldProps) {
   const demo = useMemo(() => isDemo(location.search), []);
+  const v2 = useMemo(() => isWorldV2(location.search, storedV2()), []);
+  const mapError = v2 ? null : WORLD_ERROR;
   const [ui, dispatch] = useReducer(worldUiReducer, location.search, (s) => initialWorldUi(parseInitialMode(s)));
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -83,13 +90,13 @@ export function TeamWorld({ state, connected, onRefresh, bots, meetings, onMeeti
 
   useEffect(() => {
     const el = host.current;
-    if (!el || WORLD_ERROR) return;
+    if (!el || mapError) return;
     let dead = false;
     let ro: ResizeObserver | null = null;
-    import('./world/world-scene').then(async ({ createWorld, loadWorldFont }) => {
-      await loadWorldFont().catch(() => {});
+    loadFactory(v2).then(async ({ create, loadFont }) => {
+      await loadFont().catch(() => {});
       if (dead) return;
-      const h = createWorld({
+      const h = create({
         parent: el,
         mode: modeRef.current,
         coarse: isCoarse(),
@@ -102,7 +109,7 @@ export function TeamWorld({ state, connected, onRefresh, bots, meetings, onMeeti
       ro.observe(el);
     }).catch(() => { if (!dead) setFailed(true); });
     return () => { dead = true; ro?.disconnect(); world.current?.destroy(); world.current = null; };
-  }, [demo]);
+  }, [demo, v2, mapError]);
 
   useEffect(() => { world.current?.update(view); }, [view]);
   useEffect(() => { world.current?.setMode(ui.mode); }, [ui.mode]);
@@ -120,10 +127,10 @@ export function TeamWorld({ state, connected, onRefresh, bots, meetings, onMeeti
 
   const wrap = ui.recording ? 'fixed inset-0 z-[70] bg-[#0a0908]' : 'relative min-h-[420px] flex-1 overflow-hidden rounded-xl border border-white/10 bg-[#0a0908]';
   return (
-    <div className={wrap} data-world-ready={ready ? '1' : '0'} data-world-mode={ui.mode}>
+    <div className={wrap} data-world-ready={ready ? '1' : '0'} data-world-mode={ui.mode} data-world-version={v2 ? '2' : '1'}>
       <div ref={host} className="absolute inset-0 touch-none" />
       {!ready && !failed && <div className="pointer-events-none absolute inset-0 grid place-items-center text-xs text-neutral-400">Carregando o mundo...</div>}
-      {WORLD_ERROR && <div role="alert" className="absolute inset-0 grid place-items-center p-4 text-center text-xs text-red-300">Mapa do mundo inválido: {WORLD_ERROR}</div>}
+      {mapError && <div role="alert" className="absolute inset-0 grid place-items-center p-4 text-center text-xs text-red-300">Mapa do mundo inválido: {mapError}</div>}
       {failed && <div className="absolute inset-0 grid place-items-center text-xs text-red-300">Não foi possível carregar o mundo.</div>}
       {!ui.recording && (
         <>
