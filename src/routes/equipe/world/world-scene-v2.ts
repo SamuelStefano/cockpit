@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { DUST_ANCHOR, DUST_FPS, DUST_FRAME, DUST_FRAMES, DUST_POOL, RUN_FRAME_MS, WALK_FRAME_MS, dustTick, lookahead, runSpeed, stickRuns } from './world-run';
+import { DUST_ANCHOR, DUST_FPS, DUST_FRAME, DUST_FRAMES, DUST_POOL, dustTick, lookahead, runSpeed, stickRuns } from './world-run';
 import type { WorldHandle, WorldOptions } from './world-scene';
 import type { NpcView, WorldView } from './world-state';
 import { parseFocus, wheelStep, type CameraMode } from './camera-mode';
@@ -8,7 +8,7 @@ import { V2_TILE_LAYERS, objects, propsOf, rectOf, tileOf, type Pt, type V2Map }
 import {
   AVATAR_SHEET, animFrames, animKey, botAnim, boxBlocked, buildLayout, charDepth, depthsFor, findPathV2, fitZoomV2, frameAt, isTypingTarget,
   nearestReachable, pcAnimName, pcState, pickZoom, resolveSeats, sheetFor, standPoint, stepZoomV2, tileAnimFrame, tileAnimations, tileAt,
-  type BotAnim, type BotsMeta, type Face4, type PcState, type Seat, type TileAnim, type V2Depths, type V2Layout,
+  gaitAnim, type BotAnim, type BotsMeta, type Face4, type PcState, type Seat, type TileAnim, type V2Depths, type V2Layout,
 } from './world-v2-layout';
 
 const BASE = import.meta.env.BASE_URL;
@@ -605,8 +605,9 @@ class WorldSceneV2 extends Phaser.Scene {
       }
       this.avatarFace = faceFrom(vx, vy);
       const moved = a.x !== px || a.y !== py;
-      this.play(a, sheet, moved ? 'walk' : 'idle', this.avatarFace);
-      a.anims.timeScale = running ? WALK_FRAME_MS / RUN_FRAME_MS : 1;
+      const gait = gaitAnim(this.meta, running);
+      this.play(a, sheet, moved ? gait.anim : 'idle', this.avatarFace);
+      a.anims.timeScale = moved ? gait.scale : 1;
       const t = dustTick(this.dustAcc, dt, running && moved);
       this.dustAcc = t.acc;
       for (let i = 0; i < t.count; i++) this.puff(a.x, a.y, vx / len, vy / len);

@@ -4,7 +4,7 @@ import homesRaw from '../../../../scripts/team-homes.json?raw';
 import botsRaw from '../../../../public/world/v2/bots.json?raw';
 import { type Homes, type V2Map } from './world-v2-check';
 import {
-  AVATAR_SHEET, FOOT_PAD, SEAT_DROP, animFrames, animKey, botAnim, boxBlocked, buildLayout, charDepth, clampZoomV2, depthsFor, findPathV2, fitZoomV2,
+  AVATAR_SHEET, FOOT_PAD, SEAT_DROP, animFrames, animKey, botAnim, gaitAnim, boxBlocked, buildLayout, charDepth, clampZoomV2, depthsFor, findPathV2, fitZoomV2,
   frameAt, isTypingTarget, isWalkable, isWorldV2, nearestReachable, pcAnimName, pcState, pickZoom, resolveSeats, seatPoint, sheetFor, standPoint,
   stepZoomV2, tileAnimFrame, tileAnimations, tileAt, type BotsMeta, type Face4, type SeatNpc,
 } from './world-v2-layout';
@@ -203,7 +203,7 @@ describe('animations', () => {
 
   it('keeps every frame range inside the sheet', () => {
     const total = meta.sheet.columns * (meta.sheet.h / meta.frame.h);
-    expect(Object.keys(meta.animations)).toHaveLength(8);
+    expect(Object.keys(meta.animations).length).toBeGreaterThanOrEqual(8);
     for (const anim of Object.keys(meta.animations)) {
       for (const face of meta.directions as Face4[]) {
         const f = animFrames(meta, anim, face)!;
@@ -268,5 +268,17 @@ describe('input and flag', () => {
     expect(isWorldV2('', '1')).toBe(true);
     expect(isWorldV2('', '0')).toBe(false);
     expect(isWorldV2('?v2=0', '1')).toBe(false);
+  });
+});
+
+describe('gaitAnim', () => {
+  it('walks when not running', () => {
+    expect(gaitAnim(meta, false)).toEqual({ anim: 'walk', scale: 1 });
+  });
+  it('uses the run sheet rows when bots.json has them, else speeds up walk', () => {
+    const withRun = { ...meta, animations: { ...meta.animations, run: meta.animations.walk! } } as BotsMeta;
+    const { run: _r, ...rest } = meta.animations;
+    expect(gaitAnim(withRun, true)).toEqual({ anim: 'run', scale: 1 });
+    expect(gaitAnim({ ...meta, animations: rest } as BotsMeta, true)).toEqual({ anim: 'walk', scale: 1.6 });
   });
 });

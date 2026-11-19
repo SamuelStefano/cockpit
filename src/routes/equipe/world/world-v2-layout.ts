@@ -2,7 +2,7 @@ import { blockedTiles, objects, propsOf, reachable, tileOf, type Pt, type V2Map 
 
 export type Face4 = 'left' | 'down' | 'up' | 'right';
 export type BotMode = 'working' | 'idle' | 'waiting';
-export type BotAnim = 'idle' | 'walk' | 'sit' | 'type' | 'talk' | 'celebrate' | 'carry' | 'sleep';
+export type BotAnim = 'idle' | 'walk' | 'sit' | 'type' | 'talk' | 'celebrate' | 'carry' | 'sleep' | 'run';
 export type SeatKind = 'desk' | 'chair' | 'plaza';
 
 export interface SeatNpc { id: string; home: string; homeSeat?: number; meeting?: boolean; moderator?: boolean; onBreak?: boolean }
@@ -284,3 +284,8 @@ export function isWorldV2(search: string, stored: string | null | undefined): bo
 }
 
 export const WORLD_V2_STORAGE_KEY = 'deck.world.v2';
+
+export function gaitAnim(meta: BotsMeta, running: boolean): { anim: BotAnim; scale: number } {
+  if (!running) return { anim: 'walk', scale: 1 };
+  return meta.animations.run ? { anim: 'run', scale: 1 } : { anim: 'walk', scale: 1.6 };
+}
