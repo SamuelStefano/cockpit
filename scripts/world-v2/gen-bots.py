@@ -1278,8 +1278,8 @@ def tint_ramp(hexcol):
 def tinted(img, hexcol):
     a = np.array(img)
     tr = tint_ramp(hexcol)
-    for c, t in zip(SHIRT, tr):
-        sel = np.all(a[..., :3] == rgb(c), axis=-1) & (a[..., 3] == 255)
+    for c, t in zip(SHIRT_VILA, tr):
+        sel = np.all(a[..., :3] == c, axis=-1) & (a[..., 3] == 255)
         a[sel, :3] = t
     return Image.fromarray(a, "RGBA")
 
@@ -1394,7 +1394,7 @@ def contact(spec, rows, path):
             d.rectangle((0, y, W, y + FH * S + 2), fill=(226, 216, 196))
         d.text((6, y + FH * S // 2 - 7), "%s / %s" % (an, dn), fill=rgb("ol0"), font=f)
         for fi, (fimg, _) in enumerate(fr):
-            big = fimg.resize((FW * S, FH * S), Image.NEAREST)
+            big = to_vila48(fimg, spec["id"]).resize((FW * S, FH * S), Image.NEAREST)
             im.paste(big, (lab_w + fi * (FW * S + 3), y + 1), big)
     im.save(path)
 
@@ -1416,15 +1416,80 @@ def bake_deck_shirt(sheet, mask):
     return Image.fromarray(a, "RGBA")
 
 
-def check_palette(img):
+# Paleta Vila 48 (lina/vila/ui-kit/paleta-48.json): 8 ramps x 6 tones, dark -> light
+VILA48 = {
+    "verde": ["#1f280f", "#35511a", "#477a2d", "#62a353", "#75cc71", "#92f49c"],
+    "folha": ["#28230f", "#514d1a", "#747a2d", "#91a353", "#aacc71", "#c2f492"],
+    "terra": ["#280f0f", "#51221a", "#7a432d", "#a37653", "#cca671", "#f4da92"],
+    "telha": ["#280f17", "#511a24", "#7a2d30", "#a35c53", "#f97316", "#f4ba92"],
+    "pele": ["#4c2226", "#6f3b38", "#915f53", "#b48871", "#d7b494", "#f5e6c8"],
+    "agua": ["#0f2825", "#1a5051", "#2d6e7a", "#538aa3", "#71a2cc", "#92baf4"],
+    "lilas": ["#0f1028", "#1f1a51", "#3f2d7a", "#7253a3", "#a271cc", "#d592f4"],
+    "pedra": ["#1e1a2b", "#424a50", "#656d78", "#898fa0", "#afb3c7", "#d8d7ef"],
+}
+
+# Every drawing colour the bots use -> one Paleta Vila 48 tone ("ramp-index"). Targets are the CIEDE2000
+# nearest tone, moved to a free neighbour where the nearest would merge two tones of the same ramp or
+# break its dark -> light order. The shirt base g0..g3 owns verde-2..5 alone (the foliage greens go to
+# folha), so a recolour by colour equality still hits only the shirt. Known merges, never inside one part:
+# p0/m0 (near-black cool), s3/t4/y2 (cream), w3/t2/y0/h3 (caramel), s2/r2 (peach), s0/t0, s1/t1, w2/h2,
+# k0/c0, k1/c1. The palette has one saturated warm (telha-4): it is the red base r1, since the nearest
+# tone (telha-3) made a red beret melt into chestnut hair, and amber y0 gives it up to stay a hair tone.
+VILA48_REMAP = {
+    "ol0": "pedra-0", "ol1": "telha-1",
+    "s0": "pele-2", "s1": "pele-3", "s2": "telha-5", "s3": "pele-5",
+    "h0": "pele-0", "h1": "pele-1", "h2": "terra-3", "h3": "terra-4",
+    "g0": "verde-1", "g1": "verde-2", "g2": "verde-3", "g3": "verde-4",
+    "p0": "lilas-1", "p1": "lilas-2", "p2": "lilas-3",
+    "w0": "terra-1", "w1": "terra-2", "w2": "terra-3", "w3": "terra-4",
+    "t0": "pele-2", "t1": "pele-3", "t2": "terra-4", "t3": "pele-4", "t4": "pele-5",
+    "q0": "verde-1", "q1": "folha-2", "q2": "folha-3", "q3": "folha-4", "q4": "folha-5", "q5": "folha-5",
+    "a0": "agua-1", "a1": "agua-3", "a2": "agua-4", "a3": "agua-5",
+    "y0": "terra-4", "y1": "terra-5", "y2": "pele-5",
+    "r0": "telha-2", "r1": "telha-3", "r2": "telha-5",
+    "wh": "pedra-5",
+    "m0": "lilas-1", "m1": "pedra-1", "m2": "pedra-2",
+    "k0": "lilas-4", "k1": "lilas-5",
+    "c0": "lilas-4", "c1": "lilas-5",
+}
+assert set(VILA48_REMAP) == set(PALETTE)
+# amber y0 on the Deck sheet is only the cap: it stays the orange that identifies the avatar
+VILA48_BOT_REMAP = {"deck": {"y0": "telha-4"}, "hinata": {"p0": "lilas-0", "p1": "lilas-1", "p2": "lilas-2"}}
+
+
+def vila(tone):
+    ramp, i = tone.split("-")
+    return VILA48[ramp][int(i)]
+
+
+VILA48_RGB = {hexrgb(h) for ramp in VILA48.values() for h in ramp}
+VILA_OUTLINE = hexrgb(vila(VILA48_REMAP["ol0"]))
+VILA_LUT = {rgb(n): hexrgb(vila(t)) for n, t in VILA48_REMAP.items()}
+assert not set(VILA_LUT) & VILA48_RGB and {hexrgb(h) for h in DECK_SHIRT.values()} <= VILA48_RGB
+SHIRT_VILA = [VILA_LUT[rgb(c)] for c in SHIRT]
+
+
+def to_vila48(img, bot=None):
+    """recolour a finished frame or sheet: PALETTE -> Paleta Vila 48; colours already in Vila 48 are kept"""
     a = np.array(img.convert("RGBA"))
-    op = a[..., 3] == 255
-    pal = np.array([rgb(n) for n in PALETTE] + [hexrgb(h) for h in DECK_SHIRT.values()])
-    px = a[op][:, :3]
-    ok = np.zeros(len(px), bool)
-    for c in pal:
-        ok |= np.all(px == c, axis=1)
-    return int((~ok).sum())
+    src = a.copy()
+    seen = a[..., 3] > 0
+    lut = {**VILA_LUT, **{rgb(n): hexrgb(vila(t)) for n, t in VILA48_BOT_REMAP.get(bot, {}).items()}}
+    for old, new in lut.items():
+        a[seen & np.all(src[..., :3] == old, axis=-1), :3] = new
+    a[seen & (a[..., 3] < 255), :3] = VILA_OUTLINE
+    return Image.fromarray(a, "RGBA")
+
+
+def check_palette(img):
+    """pixels outside the contract: opaque = Paleta Vila 48 only, translucent = the Vila outline only"""
+    a = np.array(img.convert("RGBA"))
+    px, n = np.unique(a[a[..., 3] > 0], axis=0, return_counts=True)
+    bad = 0
+    for (r, g, b, al), k in zip(px.tolist(), n.tolist()):
+        if ((r, g, b) != VILA_OUTLINE) if al < 255 else ((r, g, b) not in VILA48_RGB):
+            bad += k
+    return bad
 
 
 def main():
@@ -1443,6 +1508,7 @@ def main():
         sheet, mask, meta, rows = bot_sheet(spec)
         if spec["id"] == "deck":
             sheet = bake_deck_shirt(sheet, mask)
+        sheet = to_vila48(sheet, spec["id"])
         sheet.save(os.path.join(out, "bots", spec["id"] + ".png"), optimize=True)
         mask.save(os.path.join(out, "bots", spec["id"] + "-shirt.png"), optimize=True)
         contact(spec, rows, os.path.join(prev, "contact-%s.png" % spec["id"]))
@@ -1460,7 +1526,7 @@ def main():
                       "note": "origin = bottom-centre; feet on row 46, row 47 empty"},
             "sheet": {"w": COLS * FW, "h": len(ANIMS) * len(DIRS) * FH, "columns": COLS},
             "directions": DIRS,
-            "shirt_ramp": [PALETTE[c] for c in SHIRT],
+            "shirt_ramp": ["#%02x%02x%02x" % c for c in SHIRT_VILA],
             "animations": {an: {"row": v["row"], "rows": v["rows"], "frames": v["frames"], "fps": v["fps"]}
                            for an, v in anim_meta.items()},
             "fx": {"zzz": {"image": "fx-zzz.png", "frame": {"w": 16, "h": 16}, "frames": 3, "fps": 3,
@@ -1473,7 +1539,7 @@ def main():
         gif_fixed(sheets, os.path.join(prev, "vila-bots-sleep-sit-celebrate.gif"), ["nami", "anderson", "iris", "vegeta"])
         gif_walk(sheets, os.path.join(prev, "vila-bots-walk-all.gif"))
         gif_all(sheets, os.path.join(prev, "vila-bots-new4.gif"), ["malu", "naruto", "sasuke", "hinata"])
-    print("bots:", len(sheets), "palette colours:", len(PALETTE), "off-palette opaque px:", bad,
+    print("bots:", len(sheets), "palette colours:", len(VILA48_RGB), "off-palette px:", bad,
           "strays removed:", STRAYS[0])
 
 
