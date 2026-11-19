@@ -1399,10 +1399,27 @@ def contact(spec, rows, path):
     im.save(path)
 
 
+# Paleta Vila 48 'agua' ramp neighbours: the Deck avatar shirt is baked blue so it reads on grass, dirt and stone
+DECK_SHIRT = {"g0": "#2d6e7a", "g1": "#538aa3", "g2": "#71a2cc", "g3": "#92baf4"}
+
+
+def hexrgb(h):
+    return tuple(int(h[i:i + 2], 16) for i in (1, 3, 5))
+
+
+def bake_deck_shirt(sheet, mask):
+    a = np.array(sheet.convert("RGBA"))
+    on = np.array(mask.convert("L")) > 0
+    for src, dst in DECK_SHIRT.items():
+        hit = on & np.all(a[..., :3] == rgb(src), axis=-1)
+        a[hit, :3] = hexrgb(dst)
+    return Image.fromarray(a, "RGBA")
+
+
 def check_palette(img):
     a = np.array(img.convert("RGBA"))
     op = a[..., 3] == 255
-    pal = np.array([rgb(n) for n in PALETTE])
+    pal = np.array([rgb(n) for n in PALETTE] + [hexrgb(h) for h in DECK_SHIRT.values()])
     px = a[op][:, :3]
     ok = np.zeros(len(px), bool)
     for c in pal:
@@ -1424,6 +1441,8 @@ def main():
         if only and spec["id"] not in only:
             continue
         sheet, mask, meta, rows = bot_sheet(spec)
+        if spec["id"] == "deck":
+            sheet = bake_deck_shirt(sheet, mask)
         sheet.save(os.path.join(out, "bots", spec["id"] + ".png"), optimize=True)
         mask.save(os.path.join(out, "bots", spec["id"] + "-shirt.png"), optimize=True)
         contact(spec, rows, os.path.join(prev, "contact-%s.png" % spec["id"]))
