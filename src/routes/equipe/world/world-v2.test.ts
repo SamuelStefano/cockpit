@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import raw from '../../../../public/world/v2/world.tmj?raw';
 import homesRaw from '../../../../scripts/team-homes.json?raw';
 import {
-  V2_TILE_LAYERS, blockedTiles, botId, objects, propsOf, rectOf, tileOf, tilesOfType, validateWorldV2, type Homes, type V2Map,
+  V2_TILE_LAYERS, blockedTiles, botId, objects, propsOf, reachable, rectOf, tileOf, tilesOfType, validateWorldV2, type Homes, type V2Map,
 } from './world-v2-check';
 
 const map = JSON.parse(raw) as V2Map;
@@ -31,9 +31,9 @@ describe('team-homes.json', () => {
 });
 
 describe('world v2 map', () => {
-  it('is a 96x64 orthogonal map of 32px tiles under 1.5 MB', () => {
-    expect(map.width).toBe(96);
-    expect(map.height).toBe(64);
+  it('is a 128x80 orthogonal map of 32px tiles under 1.5 MB', () => {
+    expect(map.width).toBe(128);
+    expect(map.height).toBe(80);
     expect(map.tilewidth).toBe(32);
     expect(map.tileheight).toBe(32);
     expect(new TextEncoder().encode(raw).length).toBeLessThan(1.5 * 1024 * 1024);
@@ -131,6 +131,59 @@ describe('world v2 map', () => {
     expect(propsOf(sign).image).toBe('fx/porto-sign.png');
     const blocked = blockedTiles(map);
     for (let y = pier.y; y < pier.y + pier.h - 1; y++) expect(blocked.has(y * map.width + pier.x)).toBe(false);
+  });
+
+  it('adds the Bosque e Lago district east and south of the old 96x64 town, inside the map', () => {
+    const zones = map.layers.find((l) => l.name === 'zones')!.objects!;
+    const zone = (name: string) => zones.find((z) => z.name === name);
+    for (const name of ['Bosque e Lago', 'Bosque do Sul', 'Lago', 'Piquenique do Lago', 'Clareira do Sul', 'Estrada do Bosque', 'Trilha do Bosque']) {
+      expect(zone(name), `zone "${name}" is missing`).toBeDefined();
+    }
+    const outside = (r: ReturnType<typeof rectOf>): boolean => r.x >= 96 || r.y >= 64;
+    for (const name of ['Bosque e Lago', 'Bosque do Sul', 'Lago']) expect(outside(rectOf(map, zone(name)!))).toBe(true);
+    const lake = rectOf(map, objects(map).find((o) => propsOf(o).kind === 'lake')!);
+    expect(outside(lake)).toBe(true);
+    expect(tilesOfType(map, 'ground', 'water').filter((p) => p.x >= lake.x && p.x < lake.x + lake.w && p.y >= lake.y && p.y < lake.y + lake.h).length).toBeGreaterThan(40);
+    expect(objects(map).filter((o) => propsOf(o).kind === 'picnic')).toHaveLength(4);
+    expect(objects(map).filter((o) => propsOf(o).kind === 'trail').length).toBeGreaterThanOrEqual(6);
+    expect(objects(map).filter((o) => propsOf(o).kind === 'tree' && outside({ ...tileOf(map, o), w: 1, h: 1 })).length).toBeGreaterThan(80);
+    const W = map.width * map.tilewidth;
+    const H = map.height * map.tileheight;
+    const out = [...objects(map), ...zones].filter((o) => o.x < 0 || o.y < 0 || o.x + o.width > W || o.y + o.height > H).map((o) => o.name);
+    expect(out).toEqual([]);
+  });
+
+  it('keeps the old town where it was and the old edge joined to the new land', () => {
+    expect(rectOf(map, find(map, 'prefeitura'))).toEqual({ x: 42, y: 12, w: 13, h: 9 });
+    expect(rectOf(map, find(map, 'banco'))).toEqual({ x: 6, y: 51, w: 12, h: 10 });
+    expect(rectOf(map, find(map, 'radio'))).toEqual({ x: 81, y: 17, w: 9, h: 11 });
+    expect(rectOf(map, objects(map).find((o) => propsOf(o).kind === 'pier')!)).toEqual({ x: 85, y: 49, w: 2, h: 11 });
+    const ground = map.layers.find((l) => l.name === 'ground')!.data!;
+    expect(ground.every((g) => g > 0)).toBe(true);
+    const blocked = blockedTiles(map);
+    // the east road and the south trails cross the old edge at x = 95/96 and y = 63/64
+    for (const p of [{ x: 95, y: 30 }, { x: 96, y: 30 }, { x: 63, y: 63 }, { x: 63, y: 64 }, { x: 47, y: 63 }, { x: 47, y: 64 }]) {
+      expect(blocked.has(p.y * map.width + p.x), `tile ${p.x},${p.y} is blocked`).toBe(false);
+      expect(tilesOfType(map, 'ground', 'dirt').some((t) => t.x === p.x && t.y === p.y), `tile ${p.x},${p.y} is not road`).toBe(true);
+    }
+  });
+
+  it('lets a bot walk from the plaza spawn to the lake pier, both picnic areas and the south trail', () => {
+    const blocked = blockedTiles(map);
+    const spawn = objects(map).find((o) => o.point && propsOf(o).kind === 'plaza-spawn' && propsOf(o).role === 'avatar')!;
+    const reach = reachable(map, blocked, tileOf(map, spawn));
+    const lookout = tileOf(map, objects(map).find((o) => propsOf(o).kind === 'lookout')!);
+    const pier = rectOf(map, objects(map).find((o) => propsOf(o).kind === 'lake-pier')!);
+    expect(lookout.x >= pier.x && lookout.x < pier.x + pier.w && lookout.y >= pier.y && lookout.y < pier.y + pier.h).toBe(true);
+    expect(reach.has(lookout.y * map.width + lookout.x)).toBe(true);
+    for (const o of objects(map).filter((p) => propsOf(p).kind === 'picnic')) {
+      const r = rectOf(map, o);
+      expect(reach.has((r.y + 1) * map.width + r.x - 1), `picnic "${o.name}" cannot be reached`).toBe(true);
+    }
+    for (const name of ['Trilha do Bosque', 'Trilha do Lago (leste)', 'Trilha da Praia']) {
+      const r = rectOf(map, objects(map).find((o) => o.name === name)!);
+      expect(reach.has((r.y + r.h - 1) * map.width + r.x + r.w - 1), `"${name}" cannot be reached`).toBe(true);
+    }
   });
 
   it('places the shop and the board on the plaza with two standing spots each', () => {

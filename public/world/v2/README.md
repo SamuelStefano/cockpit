@@ -6,7 +6,7 @@ Generated files; edit the generators in `scripts/world-v2/`, never the outputs.
 |---|---|
 | `tiles-exterior.*`, `tiles-interior.*`, `pc.*` | `exterior.py`, `interior.py` |
 | `tiles-extra.*` (house name boards, Corte Radar tower) | `extra.py` |
-| `world.tmj` (96x64 city map, tilesets embedded) | `gen-map.py` (reads `scripts/team-homes.json`) |
+| `world.tmj` (128x80 city map: the 96x64 town plus the Bosque e Lago district east and south of it, tilesets embedded) | `gen-map.py` (reads `scripts/team-homes.json`) |
 
 Preview from the map itself: `python3 scripts/world-v2/render-map.py OUTDIR`.
 
