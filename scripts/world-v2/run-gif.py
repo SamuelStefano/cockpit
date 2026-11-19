@@ -229,6 +229,37 @@ def paste(dst, src, x, y):
         dst.alpha_composite(src.crop(box), (x + box[0], y + box[1]))
 
 
+def stamp(im, now_ms):
+    """t=mm:ss of game time, 2x pixel digits on a dark plate, top-left"""
+    import sys
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from pixkit import PALETTE, glyph_pixels
+    ink, plate, edge = (tuple(int(PALETTE[k][i:i + 2], 16) for i in (1, 3, 5)) for k in ("t4", "ol0", "t1"))
+    secs = int(now_ms // 1000)
+    cells = ["T", "=", "%d" % (secs // 600 % 10), "%d" % (secs // 60 % 10), ":", "%d" % (secs % 60 // 10), "%d" % (secs % 10)]
+    sc, x0, y0 = 2, 8, 8
+    w = len(cells) * 4 * sc + 8
+    h = 5 * sc + 8
+    px = im.load()
+    for y in range(h):
+        for x in range(w):
+            px[x0 + x, y0 + y] = edge if x in (0, w - 1) or y in (0, h - 1) else plate
+
+    def dot(gx, gy, i):
+        for dy in range(sc):
+            for dx in range(sc):
+                px[x0 + 4 + i * 4 * sc + gx * sc + dx, y0 + 4 + gy * sc + dy] = ink
+    for i, ch in enumerate(cells):
+        if ch == "=":
+            pts = [(gx, gy) for gy in (1, 3) for gx in range(3)]
+        elif ch == ":":
+            pts = [(1, 1), (1, 3)]
+        else:
+            pts = glyph_pixels(ch)
+        for gx, gy in pts:
+            dot(gx, gy, i)
+
+
 def draw(f, base, over, spr):
     cx, cy = f["cam"]
     box = (cx, cy, cx + VIEW_W, cy + VIEW_H)
@@ -242,7 +273,9 @@ def draw(f, base, over, spr):
     for _, cell, px, py in sorted(items, key=lambda it: it[0]):
         paste(im, cell, px - cx, py - cy)
     im.alpha_composite(over.crop(box))
-    return im.convert("RGB")
+    im = im.convert("RGB")
+    stamp(im, f["now"])
+    return im
 
 
 def encode(frames, colors, keep=1, of=1):
