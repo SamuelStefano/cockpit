@@ -1439,14 +1439,14 @@ VILA48_REMAP = {
     "ol0": "pedra-0", "ol1": "telha-1",
     "s0": "pele-2", "s1": "pele-3", "s2": "telha-5", "s3": "pele-5",
     "h0": "pele-0", "h1": "pele-1", "h2": "terra-3", "h3": "terra-4",
-    "g0": "verde-2", "g1": "verde-3", "g2": "verde-4", "g3": "verde-5",
+    "g0": "verde-1", "g1": "verde-2", "g2": "verde-3", "g3": "verde-4",
     "p0": "lilas-1", "p1": "lilas-2", "p2": "lilas-3",
     "w0": "terra-1", "w1": "terra-2", "w2": "terra-3", "w3": "terra-4",
     "t0": "pele-2", "t1": "pele-3", "t2": "terra-4", "t3": "pele-4", "t4": "pele-5",
     "q0": "verde-1", "q1": "folha-2", "q2": "folha-3", "q3": "folha-4", "q4": "folha-5", "q5": "folha-5",
     "a0": "agua-1", "a1": "agua-3", "a2": "agua-4", "a3": "agua-5",
     "y0": "terra-4", "y1": "terra-5", "y2": "pele-5",
-    "r0": "telha-2", "r1": "telha-4", "r2": "telha-5",
+    "r0": "telha-2", "r1": "telha-3", "r2": "telha-5",
     "wh": "pedra-5",
     "m0": "lilas-1", "m1": "pedra-1", "m2": "pedra-2",
     "k0": "lilas-4", "k1": "lilas-5",
@@ -1454,7 +1454,7 @@ VILA48_REMAP = {
 }
 assert set(VILA48_REMAP) == set(PALETTE)
 # amber y0 on the Deck sheet is only the cap: it stays the orange that identifies the avatar
-VILA48_BOT_REMAP = {"deck": {"y0": "telha-4"}}
+VILA48_BOT_REMAP = {"deck": {"y0": "telha-4"}, "hinata": {"p0": "lilas-0", "p1": "lilas-1", "p2": "lilas-2"}}
 
 
 def vila(tone):

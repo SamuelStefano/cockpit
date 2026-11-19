@@ -20,10 +20,10 @@
     "right"
   ],
   "shirt_ramp": [
+    "#35511a",
     "#477a2d",
     "#62a353",
-    "#75cc71",
-    "#92f49c"
+    "#75cc71"
   ],
   "animations": {
     "idle": {
