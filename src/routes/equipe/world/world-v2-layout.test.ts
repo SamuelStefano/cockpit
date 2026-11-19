@@ -282,3 +282,16 @@ describe('gaitAnim', () => {
     expect(gaitAnim({ ...meta, animations: rest } as BotsMeta, true)).toEqual({ anim: 'walk', scale: 1.6 });
   });
 });
+
+describe('seats from the bot own home', () => {
+  it('seats by the unfiltered v2 home and by name slug on the desk', () => {
+    const l = buildLayout(map);
+    const desk = l.desks.find((d) => d.bot === 'iris')!;
+    const seats = resolveSeats(l, [{ id: 'bmw123', name: 'Íris', home: 'escritorio' }]);
+    expect(seats.get('bmw123')?.tile).toEqual(desk.tile);
+    const free = l.desks.find((d) => d.bot === null && d.house === 'qa')!;
+    const s2 = resolveSeats(l, [{ id: 'zzz', name: 'Zzz', home: 'escritorio', homeV2: 'qa', seatV2: free.seat }]);
+    expect(s2.get('zzz')?.tile).toEqual(free.tile);
+    expect(s2.get('zzz')?.kind).toBe('desk');
+  });
+});

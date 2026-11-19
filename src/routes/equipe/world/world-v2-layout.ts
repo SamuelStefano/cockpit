@@ -1,11 +1,11 @@
-import { blockedTiles, objects, propsOf, reachable, tileOf, type Pt, type V2Map } from './world-v2-check';
+import { blockedTiles, botId, objects, propsOf, reachable, tileOf, type Pt, type V2Map } from './world-v2-check';
 
 export type Face4 = 'left' | 'down' | 'up' | 'right';
 export type BotMode = 'working' | 'idle' | 'waiting';
 export type BotAnim = 'idle' | 'walk' | 'sit' | 'type' | 'talk' | 'celebrate' | 'carry' | 'sleep' | 'run';
 export type SeatKind = 'desk' | 'chair' | 'plaza';
 
-export interface SeatNpc { id: string; home: string; homeSeat?: number; meeting?: boolean; moderator?: boolean; onBreak?: boolean }
+export interface SeatNpc { id: string; name?: string; home: string; homeSeat?: number; homeV2?: string; seatV2?: number; meeting?: boolean; moderator?: boolean; onBreak?: boolean }
 export interface Seat { kind: SeatKind; tile: Pt; x: number; y: number; face: Face4; seated: boolean }
 export interface DeskSpot { tile: Pt; face: Face4; house: string; seat: number; bot: string | null }
 export interface ChairSpot { tile: Pt; face: Face4; seat: number; moderator: boolean }
@@ -111,16 +111,17 @@ export function resolveSeats(l: V2Layout, npcs: readonly SeatNpc[]): Map<string,
 
   const pending = (): SeatNpc[] => npcs.filter((n) => !out.has(n.id) && !n.onBreak);
   for (const n of pending()) {
-    const d = l.desks.find((x) => x.bot === n.id && free(x.tile));
+    const d = l.desks.find((x) => (x.bot === n.id || (n.name !== undefined && x.bot === botId(n.name))) && free(x.tile));
     if (d) sit(n.id, 'desk', d.tile, d.face);
   }
   for (const n of pending()) {
-    if (n.homeSeat === undefined) continue;
-    const d = l.desks.find((x) => x.house === n.home && x.seat === n.homeSeat && free(x.tile));
+    const seat = n.seatV2 ?? n.homeSeat;
+    if (seat === undefined) continue;
+    const d = l.desks.find((x) => x.house === (n.homeV2 ?? n.home) && x.seat === seat && free(x.tile));
     if (d) sit(n.id, 'desk', d.tile, d.face);
   }
   for (const n of pending()) {
-    const d = l.desks.find((x) => x.house === n.home && x.bot === null && free(x.tile));
+    const d = l.desks.find((x) => x.house === (n.homeV2 ?? n.home) && x.bot === null && free(x.tile));
     if (d) sit(n.id, 'desk', d.tile, d.face);
   }
 
