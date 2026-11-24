@@ -449,7 +449,10 @@ class WorldSceneV2 extends Phaser.Scene {
       id: b.view.id, x: b.sprite.x, y: b.sprite.y - head - (b.pill.h * this.labelScale) / 2, w: b.pill.w * this.labelScale, h: b.pill.h * this.labelScale,
     }));
     const lifts = nudgePills(boxes);
-    for (const b of this.bots.values()) b.pill.c.setPosition(Math.round(b.sprite.x), Math.round(b.sprite.y - head - b.lift - (lifts.get(b.view.id) ?? 0)));
+    for (const b of this.bots.values()) {
+      const o = lifts.get(b.view.id);
+      b.pill.c.setPosition(Math.round(b.sprite.x + (o?.dx ?? 0)), Math.round(b.sprite.y - head - b.lift + (o?.dy ?? 0)));
+    }
     this.avatarPill.c.setPosition(Math.round(this.avatar.x), Math.round(this.avatar.y - head));
   }
 
