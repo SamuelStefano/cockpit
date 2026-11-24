@@ -1,34 +1,50 @@
 import { isLocalSlash, slashHint } from './slash';
 
+// Focus stays in the composer; it points at the highlighted option by id so a
+// screen reader follows ↑/↓ through the commands.
+export const SLASH_LIST_ID = 'slash-list';
+export const slashOptionId = (i: number) => `slash-opt-${i}`;
+
 interface SlashPaletteProps {
   matches: string[];
   sel: number;
   setSel: (i: number) => void;
   complete: (cmd: string) => void;
+  // Phone: a close row, since the list would otherwise cover the thread until the slash is erased.
+  onDismiss?: () => void;
 }
 
-export function SlashPalette({ matches, sel, setSel, complete }: SlashPaletteProps) {
+export function SlashPalette({ matches, sel, setSel, complete, onDismiss }: SlashPaletteProps) {
   return (
-    <div className="scroll-thin absolute bottom-full left-0 z-30 mb-2 max-h-60 w-full overscroll-contain overflow-auto rounded-lg border border-neutral-700 bg-neutral-900 py-1 shadow-xl shadow-black/50">
+    <div className="scroll-thin absolute bottom-full left-0 z-30 mb-2 max-h-60 pointer-coarse:max-h-[30dvh] w-full overscroll-contain overflow-auto rounded-lg border border-neutral-700 bg-neutral-900 py-1 shadow-xl shadow-black/50">
+      {onDismiss && (
+        <button type="button" onPointerDown={(e) => e.preventDefault()} onClick={onDismiss} className="sticky top-0 flex h-9 w-full items-center justify-end bg-neutral-900 px-3 text-[12px] text-neutral-500">Fechar</button>
+      )}
+      <div role="listbox" id={SLASH_LIST_ID} aria-label="Comandos de barra">
       {matches.map((c, i) => {
         const local = isLocalSlash(c);
         return (
           <button
             key={c}
+            id={slashOptionId(i)}
+            role="option"
+            aria-selected={i === sel}
+            tabIndex={-1}
             onMouseDown={(e) => { e.preventDefault(); complete(c); }}
             onMouseEnter={() => setSel(i)}
             className={`flex w-full items-center gap-2 px-3 py-1.5 text-left transition ${i === sel ? 'bg-orange-500/15' : ''}`}
           >
-            <span className={`font-mono text-[12.5px] ${i === sel ? 'text-orange-200' : 'text-neutral-300'}`}>
+            <span className={`font-mono text-[13px] ${i === sel ? 'text-orange-200' : 'text-neutral-300'}`}>
               <span className="text-neutral-600">/</span>{c}
             </span>
             {local && (
-              <span className="rounded-sm bg-emerald-500/15 px-1 text-[9px] font-semibold uppercase tracking-wide text-emerald-300/90">app</span>
+              <span className="rounded-sm bg-emerald-500/15 px-1 text-[12px] font-semibold uppercase tracking-wide text-emerald-300/90">app</span>
             )}
-            <span className="ml-auto truncate text-[10.5px] text-neutral-500">{slashHint(c)}</span>
+            <span className="ml-auto truncate text-[12px] text-neutral-500">{slashHint(c)}</span>
           </button>
         );
       })}
+      </div>
     </div>
   );
 }

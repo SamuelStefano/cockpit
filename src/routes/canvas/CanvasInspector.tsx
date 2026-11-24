@@ -1,7 +1,6 @@
-import type { CanvasCard, CanvasFlow, CanvasNode, OrchestratorInfo } from '../../../shared/canvas';
+import type { CanvasCard, CanvasFlow, CanvasNode } from '../../../shared/canvas';
 import { Badge, Button, Icon } from '../../components/primitives';
 import { STATUS_LABEL, STATUS_TONE } from './canvas-labels';
-import { isOrchestratorNode } from './orchestrator';
 
 export interface ConflictInfo { other: CanvasNode; files: string[] }
 
@@ -12,7 +11,6 @@ interface Props {
   card: (id: string) => CanvasCard | undefined;
   running: Set<string>;
   waiting: Set<string>;
-  orchestrator?: OrchestratorInfo;
   flows: CanvasFlow[];
   conflictsOf: (id: string) => ConflictInfo[];
   onPick: (id: string) => void;
@@ -26,22 +24,6 @@ interface Props {
   onClose: () => void;
 }
 
-// A raw tmux pane name ("cv-jmbp6v") means nothing to Samuel. The orchestrator's
-// shell is always identifiable (shared/canvas.ts OrchestratorInfo.tmux via
-// isOrchestratorNode) so it gets a real name + a live status instead. Any other
-// shell falls back to whatever Claude session it's currently running, if one is
-// known — server/canvas doesn't track that link for a plain shell yet, so most
-// shells still show their tmux name until that plumbing exists.
-function shellDisplay(
-  n: CanvasNode, o: OrchestratorInfo | undefined, running: Set<string>, waiting: Set<string>,
-): { title: string; subtitle: string } {
-  if (isOrchestratorNode(n, o)) {
-    const status = running.has(o!.sessionId) ? 'rodando' : waiting.has(o!.sessionId) ? 'esperando você' : 'idle';
-    return { title: 'Orchestrator', subtitle: status };
-  }
-  return { title: n.title, subtitle: n.subtitle };
-}
-
 function FlowList({ flows, node, onEditFlow }: { flows: CanvasFlow[]; node: (id: string) => CanvasNode | undefined; onEditFlow: (id: string) => void }) {
   if (!flows.length) return null;
   return (
@@ -53,7 +35,7 @@ function FlowList({ flows, node, onEditFlow }: { flows: CanvasFlow[]; node: (id:
             className="flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left hover:bg-neutral-800/70"
           >
             <Icon name="zap" size={11} className={`shrink-0 ${f.enabled ? 'text-orange-400' : 'text-neutral-600'}`} />
-            <span className="truncate text-[11.5px] text-neutral-300">{node(f.from)?.title ?? f.from} → {node(f.to)?.title ?? f.to}</span>
+            <span className="truncate text-[12px] text-neutral-300">{node(f.from)?.title ?? f.from} → {node(f.to)?.title ?? f.to}</span>
           </button>
         </li>
       ))}
@@ -62,14 +44,14 @@ function FlowList({ flows, node, onEditFlow }: { flows: CanvasFlow[]; node: (id:
 }
 
 function Linked({ nodes, onPick }: { nodes: CanvasNode[]; onPick: (id: string) => void }) {
-  if (!nodes.length) return <p className="text-[11px] text-neutral-600">nada ligado</p>;
+  if (!nodes.length) return <p className="text-[12px] text-neutral-600">nada ligado</p>;
   return (
     <ul className="space-y-0.5">
       {nodes.slice(0, 30).map((n) => (
         <li key={n.id}>
           <button type="button" onClick={() => onPick(n.id)} className="flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left hover:bg-neutral-800/70">
             <Icon name={n.kind === 'session' ? 'terminal' : n.kind === 'card' ? 'check' : n.hub ? 'layers' : 'file'} size={11} className="shrink-0 text-neutral-500" />
-            <span className="truncate text-[11.5px] text-neutral-300">{n.title}</span>
+            <span className="truncate text-[12px] text-neutral-300">{n.title}</span>
           </button>
         </li>
       ))}
@@ -81,15 +63,15 @@ function Conflicts({ items, onPick }: { items: ConflictInfo[]; onPick: (id: stri
   if (!items.length) return null;
   return (
     <div>
-      <div className="mb-1 flex items-center gap-1 text-[10.5px] font-medium uppercase tracking-wide text-red-400">
+      <div className="mb-1 flex items-center gap-1 text-[12px] font-medium uppercase tracking-wide text-red-400">
         <Icon name="alertTriangle" size={11} /> Conflitos
       </div>
       <ul className="space-y-1">
         {items.map(({ other, files }) => (
           <li key={other.id}>
             <button type="button" onClick={() => onPick(other.id)} className="block w-full rounded-md px-1.5 py-1 text-left hover:bg-neutral-800/70">
-              <span className="block truncate text-[11.5px] text-red-300">{other.title}</span>
-              {files.map((f) => <span key={f} className="block truncate font-mono text-[10px] text-neutral-500">{f}</span>)}
+              <span className="block truncate text-[12px] text-red-300">{other.title}</span>
+              {files.map((f) => <span key={f} className="block truncate font-mono text-[12px] text-neutral-500">{f}</span>)}
             </button>
           </li>
         ))}
@@ -105,12 +87,11 @@ export function CanvasInspector(p: Props) {
   const outgoing = one ? p.flows.filter((f) => f.from === one.id) : [];
   const pair = p.nodes.length === 2 && p.nodes.every((n) => n.kind === 'session' || n.kind === 'card') ? p.nodes : null;
   const conflicts = one?.kind === 'session' ? p.conflictsOf(one.id) : [];
-  const shell = one?.kind === 'shell' ? shellDisplay(one, p.orchestrator, p.running, p.waiting) : null;
-  const headerTitle = shell ? shell.title : one ? one.title : `${p.nodes.length} selecionados`;
+  const headerTitle = one ? one.title : `${p.nodes.length} selecionados`;
   return (
     <aside data-canvas-overlay className="absolute inset-x-3 bottom-16 top-auto z-10 flex max-h-[46vh] flex-col overflow-hidden rounded-2xl border border-neutral-700/80 bg-neutral-900/90 shadow-xl backdrop-blur-md sm:inset-x-auto sm:left-3 sm:top-3 sm:max-h-none sm:w-72">
       <div className="flex items-center gap-2 border-b border-neutral-800 px-3 py-2">
-        <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold text-neutral-100">{headerTitle}</span>
+        <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-neutral-100">{headerTitle}</span>
         <Button variant="ghost" size="sm" icon="x" onClick={p.onClose} title="fechar" />
       </div>
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-3 py-2.5">
@@ -122,20 +103,20 @@ export function CanvasInspector(p: Props) {
               {one.archived && <Badge>arquivo</Badge>}
               {card && <Badge tone={STATUS_TONE[card.status]}>{STATUS_LABEL[card.status]}</Badge>}
             </div>
-            <p className="whitespace-pre-wrap text-[11.5px] leading-relaxed text-neutral-400">{card ? card.prompt || '—' : shell ? shell.subtitle : one.subtitle || '—'}</p>
-            {one.path && <p className="break-all font-mono text-[10px] text-neutral-600">{one.path}</p>}
+            <p className="whitespace-pre-wrap text-[12px] leading-relaxed text-neutral-400">{card ? card.prompt || '—' : one.subtitle || '—'}</p>
+            {one.path && <p className="break-all font-mono text-[12px] text-neutral-600">{one.path}</p>}
           </div>
         )}
         {one && <Conflicts items={conflicts} onPick={p.onPick} />}
         {one && (
           <div>
-            <div className="mb-1 text-[10.5px] font-medium uppercase tracking-wide text-neutral-500">Ligações</div>
+            <div className="mb-1 text-[12px] font-medium uppercase tracking-wide text-neutral-500">Ligações</div>
             <Linked nodes={p.linked(one.id)} onPick={p.onPick} />
           </div>
         )}
         {one && (incoming.length > 0 || outgoing.length > 0) && (
           <div>
-            <div className="mb-1 text-[10.5px] font-medium uppercase tracking-wide text-neutral-500">Fluxos</div>
+            <div className="mb-1 text-[12px] font-medium uppercase tracking-wide text-neutral-500">Fluxos</div>
             {outgoing.length > 0 && <FlowList flows={outgoing} node={p.node} onEditFlow={p.onEditFlow} />}
             {incoming.length > 0 && <FlowList flows={incoming} node={p.node} onEditFlow={p.onEditFlow} />}
           </div>
@@ -149,7 +130,12 @@ export function CanvasInspector(p: Props) {
         {card && <Button variant="secondary" size="sm" icon="pencil" onClick={() => p.onEditCard(card.id)}>editar</Button>}
         {!card && <Button variant={one?.kind === 'session' ? 'secondary' : 'primary'} size="sm" icon="zap" onClick={() => p.onNewCard('task')}>agente aqui</Button>}
         {!card && <Button variant="secondary" size="sm" icon="sparkles" onClick={() => p.onNewCard('content')}>gerar conteúdo</Button>}
-        {pair && <Button size="sm" icon="zap" onClick={() => p.onChainSelected(pair[0].id, pair[1].id)}>encadear {pair[0].title} → {pair[1].title}</Button>}
+        {pair && (
+          // Two long session titles pushed this button past a phone's width.
+          <Button size="sm" icon="zap" className="max-w-full" title={`encadear ${pair[0].title} → ${pair[1].title}`} onClick={() => p.onChainSelected(pair[0].id, pair[1].id)}>
+            encadear <span className="inline-block max-w-[9rem] truncate align-bottom">{pair[0].title}</span> → <span className="inline-block max-w-[9rem] truncate align-bottom">{pair[1].title}</span>
+          </Button>
+        )}
       </div>
     </aside>
   );

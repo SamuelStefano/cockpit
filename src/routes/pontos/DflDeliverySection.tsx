@@ -17,7 +17,7 @@ export function DflDeliverySection({ delivery, defaultOpen }: { delivery: DflDel
         {v.selecting && c.open > 0 && <Checkbox checked={v.picked} onChange={v.togglePick} label={`Faturar ${delivery.name}`} />}
         <button type="button" onClick={v.toggleOpen} aria-expanded={v.open} className="flex min-w-0 items-center gap-2 text-left">
           <Icon name={v.open ? 'chevronDown' : 'chevronRight'} size={12} className="shrink-0 text-neutral-500" />
-          <span className={`min-w-0 truncate text-[12.5px] font-medium ${v.off ? 'text-neutral-400 line-through' : 'text-neutral-100'}`}>{delivery.name}</span>
+          <span className={`min-w-0 truncate text-[13px] font-medium ${v.off ? 'text-neutral-400 line-through' : 'text-neutral-100'}`}>{delivery.name}</span>
         </button>
         <span className="flex items-center gap-1">
           {c.paid > 0 && <Badge tone="green">{c.paid} paga{c.paid > 1 ? 's' : ''}</Badge>}
@@ -25,7 +25,7 @@ export function DflDeliverySection({ delivery, defaultOpen }: { delivery: DflDel
           {c.todo > 0 && <Badge>{c.todo} a fazer</Badge>}
           {v.off && <Badge>off</Badge>}
         </span>
-        <span className="ml-auto flex items-center gap-2 font-mono text-[11px] tabular-nums text-neutral-500">
+        <span className="ml-auto flex items-center gap-2 font-mono text-[12px] tabular-nums text-neutral-500">
           <span className="text-neutral-300">{fmtPts(delivery.points)} pt</span>
           <span>{brlShort(delivery.amountCents)}</span>
           <span className="hidden text-neutral-600 sm:inline">{brl(delivery.pricePerPoint * 100)}/pt</span>
@@ -41,7 +41,7 @@ export function DflDeliverySection({ delivery, defaultOpen }: { delivery: DflDel
           {v.tuckPaid && (
             <li>
               <button type="button" onClick={v.togglePaid} aria-expanded={v.showPaid}
-                className="flex h-8 w-full items-center gap-2 px-2.5 text-left font-mono text-[11px] text-neutral-500 hover:bg-neutral-800/30 hover:text-neutral-300">
+                className="flex h-8 w-full items-center gap-2 px-2.5 text-left font-mono text-[12px] text-neutral-500 hover:bg-neutral-800/30 hover:text-neutral-300">
                 <Icon name={v.showPaid ? 'chevronDown' : 'chevronRight'} size={11} />
                 {v.showPaid ? 'esconder' : 'mostrar'} {v.paid.length} {v.paid.length === 1 ? 'paga' : 'pagas'} · {fmtPts(v.paidPoints)} pt
               </button>

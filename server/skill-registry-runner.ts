@@ -5,6 +5,7 @@ import { join, dirname } from 'node:path';
 import type { RegistryCatalog, RegistryRef } from '../shared/protocol';
 import { CONFIG } from './config';
 import { REGISTRY_RESULT_MARK, validRef, type RegistryCmd, type RegistryFilesResult } from './skill-registry';
+import { captureSkill } from './versions/skill-history';
 import { SKILL_SLUG_RE, skillExists, verifySkillFiles, writeSkillDir } from './skill-install';
 
 const pexec = promisify(execFile);
@@ -49,11 +50,16 @@ export async function installFromRegistry(items: RegistryRef[]): Promise<Install
   }
   if (wanted.length === 0) return out;
   const fetched = await run<RegistryFilesResult>({ kind: 'files', items: wanted });
+  // Only what was asked for lands: a registry reply carrying extra or renamed
+  // slugs is registry content, not a request, and must not install anything.
+  const asked = new Set(wanted.map((w) => w.slug));
   for (const item of fetched.items) {
+    if (!asked.has(item.slug)) { out.failed.push({ slug: String(item.slug).slice(0, 80), error: 'não solicitada' }); continue; }
+    asked.delete(item.slug);
     const v = verifySkillFiles(item.files);
     if (!v.ok) { out.failed.push({ slug: item.slug, error: v.error }); continue; }
     const w = await writeSkillDir(CONFIG.skillsDir, item.slug, v.files);
-    if (w.ok) out.installed.push(item.slug);
+    if (w.ok) { out.installed.push(item.slug); await captureSkill(item.slug, 'instalada do registro'); }
     else if (w.error === 'já instalada') out.skipped.push(item.slug);
     else out.failed.push({ slug: item.slug, error: w.error });
   }

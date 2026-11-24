@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { generateKeyPairSync, sign as edSign } from 'node:crypto';
-import { validateClaims, verifyAgentSignature, makeChallenge, emailVerified } from './verify';
+import { validateClaims, verifyAgentSignature, makeChallenge, emailVerified, isEd25519Spki } from './verify';
 import { parseRootEmails } from '../../shared/identity';
 
 const ISS = 'https://proj.supabase.co/auth/v1';
@@ -14,7 +14,7 @@ describe('validateClaims', () => {
 
   it('accepts a well-formed token and resolves the account role', () => {
     const id = validateClaims(base, { iss: ISS, nowSec: NOW, rootEmails: roots, isAdmin: false });
-    expect(id).toEqual({ accountId: 'uid-1', email: 'alice@dfl.com', role: 'fellow' });
+    expect(id).toEqual({ accountId: 'uid-1', email: 'alice@dfl.com', role: 'fellow', expMs: (NOW + 3600) * 1000 });
   });
 
   it('derives root from the env allowlist', () => {
@@ -102,5 +102,35 @@ describe('emailVerified (pré-requisito de papel privilegiado)', () => {
   it('sem verificação, a flag is_admin também não eleva', () => {
     expect(validateClaims({ ...base, email: 'alice@dfl.com' }, opts)?.role).toBe('fellow');
     expect(validateClaims({ ...base, email: 'alice@dfl.com', user_metadata: { email_verified: true } }, opts)?.role).toBe('admin');
+  });
+});
+
+describe('isEd25519Spki', () => {
+  it('accepts an Ed25519 SPKI and rejects anything else', () => {
+    const ed = generateKeyPairSync('ed25519').publicKey.export({ type: 'spki', format: 'der' }).toString('base64');
+    const ec = generateKeyPairSync('ec', { namedCurve: 'P-256' }).publicKey.export({ type: 'spki', format: 'der' }).toString('base64');
+    expect(isEd25519Spki(ed)).toBe(true);
+    expect(isEd25519Spki(ec)).toBe(false);
+    expect(isEd25519Spki('not-a-key')).toBe(false);
+    expect(isEd25519Spki('')).toBe(false);
+  });
+});
+
+describe('root pinned by user id', () => {
+  const base = { iss: ISS, sub: 'uid-root', email: 'boss@dfl.com', aud: 'authenticated', exp: NOW + 3600, email_verified: true };
+  const opts = { iss: ISS, nowSec: NOW, rootEmails: parseRootEmails('boss@dfl.com'), isAdmin: false };
+
+  it('keeps root when sub is listed', () => {
+    expect(validateClaims(base, { ...opts, rootUserIds: new Set(['uid-root']) })?.role).toBe('root');
+  });
+  it('a root e-mail with an unlisted sub falls back to fellow, or admin when flagged', () => {
+    const ids = new Set(['uid-root']);
+    const imposter = { ...base, sub: 'uid-imposter' };
+    expect(validateClaims(imposter, { ...opts, rootUserIds: ids })?.role).toBe('fellow');
+    expect(validateClaims(imposter, { ...opts, rootUserIds: ids, isAdmin: true })?.role).toBe('admin');
+  });
+  it('an empty or absent id set changes nothing', () => {
+    expect(validateClaims({ ...base, sub: 'anyone' }, { ...opts, rootUserIds: new Set() })?.role).toBe('root');
+    expect(validateClaims({ ...base, sub: 'anyone' }, opts)?.role).toBe('root');
   });
 });

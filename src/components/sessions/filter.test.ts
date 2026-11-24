@@ -14,40 +14,28 @@ const NO_PIN = new Set<string>();
 
 describe('filterSessions', () => {
   it('returns all sessions when query is empty', () => {
-    expect(filterSessions(ALL, '', [], NO_PIN, null, {})).toEqual(ALL);
-    expect(filterSessions(ALL, '   ', [], NO_PIN, null, {})).toEqual(ALL);
+    expect(filterSessions(ALL, '', [], NO_PIN)).toEqual(ALL);
+    expect(filterSessions(ALL, '   ', [], NO_PIN)).toEqual(ALL);
   });
 
   it('filters locally by title and snippet, case-insensitively', () => {
-    expect(filterSessions(ALL, 'beta', [], NO_PIN, null, {})).toEqual([B]);
-    expect(filterSessions(ALL, 'PARSER', [], NO_PIN, null, {})).toEqual([A]);
+    expect(filterSessions(ALL, 'beta', [], NO_PIN)).toEqual([B]);
+    expect(filterSessions(ALL, 'PARSER', [], NO_PIN)).toEqual([A]);
   });
 
   it('merges content-search hits without duplicating local matches', () => {
     // B matches locally; search backend also returns B (dup) plus C (content-only).
-    const out = filterSessions(ALL, 'beta', [B, C], NO_PIN, null, {});
+    const out = filterSessions(ALL, 'beta', [B, C], NO_PIN);
     expect(out).toEqual([B, C]);
   });
 
-  it('restricts to the selected tag', () => {
-    const tagMap = { a: ['work'], b: ['work', 'urgent'], c: ['home'] };
-    expect(filterSessions(ALL, '', [], NO_PIN, 'urgent', tagMap)).toEqual([B]);
-    expect(filterSessions(ALL, '', [], NO_PIN, 'work', tagMap)).toEqual([A, B]);
-  });
-
   it('floats pinned sessions to the top, preserving relative order', () => {
-    const out = filterSessions(ALL, '', [], new Set(['c']), null, {});
+    const out = filterSessions(ALL, '', [], new Set(['c']));
     expect(out.map((x) => x.id)).toEqual(['c', 'a', 'b']);
   });
 
   it('preserves order among multiple pins', () => {
-    const out = filterSessions(ALL, '', [], new Set(['b', 'c']), null, {});
+    const out = filterSessions(ALL, '', [], new Set(['b', 'c']));
     expect(out.map((x) => x.id)).toEqual(['b', 'c', 'a']);
-  });
-
-  it('applies tag filter then pin ordering together', () => {
-    const tagMap = { a: ['work'], b: ['work'], c: ['home'] };
-    const out = filterSessions(ALL, '', [], new Set(['b']), 'work', tagMap);
-    expect(out.map((x) => x.id)).toEqual(['b', 'a']);
   });
 });

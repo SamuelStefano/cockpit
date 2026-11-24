@@ -1,13 +1,13 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { render, cleanup } from '@testing-library/react';
+import { render, cleanup, fireEvent } from '@testing-library/react';
 import { KanbanSessionItem } from './KanbanSessionItem';
 import type { SessionKanbanItem } from './kanban-items';
 
 afterEach(cleanup);
 
 const base: SessionKanbanItem = {
-  nodeId: 's:a', sessionId: 'a', title: 'sessão a', subtitle: 'primeira mensagem', orchestratorChild: false,
+  nodeId: 's:a', sessionId: 'a', title: 'sessão a', subtitle: 'primeira mensagem',
   status: 'review', running: false, waitingOnUser: false, needsAttention: false, mtime: Date.now() - 7 * 60_000,
 };
 const noop = () => {};
@@ -45,5 +45,22 @@ describe('KanbanSessionItem', () => {
     const { container } = render(<KanbanSessionItem item={base} selected={false} onSelect={onSelect} onOpenSession={noop} onOpenTerm={noop} />);
     (container.firstChild as HTMLElement).click();
     expect(onSelect).toHaveBeenCalledWith('s:a');
+  });
+
+  it('the title is the keyboard button; the item is not a button around other buttons', () => {
+    const onSelect = vi.fn();
+    const { container, getByRole, getByTitle } = render(<KanbanSessionItem item={base} selected onSelect={onSelect} onOpenSession={noop} onOpenTerm={noop} />);
+    expect((container.firstElementChild as HTMLElement).getAttribute('role')).toBeNull();
+    const title = getByRole('button', { name: 'sessão a' });
+    expect(title.getAttribute('aria-current')).toBe('true');
+    fireEvent.click(title);
+    expect(onSelect).toHaveBeenCalledWith('s:a');
+    fireEvent.click(getByTitle('abrir chat'));
+    expect(onSelect).toHaveBeenCalledTimes(1);
+  });
+
+  it('hidden action buttons do not catch taps', () => {
+    const { getByTitle } = render(<KanbanSessionItem item={base} selected={false} onSelect={noop} onOpenSession={noop} onOpenTerm={noop} />);
+    expect(getByTitle('abrir chat').parentElement!.className).toContain('pointer-events-none');
   });
 });

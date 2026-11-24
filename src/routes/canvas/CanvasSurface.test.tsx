@@ -7,7 +7,7 @@ import { CanvasSurface } from './CanvasSurface';
 
 afterEach(cleanup);
 
-const term: TermApi = { attach: vi.fn(), detach: vi.fn(), input: vi.fn(), resize: vi.fn(), kill: vi.fn(), resume: vi.fn() };
+const term: TermApi = { attach: vi.fn(), detach: vi.fn(), input: vi.fn(), resize: vi.fn(), kill: vi.fn(), resume: vi.fn(), exited: new Set<string>() };
 
 const terms: CanvasTerms = {
   open: [], shells: [], active: null, focusN: 0, maximized: null, resuming: null, resumedLive: new Set(),
@@ -24,7 +24,7 @@ const props = () => ({
   stats: {}, analysisOn: false, onToggleAnalysis: vi.fn(),
   flows: [], flowFired: {}, onFlowCreate: vi.fn(), onFlowClick: vi.fn(),
   areaRects: [], budgetStatus: {}, onEditBudget: vi.fn(),
-  pastAlive: null, timelinePlaying: false, orchestrator: undefined,
+  pastAlive: null, timelinePlaying: false,
 });
 
 describe('CanvasSurface scroll defensiveness', () => {

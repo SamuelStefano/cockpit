@@ -109,6 +109,12 @@ describe('useChatPanel fila (server-backed)', () => {
     expect(queueClear).toHaveBeenCalledWith('s1');
   });
 
+  it('clearQueue also clears items still stored under the pre-migration key', () => {
+    const { hook, queueClear } = setup([pv('a', 'agora', 100), migrated('b', 'do 1º turno', 50, 's1')]);
+    hook.result.current.clearQueue();
+    expect(queueClear.mock.calls.map((c) => c[0]).sort()).toEqual(['new-abc', 's1']);
+  });
+
   it('sem sessão ativa: queued vazio e clear é no-op', () => {
     const queueClear = vi.fn();
     const hook = renderHook(() => useChatPanel({
@@ -183,5 +189,17 @@ describe('useChatPanel retry banner', () => {
     expect(hook.result.current.failed).toBe(false);
     hook.result.current.bannerConfirm?.();
     expect(onSend).not.toHaveBeenCalledWith('já respondido');
+  });
+});
+
+describe('useChatPanel retryText', () => {
+  it('exposes the prompt "Tentar novamente" would resend', () => {
+    const msgs = [{ id: 'u1', role: 'user', text: 'roda a migration 2' }, { id: 'e', role: 'assistant', blocks: [], error: true }] as never;
+    const { result } = renderHook(() => useChatPanel({
+      session: { id: 's1' } as Session, messages: msgs, phase: 'idle' as Phase, models: [], model: 'opus', onSend: vi.fn(),
+      queue: [], queueAdd: vi.fn(), queueRemove: vi.fn(), queueEdit: vi.fn(), queueMove: vi.fn(), queueClear: vi.fn(),
+      queueRetry: vi.fn(), queueRunBg: vi.fn(), queueRunNow: vi.fn(),
+    }));
+    expect(result.current.retryText).toBe('roda a migration 2');
   });
 });

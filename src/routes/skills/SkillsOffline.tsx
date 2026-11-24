@@ -1,13 +1,14 @@
 import { EmptyState } from '../../components/primitives';
 
+// "Only with the backend on 127.0.0.1" predated the relay and the phone path;
+// the skills come from whichever machine this Deck is connected to.
 export function SkillsOffline() {
   return (
     <EmptyState
       icon="circle"
-      title="Backend local indisponível"
+      title="Desconectado"
       description={<>
-        As skills vivem na sua máquina (<span className="font-mono">~/.claude/skills/</span>) e só aparecem com o backend do
-        Deck rodando em <span className="font-mono">127.0.0.1</span>.
+        As skills ficam na máquina conectada (<span className="font-mono">~/.claude/skills/</span>). Reconecte pra ver.
       </>}
     />
   );

@@ -5,7 +5,7 @@ vi.mock('../db', () => ({ lastUsageOf: () => sample.row }));
 
 import {
   ctxVerdict, acquireCold, releaseCold, resetColdInflight, coldInflightCount,
-  noteQuotaTransition, inResetCooldown, resetCooldownState, isBigColdStart, costFor,
+  noteQuotaTransition, inResetCooldown, queueReleaseAt, resetCooldownState, isBigColdStart, costFor,
   CTX_HARD, CTX_SOFT, COOLDOWN_AFTER_RESET_MS,
 } from './ctx-guard';
 import type { PlanUsage } from '../../shared/protocol';
@@ -131,6 +131,14 @@ describe('cooldown pós-reset', () => {
     noteQuotaTransition(NOW + 1000, NOW);
     noteQuotaTransition(0, NOW);
     expect(inResetCooldown(NOW)).toBe(true);
+  });
+
+  it('avisa a transição e expõe quando a fila solta', () => {
+    expect(noteQuotaTransition(1, NOW)).toBe(false);
+    expect(noteQuotaTransition(0, NOW)).toBe(true);
+    expect(noteQuotaTransition(0, NOW + 1)).toBe(false);
+    expect(queueReleaseAt(NOW + 1000)).toBe(NOW + COOLDOWN_AFTER_RESET_MS);
+    expect(queueReleaseAt(NOW + COOLDOWN_AFTER_RESET_MS + 1)).toBe(0);
   });
 
   it('expira no teto (o auto-resume de 04/09 caiu 1min após o reset)', () => {

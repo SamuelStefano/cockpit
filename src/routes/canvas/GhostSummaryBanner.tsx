@@ -26,15 +26,15 @@ export function GhostSummaryBanner({ summary, lastActiveAt, collapsed, onToggleC
     <div onPointerDown={(e) => e.stopPropagation()} className="relative shrink-0 border-b border-neutral-800 bg-neutral-900/80" style={{ height: STRIP_H }}>
       <div className="flex h-full items-center gap-1.5 px-2">
         <Icon name="file" size={12} className="shrink-0 text-neutral-500" />
-        <p className="flex-1 truncate text-[11px] leading-snug text-neutral-300">{summary}</p>
+        <p className="flex-1 truncate text-[12px] leading-snug text-neutral-300">{summary}</p>
         <Button variant="ghost" size="sm" square icon={collapsed ? 'chevronDown' : 'chevronUp'} title={collapsed ? 'expandir resumo' : 'recolher resumo'} onClick={onToggleCollapsed} />
         <Button variant="ghost" size="sm" square icon="x" title="dispensar" onClick={onDismiss} />
       </div>
       {!collapsed && (
         <div className="absolute inset-x-0 top-full z-10 border-x border-b border-neutral-800 bg-neutral-900/95 px-2 py-1.5 shadow-lg backdrop-blur-sm">
-          <p className="line-clamp-3 text-[11px] leading-snug text-neutral-300">{summary}</p>
+          <p className="line-clamp-3 text-[12px] leading-snug text-neutral-300">{summary}</p>
           <div className="mt-1.5 flex items-center justify-between gap-2">
-            <span className="font-mono text-[10px] text-neutral-600">{relLabel}</span>
+            <span className="font-mono text-[12px] text-neutral-600">{relLabel}</span>
             <Button
               variant="secondary" size="sm" icon="arrowUp" disabled={!continueEnabled}
               title={continueEnabled ? undefined : 'sessão retomada num terminal interativo'}

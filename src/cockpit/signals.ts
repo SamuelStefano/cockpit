@@ -18,7 +18,7 @@ export function computeStalled(
 // Sessão NÃO-ativa, sem run vivo, já vista uma vez (baseline em `seen`) e cujo
 // mtime no servidor avançou além do visto = produziu output novo desde a visita.
 export function computeUpdated(
-  sessions: Session[],
+  sessions: Pick<Session, 'id' | 'mtime'>[],
   seen: Record<string, number>,
   activeId: string,
   running: Set<string>,

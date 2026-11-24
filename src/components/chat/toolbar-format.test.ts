@@ -112,3 +112,11 @@ describe('contextMeter', () => {
     expect(contextMeter(CONTEXT_LIMIT * 2)!.pct).toBe(100);
   });
 });
+
+describe('agent models', () => {
+  it('labels agent ids nicely', () => {
+    expect(shortModel('agent:grok')).toBe('Grok');
+    expect(prettyModel('agent:grok')).toBe('Grok · agente');
+    expect(prettyModel('agent:grok', 'Grok · agente')).toBe('Grok · agente');
+  });
+});

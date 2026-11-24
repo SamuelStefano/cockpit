@@ -58,3 +58,16 @@ describe('useTimeline — range staleness', () => {
     expect(result.current.t).toBe(4_000_000);
   });
 });
+
+describe('useTimeline play from live', () => {
+  beforeEach(() => { vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] }); vi.setSystemTime(1_000_000_000); });
+  afterEach(() => vi.useRealTimers());
+
+  it('starts a full window back from the REAL now, not the one frozen at mount', () => {
+    const { result } = renderHook(() => useTimeline());
+    vi.setSystemTime(1_000_000_000 + 3_600_000); // an hour passes while live
+    act(() => { result.current.play(); });
+    expect(result.current.rangeEnd).toBe(1_000_000_000 + 3_600_000);
+    expect(result.current.t).toBe(result.current.rangeStart);
+  });
+});

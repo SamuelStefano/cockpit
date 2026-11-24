@@ -6,7 +6,7 @@ import { useKanbanCtxPoll } from './useKanbanCtxPoll';
 
 const NOW = 1_700_000_000_000;
 const item = (over: Partial<SessionKanbanItem>): SessionKanbanItem => ({
-  nodeId: `s:${over.sessionId ?? 'a'}`, sessionId: 'a', title: 't', subtitle: '', orchestratorChild: false,
+  nodeId: `s:${over.sessionId ?? 'a'}`, sessionId: 'a', title: 't', subtitle: '',
   status: 'doing', running: false, waitingOnUser: false, needsAttention: false, mtime: NOW, ...over,
 });
 

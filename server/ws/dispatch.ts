@@ -1,5 +1,5 @@
 import type { WebSocket } from 'ws';
-import type { ClientMsg } from '../../shared/protocol';
+import type { ClientMsg, ServerMsg, TeamBot } from '../../shared/protocol';
 import type { Role } from '../auth';
 import { listSessions, listArchived } from '../sessions/index';
 import { searchSessions } from '../sessions/search';
@@ -8,6 +8,7 @@ import { handoffSession } from '../handoff';
 import { funnelSessions } from '../funnel';
 import { getNotes, saveNotes } from '../notes';
 import { putDrop, listDrops, openDrop, removeDrop } from '../drop';
+import { putSecret, listSecrets, removeSecret } from '../vault';
 import { readPoints, createEntry, correctPoints, noteEntry, deleteEntry } from '../points';
 import { readDflSnapshot } from '../dfl-points';
 import { readDrafts, mutateDrafts } from '../dfl-drafts';
@@ -17,9 +18,30 @@ import { runDflSync } from '../dfl-sync-runner';
 import { runDflWrite } from '../dfl-write-runner';
 import { buildAgentTasksPrompt, agentSessionKey, MAX_NOTE_BYTES } from '../pontos-agent';
 import { buildStageDraftsPrompt } from '../pontos-stage-prompt';
-import { getCrons, saveCron, deleteCron, runCronNow } from '../crons';
+import { getCrons, saveCron, deleteCron, runCronNow, pauseBotRoutines } from '../crons';
+import { coerceBotForRole, visibleCrons, cronWriteError, coerceCronForRole } from './student-team';
+import { botRoutineError } from '../../shared/bot-routine';
 import { scheduleValid } from '../../shared/cron-schedule';
-import { fireCron } from './runs';
+import { fireCron, type CronFire } from './runs';
+import { getTeam, saveBot, deleteBot } from '../team';
+import { getMemories, saveMemory, deleteMemory, validateMemoryInput, readMemoriesSafe } from '../memories';
+import { botTurnFor, botDenyRules } from '../team-prompt';
+import { refreshAgentSource, removeAgentSource } from '../agent-source';
+import { agentBuilderTurn } from '../engine/triage';
+import { sendMeetings, startMeetingFrame } from './team-meeting-frames';
+import { cleanBuildRequest } from './agent-build';
+import { parseTtsText, synthesize, mintSttToken } from '../tts';
+import { sendTeamMessages, sendTeamPaused, setTeamPause } from './team-frames';
+import { appendVillageLog } from '../village/store';
+import { refuseReady, sendVillage, sendVillagePlan, setVillageConfig } from './village-frames';
+import { sendTeamState } from './team-state-frames';
+import { sendTalk, sendTalkMessage } from './team-talk';
+import { clearBotQuestion, sendTeamPending } from './team-pending-frames';
+import { sendBotComputer, sendBotFile, sendBotFiles } from './team-files-frames';
+import { validateBotInput } from '../../shared/team';
+import { builderPrompt, builderSystemPrompt } from '../../shared/agent-builder';
+import { queueReleaseAt } from './ctx-guard';
+import { diffVersions, restoreVersion, versionsFor } from '../versions/service';
 import { listSkills, readSkill, resolveSkillDeny, installSkill } from '../skills';
 import { getRegistryCatalog, installFromRegistry } from '../skill-registry-runner';
 import { addUploadChunk, readAttachment } from '../attachments';
@@ -27,26 +49,44 @@ import { usageStats, lastUsageOf } from '../db';
 import { hideSession, unhideSession, purgeSession, setTitle, setNote } from '../store';
 import { parseSession, parseFullSession } from '../sessions/parse';
 import { collectHealth } from '../health';
-import { setEnv, unsetEnv, addMcp, removeMcp, installCli } from '../admin-ops';
+import { setEnv, unsetEnv, addMcp, removeMcp, installCli, envNameAllowedRemotely, claudeReady } from '../admin-ops';
 import { updateClaudeCli, restartDeck } from '../deck-ops';
 import { CONFIG } from '../config';
 import { send, broadcast } from './broadcast';
+import { claudeLogin } from '../claude-login';
+import { logoutClaude, readClaudeAccount } from '../claude-account';
+import { mcpsState } from '../mcps';
+import { listConnections } from '../connections';
+import { probe } from '../providers';
+import { scanClaudeImport, applyClaudeImport } from '../claude-import';
+import { copyHintCommand, IMPORT_KINDS } from '../../shared/claude-import';
 import { detach } from './detach';
-import { startRun, routeSend, drainParked, runParkedInBackground, runParkedNow, acceptResumeOffer, orchestratorPaneTarget, type BgRunReject, type NowRunReject } from './runs';
+import { rotateBot } from '../team-rotate';
+import { botLiveKey, startRun, routeSend, drainParked, runParkedInBackground, runParkedNow, acceptResumeOffer, refreshBusyElsewhere, orchestratorPaneTarget, type BgRunReject, type NowRunReject } from './runs';
 import { threads, stopSession, resolveThreadKey, runningSessionIds } from './threads';
 import { clearAwaiting } from './awaiting';
-import { addParked, removeParked, editParked, moveParked, clearParked, retryParked, parkedView, isQueuePaused, setQueuePaused, REJECT_MESSAGE } from './parked';
-import { refreshModels } from './models';
+import { addParked, removeParked, editParked, moveParked, clearParked, retryParked, retargetParked, parkedView, isQueuePaused, setQueuePaused, REJECT_MESSAGE } from './parked';
+import { refreshModels, withAgents, getLastModels } from './models';
+import { AGENT_PRESETS, agentIdOf } from '../../shared/agents';
+import { connectPreset, findAgent, removeAgent } from '../agents/store';
+import { customAgentDenial, probeDraft, saveCustomAgent } from '../agents/custom-agent';
+import { agentViews, probeAgent } from '../agents/probe';
+import { byoKeys, byoKeyViews, removeByoKey, saveByoKey } from '../agents/byo-keys';
 import { handleHarnessMsg } from './harness';
 import { setMarathon, marathonKeys } from './marathon';
 import { sendDurableSnapshot } from './snapshot';
 import { requestPlanUsageRefresh, planUsageFrame } from './usage-plan';
+import { requestGrokUsageRefresh, grokUsageFrame } from './usage-grok';
 import { listGraphs, readGraph, buildGraph, deleteGraph, queryGraph, nodeOp } from '../graph';
 import { buildBench } from '../bench';
+import { getPrDetail, getPrsSnapshot, getPrsSnapshotSwr, mergePr, peekPrsSnapshot } from '../github/prs';
+import { getPrDiff } from '../github/pr-diff';
+import { clearSessionPrsCache, getSessionPrs } from '../github/session-prs';
 import { buildCanvas } from '../canvas/index';
+import { withPlain } from '../mission-summary';
 import { readOrchestrator } from '../canvas/orchestrator';
 import { readOrchestratorActivity } from '../canvas/orchestrator-activity';
-import { readBusyElsewhereSessionIds, refreshLivenessSnapshot } from '../canvas/cv-liveness';
+import { readBusyElsewhereSessionIds, readBusyHeadlessElsewhereSessionIds, readTmuxPaneSessionIds, refreshLivenessSnapshot } from '../canvas/cv-liveness';
 import { peekSession } from '../sessions/peek';
 import { collectCtxOnly, collectTermStats, hasInteractiveClaude, newCpuSamples, type CpuSamples } from '../canvas/term-stats';
 import {
@@ -57,12 +97,18 @@ import {
 import { activeFlowRuns } from '../canvas/flow-runs';
 import { startCanvasFlows } from '../canvas/flows';
 import { registerCanvasClient, emitCanvasMsg } from './canvas-clients';
+import { registerPlannerClient, emitPlannerMsg } from './planner-clients';
+import { applyHandoff } from '../../shared/task-handoff';
+import { applyMoves, markReady, readTasksChained, readyAttempt, sanitizeTask, updateTasks, upsertTask } from '../planner/store';
 import { CARD_STATUSES, type CanvasBoard, type CardStatus } from '../../shared/canvas';
 import { updateAreaCacheFromGraph, getAreaOf } from '../canvas/autopause-loop';
 import { areaUsageFromIds } from '../../shared/canvas-budget';
 import { cardLinksAreUnanimouslyDfl, findDeliveryInSnapshot, findTaskInSnapshot } from '../canvas/dfl-link';
 import { cancelPendingPush, pushCardDflStatus } from '../canvas/dfl-status-sync';
 import { bindForkSession } from '../canvas/fork-sessions';
+import { boxHealth, healthFrame } from '../box-health';
+import { smokeOnce } from '../box-smoke';
+import { parseRoster, saveRoster } from '../deck-context';
 
 // Registers the turn-closed listener once, at module load — both entry points
 // (server/index.ts, server/agent.ts) reach this file via ws/serve-connection.ts.
@@ -73,7 +119,7 @@ startCanvasFlows();
 // (F5, a second tab, /canvas opened after the flow already fired) needs this
 // on the SAME frame as the board, not just the one-shot canvas-flow-run
 // broadcast it may have missed entirely.
-const boardFrame = (board: CanvasBoard) => ({ t: 'canvas-board' as const, board, flowRuns: activeFlowRuns() });
+const boardFrame = (board: CanvasBoard) => ({ t: 'canvas-board' as const, board: withPlain(board), flowRuns: activeFlowRuns() });
 
 // CPU samples for the canvas-term-stats POLL, keyed per SOCKET — not one
 // shared map. cpuPercent is a delta against the previous sample per key
@@ -116,13 +162,23 @@ const NOW_RUN_MESSAGE: Record<NowRunReject, string> = {
 
 // Cards with a dfl-task-create-link between its checks and its board write.
 const dflCreatesInFlight = new Set<string>();
+const buildInFlight = new WeakSet<WebSocket>();
+const ttsInFlight = new WeakMap<WebSocket, number>();
+const MAX_TTS_IN_FLIGHT = 3;
 
-export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
+export interface HandleCtx { human?: string }
+
+export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role, ctx: HandleCtx = {}) {
   switch (msg.t) {
     case 'ping': {
       // Ecoa o pong pro MESMO socket. Barato de propósito: o cliente usa o
       // ida-e-volta pra detectar socket meio-aberto e reconectar sem F5.
       send(ws, { t: 'pong' });
+      return;
+    }
+    case 'box-roster': {
+      const boxes = parseRoster(msg.boxes);
+      if (boxes) { try { saveRoster(boxes); } catch { /* best effort: the context falls back to "unknown" */ } }
       return;
     }
     case 'graph-list': {
@@ -428,6 +484,87 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       send(ws, { t: 'dfl-task-write', reqId: msg.reqId, ok: true });
       return;
     }
+    case 'planner-get': {
+      registerPlannerClient(ws);
+      send(ws, { t: 'planner-board', tasks: await readTasksChained() });
+      return;
+    }
+    case 'planner-task-save': {
+      const now = Date.now();
+      let rejected = false;
+      let refused = false;
+      const tasks = await updateTasks((list) => {
+        const prev = list.find((x) => x.id === msg.task?.id);
+        if (readyAttempt(msg.task, prev)) {
+          refused = true;
+          return list;
+        }
+        const task = sanitizeTask(msg.task, prev, now, { human: ctx.human });
+        if (task && prev?.unsafe === true && task.unsafe !== true) {
+          void appendVillageLog({ at: now, event: 'ready', taskId: task.id, reason: 'unsafe cleared by human' });
+        }
+        const next = task ? upsertTask(list, task) : null;
+        rejected = !next;
+        return next ?? list;
+      });
+      if (refused) {
+        refuseReady(ws, String(msg.task?.id ?? ''), 'ready can only be set by the human UI frame', now);
+        return;
+      }
+      if (rejected) send(ws, { t: 'error', message: 'task inválida' });
+      emitPlannerMsg({ t: 'planner-board', tasks });
+      return;
+    }
+    case 'planner-task-ready': {
+      const now = Date.now();
+      if (typeof msg.id !== 'string' || typeof msg.ready !== 'boolean') { send(ws, { t: 'error', message: 'task inválida' }); return; }
+      if (msg.ready && !ctx.human) {
+        refuseReady(ws, msg.id, 'origin is not an admin browser session (sealed channel)', now);
+        return;
+      }
+      let failure: string | undefined;
+      const tasks = await updateTasks((list) => list.map((t) => {
+        if (t.id !== msg.id) return t;
+        if (!msg.ready) {
+          const { ready: _r, readyBy: _b, readyAt: _a, ...rest } = t;
+          return { ...rest, updatedAt: now };
+        }
+        const r = markReady(t, ctx.human!, now);
+        if (!r.ok) { failure = r.reason; return t; }
+        void appendVillageLog({ at: now, event: 'ready', taskId: t.id, reason: r.task.readyBy });
+        return r.task;
+      }));
+      if (failure) refuseReady(ws, msg.id, failure, now);
+      else emitPlannerMsg({ t: 'planner-board', tasks });
+      return;
+    }
+    case 'planner-task-delete': {
+      const tasks = await updateTasks((list) => list.filter((x) => x.id !== msg.id));
+      emitPlannerMsg({ t: 'planner-board', tasks });
+      return;
+    }
+    case 'planner-task-handoff': {
+      const now = Date.now();
+      let error: string | undefined;
+      const team = await getTeam();
+      const tasks = await updateTasks((list) => {
+        const task = list.find((x) => x.id === msg.id);
+        if (!task) { error = 'task não encontrada'; return list; }
+        if (!team.some((b) => b.id === msg.handoff?.toBotId)) { error = 'bot de destino não é da equipe'; return list; }
+        const r = applyHandoff(task, { ...msg.handoff, at: now });
+        if (!r.ok) { error = r.reason; return list; }
+        return list.map((x) => (x.id === task.id ? r.task : x));
+      });
+      if (error) send(ws, { t: 'error', message: error });
+      emitPlannerMsg({ t: 'planner-board', tasks });
+      return;
+    }
+    case 'planner-reorder': {
+      const now = Date.now();
+      const tasks = await updateTasks((list) => applyMoves(list, msg.moves, now));
+      emitPlannerMsg({ t: 'planner-board', tasks });
+      return;
+    }
     case 'canvas-card-delete': {
       const board = await updateBoard((b) => removeCard(b, String(msg.id ?? '')));
       send(ws, boardFrame(board));
@@ -470,6 +607,41 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       send(ws, { t: 'bench-bundle', buildId: msg.buildId, js: res.js ?? '', css: res.css ?? '', ms: res.ms ?? 0 });
       return;
     }
+    case 'prs-get': {
+      const { cached, fresh } = getPrsSnapshotSwr(msg.force === true);
+      if (cached) send(ws, { t: 'prs', snapshot: cached, pending: fresh ? true : undefined });
+      if (fresh) send(ws, { t: 'prs', snapshot: await fresh });
+      return;
+    }
+    case 'prs-diff-get': {
+      const url = String(msg.url ?? '');
+      const r = await getPrDiff(url);
+      send(ws, { t: 'prs-diff', url, diff: r.diff, error: r.error });
+      return;
+    }
+    case 'prs-session-get': {
+      send(ws, { t: 'prs-session', session: await getSessionPrs(String(msg.sessionId ?? ''), msg.hydrate === true) });
+      return;
+    }
+    case 'prs-detail-get': {
+      const url = String(msg.url ?? '');
+      const r = await getPrDetail(url);
+      send(ws, { t: 'prs-detail', url, detail: r.detail, error: r.error });
+      return;
+    }
+    case 'prs-merge': {
+      const url = String(msg.url ?? '');
+      const r = await mergePr(url, typeof msg.confirmText === 'string' ? msg.confirmText : undefined);
+      console.log(`[prs] merge ${url} → ${r.ok ? 'ok' : `refused: ${r.message}`}`);
+      send(ws, { t: 'prs-merge-result', reqId: msg.reqId, url, ok: r.ok, message: r.message });
+      if (r.ok) {
+        clearSessionPrsCache();
+        const optimistic = peekPrsSnapshot();
+        if (optimistic) send(ws, { t: 'prs', snapshot: optimistic, pending: true });
+        void getPrsSnapshot(true).then((snapshot) => send(ws, { t: 'prs', snapshot }));
+      }
+      return;
+    }
     case 'list': {
       const items = await listSessions();
       send(ws, { t: 'sessions', items });
@@ -488,6 +660,11 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       // orçamento da hora seguram, e ambos voltam no frame como `nextReadAt`.
       send(ws, planUsageFrame(Date.now(), true)!);
       requestPlanUsageRefresh({ mode: msg.force ? 'force' : 'active' });
+      return;
+    }
+    case 'grok-usage-get': {
+      send(ws, grokUsageFrame(Date.now(), true)!);
+      void requestGrokUsageRefresh(msg.force ? 'force' : 'active');
       return;
     }
     case 'open': {
@@ -568,6 +745,23 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       send(ws, { t: 'contexts', items: await listContexts() });
       return;
     }
+    case 'mem-list': {
+      send(ws, { t: 'memories', items: await getMemories() });
+      return;
+    }
+    case 'mem-save': {
+      const v = validateMemoryInput(msg.memory);
+      if (!v.ok) { send(ws, { t: 'error', message: v.error }); return; }
+      const r = await saveMemory(v.input);
+      if (!r.ok) { send(ws, { t: 'error', message: r.error }); return; }
+      send(ws, { t: 'memories', items: r.items });
+      return;
+    }
+    case 'mem-delete': {
+      if (typeof msg.id !== 'string') { send(ws, { t: 'error', message: 'memória inválida' }); return; }
+      send(ws, { t: 'memories', items: await deleteMemory(msg.id) });
+      return;
+    }
     case 'ctx-open': {
       const c = await readContext(msg.id);
       // A missing id used to get no reply at all, and the UI waited forever.
@@ -607,7 +801,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     // e o traria pro transcript pela porta dos fundos. Unicast (send), sem
     // broadcast — segredo não faz fan-out cego pros outros aparelhos.
     case 'drop-put': {
-      const r = await putDrop(msg.slug, msg.content, msg.ttlMs);
+      const r = await putDrop(msg.slug, msg.content, msg.ttlMs, msg.encoding);
       if ('error' in r) { send(ws, { t: 'error', message: r.error }); return; }
       send(ws, { t: 'drop', ref: r });
       send(ws, { t: 'drops', items: await listDrops() });
@@ -628,6 +822,24 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       const r = await removeDrop(msg.slug);
       if ('error' in r) { send(ws, { t: 'error', message: r.error }); return; }
       send(ws, { t: 'drops', items: await listDrops() });
+      return;
+    }
+    // Box vault (root-only). Unicast, metadata only: the value of vault-put never
+    // comes back. Refused upstream (serve-connection) off the sealed/local channel.
+    case 'vault-put': {
+      const r = await putSecret(msg.name, msg.value, msg.agents);
+      if ('error' in r) { send(ws, { t: 'error', message: r.error }); return; }
+      send(ws, { t: 'vault', items: listSecrets() });
+      return;
+    }
+    case 'vault-list': {
+      send(ws, { t: 'vault', items: listSecrets() });
+      return;
+    }
+    case 'vault-rm': {
+      const r = await removeSecret(msg.name);
+      if ('error' in r) { send(ws, { t: 'error', message: r.error }); return; }
+      send(ws, { t: 'vault', items: listSecrets() });
       return;
     }
     case 'points-get': {
@@ -758,32 +970,185 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       return;
     }
     case 'crons-get': {
-      send(ws, { t: 'crons', items: await getCrons() });
+      send(ws, { t: 'crons', items: visibleCrons(await getCrons(), role) });
       return;
     }
     case 'cron-save': {
       const c = msg.cron;
       // Validação mínima da borda (frame cru): só persiste um cron bem-formado.
       if (!c || typeof c.id !== 'string' || !/^[a-zA-Z0-9_-]{1,59}$/.test(c.id) ||
-          typeof c.prompt !== 'string' || !c.prompt.trim() || !scheduleValid(c.schedule)) {
+          typeof c.prompt !== 'string' || !c.prompt.trim() || !scheduleValid(c.schedule) ||
+          // NaN here made an interval cron that never fires.
+          !Number.isFinite(c.createdAt)) {
         send(ws, { t: 'error', message: 'cron inválido' });
         return;
       }
-      send(ws, { t: 'crons', items: await saveCron(c) });
+      const coerced = coerceCronForRole(c, (await getCrons()).find((x) => x.id === c.id), role);
+      if ('error' in coerced) { send(ws, { t: 'error', message: coerced.error }); return; }
+      const routineError = coerced.cron.botId === undefined ? null : botRoutineError(coerced.cron, await getTeam());
+      if (routineError) { send(ws, { t: 'error', message: routineError }); return; }
+      send(ws, { t: 'crons', items: visibleCrons(await saveCron(coerced.cron), role) });
       return;
     }
     case 'cron-delete': {
-      send(ws, { t: 'crons', items: await deleteCron(msg.id) });
+      const denied = cronWriteError((await getCrons()).find((x) => x.id === msg.id), role);
+      if (denied) { send(ws, { t: 'error', message: denied }); return; }
+      send(ws, { t: 'crons', items: visibleCrons(await deleteCron(msg.id), role) });
+      return;
+    }
+    case 'team-get': {
+      send(ws, { t: 'team', bots: await getTeam() });
+      sendTeamPaused(ws);
+      sendTeamPending(ws);
+      return;
+    }
+    case 'team-files-get': {
+      await sendBotFiles(ws, msg.botId);
+      return;
+    }
+    case 'team-file-get': {
+      await sendBotFile(ws, msg.botId, msg.path);
+      return;
+    }
+    case 'team-computer-get': {
+      await sendBotComputer(ws, msg.botId, role ?? 'student');
+      return;
+    }
+    case 'team-messages-get': {
+      await sendTeamMessages(ws, msg);
+      return;
+    }
+    case 'team-state-get': {
+      await sendTeamState(ws, msg, role);
+      return;
+    }
+    case 'team-talk-get': {
+      await sendTalk(ws, msg, role);
+      return;
+    }
+    case 'team-talk-send': {
+      await sendTalkMessage(ws, msg, role, handle);
+      return;
+    }
+    case 'team-meetings-get': {
+      await sendMeetings(ws);
+      return;
+    }
+    case 'team-meeting-start': {
+      await startMeetingFrame(ws, msg);
+      return;
+    }
+    case 'team-rotate': {
+      const botId = typeof msg.botId === 'string' ? msg.botId : '';
+      const r = await rotateBot(botId, (b) => !!botLiveKey(b.id, b.sessionId));
+      if (r.ok) { broadcast({ t: 'team', bots: r.bots }); send(ws, { t: 'team-rotate-result', botId, ok: true, words: r.words }); }
+      else send(ws, { t: 'team-rotate-result', botId, ok: false, error: r.error });
+      return;
+    }
+    case 'team-pause-set': {
+      await setTeamPause(ws, msg.paused);
+      return;
+    }
+    case 'village-get': {
+      await sendVillage(ws);
+      return;
+    }
+    case 'village-config': {
+      await setVillageConfig(ws, msg);
+      return;
+    }
+    case 'village-dry': {
+      await sendVillagePlan(ws);
+      return;
+    }
+    case 'team-save': {
+      const v = validateBotInput(msg.bot);
+      if (!v.ok) { send(ws, { t: 'error', message: v.error }); return; }
+      const r = await saveBot(coerceBotForRole(v.bot, role));
+      if (!r.ok) { send(ws, { t: 'error', message: r.error }); return; }
+      broadcast({ t: 'team', bots: r.bots });
+      void refreshAndBroadcast(r.bots.find((b) => b.id === v.bot.id));
+      return;
+    }
+    case 'team-sync-source': {
+      if (role !== 'admin') { send(ws, { t: 'error', message: 'só o admin sincroniza agente de repositório' }); return; }
+      const bot = (await getTeam()).find((b) => b.id === msg.id);
+      if (!bot?.source) { send(ws, { t: 'error', message: 'esse agente não vem de um repositório' }); return; }
+      await refreshAndBroadcast(bot, true);
+      return;
+    }
+    case 'tts': {
+      const reqId = typeof msg.reqId === 'string' ? msg.reqId.slice(0, 64) : '';
+      const fail = () => send(ws, { t: 'tts-error', reqId });
+      const active = ttsInFlight.get(ws) ?? 0;
+      if (!reqId || active >= MAX_TTS_IN_FLIGHT) { fail(); return; }
+      ttsInFlight.set(ws, active + 1);
+      try {
+        const audio = await synthesize(parseTtsText(typeof msg.text === 'string' ? msg.text : ''));
+        send(ws, { t: 'tts-audio', reqId, audio: audio.toString('base64') });
+      } catch { fail(); } finally { ttsInFlight.set(ws, (ttsInFlight.get(ws) ?? 1) - 1); }
+      return;
+    }
+    case 'stt-token': {
+      const reqId = typeof msg.reqId === 'string' ? msg.reqId.slice(0, 64) : '';
+      if (!reqId) return;
+      send(ws, { t: 'stt-token-result', reqId, token: (await mintSttToken().catch(() => null)) ?? undefined });
+      return;
+    }
+    case 'agent-build': {
+      const req = cleanBuildRequest(msg);
+      if (!req) { send(ws, { t: 'agent-build-result', reqId: typeof msg.reqId === 'string' ? msg.reqId.slice(0, 64) : '', ok: false, error: 'pedido inválido' }); return; }
+      if (buildInFlight.has(ws)) { send(ws, { t: 'agent-build-result', reqId: req.reqId, ok: false, error: 'espere a resposta anterior' }); return; }
+      buildInFlight.add(ws);
+      try {
+        const text = await agentBuilderTurn(builderSystemPrompt(await listSkills(), req.draft), builderPrompt(req.history), `agent-build-${req.reqId}`);
+        send(ws, text ? { t: 'agent-build-result', reqId: req.reqId, ok: true, text } : { t: 'agent-build-result', reqId: req.reqId, ok: false, error: 'não consegui responder agora, tente de novo' });
+      } finally { buildInFlight.delete(ws); }
+      return;
+    }
+    case 'team-delete': {
+      if (typeof msg.id !== 'string') { send(ws, { t: 'error', message: 'bot inválido' }); return; }
+      broadcast({ t: 'team', bots: await deleteBot(msg.id) });
+      await removeAgentSource(msg.id).catch(() => {});
+      clearBotQuestion(msg.id);
+      const paused = await pauseBotRoutines(msg.id);
+      if (paused) broadcast({ t: 'crons', items: paused });
       return;
     }
     case 'cron-run': {
-      const items = await runCronNow(msg.id, fireCron);
-      if (items) send(ws, { t: 'crons', items });
-      else send(ws, { t: 'error', message: 'cron não encontrado' });
+      const denied = cronWriteError((await getCrons()).find((x) => x.id === msg.id), role);
+      if (denied) { send(ws, { t: 'error', message: denied }); return; }
+      let fired: Promise<CronFire> | undefined;
+      const items = await runCronNow(msg.id, (c) => { fired = fireCron(c); });
+      if (!items) { send(ws, { t: 'error', message: 'cron não encontrado' }); return; }
+      send(ws, { t: 'crons', items: visibleCrons(items, role) });
+      const outcome = await fired;
+      if (outcome === 'bot-busy') send(ws, { t: 'error', message: 'o bot está no meio de um turno — a rotina roda no próximo horário' });
+      else if (outcome === 'bot-gone') send(ws, { t: 'error', message: 'o bot desta rotina foi removido' });
       return;
     }
     case 'skill-list': {
-      send(ws, { t: 'skills', items: await listSkills() });
+      send(ws, { t: 'skills', items: await listSkills(await getTeam()) });
+      return;
+    }
+    case 'versions-list': {
+      send(ws, { t: 'versions', kind: msg.kind, id: msg.id, items: await versionsFor(msg.kind, msg.id) });
+      return;
+    }
+    case 'versions-diff': {
+      const r = await diffVersions(msg.kind, msg.id, msg.from, msg.to);
+      send(ws, { t: 'versions-diff', kind: msg.kind, id: msg.id, from: msg.from, to: msg.to, ok: r.ok, diff: r.ok ? r.diff : '', message: r.ok ? undefined : r.message });
+      return;
+    }
+    case 'versions-restore': {
+      const denied = msg.kind === 'agent' ? customAgentDenial(role, CONFIG.localOnly) : null;
+      const r = denied ? { ok: false, message: denied } : await restoreVersion(msg.kind, msg.id, msg.version);
+      send(ws, { t: 'versions-restore-result', kind: msg.kind, id: msg.id, ok: r.ok, message: r.message });
+      if (r.ok) {
+        send(ws, { t: 'versions', kind: msg.kind, id: msg.id, items: await versionsFor(msg.kind, msg.id) });
+        if (msg.kind === 'agent') afterAgentsChange();
+        else send(ws, { t: 'skills', items: await listSkills() });
+      }
       return;
     }
     case 'skill-open': {
@@ -803,7 +1168,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     case 'skill-install': {
       const r = await installSkill(msg.slug, msg.title, msg.body);
       send(ws, 'error' in r ? { t: 'install-result', kind: 'skill', ok: false, error: r.error } : { t: 'install-result', kind: 'skill', ok: true, id: r.id });
-      if (!('error' in r)) send(ws, { t: 'skills', items: await listSkills() });
+      if (!('error' in r)) send(ws, { t: 'skills', items: await listSkills(await getTeam()) });
       return;
     }
     // DFL Skills registry (admin-only via authz). The registry is read by a child
@@ -822,7 +1187,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       } catch (e) {
         send(ws, { t: 'registry-install-result', reqId: msg.reqId, ok: false, installed: [], skipped: [], error: (e as Error).message });
       }
-      send(ws, { t: 'skills', items: await listSkills() });
+      send(ws, { t: 'skills', items: await listSkills(await getTeam()) });
       return;
     }
     case 'usage-list': {
@@ -832,8 +1197,38 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     case 'refresh-models': {
       // Puxa /v1/models na hora (em vez de esperar o poll horário) e re-broadcasta
       // a lista nova pra todos, pra um modelo recém-lançado aparecer no seletor.
-      const models = await refreshModels();
+      const models = withAgents(await refreshModels());
       if (models.length) broadcast({ t: 'models', models });
+      return;
+    }
+    case 'claude-login-start': { claudeLogin.start(); return; }
+    case 'claude-login-code': { claudeLogin.submitCode(msg.code); return; }
+    case 'claude-login-cancel': { claudeLogin.cancel(); return; }
+    case 'claude-account-get': { send(ws, { t: 'claude-account', account: await readClaudeAccount() }); return; }
+    case 'claude-logout': {
+      await logoutClaude();
+      broadcast({ t: 'claude-auth', ready: claudeReady() });
+      broadcast({ t: 'claude-account', account: await readClaudeAccount() });
+      return;
+    }
+    case 'mcps-get': { send(ws, { t: 'mcps', state: await mcpsState() }); return; }
+    case 'connections-get': { send(ws, { t: 'connections', items: await listConnections() }); return; }
+    case 'provider-probe': { send(ws, { t: 'provider-probe', result: await probe(msg.endpoint, msg.key) }); return; }
+    case 'box-health-get': {
+      send(ws, healthFrame(await boxHealth.refresh()));
+      return;
+    }
+    case 'box-smoke-test': {
+      broadcast({ t: 'box-smoke', state: 'running' });
+      const r = await smokeOnce(role ?? 'student');
+      broadcast({ t: 'box-smoke', ...r });
+      return;
+    }
+    case 'claude-import-scan': { send(ws, await claudeImportFrame(msg.path)); return; }
+    case 'claude-import-apply': {
+      const kinds = (Array.isArray(msg.kinds) ? msg.kinds : []).filter((k) => IMPORT_KINDS.includes(k));
+      const result = await applyClaudeImport(msg.path, kinds);
+      send(ws, { ...(await claudeImportFrame(msg.path)), result });
       return;
     }
     case 'admin-health': {
@@ -853,6 +1248,10 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     // Admin write-ops (#162). authorize() já garante role admin (default-deny);
     // re-emite health depois de cada escrita p/ a UI refletir na hora.
     case 'admin-env-set': {
+      if (!CONFIG.localOnly && !envNameAllowedRemotely(msg.name)) {
+        send(ws, { t: 'admin-op', ok: false, message: `${msg.name} só no loopback` });
+        return;
+      }
       const r = await setEnv(msg.name, msg.value);
       send(ws, { t: 'admin-op', ok: r.ok, message: r.message });
       send(ws, { t: 'health', health: await collectHealth() });
@@ -904,6 +1303,65 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       send(ws, { t: 'health', health: await collectHealth() });
       return;
     }
+    case 'byo-keys-get': {
+      send(ws, { t: 'byo-keys', items: byoKeyViews(byoKeys) });
+      return;
+    }
+    case 'byo-key-set':
+    case 'byo-key-remove': {
+      const r = msg.t === 'byo-key-set' ? saveByoKey(byoKeys, String(msg.provider), String(msg.key)) : removeByoKey(byoKeys, String(msg.provider));
+      send(ws, { t: 'byo-keys', items: byoKeyViews(byoKeys), ok: r.ok, message: r.message });
+      if (r.ok) afterAgentsChange();
+      return;
+    }
+    case 'agents-get': {
+      send(ws, agentsFrame());
+      return;
+    }
+    case 'agent-connect': {
+      const r = await connectPreset(msg.preset);
+      send(ws, { t: 'admin-op', ok: r.ok, message: r.message });
+      afterAgentsChange();
+      return;
+    }
+    case 'agent-add-custom': {
+      const denied = customAgentDenial(role, CONFIG.localOnly);
+      if (denied) {
+        send(ws, { t: 'agent-custom-result', ok: false, message: denied });
+        return;
+      }
+      const r = await saveCustomAgent(msg);
+      send(ws, { t: 'agent-custom-result', ok: r.ok, message: r.message, field: r.field, id: r.ok ? String(msg.id).trim() : undefined });
+      if (r.ok) afterAgentsChange();
+      return;
+    }
+    case 'agent-probe-draft': {
+      const denied = customAgentDenial(role, CONFIG.localOnly);
+      if (denied) {
+        send(ws, { t: 'agent-draft-result', ok: false, status: 'error', message: denied });
+        return;
+      }
+      const r = await probeDraft(msg);
+      send(ws, { t: 'agent-draft-result', ok: r.status === 'ready', status: r.status, message: r.message, field: r.field });
+      return;
+    }
+    case 'agent-remove': {
+      const r = await removeAgent(msg.id);
+      send(ws, { t: 'admin-op', ok: r.ok, message: r.message });
+      afterAgentsChange();
+      return;
+    }
+    case 'agent-test': {
+      const agent = typeof msg.id === 'string' ? findAgent(msg.id) : undefined;
+      if (!agent) {
+        send(ws, { t: 'agent-test-result', id: String(msg.id), ok: false, status: 'unknown', message: 'agente não conectado' });
+        return;
+      }
+      const r = await probeAgent(agent);
+      send(ws, { t: 'agent-test-result', id: agent.id, ok: r.status === 'ready', status: r.status, message: r.message });
+      afterAgentsChange();
+      return;
+    }
     case 'admin-deck-restart': {
       if (!CONFIG.localOnly) {
         send(ws, { t: 'admin-op', ok: false, message: 'restart do Deck só no loopback' });
@@ -947,23 +1405,32 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     case 'send': {
       // Skills selecionadas pela UI viram regras de negação das NÃO-selecionadas
       // (Skill(id)). Resolvido aqui (async) e passado adiante; vazio = todas ativas.
-      const disallowedSkills = await resolveSkillDeny(msg.skills);
+      const team = await getTeam();
+      const bot = botTurnFor(team, msg.sessionKey, msg.sessionId, role, await readMemoriesSafe());
+      if (bot?.profile === 'full') await refreshAndBroadcast(team.find((b) => b.id === bot.botId));
+      const disallowedSkills = [...new Set([...(await resolveSkillDeny(msg.skills)), ...(await botDenyRules(bot))])];
+      // The human's next message in the bot's thread is the answer, picked or typed.
+      if (bot && msg.auto !== true) clearBotQuestion(bot.botId);
+      const resumeId = bot?.resumeId ?? msg.sessionId;
       // Sessão ocupada → triador decide o destino (esperar/responder/prioridade/
       // juntar). Livre → roda direto como antes.
       const opts = {
         ws,
         sessionKey: msg.sessionKey,
         prompt: msg.text,
-        resumeId: msg.sessionId,
+        resumeId,
         msgId: msg.msgId,
-        mode: msg.mode,
-        model: msg.model,
+        mode: bot?.mode ?? msg.mode,
+        model: bot?.model ?? msg.model,
         maxBudgetUsd: msg.maxBudgetUsd,
         bypass: msg.bypass,
         role,
         disallowedSkills,
         mcps: msg.mcps,
-        effort: msg.effort,
+        effort: bot?.effort ?? msg.effort,
+        botId: bot?.botId,
+        appendSystemPrompt: bot?.appendSystemPrompt,
+        profile: bot?.profile,
         allowWorkflow: msg.allowWorkflow === true ? true : undefined,
       };
       // Server-side double-writer guard: a client-side flag (canvas prompt bar
@@ -973,7 +1440,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       // an interactive `claude` in it, ANY 'send' here (canvas or the normal
       // composer) would start a SECOND writer on the same transcript. Cheap:
       // only sessions with an open watch pane pay for the /proc scan.
-      const checkId = msg.sessionId ?? msg.sessionKey;
+      const checkId = resumeId ?? msg.sessionKey;
       if (await hasInteractiveClaude(checkId)) {
         // send-reject (not a plain error): the composer (canvas or main) must
         // restore the text and drop the optimistic bubble by msgId, same as
@@ -1021,13 +1488,40 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       //    without yielding in between means whichever 'send' resolves its
       //    await LAST always sees the OTHER's thread already registered,
       //    and gets routed to routeSend (queued) instead of replacing it.
-      const target = msg.sessionId ?? msg.sessionKey;
+      const target = resumeId ?? msg.sessionKey;
       if (!orchestratorPaneTarget(target, role)) {
         const busyElsewhere = await readBusyElsewhereSessionIds().catch(() => [] as string[]);
         if (busyElsewhere.includes(target)) {
+          // A headless turn in the other process ends on its own: park the
+          // prompt (the drainer holds it while the session is busy elsewhere)
+          // instead of refusing a message the user has no other way to send.
+          const headless = await readBusyHeadlessElsewhereSessionIds().catch(() => [] as string[]);
+          if (headless.includes(target)) {
+            let parked: ReturnType<typeof addParked> | undefined;
+            try { parked = addParked(msg.sessionKey, { prompt: msg.text, resumeId, mode: opts.mode, model: opts.model, effort: opts.effort, maxBudgetUsd: msg.maxBudgetUsd, bypass: msg.bypass, role, disallowedSkills, mcps: msg.mcps, botId: opts.botId, appendSystemPrompt: opts.appendSystemPrompt, profile: opts.profile }); }
+            catch { /* disk write failed: fall through to the refusal */ }
+            if (parked && !('reject' in parked)) {
+              send(ws, {
+                t: 'send-parked', sessionKey: msg.sessionKey, msgId: msg.msgId,
+                message: 'Essa sessão está com um turno rodando no outro processo do Deck — a mensagem entrou na fila e roda sozinha quando ele terminar.',
+              });
+              broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused(), releaseAt: queueReleaseAt() });
+              return;
+            }
+          }
           send(ws, {
             t: 'send-reject', sessionKey: msg.sessionKey, reason: 'live-elsewhere', text: msg.text, msgId: msg.msgId,
             message: 'Essa sessão já tem um turno rodando no outro processo do Deck (deckctl/agente) — espere ele terminar antes de mandar mensagem por aqui.',
+          });
+          return;
+        }
+        // An idle interactive claude in a tmux pane isn't "busy", but a
+        // `--resume` twin beside it still forks the transcript. Refuse.
+        const inPane = await readTmuxPaneSessionIds().catch(() => [] as string[]);
+        if (inPane.includes(target)) {
+          send(ws, {
+            t: 'send-reject', sessionKey: msg.sessionKey, reason: 'live-elsewhere', text: msg.text, msgId: msg.msgId,
+            message: 'Essa sessão está aberta num terminal tmux — mande a mensagem lá; por aqui criaria uma cópia headless que sobrescreve o trabalho.',
           });
           return;
         }
@@ -1037,7 +1531,8 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       // finds it by sessionId so this message reaches the real turn (routeSend's
       // triage) instead of blindly spawning a second `claude --resume` on top of
       // it (canvas review #593: double-writer from the canvas prompt bar).
-      const liveKey = resolveThreadKey(msg.sessionKey);
+      // A bot's draft key resumes the bot's bound session, which may be live under its own key.
+      const liveKey = resolveThreadKey(msg.sessionKey) ?? (bot?.resumeId ? resolveThreadKey(bot.resumeId) : undefined);
       // displayKey: routeSend's own early checks (before any 'triage' frame,
       // which is what the client's aliasRoutedKey correlation needs) fire
       // under the ROUTING key — when it differs from what this frame named,
@@ -1053,13 +1548,17 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     // depender do browser aberto. Mesma resolução de skills do 'send'. Broadcast do
     // snapshot pra todos os aparelhos verem a fila mudar ao vivo.
     case 'queue-add': {
-      const disallowedSkills = await resolveSkillDeny(msg.skills);
+      const bot = botTurnFor(await getTeam(), msg.sessionKey, msg.sessionId, role, await readMemoriesSafe());
+      const disallowedSkills = [...new Set([...(await resolveSkillDeny(msg.skills)), ...(await botDenyRules(bot))])];
       const r = addParked(msg.sessionKey, {
         prompt: msg.text,
-        resumeId: msg.sessionId,
-        mode: msg.mode,
-        model: msg.model,
-        effort: msg.effort,
+        resumeId: bot?.resumeId ?? msg.sessionId,
+        mode: bot?.mode ?? msg.mode,
+        model: bot?.model ?? msg.model,
+        effort: bot?.effort ?? msg.effort,
+        botId: bot?.botId,
+        appendSystemPrompt: bot?.appendSystemPrompt,
+        profile: bot?.profile,
         maxBudgetUsd: msg.maxBudgetUsd,
         bypass: msg.bypass,
         role,
@@ -1072,7 +1571,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
         send(ws, { t: 'queue-reject', sessionKey: msg.sessionKey, text: msg.text, message: REJECT_MESSAGE[r.reject] });
         return;
       }
-      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
+      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused(), releaseAt: queueReleaseAt() });
       // Enfileirar com a sessão já ociosa (turno morreu, quota voltou) esperava o
       // tick de 30s à toa. No processo sem drainer isto é no-op.
       drainParked();
@@ -1080,12 +1579,12 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     }
     case 'queue-remove': {
       removeParked(msg.sessionKey, msg.id, role ?? 'student');
-      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
+      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused(), releaseAt: queueReleaseAt() });
       return;
     }
     case 'queue-edit': {
       const ok = editParked(msg.sessionKey, msg.id, msg.text, role ?? 'student'); // sem role identificada = menor privilégio
-      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
+      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused(), releaseAt: queueReleaseAt() });
       // O textarea da fila já fechou quando isto chega: uma recusa calada levava o
       // texto que o usuário acabou de digitar junto.
       if (!ok) send(ws, { t: 'queue-error', sessionKey: msg.sessionKey, message: 'não deu pra editar este item da fila (ele pode já ter saído pra rodar)' });
@@ -1093,24 +1592,33 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     }
     case 'queue-move': {
       if (msg.dir === -1 || msg.dir === 1) moveParked(msg.sessionKey, msg.id, msg.dir);
-      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
+      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused(), releaseAt: queueReleaseAt() });
       return;
     }
     case 'queue-clear': {
       clearParked(msg.sessionKey, role ?? 'student');
-      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
+      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused(), releaseAt: queueReleaseAt() });
       return;
     }
     case 'queue-set-paused': {
       setQueuePaused(msg.paused === true);
-      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
+      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused(), releaseAt: queueReleaseAt() });
       if (msg.paused !== true) drainParked(); // retomar não espera o próximo tick
       return;
     }
     // Destrava o item que bateu o teto de tentativas e tenta de novo na hora.
+    case 'queue-retarget': {
+      // An agent runs only for admin (runAgent refuses the rest), so retargeting
+      // anyone else's items would just trade a wait for a failed turn.
+      if (role !== 'admin' || !agentIdOf(msg.model) || !findAgent(agentIdOf(msg.model)!)) return;
+      retargetParked(msg.sessionKey, msg.model);
+      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused(), releaseAt: queueReleaseAt() });
+      drainParked();
+      return;
+    }
     case 'queue-retry': {
       retryParked(msg.sessionKey, msg.id);
-      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
+      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused(), releaseAt: queueReleaseAt() });
       drainParked();
       return;
     }
@@ -1122,7 +1630,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       // Sem este snapshot o clique não mudava NADA na tela quando o dreno não
       // subiu nada (outro processo é quem drena, ou a sessão não era a da vez):
       // o banner seguia igual e o botão parecia morto.
-      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
+      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused(), releaseAt: queueReleaseAt() });
       return;
     }
     // Tira o item da fila e roda AGORA num chat paralelo, forkando o contexto deste
@@ -1130,7 +1638,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     case 'queue-run-bg': {
       const r = runParkedInBackground(msg.sessionKey, msg.id, role ?? 'student', typeof msg.model === 'string' ? msg.model : undefined);
       if ('reject' in r) { send(ws, { t: 'queue-error', sessionKey: msg.sessionKey, message: BG_RUN_MESSAGE[r.reject] }); return; }
-      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
+      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused(), releaseAt: queueReleaseAt() });
       return;
     }
     // Fura a fila: o item vai pro topo e o turno em andamento é interrompido pra
@@ -1139,16 +1647,17 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     case 'queue-run-now': {
       const r = runParkedNow(msg.sessionKey, msg.id, role ?? 'student');
       if ('reject' in r) { send(ws, { t: 'queue-error', sessionKey: msg.sessionKey, message: NOW_RUN_MESSAGE[r.reject] }); return; }
-      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
+      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused(), releaseAt: queueReleaseAt() });
       return;
     }
     case 'queue-get': {
-      send(ws, { t: 'queue', items: parkedView(), paused: isQueuePaused() });
+      send(ws, { t: 'queue', items: parkedView(), paused: isQueuePaused(), releaseAt: queueReleaseAt() });
       return;
     }
     // Clique na oferta de retomada: o servidor ainda guarda a config do turno
     // morto, então isto vira um `--resume` de verdade e não um reenvio de texto.
     case 'resume-run': {
+      await refreshBusyElsewhere();
       if (!acceptResumeOffer(msg.sessionKey)) {
         send(ws, { t: 'queue-error', sessionKey: msg.sessionKey, message: 'Esta retomada não está mais disponível (a sessão já tem turno novo).' });
       }
@@ -1185,11 +1694,11 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
         // o MESMO id (unshiftParked preserva). Os dois casos: remove agora,
         // sem exceção.
         removeParked(msg.parentSessionId, parked.id, role);
-        broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
+        broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused(), releaseAt: queueReleaseAt() });
         send(ws, { t: 'canvas-card-fork-reject', cardId: msg.cardId, parentSessionId: msg.parentSessionId, message: CANVAS_FORK_MESSAGE[r.reject] });
         return;
       }
-      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
+      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused(), releaseAt: queueReleaseAt() });
       // The only place this relation is ever produced — see fork-sessions.ts.
       // Feeds the chain-of-command view's "forked from" link.
       bindForkSession(r.forkId, msg.parentSessionId);
@@ -1197,4 +1706,27 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       return;
     }
   }
+}
+
+function agentsFrame(): ServerMsg {
+  return { t: 'agents', items: agentViews(), presets: AGENT_PRESETS, customAllowed: CONFIG.localOnly };
+}
+
+function afterAgentsChange(): void {
+  broadcast(agentsFrame());
+  const models = getLastModels();
+  if (models.length) broadcast({ t: 'models', models });
+}
+
+async function claudeImportFrame(path?: string): Promise<Extract<ServerMsg, { t: 'claude-import' }>> {
+  const scan = await scanClaudeImport(path);
+  const hint = scan.reason === 'unreadable' ? copyHintCommand(scan.source) : undefined;
+  return { t: 'claude-import', scan, hint };
+}
+
+// A failed sync is recorded on the bot (the form shows it); the turn still runs on
+// whatever was synced before.
+async function refreshAndBroadcast(bot: TeamBot | undefined, force = false): Promise<void> {
+  const bots = await refreshAgentSource(bot, force).catch(() => null);
+  if (bots) broadcast({ t: 'team', bots });
 }

@@ -26,10 +26,10 @@ function LastSeen({ at }: { at: number }) {
 // One mono line under the title bar: what the window costs the box right now
 // and how much room its conversation has left.
 export function TermStatsBar({ stats, running, session }: Props) {
-  if (!stats) return <div className="h-6 shrink-0 border-b border-neutral-800/80 bg-neutral-950 px-2.5 font-mono text-[10.5px] leading-6 text-neutral-600">medindo…</div>;
+  if (!stats) return <div className="h-6 shrink-0 border-b border-neutral-800/80 bg-neutral-950 px-2.5 font-mono text-[12px] leading-6 text-neutral-600">medindo…</div>;
   const pct = ctxPct(stats);
   return (
-    <div className="flex h-6 shrink-0 items-center gap-3 overflow-hidden whitespace-nowrap border-b border-neutral-800/80 bg-neutral-950 px-2.5 font-mono text-[10.5px] text-neutral-500">
+    <div className="flex h-6 shrink-0 items-center gap-3 overflow-hidden whitespace-nowrap border-b border-neutral-800/80 bg-neutral-950 px-2.5 font-mono text-[12px] text-neutral-500">
       <span>cpu <span className={HEAT_TEXT[cpuHeat(stats.cpu)]}>{stats.cpu}%</span></span>
       <span>ram <span className="text-neutral-300">{fmtMb(stats.rssMb)}</span> · {stats.procs}p</span>
       {session && pct !== null && (
