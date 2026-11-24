@@ -1,4 +1,4 @@
-import type { Message } from '../../data/types';
+import type { Message, UserMessage } from '../../data/types';
 import { parseAttachments } from '../../../shared/parse-attachments';
 
 export interface ChatTopic {
@@ -23,11 +23,34 @@ export function topicTitle(text: string): string {
   return `${(atWord > TOPIC_TITLE_MAX * 0.6 ? cut.slice(0, atWord) : cut).trimEnd()}…`;
 }
 
+// `messages` gets a new identity on every streamed delta while user messages keep
+// theirs. A user prompt can carry hundreds of KB of extracted document text, so
+// parse each one once instead of on every token. Keyed by text too, in case a
+// message is edited in place.
+const bodyCache = new WeakMap<UserMessage, { text: string; body: string }>();
+const titleCache = new WeakMap<UserMessage, { text: string; title: string }>();
+
+export function userBody(m: UserMessage): string {
+  const hit = bodyCache.get(m);
+  if (hit && hit.text === m.text) return hit.body;
+  const body = parseAttachments(m.text).body;
+  bodyCache.set(m, { text: m.text, body });
+  return body;
+}
+
+function cachedTitle(m: UserMessage): string {
+  const hit = titleCache.get(m);
+  if (hit && hit.text === m.text) return hit.title;
+  const title = topicTitle(m.text);
+  titleCache.set(m, { text: m.text, title });
+  return title;
+}
+
 export function chatTopics(messages: Message[]): ChatTopic[] {
   const out: ChatTopic[] = [];
   for (const m of messages) {
     if (m.role !== 'user') continue;
-    const title = topicTitle(m.text);
+    const title = cachedTitle(m);
     if (!title) continue;
     out.push({ id: m.id, title, ts: m.ts });
   }

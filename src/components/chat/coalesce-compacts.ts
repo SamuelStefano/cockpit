@@ -5,9 +5,9 @@ import type { Message, CompactMessage, PrLink } from '../../data/types';
 // lotes de PR abertas em sequência, que empilhados viram uma parede de linhas e
 // escondem o prompt com a resposta. Wakeup/compactação viram contagem; 'pr'
 // junta os links numa lista, porque cada um precisa continuar clicável.
-export function coalesceCompacts(messages: Message[]): Message[] {
-  const out: Message[] = [];
-  let run: CompactMessage[] = [];
+export function coalesceCompacts<T extends Message>(messages: T[]): T[] {
+  const out: T[] = [];
+  let run: (T & CompactMessage)[] = [];
 
   const flush = () => {
     if (run.length === 0) return;
@@ -21,7 +21,7 @@ export function coalesceCompacts(messages: Message[]): Message[] {
   for (const m of messages) {
     if (m.role !== 'compact') { flush(); out.push(m); continue; }
     if (run.length > 0 && run[0].kind !== m.kind) flush();
-    run.push(m);
+    run.push(m as T & CompactMessage);
   }
   flush();
   return out;

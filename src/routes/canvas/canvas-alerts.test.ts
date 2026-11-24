@@ -51,7 +51,7 @@ describe('counts', () => {
 
 const NOW = 1_700_000_000_000;
 const item = (over: Partial<SessionKanbanItem>): SessionKanbanItem => ({
-  nodeId: 's:a', sessionId: 'a', title: 'sessão a', subtitle: '', orchestratorChild: false,
+  nodeId: 's:a', sessionId: 'a', title: 'sessão a', subtitle: '',
   status: 'doing', running: false, waitingOnUser: false, needsAttention: false, mtime: NOW, ...over,
 });
 

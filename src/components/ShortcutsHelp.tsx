@@ -1,5 +1,9 @@
-import { useEffect } from 'react';
 import { Button, Icon } from './primitives';
+import { isApple, keyLabel } from '../lib/platform';
+
+// 'mod' is the app-shortcut modifier: ⌘ on Apple keyboards, Alt elsewhere.
+const shown = (k: string) => (k === 'mod' ? (isApple() ? '⌘' : 'Alt') : keyLabel(k));
+import { useEscapeLayer } from './primitives/useEscapeLayer';
 
 const GROUPS: { title: string; items: { keys: string[]; label: string }[] }[] = [
   {
@@ -8,6 +12,16 @@ const GROUPS: { title: string; items: { keys: string[]; label: string }[] }[] = 
       { keys: ['⌘', 'K'], label: 'Abrir paleta de comandos' },
       { keys: ['?'], label: 'Mostrar este painel' },
       { keys: ['esc'], label: 'Fechar paleta / modal' },
+      { keys: ['⌥', '↓'], label: 'Próxima sessão' },
+      { keys: ['⌥', '↑'], label: 'Sessão anterior' },
+      { keys: ['n'], label: 'Próxima sessão com output novo' },
+      { keys: ['⌥', '⇧', '↓'], label: 'Próxima não lida, em qualquer máquina' },
+      { keys: ['mod', '1…9'], label: 'Ir pra n-ésima sessão da barra' },
+      { keys: ['mod', '⇧', 'O'], label: 'Nova conversa' },
+      { keys: ['mod', 'B'], label: 'Recolher / expandir a barra lateral' },
+      { keys: ['mod', 'J'], label: 'Abrir / fechar o terminal' },
+      { keys: ['mod', '⇧', 'K'], label: 'Ir pro canvas' },
+      { keys: ['g', 'p'], label: 'Ir pra pontos' },
     ],
   },
   {
@@ -17,15 +31,14 @@ const GROUPS: { title: string; items: { keys: string[]; label: string }[] }[] = 
       { keys: ['⇧', '↵'], label: 'Quebrar linha' },
       { keys: ['↵'], label: 'Confirmar banner (composição vazia)' },
       { keys: ['esc'], label: 'Parar o turno (composição vazia)' },
+      { keys: ['⌘', '.'], label: 'Escolher modelo' },
+      { keys: ['⌘', '⇧', 'A'], label: 'Anexar arquivo' },
     ],
   },
   {
     title: 'Listas (sessões, skills, contextos)',
     items: [
-      { keys: ['⌘', '/'], label: 'Focar a busca' },
-      { keys: ['⌥', '↓'], label: 'Próxima sessão' },
-      { keys: ['⌥', '↑'], label: 'Sessão anterior' },
-      { keys: ['n'], label: 'Próxima sessão com output novo' },
+      { keys: ['⌘', '/'], label: 'Focar a busca de conversas' },
     ],
   },
   {
@@ -50,20 +63,16 @@ function Keys({ keys }: { keys: string[] }) {
   return (
     <span className="flex shrink-0 items-center gap-1">
       {keys.map((k) => (
-        <kbd key={k} className="rounded-sm border border-neutral-700 bg-neutral-950 px-1.5 py-0.5 font-mono text-[10px] text-neutral-400">{k}</kbd>
+        <kbd key={k} className="rounded-sm border border-neutral-700 bg-neutral-950 px-1.5 py-0.5 font-mono text-[12px] text-neutral-400">{shown(k)}</kbd>
       ))}
     </span>
   );
 }
 
 export function ShortcutsHelp({ open, onClose }: { open: boolean; onClose: () => void }) {
-  useEffect(() => {
-    if (!open) return;
-    // Um Esc fecha um overlay só: ignora keypress já consumido e marca o que consome.
-    const h = (e: KeyboardEvent) => { if (e.key === 'Escape' && !e.defaultPrevented && !e.isComposing) { e.preventDefault(); onClose(); } };
-    window.addEventListener('keydown', h);
-    return () => window.removeEventListener('keydown', h);
-  }, [open, onClose]);
+  // In the shared Escape stack (useEscapeLayer): opened on top of a Modal, this
+  // overlay closes first instead of the Modal underneath.
+  useEscapeLayer(open, onClose);
 
   if (!open) return null;
 
@@ -85,11 +94,11 @@ export function ShortcutsHelp({ open, onClose }: { open: boolean; onClose: () =>
         <div className="scroll-thin max-h-[60dvh] space-y-4 overscroll-contain overflow-y-auto px-4 py-3.5">
           {GROUPS.map((g) => (
             <div key={g.title}>
-              <div className="mb-1.5 text-[10px] font-medium uppercase tracking-wider text-neutral-600">{g.title}</div>
+              <div className="mb-1.5 text-[12px] font-medium uppercase tracking-wider text-neutral-600">{g.title}</div>
               <div className="space-y-1">
                 {g.items.map((it) => (
                   <div key={it.label} className="flex items-center justify-between gap-3 rounded-md px-1 py-1">
-                    <span className="text-[12.5px] text-neutral-300">{it.label}</span>
+                    <span className="text-[13px] text-neutral-300">{it.label}</span>
                     <Keys keys={it.keys} />
                   </div>
                 ))}
@@ -97,12 +106,12 @@ export function ShortcutsHelp({ open, onClose }: { open: boolean; onClose: () =>
             </div>
           ))}
           <div>
-            <div className="mb-1.5 text-[10px] font-medium uppercase tracking-wider text-neutral-600">Comandos de barra (/)</div>
+            <div className="mb-1.5 text-[12px] font-medium uppercase tracking-wider text-neutral-600">Comandos de barra (/)</div>
             <div className="space-y-1">
               {SLASH.map((s) => (
                 <div key={s.cmd} className="flex items-center justify-between gap-3 rounded-md px-1 py-1">
-                  <span className="text-[12.5px] text-neutral-300">{s.label}</span>
-                  <code className="shrink-0 rounded-sm border border-neutral-700 bg-neutral-950 px-1.5 py-0.5 font-mono text-[10px] text-orange-300">{s.cmd}</code>
+                  <span className="text-[13px] text-neutral-300">{s.label}</span>
+                  <code className="shrink-0 rounded-sm border border-neutral-700 bg-neutral-950 px-1.5 py-0.5 font-mono text-[12px] text-orange-300">{s.cmd}</code>
                 </div>
               ))}
             </div>

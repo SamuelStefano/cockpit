@@ -3,16 +3,21 @@ import { Icon, tokens } from '../primitives';
 import type { ToolDiff } from '../../../shared/protocol';
 import { lineDiff } from './diff';
 
+export const DIFF_OPEN_MAX_ROWS = 40;
+
 export function DiffView({ diff }: { diff: ToolDiff }) {
   const rows = useMemo(() => lineDiff(diff.old, diff.new), [diff.old, diff.new]);
   const adds = rows.filter((r) => r.t === 'add').length;
   const dels = rows.filter((r) => r.t === 'del').length;
-  const [open, setOpen] = useState(true);
+  // Small diffs open, large ones start collapsed: a 300-line edit filled the
+  // thread with a scroll box the reader rarely needs, and the +/- counts in the
+  // header already say what changed.
+  const [open, setOpen] = useState(() => rows.length <= DIFF_OPEN_MAX_ROWS);
   return (
     <div className="px-3 pb-2">
       <button
         onClick={() => setOpen((o) => !o)}
-        className={`mb-1 flex w-full items-center gap-1.5 rounded-sm text-[11px] text-neutral-500 transition hover:text-neutral-300 ${tokens.focusRing}`}
+        className={`mb-1 flex w-full items-center gap-1.5 rounded-sm text-[12px] text-neutral-500 transition hover:text-neutral-300 ${tokens.focusRing}`}
       >
         <Icon name="chevronDown" size={13} style={{ transform: open ? 'rotate(0deg)' : 'rotate(-90deg)' }} />
         diff
@@ -20,7 +25,7 @@ export function DiffView({ diff }: { diff: ToolDiff }) {
         <span className="text-red-400/80">-{dels}</span>
       </button>
       {open && (
-        <pre className="scroll-thin max-h-72 overflow-auto rounded-md border border-neutral-800 bg-[#070707] py-1.5 font-mono text-[11.5px] leading-relaxed">
+        <pre className="scroll-thin max-h-72 overflow-auto rounded-md border border-neutral-800 bg-[#070707] py-1.5 font-mono text-[12px] leading-relaxed">
           {(() => {
             let oldLn = 0, newLn = 0;
             return rows.map((r, i) => {

@@ -1,6 +1,7 @@
 import { readFile, writeFile, mkdir, rename } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { homedir } from 'node:os';
+import { withFileLockAsync } from './ws/file-lock';
 
 // Estado leve persistido do cockpit (fora do JSONL do CLI, que é só leitura).
 // Hoje guarda só sessões ARQUIVADAS — esconder do sidebar sem deletar o history.
@@ -95,7 +96,12 @@ export async function setNote(id: string, note: string): Promise<void> {
 // disputando o mesmo arquivo .tmp.
 let queue: Promise<unknown> = Promise.resolve();
 function serialize<T>(fn: () => Promise<T>): Promise<T> {
-  const run = queue.then(fn, fn);
+  // The queue orders this process; the file lock orders it against the other
+  // writer (index and agent both commit this store). Without it an AI title from
+  // the agent and an archive from the index each read the old store, and the
+  // second commit brought the archived session back.
+  const locked = () => withFileLockAsync(STORE_PATH, fn);
+  const run = queue.then(locked, locked);
   queue = run.catch(() => {});
   return run;
 }

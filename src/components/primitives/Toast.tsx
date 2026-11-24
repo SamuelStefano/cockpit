@@ -12,29 +12,31 @@ function ToastCard({ item, onDismiss }: { item: ToastItem; onDismiss: (id: numbe
   }, [id, durationMs, onDismiss]);
 
   return (
-    <div className="fade-up pointer-events-auto flex w-full max-w-sm items-center gap-3 rounded-lg border border-neutral-800 bg-neutral-900 px-3.5 py-2.5 shadow-lg shadow-black/40">
+    <div className="fade-up pointer-events-auto flex w-full max-w-sm items-center gap-3 rounded-lg border border-neutral-800 bg-neutral-900 px-3.5 py-2.5 shadow-lg max-lg:min-h-11 max-lg:py-1.5 shadow-black/40">
       {item.tone === 'error' && <Icon name="x" size={14} className="shrink-0 text-red-400" />}
-      <span className={`min-w-0 flex-1 text-[13px] leading-snug ${item.tone === 'error' ? 'text-red-200' : 'text-neutral-100'}`}>
+      <span className={`min-w-0 flex-1 text-[13px] leading-snug max-lg:line-clamp-2 ${item.tone === 'error' ? 'text-red-200' : 'text-neutral-100'}`}>
         {item.message}
       </span>
       {item.action && (
         <button
           onClick={() => { item.action!.onClick(); onDismiss(id); }}
-          className="shrink-0 text-[12px] font-medium text-orange-400 hover:text-orange-300"
+          className="shrink-0 text-[13px] font-medium text-orange-400 hover:text-orange-300"
         >
           {item.action.label}
         </button>
       )}
       {/* p-2 -m-2 em vez de tokens.touchTarget: o botão de ação fica a 12px e o
           pseudo-elemento de 40px roubaria o toque dele. */}
-      <button onClick={() => onDismiss(id)} aria-label="Fechar" className="-m-2 shrink-0 p-2 text-neutral-600 hover:text-neutral-300">
+      <button onClick={() => onDismiss(id)} aria-label="Fechar" className="-m-2 shrink-0 p-2 pointer-coarse:-m-4 pointer-coarse:p-4 text-neutral-600 hover:text-neutral-300">
         <Icon name="x" size={13} />
       </button>
     </div>
   );
 }
 
-export function Toaster() {
+// On phones the stack hugs the bottom edge, or the top under the bar on the chat
+// surface where the composer and its actions live at the bottom.
+export function Toaster({ phoneTop = false }: { phoneTop?: boolean }) {
   const [items, setItems] = useState<ToastItem[]>([]);
 
   useEffect(() => subscribeToast((item) => {
@@ -45,10 +47,13 @@ export function Toaster() {
     setItems((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
-  if (!items.length) return null;
+  // Always mounted (even empty) as a polite live region: a region created
+  // together with its first toast is not announced by screen readers.
   return (
     <div
-      className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex flex-col items-center gap-2 px-4"
+      role="status"
+      aria-live="polite"
+      className={`pointer-events-none fixed inset-x-0 z-50 flex flex-col items-center gap-2 px-4 ${phoneTop ? 'max-lg:top-[calc(env(safe-area-inset-top)+3.5rem)] lg:bottom-0' : 'bottom-0'}`}
       style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 1rem)' }}
     >
       {items.map((t) => <ToastCard key={t.id} item={t} onDismiss={dismiss} />)}

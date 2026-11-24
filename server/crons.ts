@@ -1,8 +1,10 @@
+import { randomBytes } from 'node:crypto';
 import { readFile, writeFile, mkdir, rename } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
 import type { Cron } from '../shared/protocol';
-import { nextRunAt, isDue } from '../shared/cron-schedule';
+import { nextRunAt, isDue, RETRY_DELAY_MS, RETRY_MAX, type CronFireOutcome } from '../shared/cron-schedule';
+import { withFileLockAsync } from './ws/file-lock';
 
 export { nextRunAt, isDue };
 
@@ -22,8 +24,11 @@ async function writeCrons(list: Cron[]): Promise<void> {
   const file = cronsFile();
   await mkdir(dirname(file), { recursive: true });
   // Atômico: escreve no .tmp e renomeia — um crash no meio do write não corrompe
-  // o crons.json. Serializado pelo mutex abaixo (escritor único), então .tmp fixo basta.
-  const tmp = `${file}.tmp`;
+  // o crons.json. Tmp name per process + random: two processes write this file
+  // (the index's scheduler, the agent's cron-save from the browser), and a shared
+  // `.tmp` let one rename the other's half-written file into place — a torn
+  // crons.json reads as [] and the next save wipes every cron.
+  const tmp = `${file}.${process.pid}.${randomBytes(4).toString('hex')}.tmp`;
   await writeFile(tmp, JSON.stringify(list, null, 2) + '\n', 'utf8');
   await rename(tmp, file);
 }
@@ -33,7 +38,11 @@ async function writeCrons(list: Cron[]): Promise<void> {
 // atropelavam (lost update). Encadeia todas as mutações numa fila única.
 let writeChain: Promise<unknown> = Promise.resolve();
 function serialize<T>(fn: () => Promise<T>): Promise<T> {
-  const next = writeChain.then(fn, fn);
+  // The chain orders this process; the file lock orders it against the other one.
+  // Without it markRan (index) and a cron-save (agent) could each read the old
+  // list: a lost lastRun re-fires the same cron on the next tick.
+  const locked = () => withFileLockAsync(cronsFile(), fn);
+  const next = writeChain.then(locked, locked);
   writeChain = next.catch(() => {});
   return next;
 }
@@ -42,7 +51,13 @@ export function saveCron(c: Cron): Promise<Cron[]> {
   return serialize(async () => {
     const all = await getCrons();
     const i = all.findIndex((x) => x.id === c.id);
-    if (i >= 0) all[i] = c; else all.push(c);
+    // lastRun and createdAt are the server's: the browser's list is only fetched on
+    // mount, so an edit (or pause/resume) after a fire carried the old lastRun back
+    // and isDue turned true again — a second autonomous turn within 30s.
+    const { retryAt: _a, retryCount: _b, lastFire: _c, ...fresh } = c;
+    const old = i >= 0 ? all[i] : undefined;
+    if (old) all[i] = { ...fresh, lastRun: old.lastRun, createdAt: old.createdAt, retryAt: old.retryAt, retryCount: old.retryCount, lastFire: old.lastFire };
+    else all.push(fresh);
     await writeCrons(all);
     return all;
   });
@@ -60,6 +75,7 @@ export function markRan(id: string, now: number): Promise<unknown> {
     const c = all.find((x) => x.id === id);
     if (!c) return;
     c.lastRun = now;
+    delete c.retryAt;
     // "uma vez" se auto-pausa ao disparar: fica no histórico sem contar como ativo
     // nem exibir uma próxima execução que já passou.
     if (c.schedule.kind === 'once') c.enabled = false;
@@ -67,10 +83,44 @@ export function markRan(id: string, now: number): Promise<unknown> {
   });
 }
 
+// Records how the fire went. A fire that never started (bot busy, blocked, removed)
+// is retried one hour later, up to RETRY_MAX times, only for crons that opted in.
+export function recordFire(id: string, outcome: CronFireOutcome, now: number): Promise<unknown> {
+  return serialize(async () => {
+    const all = await getCrons();
+    const c = all.find((x) => x.id === id);
+    if (!c) return;
+    c.lastFire = outcome;
+    if (outcome === 'started') {
+      delete c.retryAt;
+      delete c.retryCount;
+    } else if (c.retry && outcome !== 'bot-gone' && (c.retryCount ?? 0) < RETRY_MAX) {
+      c.retryCount = (c.retryCount ?? 0) + 1;
+      c.retryAt = now + RETRY_DELAY_MS;
+    } else {
+      delete c.retryAt;
+    }
+    await writeCrons(all);
+  });
+}
+
+// A deleted bot's routines stay listed but paused: they can no longer fire, and the
+// card still shows what the bot used to do until someone deletes it.
+export function pauseBotRoutines(botId: string): Promise<Cron[] | null> {
+  return serialize(async () => {
+    const all = await getCrons();
+    const hit = all.filter((c) => c.botId === botId && c.enabled);
+    if (!hit.length) return null;
+    for (const c of hit) c.enabled = false;
+    await writeCrons(all);
+    return all;
+  });
+}
+
 // Manual "run now": records lastRun so the card shows it ran and an interval
 // restarts its countdown. A one-shot is left alone, since marking it would pause
 // it and drop the run still scheduled for later.
-export function runCronNow(id: string, fire: (c: Cron) => void, now = Date.now()): Promise<Cron[] | null> {
+export function runCronNow(id: string, fire: (c: Cron) => unknown, now = Date.now()): Promise<Cron[] | null> {
   return serialize(async () => {
     const all = await getCrons();
     const c = all.find((x) => x.id === id);
@@ -90,7 +140,7 @@ export function runCronNow(id: string, fire: (c: Cron) => void, now = Date.now()
 // pra não duplicar disparos.
 const CHECK_MS = 30_000;
 let ticking = false;
-export function startCronLoop(fire: (c: Cron) => void): void {
+export function startCronLoop(fire: (c: Cron) => unknown): void {
   const tick = async () => {
     if (ticking) return; // sem overlap entre ticks
     ticking = true;
@@ -101,7 +151,10 @@ export function startCronLoop(fire: (c: Cron) => void): void {
         // markRan ANTES de disparar: uma varredura concorrente já vê o cron como
         // rodado (não dispara em dobro). best-effort no fire.
         await markRan(c.id, now);
-        try { fire(c); } catch { /* não trava os outros */ }
+        try {
+          const outcome = await fire(c);
+          if (typeof outcome === 'string') await recordFire(c.id, outcome as CronFireOutcome, now);
+        } catch { /* não trava os outros */ }
       }
     } catch { /* leitura falhou: tenta no próximo tick */ } finally { ticking = false; }
   };

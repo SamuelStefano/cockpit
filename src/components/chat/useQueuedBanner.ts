@@ -1,48 +1,41 @@
-import { useLayoutEffect, useRef, useState } from 'react';
-import { remapOpen, remapIndex } from './queued-open';
+import { useEffect, useState } from 'react';
 
-// Estado do banner da fila: expansão, flash de reordenação e edição in-place. Tudo é
-// keyed por índice, mas QUALQUER mudança na fila (cancelar, drenar o topo, reordenar)
-// desloca os índices — por isso o remap por texto é a peça central aqui.
+// Banner state (expanded rows, reorder flash, in-place edit, background launcher) keyed
+// by the queue item's stable wire id. Index keys drifted whenever the queue changed
+// (cancel, drain from the top, reorder) and the state landed on a neighbour.
 export function useQueuedBanner(
   queued: string[],
+  ids: string[],
   onMove: (i: number, dir: -1 | 1) => void,
   onEdit: (i: number, text: string) => void,
 ) {
-  const [open, setOpen] = useState<Record<number, boolean>>({});
-  const [flash, setFlash] = useState<number | null>(null);
-  const [editing, setEditing] = useState<number | null>(null);
-  const [bgOpen, setBgOpen] = useState<number | null>(null);
+  const [open, setOpen] = useState<Record<string, boolean>>({});
+  const [flash, setFlash] = useState<string | null>(null);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [bgOpen, setBgOpen] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
-  const prevQueued = useRef(queued);
-  // Layout effect: corrige antes do paint, senão 1 frame mostrava o vizinho expandido.
-  useLayoutEffect(() => {
-    if (prevQueued.current === queued) return;
-    const prev = prevQueued.current;
-    setOpen((o) => remapOpen(prev, queued, o));
-    // O textarea e o seletor de disparo seguem o MESMO item: se ele drenou ou foi
-    // cancelado, fecham — em vez de pousar sobre o vizinho que herdou o índice.
-    setEditing((e) => remapIndex(prev, queued, e));
-    setBgOpen((b) => remapIndex(prev, queued, b));
-    prevQueued.current = queued;
-  }, [queued]);
 
-  const toggle = (i: number) => setOpen((o) => ({ ...o, [i]: !o[i] }));
-  // O flash dá feedback de pra onde o item foi (a lista reordena sem animação).
-  const move = (i: number, dir: -1 | 1) => {
-    const j = i + dir;
-    onMove(i, dir);
-    setFlash(j);
-    window.setTimeout(() => setFlash((f) => (f === j ? null : f)), 700);
+  // Editor and launcher close when their item leaves the queue.
+  useEffect(() => {
+    setEditing((e) => (e !== null && !ids.includes(e) ? null : e));
+    setBgOpen((b) => (b !== null && !ids.includes(b) ? null : b));
+  }, [ids]);
+
+  const textOf = (id: string) => queued[ids.indexOf(id)] ?? '';
+  const toggle = (id: string) => setOpen((o) => ({ ...o, [id]: !o[id] }));
+  const move = (id: string, dir: -1 | 1) => {
+    onMove(ids.indexOf(id), dir);
+    setFlash(id);
+    window.setTimeout(() => setFlash((f) => (f === id ? null : f)), 700);
   };
 
-  const toggleBg = (i: number) => setBgOpen((b) => (b === i ? null : i));
-  const startEdit = (i: number) => { setEditing(i); setDraft(queued[i] ?? ''); };
+  const toggleBg = (id: string) => setBgOpen((b) => (b === id ? null : id));
+  const startEdit = (id: string) => { setEditing(id); setDraft(textOf(id)); };
   const cancelEdit = () => setEditing(null);
   const commitEdit = () => {
     if (editing === null) return;
     const t = draft.trim();
-    if (t && t !== queued[editing]) onEdit(editing, t);
+    if (t && t !== textOf(editing)) onEdit(ids.indexOf(editing), t);
     setEditing(null);
   };
 

@@ -1,15 +1,16 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { WebSocket } from 'ws';
 import { startRun, catchSpawn, routeSend, isSilentDeath, isCleanTurnClose, resumeOrphanRuns, drainParked, runParkedInBackground, runParkedNow, startParkedDrainer, acceptResumeOffer, hasResumeOffer, AUTO_RESUME_CAP, deliverToOrchestratorPane, orchestratorPaneTarget } from './runs';
-import { readOrchestratorSync, isTmuxAliveSync } from '../canvas/orchestrator';
+import { readOrchestratorSync, isTmuxAliveSync, paneLostClaudeSync, tmuxStateSync } from '../canvas/orchestrator';
 import { hasTerm, openTerm, inputTerm } from '../terminals';
-import { threads, killAllRuns } from './threads';
+import { threads, killAllRuns, stopSession } from './threads';
 import { reapStaleRuns, REAPER_SILENCE_CAP_MS, REAPER_TOOL_SILENCE_CAP_MS, REAPER_TOTAL_CAP_MS } from './reaper';
 import { takeOrphanRuns } from './recover';
 import { recordIncident } from './incidents';
 import { isAwaiting, setAwaiting, clearAllAwaiting } from './awaiting';
 import { broadcast, send } from './broadcast';
 import { run } from '../engine/claude';
+import { runAgent } from '../agents/acp-run';
 import { parkedHeads, shiftParked, unshiftParked, addParked, findParked, takeParked, promoteParked, isQueuePaused, type ParkedItem } from './parked';
 import { resumableId } from './resume';
 import { quotaHold } from './quota';
@@ -28,6 +29,9 @@ vi.mock('../engine/claude', () => ({
   run: vi.fn(() => ({ kill: vi.fn() })),
   // Sem MCP configurado no teste: a expansão do sentinel devolve a seleção como veio.
   resolveMcpSelection: (names?: string[]) => names,
+}));
+vi.mock('../agents/acp-run', () => ({
+  runAgent: vi.fn(() => ({ kill: vi.fn(), send: vi.fn(() => false) })),
 }));
 // Fila estacionada e teto de tokens mockados: o teste não pode ler/escrever o
 // parked.json real do usuário nem depender da quota da conta.
@@ -57,7 +61,6 @@ vi.mock('./awaiting', () => {
 
 vi.mock('../summary', () => ({ summarize: vi.fn(async () => {}) }));
 vi.mock('../engine/triage', () => ({ classify: vi.fn(), quickAnswer: vi.fn(), killSideRuns: vi.fn(), killSideRunsFor: vi.fn() }));
-vi.mock('../engine/suggest', () => ({ suggestFollowups: vi.fn(async () => []) }));
 vi.mock('./incidents', () => ({ recordIncident: vi.fn() })); // teste não escreve no log real de incidentes
 vi.mock('./recover', () => ({ markRunLive: vi.fn(), clearRunLive: vi.fn(), takeOrphanRuns: vi.fn(() => []) }));
 // Orchestrator identity/pane: undefined/dead by default so the existing suite's
@@ -66,6 +69,8 @@ vi.mock('./recover', () => ({ markRunLive: vi.fn(), clearRunLive: vi.fn(), takeO
 vi.mock('../canvas/orchestrator', () => ({
   readOrchestratorSync: vi.fn(() => undefined),
   isTmuxAliveSync: vi.fn(() => false),
+  paneLostClaudeSync: vi.fn(() => false),
+  tmuxStateSync: vi.fn(() => 'alive'),
 }));
 vi.mock('../terminals', () => ({
   hasTerm: vi.fn(() => false),
@@ -435,6 +440,23 @@ describe('resumeOrphanRuns — turnos que o restart matou', () => {
     resumeOrphanRuns();
     expect(run).not.toHaveBeenCalled();
   });
+  // O chat que o usuário abriu na janela de 15s roda como new-… com o mesmo
+  // sessionId: threads.has(sessionId) não o via e o boot retomava por cima.
+  it('não retoma sessão que já tem turno vivo sob outra chave (new-…)', () => {
+    startRun({ ws: {} as WebSocket, sessionKey: 'new-777', prompt: 'mandei agora' });
+    threads.get('new-777')!.sessionId = 'sess-orfa';
+    vi.mocked(run).mockClear();
+    vi.mocked(takeOrphanRuns).mockReturnValue([orphan()] as never);
+    resumeOrphanRuns();
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it('usa a lista tomada no boot, sem reler o registro na hora de disparar', () => {
+    vi.mocked(takeOrphanRuns).mockClear();
+    resumeOrphanRuns([orphan()] as never);
+    expect(takeOrphanRuns).not.toHaveBeenCalled();
+    expect(run).toHaveBeenCalledOnce();
+  });
 });
 
 // Bug do Samuel: com os tokens esgotados a fila disparava assim mesmo, o turno
@@ -470,6 +492,21 @@ describe('fila estacionada — teto de tokens', () => {
     drainParked();
     expect(shiftParked).not.toHaveBeenCalled();
     expect(run).not.toHaveBeenCalled();
+  });
+
+  it('drena o item de agente externo mesmo com a cota do Claude estourada', () => {
+    limited();
+    vi.mocked(runAgent).mockClear();
+    vi.mocked(parkedHeads).mockReturnValue([
+      { sessionKey: 's1', first: item() },
+      { sessionKey: 'g1', first: item({ id: 'pk-g', model: 'agent:grok' }) },
+    ]);
+    vi.mocked(shiftParked).mockImplementation((k: string) => item({ id: `pk-${k}`, model: k === 'g1' ? 'agent:grok' : undefined }));
+    drainParked();
+    expect(run).not.toHaveBeenCalled();
+    expect(shiftParked).toHaveBeenCalledOnce();
+    expect(vi.mocked(shiftParked).mock.calls[0][0]).toBe('g1');
+    expect(runAgent).toHaveBeenCalledOnce();
   });
 
   it('a disk error while shifting the queue does not escape the timer', () => {
@@ -667,6 +704,19 @@ describe('fila estacionada — teto de tokens', () => {
     expect(addParked).toHaveBeenCalledWith('s4', expect.objectContaining({ prompt: 'item enfileirado' }));
     expect(run).toHaveBeenCalledOnce();
   });
+
+  it('turno de Grok drena a fila in-turn mesmo com a cota do Claude estourada', () => {
+    setAwaiting('g1');
+    vi.mocked(runAgent).mockClear();
+    vi.mocked(addParked).mockClear();
+    startRun({ ws, sessionKey: 'g1', prompt: 'item enfileirado', model: 'agent:grok', auto: true });
+    startRun({ ws, sessionKey: 'g1', prompt: 'resposta do usuário', model: 'agent:grok' });
+    limited();
+    vi.mocked(runAgent).mock.calls.at(-1)![0].onClose?.();
+    expect(addParked).not.toHaveBeenCalled();
+    expect(runAgent).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(runAgent).mock.calls.at(-1)![0].prompt).toBe('item enfileirado');
+  });
 });
 
 describe('disparo em background de um item da fila', () => {
@@ -758,6 +808,16 @@ describe('disparo em background de um item da fila', () => {
     expect(run).not.toHaveBeenCalled();
   });
 
+  it('fork de agente externo não recusa pela cota do Claude', () => {
+    vi.mocked(quotaHold).mockReturnValue(Date.now() + 60_000);
+    vi.mocked(findParked).mockReturnValue(item({ model: 'agent:grok' }));
+    vi.mocked(takeParked).mockReturnValue(item({ model: 'agent:grok' }));
+    vi.mocked(runAgent).mockClear();
+    expect(runParkedInBackground('s1', 'pk-9', 'admin')).toHaveProperty('forkId');
+    expect(takeParked).toHaveBeenCalled();
+    expect(runAgent).toHaveBeenCalledOnce();
+  });
+
   // review #597 point 2: um fork de card do canvas passa enforceHardCtxCap=true
   // — ao contrário do clique manual "rodar em paralelo" (intenção explícita
   // do usuário, nunca barrado pelo teto), o alvo de um fork pode ter sido
@@ -803,6 +863,7 @@ describe('disparo imediato de um item da fila (furar a fila)', () => {
     vi.mocked(takeParked).mockReset();
     vi.mocked(parkedHeads).mockReturnValue([]);
     vi.mocked(shiftParked).mockReset();
+    resetCooldownState();
     startParkedDrainer(3_600_000);
   });
 
@@ -863,6 +924,18 @@ describe('disparo imediato de um item da fila (furar a fila)', () => {
       expect(kill).not.toHaveBeenCalled();
       expect(promoteParked).not.toHaveBeenCalled();
     }
+  });
+
+  it('furar a fila de um agente externo ignora a cota do Claude', () => {
+    vi.mocked(quotaHold).mockReturnValue(Date.now() + 60_000);
+    vi.mocked(findParked).mockReturnValue(item({ model: 'agent:grok' }));
+    vi.mocked(takeParked).mockReturnValue(item({ model: 'agent:grok' }));
+    vi.mocked(runAgent).mockClear();
+    startRun({ ws, sessionKey: 'now-g', prompt: 'o que estava rodando' });
+    const kill = lastKill();
+    expect(runParkedNow('now-g', 'pk-9')).toEqual({ ok: true });
+    expect(kill).toHaveBeenCalled();
+    expect(runAgent).toHaveBeenCalledOnce();
   });
 
   // O translate mata o run pra o card de escolha ficar respondível, então a sessão
@@ -1123,6 +1196,28 @@ describe('D1 — morte silenciosa classificada como OOM kill', () => {
     }));
   });
 
+  it('a turn that dies before it has a session id hands the prompt back instead of promising a resume', () => {
+    startRun({ ws, sessionKey: 'new-oom0', prompt: 'meu pedido importante' });
+    threads.get('new-oom0')!.lastExitCode = 143;
+    memInfoMock.value = STARVED_MEM;
+    closeLastRun();
+    const msg = (errors()[0] as { message: string }).message;
+    expect(msg).toContain('ficou sem memória');
+    expect(msg).not.toContain('Vou retomar');
+    expect(msg).toContain('meu pedido importante');
+  });
+
+  it('a fork that died before its transcript existed does not promise a resume either', () => {
+    vi.mocked(resumableId).mockImplementation((id?: string) => (id === 'fork-dead' ? undefined : id));
+    startRun({ ws, sessionKey: 'fork-dead', prompt: 'fork pedido', forkId: 'fork-dead', resumeId: 'parent' });
+    threads.get('fork-dead')!.lastExitCode = 143;
+    memInfoMock.value = STARVED_MEM;
+    closeLastRun();
+    const msg = (errors()[0] as { message: string }).message;
+    expect(msg).not.toContain('Vou retomar');
+    vi.mocked(resumableId).mockImplementation((id?: string) => id);
+  });
+
   it('exit 137 (SIGKILL) + swap quase zerado também vira oom-kill', () => {
     startRun({ ws, sessionKey: 'oom2', prompt: 'trabalho', resumeId: 'sess-oom2' });
     threads.get('oom2')!.lastExitCode = 137;
@@ -1213,6 +1308,21 @@ describe('D2 — autoResume espera a memória antes de retomar', () => {
     const callsBefore = vi.mocked(run).mock.calls.length;
     vi.advanceTimersByTime(30_000);
     expect(vi.mocked(run).mock.calls.length).toBe(callsBefore); // nada novo disparou por cima
+  });
+
+  // O turno novo não precisa estar RODANDO quando o timer dispara: se ele subiu e
+  // terminou durante a espera, retomar o morto refaria trabalho já superado.
+  it('um turno novo que termina durante a espera cancela a retomada adiada', () => {
+    memInfoMock.value = STARVED_MEM;
+    startRun({ ws, sessionKey: 'bk4', prompt: 'trabalho', resumeId: 'sess-bk4' });
+    closeLastRun();
+    memInfoMock.value = HEALTHY_MEM;
+    startRun({ ws, sessionKey: 'bk4', prompt: 'novo pedido', resumeId: 'sess-bk4' });
+    threads.get('bk4')!.endReason = 'success';
+    closeLastRun();
+    const callsBefore = vi.mocked(run).mock.calls.length;
+    vi.advanceTimersByTime(120_000);
+    expect(vi.mocked(run).mock.calls.length).toBe(callsBefore);
   });
 });
 
@@ -1503,6 +1613,35 @@ describe('startRun / routeSend — twin-process guard on the Orchestrator pane',
     expect(inputTerm).toHaveBeenCalledOnce();
   });
 
+  it('tmux cannot answer: refuses (error to the sender) — no paste, no headless run', () => {
+    vi.mocked(readOrchestratorSync).mockReturnValue(orch);
+    vi.mocked(isTmuxAliveSync).mockReturnValue(true);
+    vi.mocked(tmuxStateSync).mockReturnValueOnce('unknown');
+    startRun({ ws, role: 'admin', sessionKey: 'orch-sid', prompt: 'oi', resumeId: 'orch-sid' });
+    expect(run).not.toHaveBeenCalled();
+    expect(inputTerm).not.toHaveBeenCalled();
+    expect(send).toHaveBeenCalledWith(ws, expect.objectContaining({ t: 'error', sessionKey: 'orch-sid' }));
+  });
+
+  it('falls through to a normal run when claude is gone and the pane is a bare shell', () => {
+    vi.mocked(readOrchestratorSync).mockReturnValue(orch);
+    vi.mocked(isTmuxAliveSync).mockReturnValue(true);
+    vi.mocked(paneLostClaudeSync).mockReturnValueOnce(true);
+    expect(deliverToOrchestratorPane('orch-sid', 'rm -rf build\nls', 'admin')).toBe(false);
+    expect(inputTerm).not.toHaveBeenCalled();
+  });
+
+  it('at the terminal cap: no headless twin, no fake delivery, an error to the sender', () => {
+    vi.mocked(readOrchestratorSync).mockReturnValue(orch);
+    vi.mocked(isTmuxAliveSync).mockReturnValue(true);
+    vi.mocked(openTerm).mockReturnValue(false);
+    startRun({ ws, role: 'admin', sessionKey: 'orch-sid', prompt: 'oi', resumeId: 'orch-sid', msgId: 'm9' });
+    expect(run).not.toHaveBeenCalled();
+    expect(inputTerm).not.toHaveBeenCalled();
+    expect(broadcast).not.toHaveBeenCalledWith(expect.objectContaining({ t: 'pane-delivered' }));
+    expect(send).toHaveBeenCalledWith(ws, expect.objectContaining({ t: 'error', sessionKey: 'orch-sid' }));
+  });
+
   it('falls through to a normal run when the tmux session is dead', () => {
     vi.mocked(readOrchestratorSync).mockReturnValue(orch);
     vi.mocked(isTmuxAliveSync).mockReturnValue(false);
@@ -1608,5 +1747,93 @@ describe('catchSpawn', () => {
   it('returns the handle or the error message', () => {
     expect(catchSpawn(() => 1)).toEqual({ handle: 1 });
     expect(catchSpawn(() => { throw new Error('boom'); })).toEqual({ error: 'boom' });
+  });
+});
+
+describe('routeSend while the triage model is thinking', () => {
+  const ws = {} as WebSocket;
+  const runOf = (i: number) => vi.mocked(run).mock.calls[i][0];
+
+  beforeEach(() => { threads.clear(); clearAllAwaiting(); vi.mocked(run).mockClear(); });
+
+  it('a stop pressed during triage still wins after the stopped turn closes', async () => {
+    let release!: (v: { action: 'wait'; reason: string }) => void;
+    vi.mocked(classify).mockImplementationOnce(() => new Promise((r) => { release = r as typeof release; }));
+    startRun({ ws, sessionKey: 'st', prompt: 'turno' });
+    const pending = routeSend({ ws, sessionKey: 'st', prompt: 'mensagem' });
+    stopSession('st');
+    runOf(0).onClose?.();
+    release({ action: 'wait', reason: '' });
+    await pending;
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  it('a follow-up whose first turn closed during triage resumes that session', async () => {
+    let release!: (v: { action: 'wait'; reason: string }) => void;
+    vi.mocked(classify).mockImplementationOnce(() => new Promise((r) => { release = r as typeof release; }));
+    startRun({ ws, sessionKey: 'new-abc', prompt: 'oi' });
+    threads.get('new-abc')!.sessionId = 'S1';
+    threads.get('new-abc')!.endReason = 'success'; // a clean close: no auto-resume
+    const pending = routeSend({ ws, sessionKey: 'new-abc', prompt: 'e agora?' });
+    runOf(0).onClose?.();
+    release({ action: 'wait', reason: '' });
+    await pending;
+    expect(run).toHaveBeenCalledTimes(2);
+    expect(runOf(1).resumeId).toBe('S1');
+  });
+});
+
+describe('a run refused for capacity with no socket keeps the work', () => {
+  const ws = {} as WebSocket;
+
+  beforeEach(() => {
+    threads.clear(); clearAllAwaiting();
+    vi.mocked(run).mockClear(); vi.mocked(broadcast).mockClear(); vi.mocked(addParked).mockClear();
+    memInfoMock.value = { availMb: 100_000, swapFreeMb: 4000, swapTotalMb: 4096 };
+  });
+  afterEach(() => { memInfoMock.value = { availMb: 100_000, swapFreeMb: 4000, swapTotalMb: 4096 }; });
+
+  it('auto-resume refused for memory leaves a resume banner, not "Retomando…" and nothing', () => {
+    startRun({ ws, sessionKey: 'other', prompt: 'x', resumeId: 'sess-o' });
+    startRun({ ws, sessionKey: 'dying', prompt: 'y', resumeId: 'sess-d' });
+    const dyingClose = vi.mocked(run).mock.calls[1][0].onClose!;
+    memInfoMock.value = { availMb: 600, swapFreeMb: 4000, swapTotalMb: 4096 };
+    dyingClose();
+    expect(threads.has('dying')).toBe(false);
+    expect(hasResumeOffer('dying')).toBe(true);
+  });
+
+  it('a queued batch refused for memory goes to the parked queue instead of vanishing', async () => {
+    vi.mocked(classify).mockResolvedValue({ action: 'wait', reason: '' });
+    startRun({ ws, sessionKey: 'other2', prompt: 'x', resumeId: 'sess-o2' });
+    startRun({ ws, sessionKey: 'q', prompt: 'turno', resumeId: 'sess-q' });
+    await routeSend({ ws, sessionKey: 'q', prompt: 'depois disso' });
+    threads.get('q')!.endReason = 'success';
+    memInfoMock.value = { availMb: 600, swapFreeMb: 4000, swapTotalMb: 4096 };
+    vi.mocked(run).mock.calls[1][0].onClose!();
+    expect(vi.mocked(addParked)).toHaveBeenCalledWith('q', expect.objectContaining({ prompt: expect.stringContaining('depois disso'), resumeId: 'sess-q' }));
+  });
+
+  it('a resume click refused for memory keeps the banner (offer sent again), not "not available"', () => {
+    startRun({ ws, sessionKey: 'other3', prompt: 'x', resumeId: 'sess-o3' });
+    startRun({ ws, sessionKey: 'rc', prompt: 'y', resumeId: 'sess-rc' });
+    memInfoMock.value = { availMb: 600, swapFreeMb: 4000, swapTotalMb: 4096 };
+    vi.mocked(run).mock.calls[1][0].onClose!();
+    vi.mocked(broadcast).mockClear();
+    expect(acceptResumeOffer('rc')).toBe(true);
+    expect(hasResumeOffer('rc')).toBe(true);
+    expect(vi.mocked(broadcast)).toHaveBeenCalledWith(expect.objectContaining({ t: 'resume-offer', sessionKey: 'rc' }));
+  });
+
+  it('the drainer does not count a capacity refusal as an attempt', () => {
+    startParkedDrainer(3_600_000);
+    startRun({ ws, sessionKey: 'busy1', prompt: 'x', resumeId: 'sess-b1' });
+    const item = { id: 'pk-cap', prompt: 'depois', at: 1, attempts: 0 } as unknown as ParkedItem;
+    vi.mocked(parkedHeads).mockReturnValueOnce([{ sessionKey: 'dq', first: item }] as never);
+    vi.mocked(shiftParked).mockReturnValueOnce(item as never);
+    memInfoMock.value = { availMb: 600, swapFreeMb: 4000, swapTotalMb: 4096 };
+    vi.mocked(unshiftParked).mockClear();
+    drainParked();
+    expect(vi.mocked(unshiftParked)).toHaveBeenCalledWith('dq', item, false);
   });
 });

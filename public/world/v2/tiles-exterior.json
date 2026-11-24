@@ -1,0 +1,3325 @@
+{
+ "tilewidth": 32,
+ "tileheight": 32,
+ "columns": 16,
+ "rows": 45,
+ "items": {
+  "grass_0": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     0
+    ]
+   ]
+  },
+  "grass_1": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     1
+    ]
+   ]
+  },
+  "grass_2": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     2
+    ]
+   ]
+  },
+  "grass_3": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     3
+    ]
+   ]
+  },
+  "dirt": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     4
+    ]
+   ]
+  },
+  "street_cobble": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     5
+    ]
+   ]
+  },
+  "road": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     6
+    ]
+   ]
+  },
+  "road_lane_h": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     7
+    ]
+   ]
+  },
+  "road_lane_v": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     8
+    ]
+   ]
+  },
+  "crosswalk_h": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     9
+    ]
+   ]
+  },
+  "crosswalk_v": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     10
+    ]
+   ]
+  },
+  "sidewalk": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     11
+    ]
+   ]
+  },
+  "sidewalk_curb_n": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     12
+    ]
+   ]
+  },
+  "sidewalk_curb_s": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     13
+    ]
+   ]
+  },
+  "sidewalk_curb_e": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     14
+    ]
+   ]
+  },
+  "sidewalk_curb_w": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     15
+    ]
+   ]
+  },
+  "sidewalk_curb_ne": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     16
+    ]
+   ]
+  },
+  "sidewalk_curb_nw": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     17
+    ]
+   ]
+  },
+  "sidewalk_curb_se": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     18
+    ]
+   ]
+  },
+  "sidewalk_curb_sw": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     19
+    ]
+   ]
+  },
+  "plaza_checker": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     20
+    ]
+   ]
+  },
+  "plaza_pavers": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     21
+    ]
+   ]
+  },
+  "plaza_pavers_cracked": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     22
+    ]
+   ]
+  },
+  "plaza_terracotta": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     23
+    ]
+   ]
+  },
+  "sand": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     24
+    ]
+   ]
+  },
+  "dock_planks_h": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     25
+    ]
+   ]
+  },
+  "dock_planks_v": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     26
+    ]
+   ]
+  },
+  "rock_ground": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     27
+    ]
+   ]
+  },
+  "cliff_top": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     28
+    ]
+   ]
+  },
+  "cliff_face": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     29
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "cliff_face_alt": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     30
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "cliff_base": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     31
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "water": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     32
+    ]
+   ],
+   "frames": [
+    [
+     [
+      32
+     ]
+    ],
+    [
+     [
+      33
+     ]
+    ],
+    [
+     [
+      34
+     ]
+    ],
+    [
+     [
+      35
+     ]
+    ]
+   ],
+   "fps": 4,
+   "props": {
+    "block": true
+   }
+  },
+  "auto_grass_path": {
+   "w": 4,
+   "h": 4,
+   "ids": [
+    [
+     48,
+     49,
+     50,
+     51
+    ],
+    [
+     64,
+     65,
+     66,
+     67
+    ],
+    [
+     80,
+     81,
+     82,
+     83
+    ],
+    [
+     96,
+     97,
+     98,
+     99
+    ]
+   ],
+   "corner_order": "tl,tr,br,bl",
+   "tile_index": "tl*8+tr*4+br*2+bl",
+   "terrains": [
+    "grass",
+    "path"
+   ]
+  },
+  "auto_grass_plaza": {
+   "w": 4,
+   "h": 4,
+   "ids": [
+    [
+     52,
+     53,
+     54,
+     55
+    ],
+    [
+     68,
+     69,
+     70,
+     71
+    ],
+    [
+     84,
+     85,
+     86,
+     87
+    ],
+    [
+     100,
+     101,
+     102,
+     103
+    ]
+   ],
+   "corner_order": "tl,tr,br,bl",
+   "tile_index": "tl*8+tr*4+br*2+bl",
+   "terrains": [
+    "grass",
+    "plaza"
+   ]
+  },
+  "auto_grass_sand": {
+   "w": 4,
+   "h": 4,
+   "ids": [
+    [
+     56,
+     57,
+     58,
+     59
+    ],
+    [
+     72,
+     73,
+     74,
+     75
+    ],
+    [
+     88,
+     89,
+     90,
+     91
+    ],
+    [
+     104,
+     105,
+     106,
+     107
+    ]
+   ],
+   "corner_order": "tl,tr,br,bl",
+   "tile_index": "tl*8+tr*4+br*2+bl",
+   "terrains": [
+    "grass",
+    "sand"
+   ]
+  },
+  "auto_sand_water": {
+   "w": 4,
+   "h": 4,
+   "ids": [
+    [
+     112,
+     113,
+     114,
+     115
+    ],
+    [
+     128,
+     129,
+     130,
+     131
+    ],
+    [
+     144,
+     145,
+     146,
+     147
+    ],
+    [
+     160,
+     161,
+     162,
+     163
+    ]
+   ],
+   "frames": [
+    [
+     [
+      112,
+      113,
+      114,
+      115
+     ],
+     [
+      128,
+      129,
+      130,
+      131
+     ],
+     [
+      144,
+      145,
+      146,
+      147
+     ],
+     [
+      160,
+      161,
+      162,
+      163
+     ]
+    ],
+    [
+     [
+      116,
+      117,
+      118,
+      119
+     ],
+     [
+      132,
+      133,
+      134,
+      135
+     ],
+     [
+      148,
+      149,
+      150,
+      151
+     ],
+     [
+      164,
+      165,
+      166,
+      167
+     ]
+    ],
+    [
+     [
+      120,
+      121,
+      122,
+      123
+     ],
+     [
+      136,
+      137,
+      138,
+      139
+     ],
+     [
+      152,
+      153,
+      154,
+      155
+     ],
+     [
+      168,
+      169,
+      170,
+      171
+     ]
+    ],
+    [
+     [
+      124,
+      125,
+      126,
+      127
+     ],
+     [
+      140,
+      141,
+      142,
+      143
+     ],
+     [
+      156,
+      157,
+      158,
+      159
+     ],
+     [
+      172,
+      173,
+      174,
+      175
+     ]
+    ]
+   ],
+   "fps": 4,
+   "corner_order": "tl,tr,br,bl",
+   "tile_index": "tl*8+tr*4+br*2+bl",
+   "terrains": [
+    "sand",
+    "water"
+   ]
+  },
+  "tree_round_canopy": {
+   "w": 2,
+   "h": 3,
+   "ids": [
+    [
+     176,
+     177
+    ],
+    [
+     192,
+     193
+    ],
+    [
+     208,
+     209
+    ]
+   ],
+   "props": {
+    "layer": "above"
+   },
+   "layer_of": "tree_round",
+   "offset": [
+    0,
+    0
+   ],
+   "note": "draw after characters"
+  },
+  "tree_round_trunk": {
+   "w": 2,
+   "h": 2,
+   "ids": [
+    [
+     178,
+     179
+    ],
+    [
+     194,
+     195
+    ]
+   ],
+   "layer_of": "tree_round",
+   "offset": [
+    0,
+    1
+   ]
+  },
+  "tree_round_shadow": {
+   "w": 2,
+   "h": 1,
+   "ids": [
+    [
+     180,
+     181
+    ]
+   ],
+   "props": {
+    "overlay": "shadow"
+   },
+   "layer_of": "tree_round",
+   "offset": [
+    0,
+    2
+   ]
+  },
+  "tree_pine_canopy": {
+   "w": 2,
+   "h": 3,
+   "ids": [
+    [
+     182,
+     183
+    ],
+    [
+     198,
+     199
+    ],
+    [
+     214,
+     215
+    ]
+   ],
+   "props": {
+    "layer": "above"
+   },
+   "layer_of": "tree_pine",
+   "offset": [
+    0,
+    0
+   ],
+   "note": "draw after characters"
+  },
+  "tree_pine_trunk": {
+   "w": 2,
+   "h": 2,
+   "ids": [
+    [
+     184,
+     185
+    ],
+    [
+     200,
+     201
+    ]
+   ],
+   "layer_of": "tree_pine",
+   "offset": [
+    0,
+    1
+   ]
+  },
+  "tree_pine_shadow": {
+   "w": 2,
+   "h": 1,
+   "ids": [
+    [
+     186,
+     187
+    ]
+   ],
+   "props": {
+    "overlay": "shadow"
+   },
+   "layer_of": "tree_pine",
+   "offset": [
+    0,
+    2
+   ]
+  },
+  "tree_autumn_canopy": {
+   "w": 2,
+   "h": 3,
+   "ids": [
+    [
+     188,
+     189
+    ],
+    [
+     204,
+     205
+    ],
+    [
+     220,
+     221
+    ]
+   ],
+   "props": {
+    "layer": "above"
+   },
+   "layer_of": "tree_autumn",
+   "offset": [
+    0,
+    0
+   ],
+   "note": "draw after characters"
+  },
+  "tree_autumn_trunk": {
+   "w": 2,
+   "h": 2,
+   "ids": [
+    [
+     190,
+     191
+    ],
+    [
+     206,
+     207
+    ]
+   ],
+   "layer_of": "tree_autumn",
+   "offset": [
+    0,
+    1
+   ]
+  },
+  "tree_autumn_shadow": {
+   "w": 2,
+   "h": 1,
+   "ids": [
+    [
+     196,
+     197
+    ]
+   ],
+   "props": {
+    "overlay": "shadow"
+   },
+   "layer_of": "tree_autumn",
+   "offset": [
+    0,
+    2
+   ]
+  },
+  "bush_plain": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     202
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "bush_berry": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     203
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "bush_flower": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     210
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "hedge_h_l": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     211
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "hedge_h_m": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     212
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "hedge_h_r": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     213
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "hedge_single": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     216
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "hedge_v_t": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     217
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "hedge_v_m": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     218
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "hedge_v_b": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     219
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "hedge_shadow_h_l": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     222
+    ]
+   ],
+   "props": {
+    "overlay": "shadow"
+   }
+  },
+  "hedge_shadow_h_m": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     223
+    ]
+   ],
+   "props": {
+    "overlay": "shadow"
+   }
+  },
+  "hedge_shadow_h_r": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     224
+    ]
+   ],
+   "props": {
+    "overlay": "shadow"
+   }
+  },
+  "hedge_shadow_single": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     225
+    ]
+   ],
+   "props": {
+    "overlay": "shadow"
+   }
+  },
+  "hedge_shadow_v_t": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     226
+    ]
+   ],
+   "props": {
+    "overlay": "shadow"
+   }
+  },
+  "hedge_shadow_v_m": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     227
+    ]
+   ],
+   "props": {
+    "overlay": "shadow"
+   }
+  },
+  "hedge_shadow_v_b": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     228
+    ]
+   ],
+   "props": {
+    "overlay": "shadow"
+   }
+  },
+  "flower_box": {
+   "w": 2,
+   "h": 1,
+   "ids": [
+    [
+     229,
+     230
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "flower_pot": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     231
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "flower_patch": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     232
+    ]
+   ]
+  },
+  "leaf_litter": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     233
+    ]
+   ]
+  },
+  "shadow_round": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     234
+    ]
+   ],
+   "props": {
+    "overlay": "shadow"
+   }
+  },
+  "shadow_wide": {
+   "w": 2,
+   "h": 1,
+   "ids": [
+    [
+     235,
+     236
+    ]
+   ],
+   "props": {
+    "overlay": "shadow"
+   }
+  },
+  "shadow_pole": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     237
+    ]
+   ],
+   "props": {
+    "overlay": "shadow"
+   }
+  },
+  "bench_front": {
+   "w": 2,
+   "h": 1,
+   "ids": [
+    [
+     240,
+     241
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "bench_back": {
+   "w": 2,
+   "h": 1,
+   "ids": [
+    [
+     242,
+     243
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "bench_side_r": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     244
+    ],
+    [
+     260
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "bench_side_l": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     245
+    ],
+    [
+     261
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "lamp_day": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     246
+    ],
+    [
+     262
+    ]
+   ]
+  },
+  "lamp_night": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     247
+    ],
+    [
+     263
+    ]
+   ]
+  },
+  "lamp_glow": {
+   "w": 3,
+   "h": 3,
+   "ids": [
+    [
+     272,
+     273,
+     274
+    ],
+    [
+     288,
+     289,
+     290
+    ],
+    [
+     304,
+     305,
+     306
+    ]
+   ],
+   "frames": [
+    [
+     [
+      272,
+      273,
+      274
+     ],
+     [
+      288,
+      289,
+      290
+     ],
+     [
+      304,
+      305,
+      306
+     ]
+    ],
+    [
+     [
+      275,
+      276,
+      277
+     ],
+     [
+      291,
+      292,
+      293
+     ],
+     [
+      307,
+      308,
+      309
+     ]
+    ],
+    [
+     [
+      278,
+      279,
+      280
+     ],
+     [
+      294,
+      295,
+      296
+     ],
+     [
+      310,
+      311,
+      312
+     ]
+    ],
+    [
+     [
+      281,
+      282,
+      283
+     ],
+     [
+      297,
+      298,
+      299
+     ],
+     [
+      313,
+      314,
+      315
+     ]
+    ]
+   ],
+   "fps": 5,
+   "props": {
+    "overlay": "glow",
+    "layer": "above"
+   },
+   "offset": [
+    -1,
+    -1
+   ],
+   "note": "3x3 overlay, one tile up and left of the 1x2 lamp"
+  },
+  "fountain": {
+   "w": 3,
+   "h": 3,
+   "ids": [
+    [
+     320,
+     321,
+     322
+    ],
+    [
+     336,
+     337,
+     338
+    ],
+    [
+     352,
+     353,
+     354
+    ]
+   ],
+   "frames": [
+    [
+     [
+      320,
+      321,
+      322
+     ],
+     [
+      336,
+      337,
+      338
+     ],
+     [
+      352,
+      353,
+      354
+     ]
+    ],
+    [
+     [
+      323,
+      324,
+      325
+     ],
+     [
+      339,
+      340,
+      341
+     ],
+     [
+      355,
+      356,
+      357
+     ]
+    ],
+    [
+     [
+      326,
+      327,
+      328
+     ],
+     [
+      342,
+      343,
+      344
+     ],
+     [
+      358,
+      359,
+      360
+     ]
+    ],
+    [
+     [
+      329,
+      330,
+      331
+     ],
+     [
+      345,
+      346,
+      347
+     ],
+     [
+      361,
+      362,
+      363
+     ]
+    ]
+   ],
+   "fps": 6
+  },
+  "fountain_shadow": {
+   "w": 3,
+   "h": 1,
+   "ids": [
+    [
+     248,
+     249,
+     250
+    ]
+   ],
+   "props": {
+    "overlay": "shadow"
+   },
+   "offset": [
+    0,
+    2
+   ]
+  },
+  "fence_h_l": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     251
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "fence_h_m": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     252
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "fence_h_r": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     253
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "fence_gate": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     254
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "fence_v_t": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     255
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "fence_v_m": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     256
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "fence_v_b": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     257
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "signpost": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     268
+    ],
+    [
+     284
+    ]
+   ]
+  },
+  "mailbox": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     258
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "barrel": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     259
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "crate": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     264
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "crate_stack": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     269
+    ],
+    [
+     285
+    ]
+   ]
+  },
+  "boat_row": {
+   "w": 2,
+   "h": 2,
+   "ids": [
+    [
+     -1,
+     -1
+    ],
+    [
+     384,
+     385
+    ]
+   ],
+   "frames": [
+    [
+     [
+      -1,
+      -1
+     ],
+     [
+      384,
+      385
+     ]
+    ],
+    [
+     [
+      -1,
+      -1
+     ],
+     [
+      386,
+      387
+     ]
+    ]
+   ],
+   "fps": 2,
+   "props": {
+    "block": true
+   }
+  },
+  "boat_fish": {
+   "w": 2,
+   "h": 2,
+   "ids": [
+    [
+     372,
+     373
+    ],
+    [
+     388,
+     389
+    ]
+   ],
+   "frames": [
+    [
+     [
+      372,
+      373
+     ],
+     [
+      388,
+      389
+     ]
+    ],
+    [
+     [
+      374,
+      375
+     ],
+     [
+      390,
+      391
+     ]
+    ]
+   ],
+   "fps": 2,
+   "props": {
+    "block": true
+   }
+  },
+  "boat_shadow": {
+   "w": 2,
+   "h": 2,
+   "ids": [
+    [
+     -1,
+     -1
+    ],
+    [
+     392,
+     393
+    ]
+   ],
+   "props": {
+    "overlay": "shadow"
+   }
+  },
+  "dock_edge_s": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     378
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "dock_edge_w": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     379
+    ]
+   ]
+  },
+  "dock_edge_e": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     380
+    ]
+   ]
+  },
+  "dock_bollard": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     381
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "dock_ladder": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     382
+    ]
+   ]
+  },
+  "dock_rope_coil": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     383
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "server_tower_green": {
+   "w": 1,
+   "h": 3,
+   "ids": [
+    [
+     400
+    ],
+    [
+     416
+    ],
+    [
+     432
+    ]
+   ],
+   "frames": [
+    [
+     [
+      400
+     ],
+     [
+      416
+     ],
+     [
+      432
+     ]
+    ],
+    [
+     [
+      401
+     ],
+     [
+      402
+     ],
+     [
+      403
+     ]
+    ]
+   ],
+   "fps": 2,
+   "props": {
+    "state": "green"
+   }
+  },
+  "server_tower_yellow": {
+   "w": 1,
+   "h": 3,
+   "ids": [
+    [
+     404
+    ],
+    [
+     420
+    ],
+    [
+     436
+    ]
+   ],
+   "frames": [
+    [
+     [
+      404
+     ],
+     [
+      420
+     ],
+     [
+      436
+     ]
+    ],
+    [
+     [
+      405
+     ],
+     [
+      406
+     ],
+     [
+      407
+     ]
+    ]
+   ],
+   "fps": 2,
+   "props": {
+    "state": "yellow"
+   }
+  },
+  "server_tower_red": {
+   "w": 1,
+   "h": 3,
+   "ids": [
+    [
+     408
+    ],
+    [
+     424
+    ],
+    [
+     440
+    ]
+   ],
+   "frames": [
+    [
+     [
+      408
+     ],
+     [
+      424
+     ],
+     [
+      440
+     ]
+    ],
+    [
+     [
+      409
+     ],
+     [
+      410
+     ],
+     [
+      411
+     ]
+    ]
+   ],
+   "fps": 2,
+   "props": {
+    "state": "red"
+   }
+  },
+  "tower_shadow": {
+   "w": 2,
+   "h": 1,
+   "ids": [
+    [
+     412,
+     413
+    ]
+   ],
+   "props": {
+    "overlay": "shadow"
+   },
+   "offset": [
+    0,
+    2
+   ]
+  },
+  "smoke": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     425
+    ]
+   ],
+   "frames": [
+    [
+     [
+      425
+     ]
+    ],
+    [
+     [
+      426
+     ]
+    ],
+    [
+     [
+      427
+     ]
+    ],
+    [
+     [
+      428
+     ]
+    ],
+    [
+     [
+      429
+     ]
+    ],
+    [
+     [
+      430
+     ]
+    ]
+   ],
+   "fps": 6,
+   "props": {
+    "layer": "above"
+   }
+  },
+  "wall_cream_l": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     448
+    ],
+    [
+     464
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "wall_cream_m": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     449
+    ],
+    [
+     465
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "wall_cream_r": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     450
+    ],
+    [
+     466
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "wall_cream_s": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     451
+    ],
+    [
+     467
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "wall_brick_l": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     452
+    ],
+    [
+     468
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "wall_brick_m": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     453
+    ],
+    [
+     469
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "wall_brick_r": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     454
+    ],
+    [
+     470
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "wall_brick_s": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     455
+    ],
+    [
+     471
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "wall_blue_l": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     456
+    ],
+    [
+     472
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "wall_blue_m": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     457
+    ],
+    [
+     473
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "wall_blue_r": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     458
+    ],
+    [
+     474
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "wall_blue_s": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     459
+    ],
+    [
+     475
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "wall_pink_l": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     460
+    ],
+    [
+     476
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "wall_pink_m": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     461
+    ],
+    [
+     477
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "wall_pink_r": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     462
+    ],
+    [
+     478
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "wall_pink_s": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     463
+    ],
+    [
+     479
+    ]
+   ],
+   "props": {
+    "block": true
+   }
+  },
+  "roof_terra_top_l": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     480
+    ]
+   ],
+   "props": {
+    "layer": "above",
+    "block": true
+   }
+  },
+  "roof_terra_top_m": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     481
+    ]
+   ],
+   "props": {
+    "layer": "above",
+    "block": true
+   }
+  },
+  "roof_terra_top_r": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     482
+    ]
+   ],
+   "props": {
+    "layer": "above",
+    "block": true
+   }
+  },
+  "roof_terra_top_s": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     483
+    ]
+   ],
+   "props": {
+    "layer": "above",
+    "block": true
+   }
+  },
+  "roof_terra_eave_l": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     484
+    ]
+   ],
+   "props": {
+    "layer": "above",
+    "block": true
+   }
+  },
+  "roof_terra_eave_m": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     485
+    ]
+   ],
+   "props": {
+    "layer": "above",
+    "block": true
+   }
+  },
+  "roof_terra_eave_r": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     486
+    ]
+   ],
+   "props": {
+    "layer": "above",
+    "block": true
+   }
+  },
+  "roof_terra_eave_s": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     487
+    ]
+   ],
+   "props": {
+    "layer": "above",
+    "block": true
+   }
+  },
+  "roof_slate_top_l": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     488
+    ]
+   ],
+   "props": {
+    "layer": "above",
+    "block": true
+   }
+  },
+  "roof_slate_top_m": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     489
+    ]
+   ],
+   "props": {
+    "layer": "above",
+    "block": true
+   }
+  },
+  "roof_slate_top_r": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     490
+    ]
+   ],
+   "props": {
+    "layer": "above",
+    "block": true
+   }
+  },
+  "roof_slate_top_s": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     491
+    ]
+   ],
+   "props": {
+    "layer": "above",
+    "block": true
+   }
+  },
+  "roof_slate_eave_l": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     492
+    ]
+   ],
+   "props": {
+    "layer": "above",
+    "block": true
+   }
+  },
+  "roof_slate_eave_m": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     493
+    ]
+   ],
+   "props": {
+    "layer": "above",
+    "block": true
+   }
+  },
+  "roof_slate_eave_r": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     494
+    ]
+   ],
+   "props": {
+    "layer": "above",
+    "block": true
+   }
+  },
+  "roof_slate_eave_s": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     495
+    ]
+   ],
+   "props": {
+    "layer": "above",
+    "block": true
+   }
+  },
+  "roof_green_top_l": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     496
+    ]
+   ],
+   "props": {
+    "layer": "above",
+    "block": true
+   }
+  },
+  "roof_green_top_m": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     497
+    ]
+   ],
+   "props": {
+    "layer": "above",
+    "block": true
+   }
+  },
+  "roof_green_top_r": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     498
+    ]
+   ],
+   "props": {
+    "layer": "above",
+    "block": true
+   }
+  },
+  "roof_green_top_s": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     499
+    ]
+   ],
+   "props": {
+    "layer": "above",
+    "block": true
+   }
+  },
+  "roof_green_eave_l": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     500
+    ]
+   ],
+   "props": {
+    "layer": "above",
+    "block": true
+   }
+  },
+  "roof_green_eave_m": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     501
+    ]
+   ],
+   "props": {
+    "layer": "above",
+    "block": true
+   }
+  },
+  "roof_green_eave_r": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     502
+    ]
+   ],
+   "props": {
+    "layer": "above",
+    "block": true
+   }
+  },
+  "roof_green_eave_s": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     503
+    ]
+   ],
+   "props": {
+    "layer": "above",
+    "block": true
+   }
+  },
+  "roof_brown_top_l": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     504
+    ]
+   ],
+   "props": {
+    "layer": "above",
+    "block": true
+   }
+  },
+  "roof_brown_top_m": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     505
+    ]
+   ],
+   "props": {
+    "layer": "above",
+    "block": true
+   }
+  },
+  "roof_brown_top_r": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     506
+    ]
+   ],
+   "props": {
+    "layer": "above",
+    "block": true
+   }
+  },
+  "roof_brown_top_s": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     507
+    ]
+   ],
+   "props": {
+    "layer": "above",
+    "block": true
+   }
+  },
+  "roof_brown_eave_l": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     508
+    ]
+   ],
+   "props": {
+    "layer": "above",
+    "block": true
+   }
+  },
+  "roof_brown_eave_m": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     509
+    ]
+   ],
+   "props": {
+    "layer": "above",
+    "block": true
+   }
+  },
+  "roof_brown_eave_r": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     510
+    ]
+   ],
+   "props": {
+    "layer": "above",
+    "block": true
+   }
+  },
+  "roof_brown_eave_s": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     511
+    ]
+   ],
+   "props": {
+    "layer": "above",
+    "block": true
+   }
+  },
+  "window_arched": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     512
+    ],
+    [
+     528
+    ]
+   ],
+   "kind": "overlay",
+   "on": "wall bay (1x2)"
+  },
+  "window_square": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     513
+    ],
+    [
+     529
+    ]
+   ],
+   "kind": "overlay",
+   "on": "wall bay (1x2)"
+  },
+  "window_shop": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     514
+    ],
+    [
+     530
+    ]
+   ],
+   "kind": "overlay",
+   "on": "wall bay (1x2)"
+  },
+  "window_pair": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     515
+    ],
+    [
+     531
+    ]
+   ],
+   "kind": "overlay",
+   "on": "wall bay (1x2)"
+  },
+  "door_arched": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     516
+    ],
+    [
+     532
+    ]
+   ],
+   "kind": "overlay",
+   "on": "wall bay (1x2)"
+  },
+  "door_glass": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     517
+    ],
+    [
+     533
+    ]
+   ],
+   "kind": "overlay",
+   "on": "wall bay (1x2)"
+  },
+  "door_panel": {
+   "w": 1,
+   "h": 2,
+   "ids": [
+    [
+     518
+    ],
+    [
+     534
+    ]
+   ],
+   "kind": "overlay",
+   "on": "wall bay (1x2)"
+  },
+  "awning_red_l": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     519
+    ]
+   ],
+   "props": {
+    "layer": "above"
+   }
+  },
+  "awning_red_m": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     520
+    ]
+   ],
+   "props": {
+    "layer": "above"
+   }
+  },
+  "awning_red_r": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     521
+    ]
+   ],
+   "props": {
+    "layer": "above"
+   }
+  },
+  "awning_red_s": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     522
+    ]
+   ],
+   "props": {
+    "layer": "above"
+   }
+  },
+  "awning_green_l": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     523
+    ]
+   ],
+   "props": {
+    "layer": "above"
+   }
+  },
+  "awning_green_m": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     524
+    ]
+   ],
+   "props": {
+    "layer": "above"
+   }
+  },
+  "awning_green_r": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     525
+    ]
+   ],
+   "props": {
+    "layer": "above"
+   }
+  },
+  "awning_green_s": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     526
+    ]
+   ],
+   "props": {
+    "layer": "above"
+   }
+  },
+  "awning_blue_l": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     527
+    ]
+   ],
+   "props": {
+    "layer": "above"
+   }
+  },
+  "awning_blue_m": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     535
+    ]
+   ],
+   "props": {
+    "layer": "above"
+   }
+  },
+  "awning_blue_r": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     536
+    ]
+   ],
+   "props": {
+    "layer": "above"
+   }
+  },
+  "awning_blue_s": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     537
+    ]
+   ],
+   "props": {
+    "layer": "above"
+   }
+  },
+  "awning_yellow_l": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     538
+    ]
+   ],
+   "props": {
+    "layer": "above"
+   }
+  },
+  "awning_yellow_m": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     539
+    ]
+   ],
+   "props": {
+    "layer": "above"
+   }
+  },
+  "awning_yellow_r": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     540
+    ]
+   ],
+   "props": {
+    "layer": "above"
+   }
+  },
+  "awning_yellow_s": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     541
+    ]
+   ],
+   "props": {
+    "layer": "above"
+   }
+  },
+  "shadow_awning_l": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     542
+    ]
+   ],
+   "props": {
+    "overlay": "shadow"
+   }
+  },
+  "shadow_awning_m": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     543
+    ]
+   ],
+   "props": {
+    "overlay": "shadow"
+   }
+  },
+  "shadow_awning_r": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     544
+    ]
+   ],
+   "props": {
+    "overlay": "shadow"
+   }
+  },
+  "shadow_awning_s": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     545
+    ]
+   ],
+   "props": {
+    "overlay": "shadow"
+   }
+  },
+  "shadow_eave": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     546
+    ]
+   ],
+   "props": {
+    "overlay": "shadow"
+   }
+  },
+  "shadow_ground_m": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     547
+    ]
+   ],
+   "props": {
+    "overlay": "shadow"
+   }
+  },
+  "shadow_ground_end": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     548
+    ]
+   ],
+   "props": {
+    "overlay": "shadow"
+   }
+  },
+  "sign_cup": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     549
+    ]
+   ]
+  },
+  "sign_bread": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     550
+    ]
+   ]
+  },
+  "sign_flower": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     551
+    ]
+   ]
+  },
+  "sign_gear": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     552
+    ]
+   ]
+  },
+  "chimney": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     553
+    ]
+   ],
+   "props": {
+    "layer": "above"
+   }
+  },
+  "dormer": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     554
+    ]
+   ],
+   "props": {
+    "layer": "above"
+   }
+  },
+  "wall_lamp_day": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     555
+    ]
+   ]
+  },
+  "wall_lamp_night": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     556
+    ]
+   ]
+  },
+  "wall_lamp_glow": {
+   "w": 1,
+   "h": 1,
+   "ids": [
+    [
+     557
+    ]
+   ],
+   "props": {
+    "overlay": "glow",
+    "layer": "above"
+   }
+  },
+  "bank": {
+   "w": 4,
+   "h": 4,
+   "ids": [
+    [
+     560,
+     561,
+     562,
+     563
+    ],
+    [
+     576,
+     577,
+     578,
+     579
+    ],
+    [
+     592,
+     593,
+     594,
+     595
+    ],
+    [
+     608,
+     609,
+     610,
+     611
+    ]
+   ]
+  },
+  "library": {
+   "w": 4,
+   "h": 4,
+   "ids": [
+    [
+     564,
+     565,
+     566,
+     567
+    ],
+    [
+     580,
+     581,
+     582,
+     583
+    ],
+    [
+     596,
+     597,
+     598,
+     599
+    ],
+    [
+     612,
+     613,
+     614,
+     615
+    ]
+   ]
+  },
+  "studio": {
+   "w": 4,
+   "h": 4,
+   "ids": [
+    [
+     -1,
+     569,
+     570,
+     -1
+    ],
+    [
+     584,
+     585,
+     586,
+     587
+    ],
+    [
+     600,
+     601,
+     602,
+     603
+    ],
+    [
+     616,
+     617,
+     618,
+     619
+    ]
+   ]
+  },
+  "radio": {
+   "w": 3,
+   "h": 5,
+   "ids": [
+    [
+     -1,
+     573,
+     -1
+    ],
+    [
+     588,
+     589,
+     -1
+    ],
+    [
+     604,
+     605,
+     606
+    ],
+    [
+     620,
+     621,
+     622
+    ],
+    [
+     636,
+     637,
+     638
+    ]
+   ],
+   "frames": [
+    [
+     [
+      -1,
+      573,
+      -1
+     ],
+     [
+      588,
+      589,
+      -1
+     ],
+     [
+      604,
+      605,
+      606
+     ],
+     [
+      620,
+      621,
+      622
+     ],
+     [
+      636,
+      637,
+      638
+     ]
+    ],
+    [
+     [
+      -1,
+      575,
+      -1
+     ],
+     [
+      588,
+      591,
+      -1
+     ],
+     [
+      604,
+      605,
+      606
+     ],
+     [
+      620,
+      607,
+      622
+     ],
+     [
+      636,
+      637,
+      638
+     ]
+    ]
+   ],
+   "fps": 2
+  },
+  "security": {
+   "w": 4,
+   "h": 3,
+   "ids": [
+    [
+     624,
+     625,
+     626,
+     627
+    ],
+    [
+     640,
+     641,
+     642,
+     643
+    ],
+    [
+     656,
+     657,
+     658,
+     659
+    ]
+   ]
+  },
+  "siren": {
+   "w": 2,
+   "h": 1,
+   "ids": [
+    [
+     628,
+     629
+    ]
+   ],
+   "frames": [
+    [
+     [
+      628,
+      629
+     ]
+    ],
+    [
+     [
+      630,
+      631
+     ]
+    ]
+   ],
+   "fps": 4,
+   "props": {
+    "layer": "above"
+   },
+   "note": "sits on the security roof line, one row above the facade"
+  },
+  "siren_glow": {
+   "w": 2,
+   "h": 1,
+   "ids": [
+    [
+     632,
+     633
+    ]
+   ],
+   "frames": [
+    [
+     [
+      632,
+      633
+     ]
+    ],
+    [
+     [
+      634,
+      635
+     ]
+    ]
+   ],
+   "fps": 4,
+   "props": {
+    "overlay": "glow",
+    "layer": "above"
+   }
+  },
+  "town_hall": {
+   "w": 5,
+   "h": 5,
+   "ids": [
+    [
+     -1,
+     645,
+     646,
+     647,
+     -1
+    ],
+    [
+     -1,
+     661,
+     662,
+     663,
+     -1
+    ],
+    [
+     676,
+     677,
+     678,
+     679,
+     680
+    ],
+    [
+     692,
+     693,
+     694,
+     695,
+     696
+    ],
+    [
+     708,
+     709,
+     710,
+     711,
+     712
+    ]
+   ]
+  }
+ },
+ "palette": {
+  "ol0": "#2a1d2e",
+  "ol1": "#4a3045",
+  "s0": "#a0565a",
+  "s1": "#ee9a80",
+  "s2": "#ffc9a0",
+  "s3": "#ffe6cc",
+  "h0": "#4a1f2a",
+  "h1": "#7d3324",
+  "h2": "#b8562e",
+  "h3": "#e88a4a",
+  "g0": "#156a4e",
+  "g1": "#23a067",
+  "g2": "#3fd17f",
+  "g3": "#a8f0b8",
+  "p0": "#262e5a",
+  "p1": "#3d4a85",
+  "p2": "#5a6cb0",
+  "w0": "#52321f",
+  "w1": "#7f4f2c",
+  "w2": "#b0743f",
+  "w3": "#d9a066",
+  "t0": "#76604f",
+  "t1": "#a3836a",
+  "t2": "#c9a982",
+  "t3": "#e3cba6",
+  "t4": "#f6e7cf",
+  "q0": "#1f4a35",
+  "q1": "#2f6e35",
+  "q2": "#4c9a3c",
+  "q3": "#72c048",
+  "q4": "#a6dd5a",
+  "q5": "#e0f58a",
+  "a0": "#2b4a8a",
+  "a1": "#3a78c8",
+  "a2": "#5fb4e8",
+  "a3": "#a8e4f5",
+  "y0": "#f0a830",
+  "y1": "#ffd166",
+  "y2": "#fff4b0",
+  "r0": "#a02b3a",
+  "r1": "#e04848",
+  "r2": "#ff8a7a",
+  "wh": "#ffffff",
+  "m0": "#2e3048",
+  "m1": "#474b6b",
+  "m2": "#6b7192",
+  "k0": "#c46aa8",
+  "k1": "#f6a5d0"
+ }
+}

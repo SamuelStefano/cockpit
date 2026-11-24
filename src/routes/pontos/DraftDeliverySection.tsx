@@ -4,6 +4,7 @@ import { DraftTaskRow } from './DraftTaskRow';
 import { AddTaskRow } from './AddTaskRow';
 import { useDropZone } from './useDropZone';
 import { brlShort, centsFromPoints, fmtPts } from './money';
+import { useArmed } from '../../components/primitives/useArmed';
 
 interface Props {
   draft: DflDraft;
@@ -28,17 +29,18 @@ export function DraftDeliverySection({ draft, delivery, pointValue, selected, on
   const drop = useDropZone((taskId) => onDrop(delivery.id, taskId));
   const epicId = draft.id;
 
+  const del = useArmed();
   return (
     <section {...drop.bind} aria-label={delivery.title}
       className={`overflow-hidden rounded-lg border transition ${drop.over ? 'border-orange-500/60 bg-orange-500/[0.04]' : 'border-neutral-800/80 bg-neutral-900/30'}`}>
       <div className="flex min-h-9 flex-wrap items-center gap-x-2.5 gap-y-1 border-b border-neutral-800/70 bg-neutral-900/50 px-2.5 py-1">
         <Checkbox checked={!!ids.length && picked === ids.length} indeterminate={picked > 0 && picked < ids.length} disabled={!ids.length}
           onChange={(on) => onSetMany(ids, on)} label={`Selecionar todas de ${delivery.title}`} />
-        <span className="font-mono text-[10px] lowercase tracking-wide text-neutral-600">delivery</span>
+        <span className="font-mono text-[12px] lowercase tracking-wide text-neutral-600">delivery</span>
         <InlineEdit label="título da delivery" hint={false} value={delivery.title}
           onSave={(title) => onOp({ op: 'rename-delivery', epicId, deliveryId: delivery.id, title })}
-          className="min-w-0 truncate text-[12.5px] font-medium text-neutral-100" inputClassName="w-72 max-w-full text-[12.5px]" />
-        <span className="font-mono text-[11px] tabular-nums text-neutral-500">
+          className="min-w-0 truncate text-[13px] font-medium text-neutral-100" inputClassName="w-72 max-w-full text-[13px]" />
+        <span className="font-mono text-[12px] tabular-nums text-neutral-500">
           {tasks.length} {tasks.length === 1 ? 'task' : 'tasks'} · {fmtPts(pts)} pt · {brlShort(centsFromPoints(pts, pointValue))}
         </span>
         {tasks.length > 0 && pending === 0 && <Badge tone="orange">enviada</Badge>}
@@ -48,13 +50,15 @@ export function DraftDeliverySection({ draft, delivery, pointValue, selected, on
               title="Mandar o agente criar só esta delivery no DFL">criar só esta</Button>
           )}
           {draft.deliveries.length > 1 && (
-            <Button variant="ghost" size="xs" square icon="x" onClick={() => onOp({ op: 'delete-delivery', epicId, deliveryId: delivery.id })}
-              title="Remover delivery (as tasks vão pra primeira)" aria-label="Remover delivery" />
+            del.armed
+              ? <Button variant="danger" size="xs" onClick={() => del.fire(() => onOp({ op: 'delete-delivery', epicId, deliveryId: delivery.id }))}>remover?</Button>
+              : <Button variant="ghost" size="xs" square icon="x" onClick={() => del.fire(() => {})}
+                  title="Remover delivery (as tasks vão pra primeira)" aria-label="Remover delivery" />
           )}
         </span>
       </div>
       <ul className="divide-y divide-neutral-800/50">
-        {tasks.length === 0 && <li className="px-3 py-2.5 text-[11.5px] text-neutral-600">Vazia. Arraste tasks pra cá ou selecione e use “mover”.</li>}
+        {tasks.length === 0 && <li className="px-3 py-2.5 text-[12px] text-neutral-600">Vazia. Arraste tasks pra cá ou selecione e use “mover”.</li>}
         {tasks.map((t) => <DraftTaskRow key={t.id} epicId={epicId} task={t} selected={selected.has(t.id)} onToggle={onToggle} onOp={onOp} />)}
       </ul>
       <div className="border-t border-neutral-800/50">

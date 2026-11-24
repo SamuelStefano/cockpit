@@ -1,19 +1,24 @@
+import { currentCapacity } from './capacity';
 import type { WebSocket } from 'ws';
 import type { ClientMsg } from '../../shared/protocol';
 import type { Role } from '../auth';
 import { sanitize } from '../engine/claude';
 import { collect } from '../stats';
+import { claudeAuthWatch } from '../claude-auth-watch';
 import { detachTerm } from '../terminals';
 import { send } from './broadcast';
 import { CONFIG } from '../config';
 import { capsFor } from '../auth';
 import { claudeReady, mcpServerDefsSync } from '../admin-ops';
+import { refreshClaudeAiConnectors } from '../mcp/claudeai-connectors';
 import { getSlashCommands } from './slash';
 import { handle } from './dispatch';
 import { handleTerm, type TermHandle } from './terminal-handler';
 import { createRateLimiter } from './guard';
 import { sendDurableSnapshot } from './snapshot';
 import { authorize } from './authz';
+import { boxHealth, healthFrame } from '../box-health';
+import { secretFrameAllowed, SECRET_CHANNEL_MESSAGE, type Transport } from './secret-gate';
 
 // Ciclo de vida de UMA conexão WS, independente do transporte. No modo listen
 // (app de hoje) o attachWs chama isto por socket aceito; no modo dial (agente T3)
@@ -21,20 +26,28 @@ import { authorize } from './authz';
 // resolvido (token no listen; dono-da-box no agente) — aqui é só servir o
 // protocolo: bootstrap (caps/busy/replay/…), o loop de mensagens com o checkpoint
 // authorize, e o cleanup de terminais no close.
-export function serveConnection(ws: WebSocket, opts: { role: Role; sendCaps?: boolean }) {
-  const { role, sendCaps = true } = opts;
+// `root` = the box owner's connection: unlocks the owner-only frames
+// (shared/root-frames.ts). Default false, so a new transport denies them.
+export function serveConnection(ws: WebSocket, opts: { role: Role; root?: boolean; sendCaps?: boolean; transport?: Transport; human?: string }) {
+  const { role, root = false, sendCaps = true, transport = 'plain' } = opts;
+  const human = transport === 'sealed' && role === 'admin' ? opts.human : undefined;
   (ws as WebSocket & { isAlive?: boolean }).isAlive = true;
   ws.on('pong', () => { (ws as WebSocket & { isAlive?: boolean }).isAlive = true; });
   // No modo dial (agente T3) o caps autoritativo é do relay (papel da conta vem do
   // JWT). O agente NÃO reanuncia caps — senão sobrescreveria o papel do viewer com
   // o papel-de-engine 'student'. busy/replay/stats seguem (estado de engine).
-  if (sendCaps) send(ws, { t: 'caps', caps: capsFor(role, CONFIG) });
+  if (sendCaps) send(ws, { t: 'caps', caps: { ...capsFor(role, CONFIG, root), clientVisibility: true } });
   // Fato do engine (a box) — vai sempre, inclusive no dial T3, pra a UI avisar
   // que nada roda até conectar uma conta Anthropic aqui.
-  send(ws, { t: 'claude-auth', ready: claudeReady() });
+  const authReady = claudeReady();
+  send(ws, { t: 'claude-auth', ready: authReady });
+  if (!authReady) claudeAuthWatch.ensure();
   // MCP disponíveis (nomes) p/ o seletor por sessão. Default no engine = nenhum
   // carregado (--strict-mcp-config); a sessão liga só o que precisa.
   send(ws, { t: 'mcp-servers', servers: Object.keys(mcpServerDefsSync()) });
+  void refreshClaudeAiConnectors().then((changed) => {
+    if (changed) send(ws, { t: 'mcp-servers', servers: Object.keys(mcpServerDefsSync()) });
+  });
   const slash = getSlashCommands();
   if (slash.length) send(ws, { t: 'slash-commands', items: slash });
   // Estado durável (busy/rate/plan-usage/models) — mesmo helper que o `sync` usa.
@@ -42,6 +55,8 @@ export function serveConnection(ws: WebSocket, opts: { role: Role; sendCaps?: bo
   // second replay loop here: that one sent the same frames again on each connect.
   sendDurableSnapshot(ws);
   collect().then((stats) => send(ws, { t: 'stats', stats })).catch(() => {});
+  send(ws, currentCapacity());
+  boxHealth.get().then((h) => send(ws, healthFrame(h))).catch(() => {});
 
   // terminais anexados por ESTA conexão — pra desanexar no disconnect.
   const myTerms = new Map<string, TermHandle>();
@@ -60,12 +75,18 @@ export function serveConnection(ws: WebSocket, opts: { role: Role; sendCaps?: bo
     // dispatch — ignora ANTES do authorize, senão o allowlist default-deny respondia
     // 'sem permissão' (toast espúrio na aba a cada abrir/fechar) p/ agente student.
     const ctrlT = msg.t as string;
-    if (ctrlT === 'browsers-present' || ctrlT === 'no-browsers') return;
+    if (ctrlT === 'browsers-present' || ctrlT === 'no-browsers' || ctrlT === 'client-visibility') return;
+    // Every tab sends its box list on connect; a non-admin tab's is dropped quietly, not toasted.
+    if (msg.t === 'box-roster' && role !== 'admin') return;
     // Teto por conexão antes de qualquer trabalho: corta loop de frames (DoS).
     if (!limiter.allow(msg.t)) { send(ws, { t: 'error', message: 'muitas requisições' }); return; }
+    if (!secretFrameAllowed(msg.t, transport)) {
+      send(ws, { t: 'error', message: SECRET_CHANNEL_MESSAGE });
+      return;
+    }
     // Checkpoint ÚNICO de autorização (default-deny), ANTES do handleTerm (que
     // trata term-* e retorna) e do dispatch/startRun.
-    if (!authorize(role, msg.t)) {
+    if (!authorize(role, msg.t, root)) {
       send(ws, { t: 'error', message: 'sem permissão' });
       return;
     }
@@ -78,7 +99,7 @@ export function serveConnection(ws: WebSocket, opts: { role: Role; sendCaps?: bo
       send(ws, { t: 'error', message: sanitize(String((e as Error)?.message ?? e)) });
       return;
     }
-    handle(ws, msg, role).catch((e) => send(ws, { t: 'error', message: sanitize(String(e?.message ?? e)) }));
+    handle(ws, msg, role, { human }).catch((e) => send(ws, { t: 'error', message: sanitize(String(e?.message ?? e)) }));
   });
 
   ws.on('close', () => {

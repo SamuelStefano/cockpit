@@ -1,18 +1,20 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import type { Server } from 'node:http';
-import { setWss, BACKPRESSURE_BYTES } from './ws/broadcast';
+import { setWss, broadcast, BACKPRESSURE_BYTES } from './ws/broadcast';
 import { CONFIG } from './config';
 import { originAllowed } from './ws/origin';
 import { tokenAllowed, tokenFromUrl } from './ws/token';
 import { fireCron } from './ws/runs';
+import { startTeamMessaging } from './ws/team-deliver';
 import { startRunReaper } from './ws/reaper';
 import { runStats, killAllRuns, threads } from './ws/threads';
 import { startCronLoop } from './crons';
 import { startStatsLoop } from './ws/stats-loop';
 import { startBgAgentsLoop } from './ws/bg-agents';
-import { startCvLivenessLoop } from './canvas/cv-liveness';
+import { startCvLivenessLoop, startLiveElsewhereLoop } from './canvas/cv-liveness';
 import { emitCanvasMsg, hasCanvasClients } from './ws/canvas-clients';
 import { startPlanUsageLoop } from './ws/usage-plan';
+import { startGrokUsageLoop } from './ws/usage-grok';
 import { startModelsLoop } from './ws/models';
 import { probeSlashCommands } from './ws/slash-probe';
 import { serveConnection } from './ws/serve-connection';
@@ -20,15 +22,15 @@ import { startSessionsWatch } from './sessions/watch';
 import { startPointsWatch } from './points-watch';
 import { startDflPointsWatch } from './dfl-points-watch';
 import { startDflDraftsWatch } from './dfl-drafts-watch';
-import { sandboxUpstream, proxySandboxUpgrade } from './sandbox-proxy';
+import { sandboxUpstream, proxySandboxUpgrade, sandboxOriginAllowed } from './sandbox-proxy';
 
 export { runStats, killAllRuns } from './ws/threads';
 
 export function attachWs(server: Server) {
   // maxPayload: rejeita frames gigantes no transporte ANTES de o ws alocar/
-  // decodificar e o JSON.parse alocar de novo. O upload manda o arquivo inteiro
-  // em base64 num frame só; o teto de 15MB do app só checa DEPOIS. 32MB cobre o
-  // upload legítimo (15MB → ~20MB em base64) e corta o frame acidental de 100MB.
+  // decodificar e o JSON.parse alocar de novo. O upload vai em chunks de ~700KB
+  // (useCockpit.onUpload), então 32MB sobra pro frame legítimo e corta o
+  // acidental de 100MB.
   // noServer: o 'upgrade' é roteado no index.ts, que precisa desviar o HMR dos
   // sandboxes proxiados antes de chegar aqui — com `server` o ws aborta com 400
   // qualquer upgrade fora de /ws.
@@ -40,7 +42,11 @@ export function attachWs(server: Server) {
 
   server.on('upgrade', (req, socket, head) => {
     const upstream = sandboxUpstream(req.headers.host);
-    if (upstream) { proxySandboxUpgrade(upstream, req, socket, head); return; }
+    if (upstream) {
+      if (!sandboxOriginAllowed(req.headers.origin, req.headers.host)) { socket.destroy(); return; }
+      proxySandboxUpgrade(upstream, req, socket, head);
+      return;
+    }
     if (req.url?.split('?')[0] === '/ws') {
       wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req));
       return;
@@ -67,7 +73,12 @@ export function attachWs(server: Server) {
   beat.unref();
   wss.on('close', () => clearInterval(beat));
 
+  // Without an 'error' listener Node throws it: a malformed frame, or an upload
+  // over maxPayload (1009), became an uncaughtException → shutdown(1) → every
+  // running turn killed. ws closes the socket after emitting; just log.
+  wss.on('error', (e) => console.error('[ws] server error:', e.message));
   wss.on('connection', (ws, req) => {
+    ws.on('error', (e) => console.error('[ws] socket error:', e.message));
     // Gate de auth ANTES de qualquer trabalho ou estado por-conexão (DR-011 Fase
     // 2). verifyClient já barrou origem cruzada; aqui exigimos o token quando
     // configurado. Fechamos com 4401 (código de app) pra a UI distinguir
@@ -82,14 +93,17 @@ export function attachWs(server: Server) {
     // por conta vive no relay T3 (server/agent.ts + DECK_AGENT_ROLE).
     // O ciclo de vida da conexão (bootstrap + loop + cleanup) é agnóstico ao
     // transporte — o mesmo serveConnection serve o agente T3 que disca pro relay.
-    serveConnection(ws, { role: 'admin' });
+    // Same reasoning makes it root: the owner keeps points and the host write-ops.
+    serveConnection(ws, { role: 'admin', root: true, transport: CONFIG.localOnly ? 'local' : 'plain' });
   });
 
   const hasClients = () => wss.clients.size > 0;
   startStatsLoop(hasClients);
   startBgAgentsLoop(hasClients);
   startCvLivenessLoop(hasCanvasClients, emitCanvasMsg);
+  startLiveElsewhereLoop(hasClients, broadcast);
   startPlanUsageLoop(hasClients, () => threads.size > 0);
+  startGrokUsageLoop(hasClients, () => threads.size > 0);
   startModelsLoop(hasClients);
   startSessionsWatch(hasClients);
   startPointsWatch(hasClients);
@@ -97,6 +111,7 @@ export function attachWs(server: Server) {
   startDflDraftsWatch();
   probeSlashCommands();
   startCronLoop(fireCron); // agendador: dispara prompts agendados (turnos autônomos)
+  startTeamMessaging();
   startRunReaper(); // mata turno travado ("garimpando" eterno) → UI cai pra idle e a fila drena
   // O loop de autopause do canvas NÃO liga aqui: ele para/reenfileira turnos
   // (o mesmo tipo de escrita compartilhada que startParkedDrainer), e só o

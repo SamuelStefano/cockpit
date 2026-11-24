@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 import type { ClientMsg, RegistryCatalog, RegistryRef, ServerMsg, SkillMeta } from '../../shared/protocol';
+import { useVersions, type VersionsApi } from './useVersions';
 import { toast } from '../components/primitives/toast-bus';
 
 export interface SkillDoc { id: string; name: string; body: string }
@@ -17,6 +18,7 @@ export interface Skills {
   onSkillClose: () => void;
   onRegistryGet: (refresh?: boolean) => void;
   onRegistryInstall: (key: string, items: RegistryRef[]) => void;
+  versions: VersionsApi;
   onMsg: (msg: ServerMsg) => boolean;
 }
 
@@ -41,17 +43,24 @@ export function useSkills(send: (m: ClientMsg) => boolean): Skills {
   const [installing, setInstalling] = useState<ReadonlySet<string>>(new Set());
   // reqId -> the UI key (pack or skill) whose button shows the spinner.
   const pending = useRef(new Map<string, string>());
+  // The skill the user last asked to open; a reply for anything else (closed, or
+  // superseded by a later click) must not pop the modal back up.
+  const wantedSkill = useRef<string | null>(null);
   const registryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const installTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
 
+  const versions = useVersions(send, 'skill');
+  const onVersionsMsg = versions.onMsg;
+
   const onMsg = useCallback((msg: ServerMsg) => {
+    if (onVersionsMsg(msg)) return true;
     switch (msg.t) {
       case 'skills':
         setSkills(msg.items);
         setSkillsLoaded(true);
         return true;
       case 'skill':
-        setOpenSkill({ id: msg.id, name: msg.name, body: msg.body });
+        if (msg.id === wantedSkill.current) setOpenSkill({ id: msg.id, name: msg.name, body: msg.body });
         return true;
       case 'registry':
         if (registryTimer.current) clearTimeout(registryTimer.current);
@@ -78,7 +87,7 @@ export function useSkills(send: (m: ClientMsg) => boolean): Skills {
       default:
         return false;
     }
-  }, []);
+  }, [onVersionsMsg]);
 
   const onRegistryGet = useCallback((refresh?: boolean) => {
     setRegistryLoading(true);
@@ -123,10 +132,11 @@ export function useSkills(send: (m: ClientMsg) => boolean): Skills {
     registryError,
     installing,
     onSkillList: useCallback(() => { send({ t: 'skill-list' }); }, [send]),
-    onSkillOpen: useCallback((id: string) => { send({ t: 'skill-open', id }); }, [send]),
-    onSkillClose: useCallback(() => setOpenSkill(null), []),
+    onSkillOpen: useCallback((id: string) => { wantedSkill.current = id; send({ t: 'skill-open', id }); }, [send]),
+    onSkillClose: useCallback(() => { wantedSkill.current = null; setOpenSkill(null); }, []),
     onRegistryGet,
     onRegistryInstall,
+    versions: versions.api,
     onMsg,
   };
 }

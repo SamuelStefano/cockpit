@@ -25,7 +25,8 @@ export function useSessionRow({ s, onAddTag, onRename, onDescribe }: UseSessionR
     if (editing || descEditing || tagging) { wasInlineEditing.current = true; return; }
     if (!wasInlineEditing.current) return;
     wasInlineEditing.current = false;
-    if (document.activeElement === document.body) rowRef.current?.focus();
+    // The title button is the card's focus target (the card itself isn't focusable).
+    if (document.activeElement === document.body) rowRef.current?.querySelector<HTMLElement>('[data-row-select]')?.focus();
   }, [editing, descEditing, tagging]);
 
   const commitTag = () => {

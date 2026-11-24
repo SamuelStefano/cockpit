@@ -11,7 +11,24 @@ import type { Message } from '../../shared/protocol';
 // pra trás. As locais anteriores à primeira mensagem que o snapshot repete são
 // histórico legítimo já carregado — sem isto, cada session-touched encolhia a janela
 // de volta pro fim e o scroll saltava.
-export function mergeHistory(incoming: Message[], local: Message[], keepOlder = false): Message[] {
+// liveId: the bubble of a turn streaming right now (runMsg). A snapshot taken
+// mid-turn already holds this turn's prompt and finished assistant messages, all
+// stamped after the bubble (its ts is the turn start), so the in-flight filter
+// below dropped it — and with runMsg still pointing at a gone id, every later
+// delta/tool of the turn was discarded until `done`. The bubble is kept, last,
+// and the snapshot's assistant records from the live turn are left to it (it
+// already carries that text) so nothing shows twice.
+export function mergeHistory(incoming: Message[], local: Message[], keepOlder = false, liveId?: string): Message[] {
+  const live = liveId ? local.find((m) => m.id === liveId) : undefined;
+  if (live && live.ts !== undefined) {
+    const start = live.ts;
+    incoming = incoming.filter((m) => !(m.role === 'assistant' && m.id !== live.id && (m.ts ?? 0) >= start));
+  }
+  const out = mergeHistoryInner(incoming, local, keepOlder);
+  return live && !out.some((m) => m.id === live.id) ? [...out, live] : out;
+}
+
+function mergeHistoryInner(incoming: Message[], local: Message[], keepOlder: boolean): Message[] {
   if (!local.length) return incoming;
   const byId = new Map(local.map((m) => [m.id, m]));
   // Stats do turno: o snapshot do JSONL não tem costUsd (só o stream ao vivo tem)

@@ -10,6 +10,8 @@ import { getLastRate } from './rate';
 import { parseTaskNotification, registerNotify } from './task-notify';
 import { threads, type Thread } from './threads';
 import { setAwaiting } from './awaiting';
+import { recordBotQuestion } from './team-pending-frames';
+import { parseCliTooOld } from '../engine/cli-version-error';
 
 // Tradução evento NDJSON -> ServerMsg (squad C2/H1: tool por id de correlação).
 export function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
@@ -31,6 +33,7 @@ export function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
   // "reacendiam" o turno na UI. stopped cobre stop do usuário E o auto-stop da
   // pergunta. Só o 'result'/'system' passam pra fechar o turno limpo.
   if ((thread.questioned || thread.stopped) && (ev.type === 'stream_event' || ev.type === 'assistant' || ev.type === 'user')) return;
+  if (ev.type === 'stream_event' || ev.type === 'assistant') thread.bgWaitSince = undefined;
   switch (ev.type) {
     case 'rate_limit_event': {
       const info = (ev as any).rate_limit_info;
@@ -118,6 +121,7 @@ export function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
           // deltas de stream — bloco curto, ou --include-partial-messages não cobriu)
           // eram perdidos ao vivo. Emite o sufixo ainda não mostrado (includes()
           // evita duplicar quando os deltas já entregaram).
+          if (c?.type === 'text' && typeof c.text === 'string' && holdCliTooOld(thread, c.text, (ev as any).message?.model === '<synthetic>')) continue;
           if (c?.type === 'text' && typeof c.text === 'string' && c.text && !thread.text.includes(c.text)) {
             thread.text = capTail(thread.text + c.text);
             broadcast({ t: 'delta', sessionKey, text: c.text });
@@ -172,6 +176,7 @@ export function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
         thread.stopped = true;
         thread.questioned = true;
         setAwaiting(sessionKey);
+        if (thread.params.botId) recordBotQuestion(thread.params.botId, sessionKey, content);
         thread.handle.kill();
       }
       return;
@@ -224,17 +229,32 @@ export function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
         if (out > 0) thread.outputTokens = out;
       }
       if (typeof r.subtype === 'string') thread.endReason = r.subtype;
+      thread.bgWaitSince = thread.pendingBgTasks?.length ? Date.now() : undefined;
       // Paridade/rede de segurança: se nenhum delta/assistant trouxe texto (streaming
       // falhou) mas o result carrega o texto final, emite agora. Guard de texto vazio
       // evita duplicar no caminho normal; !stopped pra não reacender um turno parado.
+      if (typeof r.result === 'string' && holdCliTooOld(thread, r.result, r.is_error === true)) { capture(thread, ev); return; }
       if (!thread.stopped && !thread.text.trim() && typeof r.result === 'string' && r.result.trim()) {
         thread.text = capTail(r.result);
         broadcast({ t: 'delta', sessionKey, text: r.result });
       }
+      if (!thread.stopped && !thread.pendingBgTasks?.length) broadcast({ t: 'settled', sessionKey });
       capture(thread, ev);
       return;
     }
   }
+}
+
+// The CLI reports the API refusal as a synthetic assistant text ("API Error: 400
+// Claude Code X does not support this model…"). Before any real work it is held
+// back so the user never sees it: runs.ts updates the CLI and retries the turn.
+export function holdCliTooOld(thread: Thread, text: string, apiError: boolean): boolean {
+  if (thread.tools.length > 0 || thread.text.trim()) return false;
+  if (!apiError && !/^\s*API Error\b/.test(text)) return false;
+  const hit = parseCliTooOld(text);
+  if (!hit) return false;
+  thread.cliTooOld = hit;
+  return true;
 }
 
 // O snapshot text/thinking só existe pra replay no reconnect (#10) — a verdade

@@ -14,12 +14,12 @@ import { Drop } from './sections/Drop';
 import { Search } from './sections/Search';
 import { Commands } from './sections/Commands';
 import { Models } from './sections/Models';
-import { Playground } from './sections/Playground';
 import { Graph } from './sections/Graph';
 import { Bench } from './sections/Bench';
 import { Admin } from './sections/Admin';
 import { Internals } from './sections/Internals';
 import { RepoMap } from './sections/RepoMap';
+import { WorkRoutes } from './sections/WorkRoutes';
 
 export function DocSections({ year }: { year: number }) {
   return (
@@ -40,13 +40,13 @@ export function DocSections({ year }: { year: number }) {
       <Search />
       <Commands />
       <Models />
-      <Playground />
       <Graph />
       <Bench />
+      <WorkRoutes />
       <Admin />
       <Internals />
       <RepoMap />
-      <div className="border-t border-neutral-800/80 pt-6 text-center text-[11px] text-neutral-600">
+      <div className="border-t border-neutral-800/80 pt-6 text-center text-[12px] text-neutral-600">
         Deck · manual interno · {year}
       </div>
     </>

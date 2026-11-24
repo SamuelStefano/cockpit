@@ -5,7 +5,7 @@ import { parsePlanEvent, runOnPlan } from './plan-run';
 
 // spawn mockado: o teste checa os ARGUMENTOS do CLI, nunca sobe processo de verdade.
 vi.mock('node:child_process', () => ({ spawn: vi.fn() }));
-vi.mock('../engine/cli-path', () => ({ cliPath: () => '/usr/bin' }));
+vi.mock('../engine/cli-path', () => ({ cliPath: () => '/usr/bin', claudeBin: () => 'claude' }));
 
 let stdinWritten = '';
 function fakeChild() {
@@ -69,6 +69,15 @@ describe('least privilege do motor de plano', () => {
     expect(args).not.toContain(prompt);
     expect(args[args.indexOf('-p') + 1]).toBe('--output-format');
     expect(stdinWritten).toBe(prompt);
+  });
+
+  it('starts with no tool definitions, skills or user settings at all', () => {
+    vi.mocked(spawn).mockReturnValue(fakeChild() as never);
+    void runOnPlan({ model: 'm', prompt: 'p', context: null, onEvent: () => {} });
+    const args = vi.mocked(spawn).mock.calls.at(-1)![1] as string[];
+    expect(args[args.indexOf('--tools') + 1]).toBe('');
+    expect(args[args.indexOf('--setting-sources') + 1]).toBe('');
+    expect(args.filter((a) => a === '--system-prompt')).toHaveLength(1);
   });
 
   it('nega explicitamente as tools de leitura e rede', () => {

@@ -171,13 +171,13 @@ describe('sanitizeFlow', () => {
 
   it('caps the template length, coerces enabled from raw input, and validates mode/mcps', () => {
     const long = sanitizeFlow(
-      { id: 'abcd', from: 's:a', to: 'k:b', template: 'x'.repeat(5000), enabled: false, mode: 'acceptEdits', mcps: ['dfl-mcp', 'bad name', 'dfl-mcp', 42] },
+      { id: 'abcd', from: 's:a', to: 'k:b', template: 'x'.repeat(5000), enabled: false, mode: 'acceptEdits', mcps: ['notes', 'bad name', 'notes', 42] },
       undefined, 1,
     )!;
     expect(long.template.length).toBe(4000);
     expect(long.enabled).toBe(false);
     expect(long.mode).toBe('acceptEdits');
-    expect(long.mcps).toEqual(['dfl-mcp']);
+    expect(long.mcps).toEqual(['notes']);
   });
 
   it('rejects an invalid mode and defaults mcps to unset', () => {
