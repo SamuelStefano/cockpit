@@ -1,3 +1,5 @@
+import { IS_WINDOWS } from './platform';
+import { cpus, freemem, totalmem } from 'node:os';
 import { readFile, statfs } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 
@@ -34,8 +36,14 @@ export function parseCpu(raw: string, prev: CpuSample | null): { cpu: number; sa
   return { cpu: Math.max(0, Math.min(100, (1 - di / dt) * 100)), sample };
 }
 
+// No /proc on Windows: the same counters, shaped like its `cpu ` line.
+function cpuLine(): string {
+  const t = cpus().reduce((a, c) => ({ user: a.user + c.times.user, sys: a.sys + c.times.sys, idle: a.idle + c.times.idle }), { user: 0, sys: 0, idle: 0 });
+  return `cpu ${t.user} 0 ${t.sys} ${t.idle}`;
+}
+
 async function readCpu(): Promise<number> {
-  const raw = await readFile('/proc/stat', 'utf8').catch(() => '');
+  const raw = IS_WINDOWS ? cpuLine() : await readFile('/proc/stat', 'utf8').catch(() => '');
   const { cpu, sample } = parseCpu(raw, prevCpu);
   prevCpu = sample;
   return cpu;
@@ -53,6 +61,7 @@ export function parseMem(raw: string): { used: number; total: number } {
 }
 
 async function readMem(): Promise<{ used: number; total: number }> {
+  if (IS_WINDOWS) return { used: totalmem() - freemem(), total: totalmem() };
   return parseMem(await readFile('/proc/meminfo', 'utf8').catch(() => ''));
 }
 

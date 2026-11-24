@@ -65,13 +65,13 @@ export function InvoiceConfirmModal({ projects, onClose }: { projects: DflProjec
     >
       <div className="flex flex-col gap-4">
         <label className="flex items-center gap-3">
-          <span className="text-[12px] text-neutral-400">Mês de referência</span>
+          <span className="text-[13px] text-neutral-400">Mês de referência</span>
           <Input value={month} onChange={(e) => setMonth(e.target.value)} error={!monthValid} mono size="sm" className="w-28" placeholder="2026-07" />
-          {monthValid && <span className="text-[11.5px] text-neutral-500">{refMonth(month)}</span>}
+          {monthValid && <span className="text-[12px] text-neutral-500">{refMonth(month)}</span>}
         </label>
 
         {drafts.length === 0 ? (
-          <p className="rounded-lg border border-neutral-800 bg-neutral-900/40 px-3 py-3 text-[12px] text-neutral-500">
+          <p className="rounded-lg border border-neutral-800 bg-neutral-900/40 px-3 py-3 text-[13px] text-neutral-500">
             Nenhuma delivery selecionada tem task em aberto pra faturar. Só tasks concluídas e ainda não faturadas entram numa fatura.
           </p>
         ) : (
@@ -82,26 +82,26 @@ export function InvoiceConfirmModal({ projects, onClose }: { projects: DflProjec
               return (
                 <div key={d.deliveryId} className={`rounded-lg border bg-neutral-900/40 px-3 py-2.5 ${r?.outcome === 'failed' ? 'border-red-500/40' : done ? 'border-emerald-500/30' : 'border-neutral-800'}`}>
                   <div className="flex items-center gap-2">
-                    <span className={`min-w-0 flex-1 truncate text-[12.5px] font-medium ${done ? 'text-neutral-500' : 'text-neutral-200'}`}>{d.deliveryName}</span>
+                    <span className={`min-w-0 flex-1 truncate text-[13px] font-medium ${done ? 'text-neutral-500' : 'text-neutral-200'}`}>{d.deliveryName}</span>
                     {r ? <Badge tone={r.outcome === 'failed' ? 'red' : 'green'}>{r.outcome === 'created' ? 'criada' : r.outcome === 'skipped' ? 'já criada' : 'falhou'}</Badge>
                       : <Badge tone="neutral">{d.tasks.length} task{d.tasks.length > 1 ? 's' : ''}</Badge>}
-                    <span className="shrink-0 text-[12px] font-semibold tabular-nums text-orange-300">{fmtPts(d.points)} pt</span>
-                    <span className="w-24 shrink-0 text-right text-[11.5px] tabular-nums text-neutral-400">{brl(d.amountCents)}</span>
+                    <span className="shrink-0 text-[13px] font-semibold tabular-nums text-orange-300">{fmtPts(d.points)} pt</span>
+                    <span className="w-24 shrink-0 text-right text-[12px] tabular-nums text-neutral-400">{brl(d.amountCents)}</span>
                   </div>
-                  <div className="mt-0.5 truncate text-[10.5px] text-neutral-600">{d.projectName} · R$ {d.pricePerPoint}/pt</div>
-                  {r?.outcome === 'failed' && <div className="mt-1 truncate text-[10.5px] text-red-300">{r.message}</div>}
+                  <div className="mt-0.5 truncate text-[12px] text-neutral-600">{d.projectName} · R$ {d.pricePerPoint}/pt</div>
+                  {r?.outcome === 'failed' && <div className="mt-1 truncate text-[12px] text-red-300">{r.message}</div>}
                 </div>
               );
             })}
             <div className="flex items-center gap-2 px-1 pt-1">
-              <span className="min-w-0 flex-1 text-[12px] font-semibold text-neutral-200">Total</span>
-              <span className="text-[12.5px] font-semibold tabular-nums text-orange-300">{fmtPts(totalPoints)} pt</span>
-              <span className="w-24 text-right text-[12px] tabular-nums text-neutral-300">{brl(totalCents)}</span>
+              <span className="min-w-0 flex-1 text-[13px] font-semibold text-neutral-200">Total</span>
+              <span className="text-[13px] font-semibold tabular-nums text-orange-300">{fmtPts(totalPoints)} pt</span>
+              <span className="w-24 text-right text-[13px] tabular-nums text-neutral-300">{brl(totalCents)}</span>
             </div>
           </div>
         )}
 
-        <p className="text-[11px] text-neutral-600">
+        <p className="text-[12px] text-neutral-600">
           Cada fatura nasce como <span className="text-neutral-400">submitted</span> e vai pra revisão no DFL antes de virar cobrança. Uma fatura por delivery — uma delivery já faturada aqui não é reescrita se você tentar de novo.
         </p>
       </div>

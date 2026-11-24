@@ -4,14 +4,14 @@ import { join } from 'node:path';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Message } from '../../shared/protocol';
 import type { Rec } from './records';
-import { readRecords } from './records';
+import { readPeekRecords as readRecords } from './records';
 import { _resetPeekCache, extractUrls, peekFromRecords, peekSession, PEEK_TAIL_CHARS, tailText } from './peek';
 
 const file = join(mkdtempSync(join(tmpdir(), 'peek-')), 's.jsonl');
 vi.mock('./records', async (orig) => ({
   ...(await orig<typeof import('./records')>()),
   sessionPath: (id: string) => (id === 'bad' ? null : file),
-  readRecords: vi.fn(async () => ({ byUuid: new Map(), msgs: [], results: new Map(), markers: [] })),
+  readPeekRecords: vi.fn(async () => ({ msgs: [], markers: [] })),
 }));
 
 const asst = (text: string, ts = '2026-09-24T10:00:00Z'): Rec => ({
@@ -101,5 +101,12 @@ describe('peekSession cache', () => {
   it('returns null for an invalid id', async () => {
     expect(await peekSession('bad')).toBeNull();
     expect(readRecords).not.toHaveBeenCalled();
+  });
+
+  it('does not cache a failed read: the next open retries', async () => {
+    vi.mocked(readRecords).mockRejectedValueOnce(new Error('EMFILE'));
+    expect(await peekSession('s1')).toBeNull();
+    await peekSession('s1');
+    expect(readRecords).toHaveBeenCalledTimes(2);
   });
 });

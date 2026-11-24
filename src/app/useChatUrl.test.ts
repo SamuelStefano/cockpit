@@ -49,7 +49,7 @@ describe('useChatUrl', () => {
   });
 
   it('fora da view de chat a URL não é tocada', () => {
-    const { navChat } = setup({ route: '/contextos' });
+    const { navChat } = setup({ route: '/equipe/memoria' });
     expect(navChat).not.toHaveBeenCalled();
   });
 

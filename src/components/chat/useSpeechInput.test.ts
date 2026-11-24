@@ -219,3 +219,34 @@ describe('useSpeechInput (touch)', () => {
     expect(result.current.hint).toBeNull();
   });
 });
+
+describe('useSpeechInput reset (composer sent mid-dictation)', () => {
+  it('drops the recognizer so a late result cannot write the sent text back', () => {
+    const setValue = vi.fn();
+    const { result } = renderHook(() => useSpeechInput('', setValue));
+    act(() => result.current.start());
+    const rec = last();
+    act(() => rec.fireFinal('ship it'));
+    expect(setValue).toHaveBeenLastCalledWith('ship it');
+    setValue.mockClear();
+
+    act(() => result.current.reset());
+    expect(result.current.listening).toBe(false);
+    expect(rec.stopped).toBe(true);
+    act(() => { rec.fireFinal(' again'); rec.onend?.(); });
+    expect(setValue).not.toHaveBeenCalled();
+    expect(FakeRecognition.instances.length).toBe(1);
+  });
+
+  it('starts the next dictation from the current composer, not the sent text', () => {
+    const setValue = vi.fn();
+    const { result, rerender } = renderHook(({ v }) => useSpeechInput(v, setValue), { initialProps: { v: '' } });
+    act(() => result.current.start());
+    act(() => last().fireFinal('first'));
+    act(() => result.current.reset());
+    rerender({ v: '' });
+    act(() => result.current.start());
+    act(() => last().fireFinal('second'));
+    expect(setValue).toHaveBeenLastCalledWith('second');
+  });
+});

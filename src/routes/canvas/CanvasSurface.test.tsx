@@ -24,7 +24,7 @@ const props = () => ({
   stats: {}, analysisOn: false, onToggleAnalysis: vi.fn(),
   flows: [], flowFired: {}, onFlowCreate: vi.fn(), onFlowClick: vi.fn(),
   areaRects: [], budgetStatus: {}, onEditBudget: vi.fn(),
-  pastAlive: null, timelinePlaying: false, orchestrator: undefined,
+  pastAlive: null, timelinePlaying: false,
 });
 
 describe('CanvasSurface scroll defensiveness', () => {

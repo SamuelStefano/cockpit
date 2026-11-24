@@ -30,7 +30,7 @@ export function PointsCard({ entry, now, glow, onCorrect, onNote, onDelete }: Pr
           <button type="button" onClick={c.startEditPts} title="Corrigir pontos" aria-label={`Corrigir pontos (${entry.points} pt)`}
             className={`flex items-baseline gap-1 rounded-md font-mono text-xl font-bold tabular-nums tracking-tight text-neutral-100 transition hover:text-orange-300 ${tokens.focusRing}`}>
             {entry.points}
-            <span className="text-[10px] font-medium uppercase tracking-wide text-neutral-600">pt</span>
+            <span className="text-[12px] font-medium uppercase tracking-wide text-neutral-600">pt</span>
           </button>
         )}
         <div className="flex shrink-0 items-center gap-1.5">
@@ -50,11 +50,11 @@ export function PointsCard({ entry, now, glow, onCorrect, onNote, onDelete }: Pr
           autoFocus value={c.descDraft} onChange={(e) => c.setDescDraft(e.target.value)} onBlur={c.saveDesc}
           onKeyDown={(e) => { if (e.key === 'Enter') c.saveDesc(); if (e.key === 'Escape') c.cancelDesc(); }}
           placeholder="Descrição…"
-          className="mt-1 w-full rounded-md border border-neutral-800 bg-neutral-950 px-2 py-1 text-[12px] text-neutral-200 outline-hidden focus:border-orange-500/40"
+          className="mt-1 w-full rounded-md border border-neutral-800 bg-neutral-950 px-2 py-1 text-[13px] text-neutral-200 outline-hidden focus:border-orange-500/40"
         />
       ) : (
         <button type="button" onClick={c.startEditDesc}
-          className={`mt-1 line-clamp-2 max-w-full rounded-sm text-left text-[12px] leading-snug text-neutral-400 hover:text-neutral-300 ${tokens.focusRing}`}>
+          className={`mt-1 line-clamp-2 max-w-full rounded-sm text-left text-[13px] leading-snug text-neutral-400 hover:text-neutral-300 ${tokens.focusRing}`}>
           {entry.description || <span className="text-neutral-600">+ descrição</span>}
         </button>
       )}
@@ -62,11 +62,11 @@ export function PointsCard({ entry, now, glow, onCorrect, onNote, onDelete }: Pr
       <div className="mt-auto flex flex-wrap items-center gap-2 pt-2">
         {entry.corrected && <Badge tone="yellow">corrigido {entry.originalPoints}→{entry.points}</Badge>}
         <button type="button" onClick={c.toggleHistory} aria-expanded={c.showHistory}
-          className={`flex items-center gap-1 rounded-sm text-[11px] text-neutral-500 hover:text-neutral-300 ${tokens.focusRing}`}>
+          className={`flex items-center gap-1 rounded-sm text-[12px] text-neutral-500 hover:text-neutral-300 ${tokens.focusRing}`}>
           <Icon name={c.showHistory ? 'chevronDown' : 'chevronRight'} size={11} />
           histórico ({entry.history.length})
         </button>
-        <span className="ml-auto text-[11px] tabular-nums text-neutral-600">{relPast(entry.updatedAt, now)}</span>
+        <span className="ml-auto text-[12px] tabular-nums text-neutral-600">{relPast(entry.updatedAt, now)}</span>
       </div>
       {c.showHistory && <PointsHistory history={entry.history} />}
     </div>

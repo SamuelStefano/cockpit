@@ -1,0 +1,363 @@
+{
+  "frame": {
+    "w": 32,
+    "h": 48,
+    "origin": [
+      16,
+      46
+    ],
+    "note": "origin = bottom-centre; feet on row 46, row 47 empty"
+  },
+  "sheet": {
+    "w": 256,
+    "h": 1728,
+    "columns": 8
+  },
+  "directions": [
+    "left",
+    "down",
+    "up",
+    "right"
+  ],
+  "shirt_ramp": [
+    "#35511a",
+    "#477a2d",
+    "#62a353",
+    "#75cc71"
+  ],
+  "animations": {
+    "idle": {
+      "row": 0,
+      "rows": {
+        "left": 0,
+        "down": 1,
+        "up": 2,
+        "right": 3
+      },
+      "frames": 4,
+      "fps": 4
+    },
+    "walk": {
+      "row": 4,
+      "rows": {
+        "left": 4,
+        "down": 5,
+        "up": 6,
+        "right": 7
+      },
+      "frames": 6,
+      "fps": 10
+    },
+    "sit": {
+      "row": 8,
+      "rows": {
+        "left": 8,
+        "down": 9,
+        "up": 10,
+        "right": 11
+      },
+      "frames": 2,
+      "fps": 2
+    },
+    "type": {
+      "row": 12,
+      "rows": {
+        "left": 12,
+        "down": 13,
+        "up": 14,
+        "right": 15
+      },
+      "frames": 4,
+      "fps": 8
+    },
+    "talk": {
+      "row": 16,
+      "rows": {
+        "left": 16,
+        "down": 17,
+        "up": 18,
+        "right": 19
+      },
+      "frames": 2,
+      "fps": 6
+    },
+    "celebrate": {
+      "row": 20,
+      "rows": {
+        "left": 20,
+        "down": 21,
+        "up": 22,
+        "right": 23
+      },
+      "frames": 6,
+      "fps": 10
+    },
+    "carry": {
+      "row": 24,
+      "rows": {
+        "left": 24,
+        "down": 25,
+        "up": 26,
+        "right": 27
+      },
+      "frames": 6,
+      "fps": 10
+    },
+    "sleep": {
+      "row": 28,
+      "rows": {
+        "left": 28,
+        "down": 29,
+        "up": 30,
+        "right": 31
+      },
+      "frames": 2,
+      "fps": 2
+    },
+    "run": {
+      "row": 32,
+      "rows": {
+        "left": 32,
+        "down": 33,
+        "up": 34,
+        "right": 35
+      },
+      "frames": 6,
+      "fps": 12
+    }
+  },
+  "fx": {
+    "zzz": {
+      "image": "fx-zzz.png",
+      "frame": {
+        "w": 16,
+        "h": 16
+      },
+      "frames": 3,
+      "fps": 3,
+      "note": "draw above the head of a sleeping bot (sleep animation), offset ~(+8, -40) from the bot origin"
+    }
+  },
+  "bots": {
+    "iris": {
+      "name": "Íris",
+      "role": "CEO",
+      "accessory": "blazer",
+      "skin": "brown",
+      "hair": "black long",
+      "default_shirt": "#7c5cff",
+      "sheet": "bots/iris.png",
+      "shirt_mask": "bots/iris-shirt.png"
+    },
+    "otto": {
+      "name": "Otto",
+      "role": "CTO",
+      "accessory": "glasses",
+      "skin": "light",
+      "hair": "darkbrown short",
+      "default_shirt": "#3a78c8",
+      "sheet": "bots/otto.png",
+      "shirt_mask": "bots/otto-shirt.png"
+    },
+    "luffy": {
+      "name": "Luffy",
+      "role": "Tech Lead",
+      "accessory": "headband",
+      "skin": "tan",
+      "hair": "black spiky soft",
+      "default_shirt": "#e04848",
+      "sheet": "bots/luffy.png",
+      "shirt_mask": "bots/luffy-shirt.png"
+    },
+    "zoro": {
+      "name": "Zoro",
+      "role": "Tech Lead",
+      "accessory": "arm bandana",
+      "skin": "light",
+      "hair": "green short",
+      "default_shirt": "#2f6e35",
+      "sheet": "bots/zoro.png",
+      "shirt_mask": "bots/zoro-shirt.png"
+    },
+    "raquel": {
+      "name": "Raquel",
+      "role": "Reviewer",
+      "accessory": "magnifier",
+      "skin": "light",
+      "hair": "red curly",
+      "default_shirt": "#c46aa8",
+      "sheet": "bots/raquel.png",
+      "shirt_mask": "bots/raquel-shirt.png"
+    },
+    "anderson": {
+      "name": "Anderson",
+      "role": "QA",
+      "accessory": "hard hat + overalls",
+      "skin": "deep",
+      "hair": "darkbrown short",
+      "default_shirt": "#f0a830",
+      "sheet": "bots/anderson.png",
+      "shirt_mask": "bots/anderson-shirt.png"
+    },
+    "lara": {
+      "name": "Lara",
+      "role": "Designer",
+      "accessory": "beret",
+      "skin": "light",
+      "hair": "blonde bob",
+      "default_shirt": "#f6a5d0",
+      "sheet": "bots/lara.png",
+      "shirt_mask": "bots/lara-shirt.png"
+    },
+    "lorena": {
+      "name": "Lorena",
+      "role": "Security",
+      "accessory": "badge + flashlight",
+      "skin": "brown",
+      "hair": "black bun",
+      "default_shirt": "#262e5a",
+      "sheet": "bots/lorena.png",
+      "shirt_mask": "bots/lorena-shirt.png"
+    },
+    "goku": {
+      "name": "Goku",
+      "role": "Tech Lead Deck",
+      "accessory": "spiky hair",
+      "skin": "light",
+      "hair": "black spiky",
+      "default_shirt": "#f0a830",
+      "sheet": "bots/goku.png",
+      "shirt_mask": "bots/goku-shirt.png"
+    },
+    "nami": {
+      "name": "Nami",
+      "role": "Pixel art",
+      "accessory": "red beret + paintbrush",
+      "skin": "light",
+      "hair": "chestnut bob",
+      "default_shirt": "#3fd17f",
+      "sheet": "bots/nami.png",
+      "shirt_mask": "bots/nami-shirt.png"
+    },
+    "arthur": {
+      "name": "Arthur",
+      "role": "Growth head",
+      "accessory": "megaphone",
+      "skin": "light",
+      "hair": "blonde short",
+      "default_shirt": "#ff8a7a",
+      "sheet": "bots/arthur.png",
+      "shirt_mask": "bots/arthur-shirt.png"
+    },
+    "mari": {
+      "name": "Mari",
+      "role": "Content",
+      "accessory": "headphones",
+      "skin": "tan",
+      "hair": "pink long",
+      "default_shirt": "#f6a5d0",
+      "sheet": "bots/mari.png",
+      "shirt_mask": "bots/mari-shirt.png"
+    },
+    "usopp": {
+      "name": "Usopp",
+      "role": "Animation / 3D",
+      "accessory": "goggles on forehead",
+      "skin": "deep",
+      "hair": "black curly",
+      "default_shirt": "#d9a066",
+      "sheet": "bots/usopp.png",
+      "shirt_mask": "bots/usopp-shirt.png"
+    },
+    "robin": {
+      "name": "Robin",
+      "role": "CFO",
+      "accessory": "calculator + glasses",
+      "skin": "tan",
+      "hair": "black bob",
+      "default_shirt": "#474b6b",
+      "sheet": "bots/robin.png",
+      "shirt_mask": "bots/robin-shirt.png"
+    },
+    "bulma": {
+      "name": "Bulma",
+      "role": "Revenue",
+      "accessory": "coin pin + ponytail",
+      "skin": "light",
+      "hair": "blue ponytail",
+      "default_shirt": "#ffd166",
+      "sheet": "bots/bulma.png",
+      "shirt_mask": "bots/bulma-shirt.png"
+    },
+    "ada": {
+      "name": "Ada",
+      "role": "Operations",
+      "accessory": "clipboard",
+      "skin": "deep",
+      "hair": "silver curly short",
+      "default_shirt": "#5fb4e8",
+      "sheet": "bots/ada.png",
+      "shirt_mask": "bots/ada-shirt.png"
+    },
+    "vegeta": {
+      "name": "Vegeta",
+      "role": "Backend",
+      "accessory": "armband",
+      "skin": "light",
+      "hair": "black tall",
+      "default_shirt": "#2b4a8a",
+      "sheet": "bots/vegeta.png",
+      "shirt_mask": "bots/vegeta-shirt.png"
+    },
+    "deck": {
+      "name": "Deck",
+      "role": "Player avatar",
+      "accessory": "orange cap + Deck pin",
+      "skin": "tan",
+      "hair": "darkbrown short",
+      "default_shirt": "#f0a830",
+      "sheet": "bots/deck.png",
+      "shirt_mask": "bots/deck-shirt.png"
+    },
+    "malu": {
+      "name": "Malu",
+      "role": "Lesson author",
+      "accessory": "spiral notebook + pen",
+      "skin": "brown",
+      "hair": "espresso curly long",
+      "default_shirt": "#2ec4b6",
+      "sheet": "bots/malu.png",
+      "shirt_mask": "bots/malu-shirt.png"
+    },
+    "naruto": {
+      "name": "Naruto",
+      "role": "Animation / video",
+      "accessory": "clapperboard + headband",
+      "skin": "light",
+      "hair": "blonde spiky",
+      "default_shirt": "#ff7a1a",
+      "sheet": "bots/naruto.png",
+      "shirt_mask": "bots/naruto-shirt.png"
+    },
+    "sasuke": {
+      "name": "Sasuke",
+      "role": "Laptop",
+      "accessory": "open laptop",
+      "skin": "pale",
+      "hair": "black swept",
+      "default_shirt": "#8a94a6",
+      "sheet": "bots/sasuke.png",
+      "shirt_mask": "bots/sasuke-shirt.png"
+    },
+    "hinata": {
+      "name": "Hinata",
+      "role": "Video editing",
+      "accessory": "editing headphones",
+      "skin": "pale",
+      "hair": "indigo long fringe",
+      "default_shirt": "#b9a2e6",
+      "sheet": "bots/hinata.png",
+      "shirt_mask": "bots/hinata-shirt.png"
+    }
+  }
+}

@@ -17,7 +17,7 @@ export function DiffView({ diff }: { diff: ToolDiff }) {
     <div className="px-3 pb-2">
       <button
         onClick={() => setOpen((o) => !o)}
-        className={`mb-1 flex w-full items-center gap-1.5 rounded-sm text-[11px] text-neutral-500 transition hover:text-neutral-300 ${tokens.focusRing}`}
+        className={`mb-1 flex w-full items-center gap-1.5 rounded-sm text-[12px] text-neutral-500 transition hover:text-neutral-300 ${tokens.focusRing}`}
       >
         <Icon name="chevronDown" size={13} style={{ transform: open ? 'rotate(0deg)' : 'rotate(-90deg)' }} />
         diff
@@ -25,7 +25,7 @@ export function DiffView({ diff }: { diff: ToolDiff }) {
         <span className="text-red-400/80">-{dels}</span>
       </button>
       {open && (
-        <pre className="scroll-thin max-h-72 overflow-auto rounded-md border border-neutral-800 bg-[#070707] py-1.5 font-mono text-[11.5px] leading-relaxed">
+        <pre className="scroll-thin max-h-72 overflow-auto rounded-md border border-neutral-800 bg-[#070707] py-1.5 font-mono text-[12px] leading-relaxed">
           {(() => {
             let oldLn = 0, newLn = 0;
             return rows.map((r, i) => {

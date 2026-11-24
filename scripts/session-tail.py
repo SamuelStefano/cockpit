@@ -6,6 +6,7 @@ text, tool call and tool result, then keeps following the file as the session
 writes it. Python on purpose: a stdlib process costs ~10 MB of RSS against ~45 MB
 for node, and the canvas can keep several of these open on a 4 GB box.
 """
+import collections
 import json
 import os
 import re
@@ -147,7 +148,9 @@ def main():
     while not os.path.exists(path):
         time.sleep(POLL_S)
     with open(path, "r", encoding="utf-8", errors="replace") as f:
-        backlog = []
+        # Bounded: only the last BACKLOG_LINES are ever shown, and a full list held
+        # every rendered line of a transcript that can be hundreds of MB.
+        backlog = collections.deque(maxlen=BACKLOG_LINES)
         pending = ""
         for line in f:
             if not line.endswith("\n"):
@@ -156,7 +159,7 @@ def main():
             rec = parse(line)
             if rec:
                 backlog.extend(render(rec))
-        emit(backlog[-BACKLOG_LINES:])
+        emit(list(backlog))
         sys.stdout.write(DIM + "── ao vivo ──" + RESET + "\r\n")
         sys.stdout.flush()
         while True:

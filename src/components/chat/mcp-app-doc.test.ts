@@ -57,3 +57,32 @@ describe('mcpAppDoc', () => {
     expect(doc).toMatch(/^<html><head><meta http-equiv="Content-Security-Policy"/);
   });
 });
+
+describe('mcpAppDoc with content before <head>', () => {
+  const policyFirst = (doc: string) => {
+    const p = doc.indexOf('Content-Security-Policy');
+    const script = doc.indexOf('<script');
+    expect(p).toBeGreaterThan(-1);
+    expect(p).toBeLessThan(script);
+    const before = doc.slice(0, p);
+    expect(before.lastIndexOf('<!--')).toBeLessThanOrEqual(before.lastIndexOf('-->'));
+  };
+
+  it('puts the policy before a script that precedes <head>', () => {
+    policyFirst(mcpAppDoc("<script>fetch('https://x/')</script><head></head><body></body>"));
+  });
+
+  it('ignores a <head> inside an earlier comment', () => {
+    policyFirst(mcpAppDoc('<!-- <head> --><script>1</script><html><head></head></html>'));
+  });
+
+  it('keeps the doctype first so the app stays in standards mode', () => {
+    const doc = mcpAppDoc('<!doctype html><script>1</script><head></head>');
+    expect(doc.startsWith('<!doctype html><head><meta')).toBe(true);
+  });
+
+  it('still uses the real <head> after a doctype, comment and <html>', () => {
+    const doc = mcpAppDoc('<!DOCTYPE html>\n<!-- app --><html lang="en"><head><title>x</title></head></html>');
+    expect(doc).toContain('<html lang="en"><head><meta http-equiv="Content-Security-Policy"');
+  });
+});

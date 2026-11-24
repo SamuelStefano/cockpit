@@ -44,7 +44,7 @@ export function SandboxPreview({ target }: { target: SandboxTarget }) {
   return (
     <div className="my-1 overflow-hidden rounded-lg border border-orange-500/25 bg-[#0c0c0c]">
       <div className="flex flex-wrap items-center justify-between gap-1.5 border-b border-neutral-800 px-3 py-1.5">
-        <span className="flex min-w-0 items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-orange-300/80">
+        <span className="flex min-w-0 items-center gap-1.5 font-mono text-[12px] uppercase tracking-wider text-orange-300/80">
           <Icon name="monitor" size={11} className="shrink-0" />
           <span className="truncate" title={target.url}>sandbox · {target.host}</span>
           {!probing && !proxied && (
@@ -72,9 +72,9 @@ export function SandboxPreview({ target }: { target: SandboxTarget }) {
       </div>
 
       {probing ? (
-        <div className="px-3 py-6 text-center font-mono text-[11px] text-neutral-600">preparando…</div>
+        <div className="px-3 py-6 text-center font-mono text-[12px] text-neutral-600">preparando…</div>
       ) : full ? (
-        <div className="px-3 py-6 text-center font-mono text-[11px] text-neutral-600">aberto em tela cheia…</div>
+        <div className="px-3 py-6 text-center font-mono text-[12px] text-neutral-600">aberto em tela cheia…</div>
       ) : (
         <div className="flex justify-center bg-white">
           <Frame key={nonce} src={src} title={title} width={width} className="h-[560px] w-full border-0" />

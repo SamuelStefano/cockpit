@@ -76,6 +76,15 @@ describe('scheduleValid', () => {
     expect(scheduleValid({ kind: 'once', atMs: 'amanhã' as unknown as number })).toBe(false);
     expect(scheduleValid({ kind: 'daily' })).toBe(false);
   });
+  it('requires whole, in-range minutes', () => {
+    expect(scheduleValid({ kind: 'interval', everyMinutes: -5 })).toBe(false);
+    expect(scheduleValid({ kind: 'interval', everyMinutes: 0 })).toBe(false);
+    expect(scheduleValid({ kind: 'interval', everyMinutes: 1.5 })).toBe(false);
+    expect(scheduleValid({ kind: 'daily', atMinute: 540.5 })).toBe(false);
+    expect(scheduleValid({ kind: 'daily', atMinute: 1440 })).toBe(false);
+    expect(scheduleValid({ kind: 'daily', atMinute: -1 })).toBe(false);
+    expect(scheduleValid({ kind: 'daily', atMinute: 1439 })).toBe(true);
+  });
 });
 
 describe('Brasília anchoring', () => {
@@ -107,5 +116,31 @@ describe('Brasília anchoring', () => {
     const ran = daily(7 * 60, { lastRun: at('2026-09-10T10:00:05Z') });
     expect(isDue(ran, at('2026-09-11T02:59:00Z'))).toBe(false);
     expect(isDue(ran, at('2026-09-11T10:00:05Z'))).toBe(true);
+  });
+});
+
+describe('weekday and day-of-month schedules', () => {
+  const brt = (y: number, mo: number, d: number, h: number, mi = 0) => Date.UTC(y, mo - 1, d, h + 3, mi);
+  const mk = (schedule: Cron['schedule'], over: Partial<Cron> = {}): Cron => ({ id: 'a', name: 'a', prompt: 'p', schedule, enabled: true, createdAt: brt(2026, 10, 1, 0), ...over });
+  it('weekday filter: not due on a Saturday, due on a Monday', () => {
+    const c = mk({ kind: 'daily', atMinute: 540, weekdays: [1, 2, 3, 4, 5] });
+    expect(isDue(c, brt(2026, 10, 31, 10))).toBe(false);
+    expect(isDue(c, brt(2026, 11, 2, 10))).toBe(true);
+  });
+  it('nextRunAt skips to the next allowed weekday', () => {
+    const c = mk({ kind: 'daily', atMinute: 540, weekdays: [1] });
+    expect(nextRunAt(c, brt(2026, 10, 28, 12))).toBe(brt(2026, 11, 2, 9));
+  });
+  it('monthDay: only on that day', () => {
+    const c = mk({ kind: 'daily', atMinute: 480, monthDay: 1 });
+    expect(isDue(c, brt(2026, 11, 2, 10))).toBe(false);
+    expect(isDue(c, brt(2026, 11, 1, 10))).toBe(true);
+    expect(nextRunAt(c, brt(2026, 10, 28, 12))).toBe(brt(2026, 11, 1, 8));
+  });
+  it('scheduleValid rejects bad weekdays and monthDay', () => {
+    expect(scheduleValid({ kind: 'daily', atMinute: 60, weekdays: [7] })).toBe(false);
+    expect(scheduleValid({ kind: 'daily', atMinute: 60, weekdays: [1, 2] })).toBe(true);
+    expect(scheduleValid({ kind: 'daily', atMinute: 60, monthDay: 0 })).toBe(false);
+    expect(scheduleValid({ kind: 'daily', atMinute: 60, monthDay: 31 })).toBe(true);
   });
 });

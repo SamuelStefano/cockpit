@@ -1,14 +1,12 @@
 import { BrandMark, Button, Input } from '../primitives';
+import { isVirtualKeyboardOnly } from '../chat/touch';
 import { AuthIntro } from './AuthIntro';
 import { AuthFeedback } from './AuthFeedback';
 import { AuthModeTabs } from './AuthModeTabs';
 import { useAuthGateForm, type AuthGateActions } from './useAuthGateForm';
-
-const SUBTITLE = {
-  login: 'entrar na sua conta',
-  register: 'criar conta',
-  forgot: 'recuperar acesso',
-} as const;
+import { QrLoginPanel } from './QrLoginPanel';
+import { useQrTicketLogin } from './useQrTicketLogin';
+import { useState } from 'react';
 
 const CTA = {
   login: ['Entrar', 'Entrando…'],
@@ -23,31 +21,37 @@ const CTA = {
 export function SupabaseAuthGate({ auth }: { auth: AuthGateActions }) {
   const { mode, email, setEmail, password, setPassword, busy, info, canSubmit, submit, switchMode } = useAuthGateForm(auth);
   const [label, busyLabel] = CTA[mode];
+  const ticket = useQrTicketLogin();
+  const [qr, setQr] = useState(false);
 
   return (
-    <div className="flex h-full flex-1 items-center justify-center gap-12 bg-neutral-950 px-4">
+    <div className="flex h-full flex-1 items-center justify-center gap-12 overflow-y-auto bg-neutral-950 px-4 max-lg:items-start max-lg:py-10">
       <AuthIntro />
       <form onSubmit={submit} className="w-full max-w-sm rounded-2xl border border-neutral-800 bg-neutral-900/60 p-7 shadow-2xl">
-        <BrandMark title="deck" subtitle={SUBTITLE[mode]} className="mb-5" />
+        <BrandMark title="deck" className="mb-3" />
+        <p className="mb-5 text-[13px] leading-relaxed text-neutral-400 lg:hidden">O cérebro roda na sua VPS; o Deck é só a tela.</p>
 
+        {ticket === 'busy' && <p className="mb-4 text-[13px] text-neutral-300">Entrando pelo QR…</p>}
+        {ticket === 'failed' && <p className="mb-4 text-[12.5px] text-neutral-400">O QR expirou ou já foi usado. Entre abaixo ou gere outro no aparelho conectado.</p>}
+        {qr ? <QrLoginPanel onBack={() => setQr(false)} /> : (<>
         {mode === 'forgot' ? (
-          <p className="mb-4 text-[11.5px] leading-relaxed text-neutral-500">
+          <p className="mb-4 text-[12px] leading-relaxed text-neutral-500">
             Informe o e-mail da conta. Mandamos um link pra você definir uma senha nova.
           </p>
         ) : (
           <AuthModeTabs mode={mode} onSelect={switchMode} />
         )}
 
-        <label htmlFor="auth-email" className="mb-1.5 block text-[11px] font-medium text-neutral-400">E-mail</label>
+        <label htmlFor="auth-email" className="mb-1.5 block text-[12px] font-medium text-neutral-400">E-mail</label>
         <Input
           id="auth-email"
           type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-          autoComplete="email" inputMode="email" autoFocus placeholder="voce@exemplo.com"
+          autoComplete="email" inputMode="email" autoFocus={!isVirtualKeyboardOnly()} placeholder="voce@exemplo.com"
           className="mb-3"
         />
         {mode !== 'forgot' && (
           <>
-            <label htmlFor="auth-password" className="mb-1.5 block text-[11px] font-medium text-neutral-400">Senha</label>
+            <label htmlFor="auth-password" className="mb-1.5 block text-[12px] font-medium text-neutral-400">Senha</label>
             <Input
               id="auth-password"
               type="password" value={password} onChange={(e) => setPassword(e.target.value)}
@@ -63,9 +67,14 @@ export function SupabaseAuthGate({ auth }: { auth: AuthGateActions }) {
         </Button>
 
         {mode === 'login' && (
-          <Button type="button" variant="ghost" size="sm" className="mt-3 w-full" onClick={() => switchMode('forgot')}>
-            Esqueci a senha
-          </Button>
+          <>
+            <Button type="button" variant="secondary" size="sm" icon="smartphone" className="mt-3 w-full" onClick={() => setQr(true)}>
+              Entrar com QR code
+            </Button>
+            <Button type="button" variant="ghost" size="sm" className="mt-2 w-full" onClick={() => switchMode('forgot')}>
+              Esqueci a senha
+            </Button>
+          </>
         )}
         {mode === 'forgot' && (
           <Button type="button" variant="ghost" size="sm" icon="chevronLeft" className="mt-3 w-full" onClick={() => switchMode('login')}>
@@ -73,10 +82,16 @@ export function SupabaseAuthGate({ auth }: { auth: AuthGateActions }) {
           </Button>
         )}
         {mode !== 'forgot' && (
-          <p className="mt-3 text-[11px] leading-relaxed text-neutral-600">
-            Depois de entrar, conecte sua VPS pra começar a usar o Deck na sua máquina.
+          <p className="mt-3 text-[12px] leading-relaxed text-neutral-600">
+            O Deck precisa do seu próprio servidor. Depois de entrar, conecte-o para começar a usar o Deck na sua máquina.
           </p>
         )}
+        </>)}
+        <p className="mt-4 flex justify-center gap-3 text-[11.5px] text-neutral-600">
+          <a href="/privacy/" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-neutral-400">Privacidade</a>
+          <a href="/terms/" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-neutral-400">Termos</a>
+          <a href="/support/" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-neutral-400">Suporte</a>
+        </p>
       </form>
     </div>
   );

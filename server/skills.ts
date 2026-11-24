@@ -1,9 +1,10 @@
 import { readdir, readFile, stat, mkdir, writeFile } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
-import type { SkillMeta } from '../shared/protocol';
+import type { SkillMeta, SkillRisk } from '../shared/protocol';
 import { CONFIG } from './config';
 import { parseFrontmatter } from './frontmatter';
 import { importSlug, MAX_IMPORT_BYTES } from './contexts';
+import { captureSkill } from './versions/skill-history';
 
 // Surfacing READ-ONLY das skills do agente. Cada skill é um DIRETÓRIO em
 // CONFIG.skillsDir contendo um SKILL.md (com frontmatter name/description). O
@@ -12,7 +13,23 @@ import { importSlug, MAX_IMPORT_BYTES } from './contexts';
 
 const SLUG_RE = /^[a-zA-Z0-9_-]{1,80}$/;
 
-export async function listSkills(): Promise<SkillMeta[]> {
+const RISKS: ReadonlySet<string> = new Set<SkillRisk>(['read', 'write', 'net']);
+
+export function parseRisk(raw: string | undefined): SkillRisk[] | undefined {
+  if (!raw) return undefined;
+  const out = [...new Set(raw.toLowerCase().split(/[\s,[\]]+/).filter((r): r is SkillRisk => RISKS.has(r)))];
+  return out.length ? out : undefined;
+}
+
+export interface BotSkillRef { id: string; skills?: string[] }
+
+// A bot with no skill list runs every skill (the engine denies nothing then), so it
+// counts as a user of all of them.
+export function usedByFor(skillId: string, bots: readonly BotSkillRef[]): string[] {
+  return bots.filter((b) => !b.skills || b.skills.length === 0 || b.skills.includes(skillId)).map((b) => b.id);
+}
+
+export async function listSkills(bots?: readonly BotSkillRef[]): Promise<SkillMeta[]> {
   let entries;
   try { entries = await readdir(CONFIG.skillsDir, { withFileTypes: true }); } catch { return []; }
 
@@ -32,6 +49,9 @@ export async function listSkills(): Promise<SkillMeta[]> {
       name: fm.name || id.replace(/[-_]/g, ' '),
       description: fm.description || '',
       mtime: st.mtimeMs,
+      ...(fm.source ? { source: fm.source } : {}),
+      ...(parseRisk(fm.risk) ? { risk: parseRisk(fm.risk) } : {}),
+      ...(bots ? { usedBy: usedByFor(id, bots) } : {}),
     });
   }
   return metas.sort((a, b) => a.name.localeCompare(b.name));
@@ -85,8 +105,10 @@ export async function installSkill(slug: string, _name: string, body: string): P
   const sdir = resolve(join(dir, id));
   const full = resolve(join(sdir, 'SKILL.md'));
   if (!sdir.startsWith(dir + '/') || !full.startsWith(sdir + '/') || basename(full) !== 'SKILL.md') return { error: 'caminho inválido' };
+  await captureSkill(id);
   try { await mkdir(sdir, { recursive: true }); await writeFile(full, body, 'utf8'); }
   catch { return { error: 'falha ao gravar' }; }
+  await captureSkill(id);
   return { id };
 }
 

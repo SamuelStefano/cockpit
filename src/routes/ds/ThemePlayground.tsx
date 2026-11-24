@@ -11,7 +11,7 @@ const DENSITY = [
 function Slider({ label, value, min, max, onChange, suffix }: { label: string; value: number; min: number; max: number; onChange: (v: number) => void; suffix?: string }) {
   return (
     <label className="block">
-      <span className="mb-1 flex items-center justify-between text-[12px] text-neutral-400">
+      <span className="mb-1 flex items-center justify-between text-[13px] text-neutral-400">
         {label}<span className="tabular-nums text-neutral-500">{value}{suffix}</span>
       </span>
       <input type="range" min={min} max={max} value={value} onChange={(e) => onChange(Number(e.target.value))}
@@ -53,11 +53,11 @@ export function ThemePlayground() {
         <Slider label="Saturação" value={sat} min={20} max={100} onChange={setSat} suffix="%" />
         <Slider label="Raio das bordas" value={radius} min={0} max={22} onChange={setRadius} suffix="px" />
         <div>
-          <span className="mb-1.5 block text-[12px] text-neutral-400">Densidade</span>
+          <span className="mb-1.5 block text-[13px] text-neutral-400">Densidade</span>
           <div className="flex gap-1.5">
             {DENSITY.map((opt, i) => (
               <button key={opt.label} onClick={() => setDensity(i)}
-                className={`flex-1 rounded-lg border px-2 py-1.5 text-[11.5px] transition ${density === i ? 'border-orange-500/50 bg-orange-500/10 text-orange-200' : 'border-neutral-800 text-neutral-400 hover:border-neutral-700'}`}>
+                className={`flex-1 rounded-lg border px-2 py-1.5 text-[12px] transition ${density === i ? 'border-orange-500/50 bg-orange-500/10 text-orange-200' : 'border-neutral-800 text-neutral-400 hover:border-neutral-700'}`}>
                 {opt.label}
               </button>
             ))}

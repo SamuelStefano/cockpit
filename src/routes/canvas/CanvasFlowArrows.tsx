@@ -64,7 +64,7 @@ export const CanvasFlowArrows = memo(function CanvasFlowArrows({ nodes, pos, win
     <svg className="pointer-events-none absolute left-0 top-0 overflow-visible" width={1} height={1}>
       <defs>
         <marker id="deck-flow-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-          <path d="M0,0 L10,5 L0,10 z" fill="rgba(251,146,60,0.9)" />
+          <path d="M0,0 L10,5 L0,10 z" fill="rgba(96,165,250,0.9)" />
         </marker>
       </defs>
       <style>{'@keyframes deck-flow-dash{to{stroke-dashoffset:-32px}}.deck-flow-line{animation:deck-flow-dash 0.8s linear infinite}'}</style>
@@ -82,16 +82,16 @@ export const CanvasFlowArrows = memo(function CanvasFlowArrows({ nodes, pos, win
           <g key={f.id}>
             <path
               d={d} fill="none" markerEnd="url(#deck-flow-arrow)" strokeDasharray="10 6"
-              stroke={f.enabled ? 'rgba(251,146,60,0.85)' : 'rgba(115,115,115,0.45)'}
+              stroke={f.enabled ? 'rgba(96,165,250,0.85)' : 'rgba(115,115,115,0.45)'}
               strokeWidth={pulsing ? 3.2 : 2}
               className={f.enabled ? 'deck-flow-line' : undefined}
-              style={pulsing ? { filter: 'drop-shadow(0 0 5px rgba(251,146,60,0.85))' } : undefined}
+              style={pulsing ? { filter: 'drop-shadow(0 0 5px rgba(96,165,250,0.85))' } : undefined}
               opacity={past ? PAST_DIM : 1}
             />
             <g className="pointer-events-auto cursor-pointer" onClick={() => onFlowClick(f.id)} opacity={past ? PAST_DIM : 1}
               transform={chipScale === 1 ? undefined : `translate(${mid.x} ${mid.y}) scale(${chipScale}) translate(${-mid.x} ${-mid.y})`}>
-              <circle cx={mid.x} cy={mid.y} r={CHIP_R} fill="rgba(23,23,23,0.9)" stroke={f.enabled ? 'rgba(251,146,60,0.85)' : 'rgba(115,115,115,0.6)'} strokeWidth={1.5} />
-              <text x={mid.x} y={mid.y + 3.5} textAnchor="middle" fontSize={10} fill={f.enabled ? 'rgba(251,146,60,0.95)' : 'rgba(163,163,163,0.8)'}>{f.fires}</text>
+              <circle cx={mid.x} cy={mid.y} r={CHIP_R} fill="rgba(23,23,23,0.9)" stroke={f.enabled ? 'rgba(96,165,250,0.85)' : 'rgba(115,115,115,0.6)'} strokeWidth={1.5} />
+              <text x={mid.x} y={mid.y + 3.5} textAnchor="middle" fontSize={10} fill={f.enabled ? 'rgba(96,165,250,0.95)' : 'rgba(163,163,163,0.8)'}>{f.fires}</text>
             </g>
           </g>
         );

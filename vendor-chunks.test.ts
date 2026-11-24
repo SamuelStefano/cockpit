@@ -39,6 +39,11 @@ describe('vendorChunk', () => {
     expect(vendorChunk(nm('@supabase/postgrest-js/dist/index.js'))).toBe('supabase');
   });
 
+  it('isola o three no próprio chunk', () => {
+    expect(vendorChunk(nm('three/build/three.module.js'))).toBe('three');
+    expect(vendorChunk(nm('three/examples/jsm/geometries/RoundedBoxGeometry.js'))).toBe('three');
+  });
+
   it('deixa o resto no chunk do app', () => {
     expect(vendorChunk(nm('jspdf/dist/jspdf.es.min.js'))).toBeUndefined();
     expect(vendorChunk('/home/x/cockpit/src/App.tsx')).toBeUndefined();

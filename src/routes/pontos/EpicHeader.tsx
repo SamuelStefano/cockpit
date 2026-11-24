@@ -17,12 +17,12 @@ export function EpicHeader({ eyebrow, title, figure, facts, meter, actions, noti
     <header className="pb-3">
       <div className="flex flex-wrap items-start gap-x-6 gap-y-2">
         <div className="min-w-0 flex-1 basis-80">
-          <div className="flex flex-wrap items-center gap-1.5 font-mono text-[10.5px] lowercase tracking-wide text-neutral-500">{eyebrow}</div>
+          <div className="flex flex-wrap items-center gap-1.5 font-mono text-[12px] lowercase tracking-wide text-neutral-500">{eyebrow}</div>
           <h2 className="mt-1 text-[17px] font-semibold leading-snug tracking-tight text-neutral-50">{title}</h2>
         </div>
         <div className="flex shrink-0 flex-col items-start gap-1 sm:items-end">
           <span className="font-mono text-[22px] font-semibold leading-none tabular-nums tracking-tight text-neutral-50">{figure}</span>
-          <span className="font-mono text-[11px] tabular-nums text-neutral-500">{facts}</span>
+          <span className="font-mono text-[12px] tabular-nums text-neutral-500">{facts}</span>
           {meter}
         </div>
       </div>

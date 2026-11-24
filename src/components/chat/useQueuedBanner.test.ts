@@ -3,74 +3,83 @@ import { describe, it, expect, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useQueuedBanner } from './useQueuedBanner';
 
-function setup(queued: string[]) {
+interface Props { queued: string[]; ids: string[] }
+
+function setup(queued: string[], ids: string[]) {
   const onMove = vi.fn();
   const onEdit = vi.fn();
-  const hook = renderHook((p: { queued: string[] }) => useQueuedBanner(p.queued, onMove, onEdit), {
-    initialProps: { queued },
-  });
+  const hook = renderHook((p: Props) => useQueuedBanner(p.queued, p.ids, onMove, onEdit), { initialProps: { queued, ids } });
   return { hook, onMove, onEdit };
 }
 
-describe('useQueuedBanner edição', () => {
-  it('startEdit carrega o texto do item e commit envia o rascunho', () => {
-    const { hook, onEdit } = setup(['a', 'b']);
-    act(() => hook.result.current.startEdit(1));
+describe('useQueuedBanner edit', () => {
+  it('startEdit loads the item text and commit sends the draft with its current index', () => {
+    const { hook, onEdit } = setup(['a', 'b'], ['x', 'y']);
+    act(() => hook.result.current.startEdit('y'));
     expect(hook.result.current.draft).toBe('b');
-    act(() => hook.result.current.setDraft('b corrigido'));
+    act(() => hook.result.current.setDraft('b fixed'));
     act(() => hook.result.current.commitEdit());
-    expect(onEdit).toHaveBeenCalledWith(1, 'b corrigido');
+    expect(onEdit).toHaveBeenCalledWith(1, 'b fixed');
     expect(hook.result.current.editing).toBeNull();
   });
 
-  it('commit sem mudança (ou vazio) não chama onEdit', () => {
-    const { hook, onEdit } = setup(['a']);
-    act(() => hook.result.current.startEdit(0));
+  it('commit without change (or empty) does not call onEdit', () => {
+    const { hook, onEdit } = setup(['a'], ['x']);
+    act(() => hook.result.current.startEdit('x'));
     act(() => hook.result.current.commitEdit());
-    act(() => hook.result.current.startEdit(0));
+    act(() => hook.result.current.startEdit('x'));
     act(() => hook.result.current.setDraft('   '));
     act(() => hook.result.current.commitEdit());
     expect(onEdit).not.toHaveBeenCalled();
   });
 
-  it('drenar o topo desloca a edição pro novo índice do MESMO item', () => {
-    const { hook } = setup(['a', 'b']);
-    act(() => hook.result.current.startEdit(1));
-    hook.rerender({ queued: ['b'] });
-    expect(hook.result.current.editing).toBe(0);
-    expect(hook.result.current.draft).toBe('b');
+  it('keeps editing the same item after a reorder, even with identical texts', () => {
+    const { hook, onEdit } = setup(['same', 'same'], ['x', 'y']);
+    act(() => hook.result.current.startEdit('y'));
+    act(() => hook.result.current.setDraft('changed'));
+    hook.rerender({ queued: ['same', 'same'], ids: ['y', 'x'] });
+    expect(hook.result.current.editing).toBe('y');
+    act(() => hook.result.current.commitEdit());
+    expect(onEdit).toHaveBeenCalledWith(0, 'changed');
   });
 
-  it('o item em edição sumir da fila fecha o textarea (não pousa no vizinho)', () => {
-    const { hook } = setup(['a', 'b']);
-    act(() => hook.result.current.startEdit(1));
-    hook.rerender({ queued: ['a'] });
+  it('closes the editor when its item leaves the queue', () => {
+    const { hook } = setup(['a', 'b'], ['x', 'y']);
+    act(() => hook.result.current.startEdit('y'));
+    hook.rerender({ queued: ['a'], ids: ['x'] });
     expect(hook.result.current.editing).toBeNull();
   });
 });
 
-describe('useQueuedBanner disparo em paralelo', () => {
-  it('toggleBg abre um item só e o segundo clique fecha', () => {
-    const { hook } = setup(['a', 'b']);
-    act(() => hook.result.current.toggleBg(1));
-    expect(hook.result.current.bgOpen).toBe(1);
-    act(() => hook.result.current.toggleBg(0));
-    expect(hook.result.current.bgOpen).toBe(0);
-    act(() => hook.result.current.toggleBg(0));
+describe('useQueuedBanner expand and launcher', () => {
+  it('expanded state follows the item across a reorder', () => {
+    const { hook } = setup(['a', 'b'], ['x', 'y']);
+    act(() => hook.result.current.toggle('y'));
+    hook.rerender({ queued: ['b', 'a'], ids: ['y', 'x'] });
+    expect(hook.result.current.open).toEqual({ y: true });
+  });
+
+  it('toggleBg opens one item only and a second click closes', () => {
+    const { hook } = setup(['a', 'b'], ['x', 'y']);
+    act(() => hook.result.current.toggleBg('y'));
+    expect(hook.result.current.bgOpen).toBe('y');
+    act(() => hook.result.current.toggleBg('x'));
+    expect(hook.result.current.bgOpen).toBe('x');
+    act(() => hook.result.current.toggleBg('x'));
     expect(hook.result.current.bgOpen).toBeNull();
   });
 
-  it('o seletor segue o MESMO item quando a fila desloca', () => {
-    const { hook } = setup(['a', 'b']);
-    act(() => hook.result.current.toggleBg(1));
-    hook.rerender({ queued: ['b'] });
-    expect(hook.result.current.bgOpen).toBe(0);
+  it('closes the launcher when the item is gone', () => {
+    const { hook } = setup(['a', 'b'], ['x', 'y']);
+    act(() => hook.result.current.toggleBg('y'));
+    hook.rerender({ queued: ['a'], ids: ['x'] });
+    expect(hook.result.current.bgOpen).toBeNull();
   });
 
-  it('o item disparado sumir da fila fecha o seletor', () => {
-    const { hook } = setup(['a', 'b']);
-    act(() => hook.result.current.toggleBg(1));
-    hook.rerender({ queued: ['a'] });
-    expect(hook.result.current.bgOpen).toBeNull();
+  it('move resolves the index from the id', () => {
+    const { hook, onMove } = setup(['a', 'b'], ['x', 'y']);
+    act(() => hook.result.current.move('y', -1));
+    expect(onMove).toHaveBeenCalledWith(1, -1);
+    expect(hook.result.current.flash).toBe('y');
   });
 });
