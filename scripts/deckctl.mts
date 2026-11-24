@@ -17,12 +17,18 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import WebSocket from 'ws';
-import type { ClientMsg, ServerMsg, Effort, Message, ToolQuestion } from '../shared/protocol';
+import type { ClientMsg, ServerMsg, Effort, Message, ToolQuestion, TeamBot } from '../shared/protocol';
 import { CARD_ID_RE, CARD_STATUSES, type CanvasCard, type CardStatus } from '../shared/canvas';
+import {
+  PLANNER_COLUMNS, PLANNER_LIMITS, PLANNER_REF_RE, type PlannerColumn, type PlannerDifficulty, type PlannerLink, type PlannerTask,
+} from '../shared/planner';
+import { MEETING_LIMITS, type TeamMeeting } from '../shared/team-meeting';
+import { DEPARTMENTS, isDepartmentId, type DepartmentId } from '../shared/departments';
 import { buildTaskPrompt, buildContinuePrompt } from '../shared/canvas-prompt';
 import { ctxWindow } from '../src/routes/canvas/term-stats-view';
 import { mergeBoard } from '../src/routes/canvas/canvas-board';
 import { deriveSessionItems } from '../src/routes/canvas/kanban-items';
+import { COLUMN_LABELS, DONE_WINDOW_DAYS, columnTasks, hiddenDoneCount, topOrder } from '../src/planner/planner-logic';
 
 // --- connection -------------------------------------------------------------
 
@@ -103,9 +109,10 @@ export class Client {
   // Resolves with the first ServerMsg matching `pred` — checking the history
   // buffer FIRST (a frame that already arrived, e.g. the connect-time race
   // above) before falling back to a live listener + timeout for one that
-  // hasn't arrived yet.
-  waitFor<T extends ServerMsg>(pred: (m: ServerMsg) => m is T, timeoutMs: number): Promise<T | null> {
-    const buffered = this.history.find(pred);
+  // hasn't arrived yet. `fresh` skips the history: an ack for a mutation must be
+  // a frame sent AFTER it, not the board/list fetched before it.
+  waitFor<T extends ServerMsg>(pred: (m: ServerMsg) => m is T, timeoutMs: number, opts: { fresh?: boolean } = {}): Promise<T | null> {
+    const buffered = opts.fresh ? undefined : this.history.find(pred);
     if (buffered) return Promise.resolve(buffered);
     return new Promise((resolve) => {
       const timer = setTimeout(() => { off(); resolve(null); }, timeoutMs);
@@ -120,7 +127,7 @@ export class Client {
   }
 }
 
-async function connect(): Promise<Client> {
+export async function connect(): Promise<Client> {
   const token = readToken();
   if (!token) fail('no COCKPIT_TOKEN found — set env COCKPIT_TOKEN or add it to ~/.cockpit-local.env');
   const client = new Client(token);
@@ -237,6 +244,25 @@ function isServerMsg<T extends ServerMsg['t']>(t: T) {
 // pushed here as 'cv-live' off the SAME 'canvas-get' cmdBoard/cmdStatus
 // already send). Folding it into `busy`'s keys is what makes `sessions`/
 // `status` agree with the kanban on what's actually running.
+// `busy` lists running turns by their START key (`new-…`, `cron-…`, a card or flow
+// key), which the server never renames to the session id. On a session's first
+// turn `busy.keys.includes(sessionId)` is false, so `wait` returned "not running"
+// at once and `sessions`/`status` showed it idle. The server sends one `replay`
+// per running turn right after `busy`, carrying the sessionId: fold those in.
+export async function busySessionIds(client: Client, timeoutMs = 3000): Promise<Set<string>> {
+  const busy = await client.waitFor(isServerMsg('busy'), timeoutMs);
+  const ids = new Set(busy?.keys ?? []);
+  const deadline = Date.now() + 1500;
+  for (const key of busy?.keys ?? []) {
+    const r = await client.waitFor(
+      (m): m is Extract<ServerMsg, { t: 'replay' }> => m.t === 'replay' && m.sessionKey === key,
+      Math.max(0, deadline - Date.now()),
+    );
+    if (r?.sessionId) ids.add(r.sessionId);
+  }
+  return ids;
+}
+
 async function externalLiveIds(client: Client): Promise<string[]> {
   client.send({ t: 'canvas-get' });
   const cvLive = await client.waitFor(isServerMsg('cv-live'), 3000);
@@ -249,10 +275,10 @@ async function cmdSessions(flags: Flags, json: boolean): Promise<void> {
   const own = flags.all ? [...await listSessions(), ...await listArchived()] : await listSessions();
 
   const client = await connect();
-  const busy = await client.waitFor(isServerMsg('busy'), 3000);
+  const busy = await busySessionIds(client);
   const external = await externalLiveIds(client);
   client.close();
-  const busyKeys = new Set([...(busy?.keys ?? []), ...external]);
+  const busyKeys = new Set([...busy, ...external]);
 
   const limit = flagNum(flags, 'limit');
   const items = await Promise.all((limit ? own.slice(0, limit) : own).map(async (s) => {
@@ -284,7 +310,7 @@ async function cmdRead(id: string, flags: Flags): Promise<void> {
 async function cmdBoard(json: boolean): Promise<void> {
   const client = await connect();
   client.send({ t: 'canvas-get' });
-  const busy = await client.waitFor(isServerMsg('busy'), DEFAULT_TIMEOUT_MS);
+  const busy = await busySessionIds(client, DEFAULT_TIMEOUT_MS);
   const board = await client.waitFor(isServerMsg('canvas-board'), DEFAULT_TIMEOUT_MS);
   const graph = await client.waitFor(isServerMsg('canvas-graph'), DEFAULT_TIMEOUT_MS);
   // Same signal the browser's kanban reads (kanban-items.ts's `cvLive`) — a
@@ -302,8 +328,8 @@ async function cmdBoard(json: boolean): Promise<void> {
   const merged = mergeBoard(graph?.graph ?? null, board.board.cards);
   const sessionItems = deriveSessionItems({
     nodes: merged.nodes, edges: merged.edges, cards: board.board.cards, showAutomation: false,
-    running: new Set(busy?.keys ?? []), overrides: board.board.sessionStatus, turnStartedAt: {},
-    orchestratorSessionId: graph?.graph.orchestrator?.sessionId, cvLive: new Set(cvLive?.sessionIds ?? []),
+    running: busy, overrides: board.board.sessionStatus, turnStartedAt: {},
+    cvLive: new Set(cvLive?.sessionIds ?? []),
   });
 
   const cardsByStatus = new Map<CardStatus, CanvasCard[]>(CARD_STATUSES.map((s) => [s, []]));
@@ -335,8 +361,7 @@ async function cmdBoard(json: boolean): Promise<void> {
 // queues if the session is mid-turn, otherwise starts a turn directly.
 async function sendText(full: string, text: string, flags: Flags): Promise<void> {
   const client = await connect();
-  const busy = await client.waitFor(isServerMsg('busy'), 3000);
-  const isBusy = !!busy?.keys.includes(full);
+  const isBusy = (await busySessionIds(client)).has(full);
   const model = flagStr(flags, 'model');
   const effort = flagStr(flags, 'effort') as Effort | undefined;
 
@@ -350,22 +375,122 @@ async function sendText(full: string, text: string, flags: Flags): Promise<void>
     return;
   }
 
-  client.send({ t: 'send', sessionKey: full, sessionId: full, text, model, effort });
-  const ack = await client.waitFor(
-    (m): m is Extract<ServerMsg, { t: 'started' | 'send-reject' | 'send-parked' }> =>
-      (m.t === 'started' || m.t === 'send-reject' || m.t === 'send-parked') && (m as { sessionKey?: string }).sessionKey === full,
-    DEFAULT_TIMEOUT_MS,
-  );
+  // msgId is the delivery receipt: the server echoes it back as a `user` frame
+  // once the text is part of a turn, as `triage` when it landed on a running
+  // turn, and on `send-reject`/`send-parked` when it did not. A bare `started`
+  // only proves SOME turn began on this key (a busy session or a twin thread
+  // answers it with its own), never that this text entered it.
+  const msgId = `deckctl-${randomUUID()}`;
+  client.send({ t: 'send', sessionKey: full, sessionId: full, text, msgId, model, effort });
+  const res = await awaitDelivery(client, full, msgId, DEFAULT_TIMEOUT_MS);
   client.close();
-  if (!ack) fail('no ack from server for send (timeout)');
-  if (ack.t === 'send-reject') fail(`send rejected: ${ack.message}`);
-  if (ack.t === 'send-parked') { console.log(`parked (queued for later): ${ack.message}`); return; }
-  console.log(`sent — turn started on ${shortId(full)}${ack.model ? ` (model ${ack.model})` : ''}`);
+  if (res.kind === 'timeout') fail('message not confirmed delivered (no echo for its msgId) — it may have been lost; check `deckctl read` before retrying', 1);
+  if (res.kind === 'rejected') fail(`send rejected: ${res.message}`);
+  if (res.kind === 'parked') { console.log(`parked (queued for later): ${res.message}`); return; }
+  if (res.kind === 'queued') { console.log(`delivered — session ${shortId(full)} was running; message ${res.action === 'merge' ? 'merged into' : 'queued behind'} the current turn (${res.action})`); return; }
+  if (res.kind === 'started') { console.log(`sent — turn started on ${shortId(full)}${res.model ? ` (model ${res.model})` : ''}`); return; }
+  console.log(`delivered — message ${msgId} entered ${shortId(full)} (no start/triage frame seen)`);
+}
+
+export type Delivery =
+  | { kind: 'started'; model?: string }
+  | { kind: 'queued'; action: string }
+  | { kind: 'delivered' }
+  | { kind: 'parked'; message: string }
+  | { kind: 'rejected'; message: string }
+  | { kind: 'timeout' };
+
+// Waits for the server's receipt of ONE send, matched by msgId. `started` alone
+// is never enough: it is only trusted after the msgId echo, since the user echo
+// is broadcast before the run's `started` on the free path.
+export async function awaitDelivery(client: Client, key: string, msgId: string, timeoutMs: number): Promise<Delivery> {
+  const first = await client.waitFor(
+    (m): m is Extract<ServerMsg, { t: 'user' | 'send-reject' | 'send-parked' | 'triage' | 'pane-delivered' }> =>
+      (m.t === 'user' && m.id === msgId)
+      || (m.t === 'triage' && m.msgId === msgId)
+      || (m.t === 'pane-delivered' && m.msgId === msgId)
+      || (m.t === 'send-reject' && (m.msgId === msgId || (!m.msgId && m.sessionKey === key)))
+      || (m.t === 'send-parked' && (m.msgId === msgId || (!m.msgId && m.sessionKey === key))),
+    timeoutMs,
+  );
+  if (!first) return { kind: 'timeout' };
+  if (first.t === 'send-reject') return { kind: 'rejected', message: first.message };
+  if (first.t === 'send-parked') return { kind: 'parked', message: first.message };
+  if (first.t === 'triage') return first.action === 'wait' || first.action === 'merge' ? { kind: 'queued', action: first.action } : { kind: 'delivered' };
+  if (first.t === 'pane-delivered') return { kind: 'delivered' };
+  // Echoed: now see what became of it (turn start vs. triage on a running turn).
+  const next = await client.waitFor(
+    (m): m is Extract<ServerMsg, { t: 'started' | 'triage' | 'send-reject' }> =>
+      (m.t === 'started' && m.sessionKey === key)
+      || (m.t === 'triage' && m.msgId === msgId)
+      || (m.t === 'send-reject' && m.msgId === msgId),
+    Math.min(timeoutMs, 8000),
+  );
+  if (next?.t === 'started') return { kind: 'started', model: next.model };
+  if (next?.t === 'send-reject') return { kind: 'rejected', message: next.message };
+  if (next?.t === 'triage') return next.action === 'wait' || next.action === 'merge' ? { kind: 'queued', action: next.action } : { kind: 'delivered' };
+  return { kind: 'delivered' };
+}
+
+// `@Name` addresses a bot; a session id that a bot rotated away from lands on its
+// current session. Returns undefined when the arg is neither.
+export function botSessionTarget(team: Pick<TeamBot, 'id' | 'name' | 'sessionId' | 'previousSessionIds'>[], arg: string): { sessionId?: string; botName: string } | undefined {
+  if (arg.startsWith('@')) {
+    const key = arg.slice(1).trim().toLowerCase();
+    const b = team.find((x) => x.id === arg.slice(1).trim()) ?? team.find((x) => x.name.toLowerCase() === key);
+    if (!b) throw new Error(`no bot "${arg.slice(1)}" in the team${team.length ? ` — one of: ${team.map((x) => x.name).join(', ')}` : ''}`);
+    return { sessionId: b.sessionId, botName: b.name };
+  }
+  const b = team.find((x) => x.previousSessionIds?.some((id) => id.startsWith(arg)) && !(x.sessionId ?? '').startsWith(arg));
+  return b ? { sessionId: b.sessionId, botName: b.name } : undefined;
 }
 
 async function cmdSend(id: string, text: string, flags: Flags): Promise<void> {
+  if (id.startsWith('@') || id.length >= 8) {
+    const client = await connect();
+    const team = await fetchTeam(client);
+    client.close();
+    const hit = orFail(() => botSessionTarget(team, id));
+    if (hit) {
+      if (!hit.sessionId) fail(`${hit.botName} was rotated and has no session yet — wait for the first turn to bind it`);
+      if (!id.startsWith('@')) console.error(`${hit.botName} moved to session ${shortId(hit.sessionId)}; sending there`);
+      return sendText(hit.sessionId, text, flags);
+    }
+  }
   const full = await resolveSessionId(id);
   return sendText(full, text, flags);
+}
+
+// Exit code for "accepted but parked": the server queued the prompt (quota
+// window nearly spent, or a big session starting) and its drainer runs it later.
+// Not a failure — retrying would start a duplicate session.
+export const EXIT_PARKED = 3;
+
+type NewTurn = { kind: 'started'; sessionId: string } | { kind: 'parked'; message: string } | { kind: 'rejected'; message: string } | null;
+
+// Starts a turn on a fresh `new-…` key and waits for whichever answer comes: the
+// session id (`system`), a park or a reject. Waiting for `system` alone turned a
+// park into "timeout, turn may have failed" (exit 1) 15 s later, and a reject lost
+// its message.
+export async function startNewTurn(client: Client, sessionKey: string, msg: Omit<Extract<ClientMsg, { t: 'send' }>, 't' | 'sessionKey'>, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<NewTurn> {
+  client.send({ t: 'send', sessionKey, ...msg });
+  const m = await client.waitFor(
+    (f): f is Extract<ServerMsg, { t: 'system' | 'send-parked' | 'send-reject' }> =>
+      (f.t === 'system' || f.t === 'send-parked' || f.t === 'send-reject') && f.sessionKey === sessionKey,
+    timeoutMs,
+  );
+  if (!m) return null;
+  if (m.t === 'system') return { kind: 'started', sessionId: m.sessionId };
+  if (m.t === 'send-parked') return { kind: 'parked', message: m.message };
+  return { kind: 'rejected', message: m.message };
+}
+
+// stderr, not stdout: callers capture stdout as the new session id
+// (`new=$(deckctl new … | tail -1)` in ~/bin/marathon-watch).
+function parked(client: Client, what: string, message: string): never {
+  client.close();
+  console.error(`deckctl: parked — ${what} will start when the server drains its queue: ${message}`);
+  process.exit(EXIT_PARKED);
 }
 
 async function cmdNew(text: string, flags: Flags): Promise<void> {
@@ -374,9 +499,10 @@ async function cmdNew(text: string, flags: Flags): Promise<void> {
   }
   const sessionKey = `new-${randomUUID()}`;
   const client = await connect();
-  client.send({ t: 'send', sessionKey, text, model: flagStr(flags, 'model'), effort: flagStr(flags, 'effort') as Effort | undefined });
-  const sys = await client.waitFor((m): m is Extract<ServerMsg, { t: 'system' }> => m.t === 'system' && m.sessionKey === sessionKey, DEFAULT_TIMEOUT_MS);
+  const sys = await startNewTurn(client, sessionKey, { text, model: flagStr(flags, 'model'), effort: flagStr(flags, 'effort') as Effort | undefined });
   if (!sys) { client.close(); fail('no sessionId assigned by server (timeout) — turn may have failed to start'); }
+  if (sys.kind === 'rejected') { client.close(); fail(`send rejected: ${sys.message}`); }
+  if (sys.kind === 'parked') parked(client, 'the new session', sys.message);
   console.log(sys.sessionId);
   const title = flagStr(flags, 'title');
   if (title) client.send({ t: 'set-meta', sessionId: sys.sessionId, title: title.slice(0, 120) });
@@ -396,8 +522,7 @@ async function cmdWait(id: string, flags: Flags): Promise<void> {
   const full = await resolveSessionId(id);
   const timeoutMs = (flagNum(flags, 'timeout') ?? 15) * 1000;
   const client = await connect();
-  const busy = await client.waitFor(isServerMsg('busy'), 3000);
-  if (!busy?.keys.includes(full)) {
+  if (!(await busySessionIds(client)).has(full)) {
     client.close();
     console.log(`session ${shortId(full)} is not running — nothing to wait for`);
     return;
@@ -412,6 +537,31 @@ async function cmdWait(id: string, flags: Flags): Promise<void> {
   if (parsed) console.log(transcriptText(parsed.messages, 2000));
 }
 
+// Waits for the frame that proves a mutation landed, or for the handler's
+// `error` reply. The old waits matched a frame already in history (the board
+// fetched to find the card, the `archived` list from connect or from the hide
+// step) and ignored errors, so a failed save printed success and exited 0.
+export async function tryMutationAck<T extends ServerMsg>(client: Client, pred: (m: ServerMsg) => m is T, what: string, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<{ ok: T } | { error: string }> {
+  const m = await client.waitFor(
+    (f): f is T | Extract<ServerMsg, { t: 'error' }> => pred(f) || (f.t === 'error' && !f.sessionKey),
+    timeoutMs, { fresh: true },
+  );
+  if (!m) return { error: `backend did not confirm ${what} (timeout)` };
+  if (m.t === 'error' && !pred(m)) return { error: `${what} failed: ${(m as Extract<ServerMsg, { t: 'error' }>).message}` };
+  return { ok: m as T };
+}
+
+export async function mutationAck<T extends ServerMsg>(client: Client, pred: (m: ServerMsg) => m is T, what: string, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<T> {
+  const r = await tryMutationAck(client, pred, what, timeoutMs);
+  if ('error' in r) { client.close(); fail(r.error); }
+  return r.ok;
+}
+
+const archivedWith = (id: string, present: boolean) =>
+  (m: ServerMsg): m is Extract<ServerMsg, { t: 'archived' }> => m.t === 'archived' && m.items.some((s) => s.id === id) === present;
+const boardWhere = (ok: (cards: CanvasCard[]) => boolean) =>
+  (m: ServerMsg): m is Extract<ServerMsg, { t: 'canvas-board' }> => m.t === 'canvas-board' && ok(m.board.cards);
+
 // --- session meta / visibility -------------------------------------------
 
 async function cmdRename(id: string, title: string, flags: Flags): Promise<void> {
@@ -419,7 +569,7 @@ async function cmdRename(id: string, title: string, flags: Flags): Promise<void>
   const summary = flagStr(flags, 'summary');
   const client = await connect();
   client.send({ t: 'set-meta', sessionId: full, title, summary });
-  await client.waitFor(isServerMsg('sessions'), DEFAULT_TIMEOUT_MS);
+  await mutationAck(client, isServerMsg('sessions'), 'rename');
   client.close();
   console.log(`session ${shortId(full)} renamed to "${oneLine(title, 120)}"${summary ? ' (summary updated)' : ''}`);
 }
@@ -428,7 +578,7 @@ async function cmdHide(id: string): Promise<void> {
   const full = await resolveSessionId(id);
   const client = await connect();
   client.send({ t: 'hide', sessionId: full });
-  await client.waitFor(isServerMsg('archived'), DEFAULT_TIMEOUT_MS);
+  await mutationAck(client, archivedWith(full, true), 'hide');
   client.close();
   console.log(`session ${shortId(full)} hidden`);
 }
@@ -437,7 +587,7 @@ async function cmdUnhide(id: string): Promise<void> {
   const full = await resolveSessionId(id);
   const client = await connect();
   client.send({ t: 'unhide', sessionId: full });
-  await client.waitFor(isServerMsg('archived'), DEFAULT_TIMEOUT_MS);
+  await mutationAck(client, archivedWith(full, false), 'unhide');
   client.close();
   console.log(`session ${shortId(full)} unhidden`);
 }
@@ -535,9 +685,10 @@ async function cmdHandoff(id: string): Promise<void> {
   // that context, same as onNew() + sendPrompt() in the browser.
   const sessionKey = `new-${randomUUID()}`;
   const text = `Retome o trabalho a partir do contexto \`${result.contextId}\`.`;
-  client.send({ t: 'send', sessionKey, text });
-  const sys = await client.waitFor((m): m is Extract<ServerMsg, { t: 'system' }> => m.t === 'system' && m.sessionKey === sessionKey, DEFAULT_TIMEOUT_MS);
+  const sys = await startNewTurn(client, sessionKey, { text });
   if (!sys) { client.close(); fail('handoff distilled ok but the fresh session never got a sessionId (timeout)'); }
+  if (sys.kind === 'rejected') { client.close(); fail(`handoff distilled ok (context ${result.contextId}) but the fresh session was rejected: ${sys.message}`); }
+  if (sys.kind === 'parked') parked(client, `the resumed session (context ${result.contextId})`, sys.message);
   const title = result.fromTitle?.trim() ? `${result.fromTitle.trim()} (retomado)` : 'Sessão retomada';
   client.send({ t: 'set-meta', sessionId: sys.sessionId, title });
   client.close();
@@ -614,9 +765,8 @@ async function cmdCardAdd(title: string, flags: Flags): Promise<void> {
   };
   const client = await connect();
   client.send({ t: 'canvas-card-save', card });
-  const board = await client.waitFor(isServerMsg('canvas-board'), DEFAULT_TIMEOUT_MS);
+  await mutationAck(client, boardWhere((cards) => cards.some((c) => c.id === card.id)), 'canvas-card-save');
   client.close();
-  if (!board) fail('backend did not answer canvas-card-save (timeout)');
   console.log(`card created: ${card.id}`);
 }
 
@@ -627,9 +777,8 @@ async function cmdCardMove(idPrefix: string, status: string): Promise<void> {
   if (!board) { client.close(); fail('backend did not answer canvas-get (timeout)'); }
   const card = findCard(board.cards, idPrefix);
   client.send({ t: 'canvas-card-save', card: { ...card, status: status as CardStatus, updatedAt: Date.now() } });
-  const ack = await client.waitFor(isServerMsg('canvas-board'), DEFAULT_TIMEOUT_MS);
+  await mutationAck(client, boardWhere((cards) => cards.some((c) => c.id === card.id && c.status === status)), 'canvas-card-save');
   client.close();
-  if (!ack) fail('backend did not confirm canvas-card-save (timeout)');
   console.log(`card ${card.id} -> ${status}`);
 }
 
@@ -639,9 +788,8 @@ async function cmdCardRm(idPrefix: string): Promise<void> {
   if (!board) { client.close(); fail('backend did not answer canvas-get (timeout)'); }
   const card = findCard(board.cards, idPrefix);
   client.send({ t: 'canvas-card-delete', id: card.id });
-  const ack = await client.waitFor(isServerMsg('canvas-board'), DEFAULT_TIMEOUT_MS);
+  await mutationAck(client, boardWhere((cards) => !cards.some((c) => c.id === card.id)), 'canvas-card-delete');
   client.close();
-  if (!ack) fail('backend did not confirm canvas-card-delete (timeout)');
   console.log(`card ${card.id} removed`);
 }
 
@@ -673,12 +821,16 @@ async function cmdCardRun(idPrefix: string, flags: Flags): Promise<void> {
   // enrichment is skipped here since deckctl has no local canvas graph).
   const prompt = card.reuse?.mode ? buildContinuePrompt(card) : buildTaskPrompt(card, [], []);
   const sessionKey = `new-${randomUUID()}`;
-  client.send({ t: 'send', sessionKey, text: prompt });
-  const sys = await client.waitFor((m): m is Extract<ServerMsg, { t: 'system' }> => m.t === 'system' && m.sessionKey === sessionKey, DEFAULT_TIMEOUT_MS);
+  const sys = await startNewTurn(client, sessionKey, { text: prompt });
   if (!sys) { client.close(); fail('no sessionId assigned by server (timeout)'); }
+  if (sys.kind === 'rejected') { client.close(); fail(`send rejected: ${sys.message}`); }
+  if (sys.kind === 'parked') parked(client, `card ${card.id}`, sys.message);
   client.send({ t: 'canvas-card-save', card: { ...card, status: 'doing', updatedAt: Date.now() } });
-  await client.waitFor(isServerMsg('canvas-board'), DEFAULT_TIMEOUT_MS);
+  // The turn already started: a non-zero exit here would make a retrying caller
+  // start a duplicate run. Only the card's status move is in doubt.
+  const moved = await tryMutationAck(client, boardWhere((cards) => cards.some((c) => c.id === card.id && c.status === 'doing')), 'canvas-card-save');
   client.close();
+  if ('error' in moved) console.error(`deckctl: warning — the turn started but the card was not moved to doing: ${moved.error}`);
   console.log(`card ${card.id} running on session ${sys.sessionId}`);
 }
 
@@ -690,7 +842,7 @@ async function cmdStatus(): Promise<void> {
   const own = await listSessions();
 
   const client = await connect();
-  const busy = await client.waitFor(isServerMsg('busy'), 3000);
+  const busy = await busySessionIds(client);
   client.send({ t: 'canvas-get' });
   const board = await client.waitFor(isServerMsg('canvas-board'), 8000);
   const graph = await client.waitFor(isServerMsg('canvas-graph'), 8000);
@@ -700,7 +852,7 @@ async function cmdStatus(): Promise<void> {
   client.close();
 
   const cvLiveIds = new Set(cvLive?.sessionIds ?? []);
-  const busyKeys = new Set([...(busy?.keys ?? []), ...cvLiveIds]);
+  const busyKeys = new Set([...busy, ...cvLiveIds]);
   const running = own.filter((s) => busyKeys.has(s.id));
   const awaiting = own.filter((s) => s.waiting);
 
@@ -717,7 +869,7 @@ async function cmdStatus(): Promise<void> {
     const sessionItems = deriveSessionItems({
       nodes: merged.nodes, edges: merged.edges, cards: board.board.cards, showAutomation: false,
       running: busyKeys, overrides: board.board.sessionStatus, turnStartedAt: {},
-      orchestratorSessionId: graph?.graph.orchestrator?.sessionId, cvLive: cvLiveIds,
+      cvLive: cvLiveIds,
     });
     const counts = CARD_STATUSES.map((s) => {
       const n = board.board.cards.filter((c) => c.status === s).length + sessionItems.filter((i) => i.status === s).length;
@@ -1144,6 +1296,7 @@ async function applyTriage(rows: TriageRow[]): Promise<void> {
   const toPurge = rows.filter((r) => r.verdict === 'PURGE');
   const toStub = rows.filter((r) => r.verdict === 'KEEP' && !handoffIds.has(r.id) && !memoryLeafIds.has(r.id));
 
+  let purgeFailures = 0;
   for (const r of toPurge) {
     // Hard guard, independent of scoring: refuse a never-purge id/title even if a
     // future scoring change ever let one through as PURGE.
@@ -1151,12 +1304,16 @@ async function applyTriage(rows: TriageRow[]): Promise<void> {
       console.error(`deckctl: refusing to purge never-purge session ${shortId(r.id)} (scoring bug — this should not happen)`);
       continue;
     }
+    // One unconfirmed session must not stop the batch: report it, go on, and
+    // exit non-zero at the end.
     const client = await connect();
     client.send({ t: 'hide', sessionId: r.id });
-    await client.waitFor(isServerMsg('archived'), DEFAULT_TIMEOUT_MS);
+    const hid = await tryMutationAck(client, archivedWith(r.id, true), `hide ${shortId(r.id)}`);
+    if ('error' in hid) { client.close(); console.error(`deckctl: ${hid.error} — skipped`); purgeFailures++; continue; }
     client.send({ t: 'purge', sessionId: r.id });
-    await client.waitFor(isServerMsg('archived'), DEFAULT_TIMEOUT_MS);
+    const gone = await tryMutationAck(client, archivedWith(r.id, false), `purge ${shortId(r.id)}`);
     client.close();
+    if ('error' in gone) { console.error(`deckctl: ${gone.error} — ${shortId(r.id)} is hidden, not purged`); purgeFailures++; continue; }
     console.log(`purged ${shortId(r.id)}`);
   }
 
@@ -1166,7 +1323,8 @@ async function applyTriage(rows: TriageRow[]): Promise<void> {
   }
 
   const reviewed = rows.filter((r) => r.verdict === 'REVIEW').length;
-  console.log(`apply done — purged ${toPurge.length}, stubbed ${toStub.length}, reviewed ${reviewed} (no action)`);
+  console.log(`apply done — purged ${toPurge.length - purgeFailures}, stubbed ${toStub.length}, reviewed ${reviewed} (no action)`);
+  if (purgeFailures) fail(`${purgeFailures} purge(s) not confirmed — see above`);
 }
 
 async function cmdTriage(flags: Flags, json: boolean): Promise<void> {
@@ -1196,6 +1354,514 @@ async function cmdTriage(flags: Flags, json: boolean): Promise<void> {
   }
 }
 
+// --- task commands (personal Kanban planner) ----------------------------
+
+const TASK_BOOL_FLAGS = new Set(['json', 'all', 'force', 'clear-links', 'unsafe']);
+const TASK_REFUSED_FLAGS = new Set(['ready', 'no-ready', 'unready', 'safe', 'confirm-human']);
+const TASK_VALUE_FLAGS = new Set(['col', 'desc', 'diff', 'link', 'title', 'ref', 'tag', 'owner', 'to', 'from', 'done', 'pending', 'reason', 'switch', 'sector', 'want-ready']);
+
+export interface TaskArgs { positional: string[]; flags: Flags; links: string[] }
+
+// parseFlags keeps only the last value of a repeated flag and lets a boolean
+// flag swallow the next positional; the task commands need `--link` repeatable
+// and `--force "title"` to work, so they parse their own args.
+export function parseTaskArgs(args: string[]): TaskArgs {
+  const positional: string[] = [];
+  const flags: Flags = {};
+  const links: string[] = [];
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    if (!a.startsWith('--')) { positional.push(a); continue; }
+    const name = a.slice(2);
+    if (TASK_REFUSED_FLAGS.has(name)) throw new Error(`--${name} is not available here: only a human can mark a task ready (or clear unsafe), from the Deck UI. Use --want-ready "<reason>" to suggest it`);
+    if (TASK_BOOL_FLAGS.has(name)) { flags[name] = true; continue; }
+    if (!TASK_VALUE_FLAGS.has(name)) throw new Error(`unknown flag "--${name}"`);
+    const next = args[i + 1];
+    if (next === undefined || next.startsWith('--')) throw new Error(`--${name} needs a value`);
+    i++;
+    if (name === 'link') links.push(next);
+    else flags[name] = next;
+  }
+  return { positional, flags, links };
+}
+
+export function normalizeTitle(s: string): string {
+  return s.trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+export function findDuplicate(tasks: PlannerTask[], title: string): PlannerTask | undefined {
+  const key = normalizeTitle(title);
+  return tasks.find((t) => t.column !== 'done' && normalizeTitle(t.title) === key);
+}
+
+// A ref is an external identity (DFL task, Placar request): one task per ref, done or not.
+export function findByRef(tasks: PlannerTask[], ref: string | undefined): PlannerTask | undefined {
+  return ref ? tasks.find((t) => t.ref === ref) : undefined;
+}
+
+export function parseRef(v: string): string {
+  const ref = v.trim();
+  if (!PLANNER_REF_RE.test(ref)) throw new Error(`invalid ref "${v}" — letters, digits and : _ . - only, max ${PLANNER_LIMITS.ref} chars`);
+  return ref;
+}
+
+export function parseTag(v: string): string {
+  const tag = v.trim().replace(/\s+/g, ' ');
+  if (!tag) throw new Error('--tag cannot be empty');
+  if (tag.length > PLANNER_LIMITS.tag) throw new Error(`tag too long — max ${PLANNER_LIMITS.tag} chars`);
+  return tag;
+}
+
+export function resolveBot(team: Pick<TeamBot, 'id' | 'name'>[], v: string): Pick<TeamBot, 'id' | 'name'> {
+  const key = v.trim().toLowerCase();
+  const hit = team.find((b) => b.id === v.trim()) ?? team.find((b) => b.name.toLowerCase() === key);
+  if (!hit) throw new Error(`no bot "${v}" in the team${team.length ? ` — one of: ${team.map((b) => b.name).join(', ')}` : ''}`);
+  return hit;
+}
+
+export function parseOwner(team: Pick<TeamBot, 'id' | 'name'>[], v: string): string | undefined {
+  return v.trim().toLowerCase() === 'none' ? undefined : resolveBot(team, v).id;
+}
+
+export interface TaskSeal { unsafe?: true; wantReady?: string }
+
+export function parseSeal(flags: Flags): TaskSeal {
+  const seal: TaskSeal = {};
+  if (flags.unsafe === true) seal.unsafe = true;
+  const w = flagStr(flags, 'want-ready');
+  if (w !== undefined) {
+    const reason = w.trim();
+    if (!reason) throw new Error('--want-ready needs a reason');
+    if (/[\r\n]/.test(reason)) throw new Error('--want-ready reason must be a single line');
+    if (reason.length > PLANNER_LIMITS.wantReadyReason) throw new Error(`--want-ready reason too long — max ${PLANNER_LIMITS.wantReadyReason} chars`);
+    seal.wantReady = reason;
+  }
+  return seal;
+}
+
+const botLabel = (): string => (process.env.DECK_BOT_ID ?? '').trim().slice(0, 80) || 'bot';
+
+export function parseSector(v: string): DepartmentId | null {
+  const id = v.trim().toLowerCase();
+  if (id === 'none') return null;
+  if (!isDepartmentId(id)) throw new Error(`invalid sector "${v}" — one of: ${DEPARTMENTS.map((d) => d.id).join(', ')}, none`);
+  return id;
+}
+
+export function applySeal(task: PlannerTask, seal: TaskSeal, sector: DepartmentId | null | undefined, by = 'bot'): void {
+  const t = task as unknown as Record<string, unknown>;
+  if (seal.unsafe !== undefined) t.unsafe = true;
+  if (seal.wantReady !== undefined) t.wantReady = { by, reason: seal.wantReady, at: Date.now() };
+  if (sector !== undefined) t.ownerSector = sector;
+}
+
+export function parseColumn(v: string): PlannerColumn {
+  if (!(PLANNER_COLUMNS as readonly string[]).includes(v)) throw new Error(`invalid column "${v}" — one of: ${PLANNER_COLUMNS.join(', ')}`);
+  return v as PlannerColumn;
+}
+
+export function parseDifficulty(v: string): PlannerDifficulty {
+  if (v !== '1' && v !== '2' && v !== '3') throw new Error(`invalid difficulty "${v}" — one of: 1, 2, 3`);
+  return Number(v) as PlannerDifficulty;
+}
+
+export function parseLinkSpec(spec: string): PlannerLink {
+  const bar = spec.indexOf('|');
+  const rawUrl = (bar < 0 ? spec : spec.slice(0, bar)).trim();
+  const label = bar < 0 ? '' : spec.slice(bar + 1).trim().slice(0, PLANNER_LIMITS.linkLabel);
+  let url: URL;
+  try { url = new URL(rawUrl); } catch { throw new Error(`invalid link "${rawUrl}" — expected an http(s) URL, optionally "URL|label"`); }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new Error(`invalid link "${rawUrl}" — only http and https are allowed`);
+  return label ? { url: url.href, label } : { url: url.href };
+}
+
+export function mergeLinks(existing: PlannerLink[], specs: string[]): PlannerLink[] {
+  const out = [...existing];
+  for (const spec of specs) {
+    const link = parseLinkSpec(spec);
+    if (!out.some((l) => l.url === link.url)) out.push(link);
+  }
+  if (out.length > PLANNER_LIMITS.links) throw new Error(`too many links — a task holds at most ${PLANNER_LIMITS.links}`);
+  return out;
+}
+
+export function newTaskIdLocal(): string {
+  return randomUUID().replace(/-/g, '').slice(0, 12);
+}
+
+export function formatTaskList(tasks: PlannerTask[], opts: { col?: PlannerColumn; all?: boolean; now: number; nameOf?: (id: string) => string }): string[] {
+  const cols = opts.col ? [opts.col] : [...PLANNER_COLUMNS];
+  const lines: string[] = [];
+  for (const col of cols) {
+    const shown = columnTasks(tasks, col, { showAllDone: opts.all, now: opts.now });
+    if (!shown.length && !opts.col) continue;
+    const hidden = col === 'done' && !opts.all ? hiddenDoneCount(tasks, opts.now) : 0;
+    const note = col === 'done' && !opts.all ? ` — last ${DONE_WINDOW_DAYS} days${hidden ? `, ${hidden} older hidden (--all)` : ''}` : '';
+    lines.push(`${COLUMN_LABELS[col]} (${shown.length})${note}`);
+    for (const t of shown) {
+      const n = t.links.length;
+      const meta = [t.ref, t.tag && `#${t.tag}`, t.ready && 'READY', t.wantReady && !t.ready && 'WANT-READY', t.unsafe && 'UNSAFE', t.claim && 'DOING', t.ownerSector && `sector:${t.ownerSector}`].filter(Boolean).join(' ');
+      lines.push(`  ${shortId(t.id)}  [${t.difficulty}] ${oneLine(t.title, 100)}${t.ownerBotId ? ` @${opts.nameOf?.(t.ownerBotId) ?? t.ownerBotId}` : ''}${meta ? `  ${meta}` : ''}${n ? `  (${n} ${n === 1 ? 'link' : 'links'})` : ''}`);
+      const desc = t.description.split('\n').find((l) => l.trim())?.trim();
+      if (desc) lines.push(`      ${oneLine(desc, 120)}`);
+      for (const l of t.links) lines.push(`      ${l.url}${l.label ? ` (${l.label})` : ''}`);
+    }
+  }
+  return lines;
+}
+
+export function findTask(tasks: PlannerTask[], idPrefix: string): PlannerTask {
+  const m = matchByPrefix(tasks.map((t) => t.id), idPrefix);
+  if (m.kind === 'ok') return tasks.find((t) => t.id === m.id)!;
+  if (m.kind === 'none') fail(`no task matches id "${idPrefix}"`);
+  fail(`ambiguous task id "${idPrefix}" — matches: ${m.matches.map(shortId).join(', ')}`);
+}
+
+export function sameTaskContent(a: PlannerTask, b: PlannerTask): boolean {
+  return a.id === b.id && a.title === b.title && a.description === b.description && a.difficulty === b.difficulty
+    && a.column === b.column && JSON.stringify(a.links) === JSON.stringify(b.links)
+    && (a.ref ?? '') === (b.ref ?? '') && (a.tag ?? '') === (b.tag ?? '') && (a.ownerBotId ?? '') === (b.ownerBotId ?? '')
+    && !!a.unsafe === !!b.unsafe && (a.ownerSector ?? '') === (b.ownerSector ?? '');
+}
+
+const boardWithTask = (ok: (tasks: PlannerTask[]) => boolean) =>
+  (m: ServerMsg): m is Extract<ServerMsg, { t: 'planner-board' }> => m.t === 'planner-board' && ok(m.tasks);
+
+// planner-get also registers this socket for the planner-board broadcast that
+// acknowledges each mutation.
+async function withTasks<T>(fn: (client: Client, tasks: PlannerTask[]) => Promise<T>): Promise<T> {
+  const client = await connect();
+  try {
+    client.send({ t: 'planner-get' });
+    const board = await client.waitFor(isServerMsg('planner-board'), DEFAULT_TIMEOUT_MS);
+    if (!board) fail('backend did not answer planner-get (timeout)');
+    return await fn(client, board.tasks);
+  } finally {
+    client.close();
+  }
+}
+
+function orFail<T>(fn: () => T): T {
+  try { return fn(); } catch (e) { return fail((e as Error).message); }
+}
+
+async function saveTask(client: Client, task: PlannerTask): Promise<void> {
+  const { ready: _r, readyBy: _b, readyAt: _a, claim: _c, ...rest } = task;
+  client.send({ t: 'planner-task-save', task: { ...rest, updatedAt: Date.now() } });
+  await mutationAck(client, boardWithTask((list) => list.some((t) => sameTaskContent(t, task))), 'planner-task-save');
+}
+
+export async function fetchTeam(client: Client): Promise<TeamBot[]> {
+  client.send({ t: 'team-get' });
+  const m = await client.waitFor(isServerMsg('team'), DEFAULT_TIMEOUT_MS);
+  if (!m) fail('backend did not answer team-get (timeout)');
+  return m.bots;
+}
+
+async function cmdTaskList(args: string[]): Promise<void> {
+  const { flags } = orFail(() => parseTaskArgs(args));
+  const colRaw = flagStr(flags, 'col');
+  const col = colRaw === undefined ? undefined : orFail(() => parseColumn(colRaw));
+  const all = flags.all === true;
+  const now = Date.now();
+  const { tasks, team } = await withTasks(async (client, t) => ({ tasks: t, team: t.some((x) => x.ownerBotId) ? await fetchTeam(client) : [] }));
+  if (flags.json === true) {
+    console.log(JSON.stringify((col ? [col] : [...PLANNER_COLUMNS]).flatMap((c) => columnTasks(tasks, c, { showAllDone: all, now })), null, 2));
+    return;
+  }
+  const lines = formatTaskList(tasks, { col, all, now, nameOf: (id) => team.find((b) => b.id === id)?.name ?? id });
+  console.log(lines.length ? lines.join('\n') : 'no tasks');
+}
+
+async function cmdTaskAdd(args: string[]): Promise<void> {
+  const { positional, flags, links } = orFail(() => parseTaskArgs(args));
+  const title = positional[0]?.trim().slice(0, PLANNER_LIMITS.title);
+  if (!title) fail('usage: deckctl task add "<title>" [--col today|week|backlog] [--desc D] [--diff 1|2|3] [--ref R] [--tag T] [--owner BOT|none] [--unsafe] [--want-ready "reason"] [--sector DEPT|none] [--link URL[|label]]... [--force]');
+  const column = orFail(() => parseColumn(flagStr(flags, 'col') ?? 'backlog'));
+  if (column === 'done') fail('tasks are added to today, week or backlog — use "deckctl task done <id>" to finish one');
+  const difficulty = orFail(() => parseDifficulty(flagStr(flags, 'diff') ?? '1'));
+  const taskLinks = orFail(() => mergeLinks([], links));
+  const refRaw = flagStr(flags, 'ref');
+  const tagRaw = flagStr(flags, 'tag');
+  const ref = refRaw === undefined ? undefined : orFail(() => parseRef(refRaw));
+  const tag = tagRaw === undefined ? undefined : orFail(() => parseTag(tagRaw));
+  const ownerRaw = flagStr(flags, 'owner');
+  const seal = orFail(() => parseSeal(flags));
+  const sectorRaw = flagStr(flags, 'sector');
+  const sector = sectorRaw === undefined ? undefined : orFail(() => parseSector(sectorRaw));
+  await withTasks(async (client, tasks) => {
+    const team = ownerRaw === undefined ? [] : await fetchTeam(client);
+    const ownerBotId = ownerRaw === undefined ? undefined : orFail(() => parseOwner(team, ownerRaw));
+    const byRef = findByRef(tasks, ref);
+    if (byRef) fail(`a task with ref ${ref} already exists: ${byRef.id} (${COLUMN_LABELS[byRef.column]}) — edit it instead`);
+    const dup = findDuplicate(tasks, title);
+    if (dup && flags.force !== true) fail(`a task with this title already exists: ${dup.id} (${COLUMN_LABELS[dup.column]}) — reuse it or pass --force`);
+    const now = Date.now();
+    const task: PlannerTask = {
+      id: newTaskIdLocal(), title, description: (flagStr(flags, 'desc') ?? '').slice(0, PLANNER_LIMITS.description),
+      links: taskLinks, difficulty, column, order: topOrder(tasks, column), createdAt: now, updatedAt: now, source: 'agent',
+      ...(ref ? { ref } : {}), ...(tag ? { tag } : {}), ...(ownerBotId ? { ownerBotId } : {}),
+    };
+    applySeal(task, seal, sector, botLabel());
+    await saveTask(client, task);
+    console.log(`task created: ${task.id}`);
+  });
+}
+
+async function cmdTaskMove(idPrefix: string, colRaw: string): Promise<void> {
+  const column = orFail(() => parseColumn(colRaw));
+  await withTasks(async (client, tasks) => {
+    const task = findTask(tasks, idPrefix);
+    const order = topOrder(tasks.filter((t) => t.id !== task.id), column);
+    client.send({ t: 'planner-reorder', moves: [{ id: task.id, column, order }] });
+    await mutationAck(client, boardWithTask((list) => list.some((t) => t.id === task.id && t.column === column)), 'planner-reorder');
+    console.log(`task ${task.id} -> ${column}`);
+  });
+}
+
+async function cmdTaskDone(idPrefix: string, args: string[]): Promise<void> {
+  const { links } = orFail(() => parseTaskArgs(args));
+  await withTasks(async (client, tasks) => {
+    const task = findTask(tasks, idPrefix);
+    const merged = orFail(() => mergeLinks(task.links, links));
+    const order = task.column === 'done' ? task.order : topOrder(tasks.filter((t) => t.id !== task.id), 'done');
+    await saveTask(client, { ...task, links: merged, column: 'done', order });
+    console.log(`task ${task.id} -> done`);
+  });
+}
+
+async function cmdTaskEdit(idPrefix: string, args: string[]): Promise<void> {
+  const { flags, links } = orFail(() => parseTaskArgs(args));
+  const title = flagStr(flags, 'title')?.trim().slice(0, PLANNER_LIMITS.title);
+  const desc = flagStr(flags, 'desc');
+  const colRaw = flagStr(flags, 'col');
+  const diffRaw = flagStr(flags, 'diff');
+  const clear = flags['clear-links'] === true;
+  const refRaw = flagStr(flags, 'ref');
+  const tagRaw = flagStr(flags, 'tag');
+  const ownerRaw = flagStr(flags, 'owner');
+  const seal = orFail(() => parseSeal(flags));
+  const sectorRaw = flagStr(flags, 'sector');
+  const sector = sectorRaw === undefined ? undefined : orFail(() => parseSector(sectorRaw));
+  if (title === '') fail('--title cannot be empty');
+  if (title === undefined && desc === undefined && colRaw === undefined && diffRaw === undefined && refRaw === undefined && tagRaw === undefined && ownerRaw === undefined && !links.length && !clear
+    && seal.wantReady === undefined && seal.unsafe === undefined && sector === undefined) {
+    fail('nothing to change — pass --title, --desc, --diff, --ref, --tag, --owner, --unsafe, --want-ready, --sector, --link, --clear-links or --col');
+  }
+  const ref = refRaw === undefined ? undefined : orFail(() => parseRef(refRaw));
+  const tag = tagRaw === undefined ? undefined : orFail(() => parseTag(tagRaw));
+  const column = colRaw === undefined ? undefined : orFail(() => parseColumn(colRaw));
+  const difficulty = diffRaw === undefined ? undefined : orFail(() => parseDifficulty(diffRaw));
+  await withTasks(async (client, tasks) => {
+    const team = ownerRaw === undefined || ownerRaw.trim().toLowerCase() === 'none' ? [] : await fetchTeam(client);
+    const task = findTask(tasks, idPrefix);
+    const next: PlannerTask = { ...task, links: orFail(() => mergeLinks(clear ? [] : task.links, links)) };
+    if (ownerRaw !== undefined) {
+      const owner = orFail(() => parseOwner(team, ownerRaw));
+      if (owner) next.ownerBotId = owner; else delete next.ownerBotId;
+    }
+    if (title !== undefined) next.title = title;
+    if (desc !== undefined) next.description = desc.slice(0, PLANNER_LIMITS.description);
+    if (difficulty !== undefined) next.difficulty = difficulty;
+    if (ref !== undefined) {
+      const other = findByRef(tasks, ref);
+      if (other && other.id !== task.id) fail(`ref ${ref} already belongs to task ${other.id}`);
+      next.ref = ref;
+    }
+    if (tag !== undefined) next.tag = tag;
+    applySeal(next, seal, sector, botLabel());
+    if (column !== undefined && column !== task.column) {
+      next.column = column;
+      next.order = topOrder(tasks.filter((t) => t.id !== task.id), column);
+    }
+    await saveTask(client, next);
+    console.log(`task ${task.id} updated`);
+  });
+}
+
+async function cmdTaskHandoff(idPrefix: string, args: string[]): Promise<void> {
+  const { flags } = orFail(() => parseTaskArgs(args));
+  const need = (k: string) => {
+    const v = flagStr(flags, k)?.trim();
+    return v || fail(`usage: deckctl task handoff <id> --to BOT --done "..." --pending "..." --reason "..." --switch "..." [--from BOT] (missing --${k})`);
+  };
+  const toRaw = need('to');
+  const fields = { done: need('done'), pending: need('pending'), reason: need('reason'), switchPoint: need('switch') };
+  const fromRaw = flagStr(flags, 'from');
+  await withTasks(async (client, tasks) => {
+    const team = await fetchTeam(client);
+    const task = findTask(tasks, idPrefix);
+    const to = orFail(() => resolveBot(team, toRaw));
+    const from = fromRaw === undefined ? task.ownerBotId : orFail(() => resolveBot(team, fromRaw).id);
+    if (to.id === task.ownerBotId) fail(`${to.name} already owns this task`);
+    client.send({ t: 'planner-task-handoff', id: task.id, handoff: { toBotId: to.id, ...(from ? { fromBotId: from } : {}), ...fields } });
+    const before = task.handoffs?.length ?? 0;
+    await mutationAck(client, boardWithTask((list) => list.some((t) => t.id === task.id && t.ownerBotId === to.id && (t.handoffs?.length ?? 0) > before)), 'planner-task-handoff');
+    console.log(`task ${task.id} handed to ${to.name}`);
+  });
+}
+
+async function cmdTaskRm(idPrefix: string): Promise<void> {
+  await withTasks(async (client, tasks) => {
+    const task = findTask(tasks, idPrefix);
+    client.send({ t: 'planner-task-delete', id: task.id });
+    await mutationAck(client, boardWithTask((list) => !list.some((t) => t.id === task.id)), 'planner-task-delete');
+    console.log(`task ${task.id} removed`);
+  });
+}
+
+async function cmdTask(args: string[]): Promise<void> {
+  const [sub, ...rest] = args;
+  if (sub === 'list') return cmdTaskList(rest);
+  if (sub === 'add') return cmdTaskAdd(rest);
+  if (sub === 'move') {
+    if (!rest[0] || !rest[1]) fail('usage: deckctl task move <id> <today|week|backlog|done>');
+    return cmdTaskMove(rest[0], rest[1]);
+  }
+  if (sub === 'done') {
+    if (!rest[0] || rest[0].startsWith('--')) fail('usage: deckctl task done <id> [--link URL[|label]]...');
+    return cmdTaskDone(rest[0], rest.slice(1));
+  }
+  if (sub === 'edit') {
+    if (!rest[0] || rest[0].startsWith('--')) fail('usage: deckctl task edit <id> [--title T] [--desc D] [--diff N] [--ref R] [--tag T] [--owner BOT|none] [--unsafe] [--want-ready "reason"] [--sector DEPT|none] [--link URL[|label]]... [--clear-links] [--col C]');
+    return cmdTaskEdit(rest[0], rest.slice(1));
+  }
+  if (sub === 'handoff') {
+    if (!rest[0] || rest[0].startsWith('--')) fail('usage: deckctl task handoff <id> --to BOT --done "..." --pending "..." --reason "..." --switch "..." [--from BOT]');
+    return cmdTaskHandoff(rest[0], rest.slice(1));
+  }
+  if (sub === 'rm') {
+    if (!rest[0]) fail('usage: deckctl task rm <id>');
+    return cmdTaskRm(rest[0]);
+  }
+  fail(`unknown task subcommand "${sub ?? ''}" — list|add|move|done|edit|handoff|rm`);
+}
+
+// --- meetings -----------------------------------------------------------------
+
+export function parseMeetingStart(team: Pick<TeamBot, 'id' | 'name' | 'primary'>[], flags: Flags): { question: string; participantIds: string[]; moderatorId: string } {
+  const question = flagStr(flags, 'q')?.trim();
+  if (!question) throw new Error('--q "<question>" is required');
+  const names = flagStr(flags, 'with')?.split(',').map((n) => n.trim()).filter(Boolean) ?? [];
+  if (names.length < MEETING_LIMITS.minParticipants || names.length > MEETING_LIMITS.maxParticipants) {
+    throw new Error(`--with needs ${MEETING_LIMITS.minParticipants} to ${MEETING_LIMITS.maxParticipants} bots, comma separated`);
+  }
+  const participantIds = names.map((n) => resolveBot(team, n).id);
+  const mod = flagStr(flags, 'moderator');
+  const moderatorId = mod ? resolveBot(team, mod).id : (team.find((b) => b.primary && participantIds.includes(b.id))?.id ?? participantIds[0]);
+  return { question, participantIds, moderatorId };
+}
+
+export function formatMeetingList(items: TeamMeeting[], nameOf: (id: string) => string): string[] {
+  if (!items.length) return ['no meetings yet'];
+  return [...items].sort((a, b) => b.createdAt - a.createdAt).map((m) =>
+    `${shortId(m.id)}  ${m.status.padEnd(7)}  ${fmtBrt(m.createdAt)}  ${m.participantIds.map(nameOf).join(', ')}  ${oneLine(m.question, 50)}`);
+}
+
+export function formatMeeting(m: TeamMeeting, nameOf: (id: string) => string): string[] {
+  const out = [`${m.id}  ${m.status}  ${fmtBrt(m.createdAt)}`, `Q: ${m.question}`, `moderator: ${nameOf(m.moderatorId)}`];
+  for (const round of [1, 2] as const) {
+    const rows = m.answers.filter((a) => a.round === round);
+    if (!rows.length && m.status !== 'round1' && round === 1) continue;
+    out.push('', `-- round ${round}${round === 1 && m.status === 'round1' ? ' (sealed)' : ''}`);
+    for (const a of rows) out.push(a.text ? `[${nameOf(a.botId)}]\n${a.text}` : `[${nameOf(a.botId)}] delivered, sealed`);
+  }
+  if (m.minutes) out.push('', '-- minutes', m.minutes);
+  if (m.error) out.push('', `error: ${m.error}`);
+  return out;
+}
+
+async function meetingContext(client: Client): Promise<(id: string) => string> {
+  const team = await fetchTeam(client);
+  return (id) => team.find((b) => b.id === id)?.name ?? id;
+}
+
+async function fetchMeetings(client: Client): Promise<TeamMeeting[]> {
+  client.send({ t: 'team-meetings-get' });
+  const m = await client.waitFor(isServerMsg('team-meetings'), DEFAULT_TIMEOUT_MS, { fresh: true });
+  if (!m) fail('backend did not answer team-meetings-get (timeout)');
+  return m.items;
+}
+
+async function cmdTeam(positional: string[]): Promise<void> {
+  const [sub, bot] = positional;
+  if (sub !== 'rotate' || !bot) fail('usage: deckctl team rotate <bot>   (needs ~/.cockpit/handoffs/<bot-id>.md, up to 500 words)');
+  const client = await connect();
+  try {
+    const team = await fetchTeam(client);
+    const target = orFail(() => resolveBot(team, bot));
+    client.send({ t: 'team-rotate', botId: target.id });
+    const r = await mutationAck(client, (m): m is Extract<ServerMsg, { t: 'team-rotate-result' }> => m.t === 'team-rotate-result' && m.botId === target.id, 'team-rotate');
+    if (!r.ok) fail(`rotate refused: ${r.error}`);
+    console.log(`${target.name}: session reset; the next turn starts fresh with the handoff (${r.words} words)`);
+  } finally { client.close(); }
+}
+
+async function cmdMeeting(positional: string[], flags: Flags, json: boolean): Promise<void> {
+  const [sub, ...rest] = positional;
+  if (sub !== 'start' && sub !== 'list' && sub !== 'show') fail(`unknown meeting subcommand "${sub ?? ''}" — start|list|show`);
+  if (sub === 'show' && !rest[0]) fail('usage: deckctl meeting show <id>');
+  const client = await connect();
+  try {
+    if (sub === 'start') {
+      const team = await fetchTeam(client);
+      const req = orFail(() => parseMeetingStart(team, flags));
+      client.send({ t: 'team-meeting-start', ...req });
+      const ack = await mutationAck(client, (m): m is Extract<ServerMsg, { t: 'team-meeting' }> => m.t === 'team-meeting' && m.item.question === req.question, 'team-meeting-start');
+      console.log(json ? JSON.stringify(ack.item, null, 2) : `meeting ${ack.item.id} started (${ack.item.status}) — follow with: deckctl meeting show ${shortId(ack.item.id)}`);
+      return;
+    }
+    const items = await fetchMeetings(client);
+    const nameOf = await meetingContext(client);
+    if (sub === 'list') {
+      console.log(json ? JSON.stringify(items, null, 2) : formatMeetingList(items, nameOf).join('\n'));
+      return;
+    }
+    const hits = items.filter((m) => m.id.startsWith(rest[0]));
+    if (hits.length !== 1) fail(hits.length ? `ambiguous meeting id "${rest[0]}"` : `no meeting "${rest[0]}"`);
+    console.log(json ? JSON.stringify(hits[0], null, 2) : formatMeeting(hits[0], nameOf).join('\n'));
+  } finally { client.close(); }
+}
+
+export function formatVillageStatus(v: { enabled: boolean; dailyCap: number; paused: boolean; claimed: { botId: string; taskId: string }[] }, nameOf: (id: string) => string = (id) => id): string[] {
+  return [
+    `village: ${v.enabled ? 'ON' : 'off'}${v.paused ? ' (team paused: kill switch on)' : ''}`,
+    `daily cap per bot: ${v.dailyCap}`,
+    `claimed: ${v.claimed.length}${v.claimed.length ? ' — ' + v.claimed.map((c) => `${shortId(c.taskId)}@${nameOf(c.botId)}`).join(', ') : ''}`,
+  ];
+}
+
+async function cmdVillage(positional: string[], flags: Flags, json: boolean): Promise<void> {
+  const [sub, ...rest] = positional;
+  const dry = flags.dry === true;
+  if (sub !== 'status' && sub !== 'on' && sub !== 'off' && sub !== 'round') fail(`unknown village subcommand "${sub ?? ''}" — status|on|off|round --dry`);
+  if (sub === 'round' && !dry) fail('village round only supports --dry here; the hourly loop runs the real round');
+  if (rest.length) fail(`unexpected argument "${rest[0]}"`);
+  const client = await connect();
+  try {
+    if (sub === 'round') {
+      client.send({ t: 'village-dry' });
+      const m = await client.waitFor(isServerMsg('village-plan'), DEFAULT_TIMEOUT_MS);
+      if (!m) fail('backend did not answer village-dry (timeout; admin only)');
+      const team = await fetchTeam(client);
+      const nameOf = (id: string) => team.find((b) => b.id === id)?.name ?? id;
+      if (json) { console.log(JSON.stringify(m.plan, null, 2)); return; }
+      if (m.plan.blocked) { console.log(`nothing would happen: ${m.plan.blocked}`); return; }
+      console.log(`would claim: ${m.plan.claims.length}`);
+      for (const c of m.plan.claims) console.log(`  ${shortId(c.taskId)} -> ${nameOf(c.botId)}`);
+      console.log(`would release: ${m.plan.releases.length}`);
+      for (const r of m.plan.releases) console.log(`  ${shortId(r.taskId)} (${nameOf(r.botId)})`);
+      return;
+    }
+    if (sub === 'on' || sub === 'off') client.send({ t: 'village-config', enabled: sub === 'on' });
+    else client.send({ t: 'village-get' });
+    const m = await client.waitFor(isServerMsg('village'), DEFAULT_TIMEOUT_MS);
+    if (!m) fail('backend did not answer village (timeout; admin only)');
+    const team = await fetchTeam(client);
+    console.log(json ? JSON.stringify(m.village, null, 2) : formatVillageStatus(m.village, (id) => team.find((b) => b.id === id)?.name ?? id).join('\n'));
+  } finally { client.close(); }
+}
+
 // --- main --------------------------------------------------------------
 
 const HELP = `deckctl — orchestrate the Deck canvas from a terminal
@@ -1221,10 +1887,23 @@ Usage: deckctl <command> [args] [--json]
   card move <id> <status>                   move a card (todo|doing|review|done)
   card rm <id>                              delete a card
   card run <id> [--fork <parentSessionId>]  run a card (optionally as a fork of an existing session)
+  task list [--col C] [--all]               the person's personal Kanban (today|week|backlog|done); done = last 7 days unless --all
+  task add "<title>" [--col C] [--desc D] [--diff 1|2|3] [--ref R] [--tag T] [--owner BOT|none] [--unsafe] [--want-ready "reason"] [--sector DEPT|none] [--link URL[|label]]... [--force]   add to the top of a column (default backlog); refuses an existing ref
+  task move <id> <col>                      move a task (today|week|backlog|done)
+  task done <id> [--link URL[|label]]...    finish a task, optionally attaching the PR/result links
+  task edit <id> [--title T] [--desc D] [--diff N] [--ref R] [--tag T] [--owner BOT|none] [--unsafe] [--want-ready "reason"] [--sector DEPT|none] [--link URL]... [--clear-links] [--col C]
+  task handoff <id> --to BOT --done ".." --pending ".." --reason ".." --switch ".." [--from BOT]   record that ownership moves to another bot
+  team rotate <bot>                         reset a bot's session; its next turn starts fresh from ~/.cockpit/handoffs/<bot-id>.md (refuses if busy, no handoff, or > 500 words)
+  task rm <id>                              delete a task
+  village status|on|off                     the self-sustaining village (admin): enabled flag, daily cap, who holds a claim
+  village round --dry                       print what the next round WOULD pick; wakes nobody
+  meeting start --q "<question>" --with a,b,c [--moderator x]   blind two-round meeting between bots, ends in minutes (ata)
+  meeting list | meeting show <id>          meetings, newest first / one meeting (round 1 stays sealed until it closes)
   status                                    one-screen overview + alerts (pending questions, hot-context sessions)
   triage [--apply] [--limit N]              score every session KEEP/PURGE/REVIEW (dry-run by default; --apply acts)
 
-Session/card ids accept unambiguous prefixes. Add --json to any read command for raw output.`;
+Session/card/task ids accept unambiguous prefixes. "card" = agent-run cards on the canvas; "task" = the person's personal Kanban. Add --json to any read command for raw output.
+Exit codes: 0 ok, 1 failure, 3 parked (new/handoff/card run accepted but queued by the server — do not retry).`;
 
 async function main(): Promise<void> {
   const [cmd, ...rest] = process.argv.slice(2);
@@ -1302,6 +1981,10 @@ async function main(): Promise<void> {
       fail(`unknown card subcommand "${sub}" — add|move|rm|run`);
       return;
     }
+    case 'task': return cmdTask(rest);
+    case 'team': return cmdTeam(positional);
+    case 'meeting': return cmdMeeting(positional, flags, json);
+    case 'village': return cmdVillage(positional, flags, json);
     case 'status': return cmdStatus();
     case 'triage': return cmdTriage(flags, json);
     default:

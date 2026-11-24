@@ -42,12 +42,12 @@ export function PontosWorkspace(props: Props) {
       <div className="mx-auto flex w-full max-w-[1600px] flex-col lg:min-h-0 lg:flex-1 2xl:border-x 2xl:border-neutral-800/60">
         <PontosTopBar month={pg.month} state={pg.monthState} syncLabel={pg.m.syncLabel} stale={pg.m.stale} syncing={syncing} onSync={onSync}
           onNewEpic={() => pg.newEpic.set(true)} />
-        <KpiStrip m={pg.m} totals={pg.totals} offPoints={pg.offPoints} offAmountCents={pg.offAmountCents} drafts={pg.draftTotals} />
+        <KpiStrip m={pg.m} totals={pg.totals} offPoints={pg.offPoints} offAmountCents={pg.offAmountCents} drafts={pg.draftTotals} onSync={onSync} />
         <MobileNavBar selection={ws.selection} open={ws.drawer} onOpen={ws.setDrawer}>{navigator}</MobileNavBar>
         <div className="flex lg:min-h-0 lg:flex-1">
           <aside className="hidden w-[360px] shrink-0 flex-col border-r border-neutral-800/80 lg:flex xl:w-[400px]">{navigator}</aside>
           <main className="scroll-thin min-w-0 flex-1 px-3 py-3 sm:px-5 sm:py-4 lg:overflow-y-auto">
-            <DetailPane selection={ws.selection} waiting={props.waiting} projects={pg.projects} invoices={snapshot?.invoices ?? []}
+            <DetailPane selection={ws.selection} waiting={props.waiting} projects={pg.projects} invoices={snapshot?.invoices ?? null}
               op={d.op} ask={d.ask} ledger={props.ledger} />
           </main>
         </div>

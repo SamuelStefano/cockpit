@@ -25,7 +25,7 @@ export function InlineEdit({ value, onSave, display, numeric = false, validate, 
     return (
       <input
         autoFocus value={e.draft} aria-label={label}
-        onChange={(ev) => e.setDraft(ev.target.value)} onBlur={e.commit} onKeyDown={e.onKeyDown}
+        onChange={(ev) => e.setDraft(ev.target.value)} onBlur={e.commit} onKeyDown={e.onKeyDown} onCompositionEnd={e.onCompositionEnd}
         inputMode={numeric ? 'decimal' : undefined}
         className={`min-w-0 rounded-md border border-orange-500/40 bg-neutral-950 px-1.5 py-0.5 text-neutral-100 outline-hidden ${numeric ? 'tabular-nums' : ''} ${inputClassName}`}
       />

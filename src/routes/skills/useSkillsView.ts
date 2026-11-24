@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { RegistryCatalog, SkillMeta } from '../../../shared/protocol';
-import { discoverSkills, matchesQuery, organizeInstalled, packView } from '../../lib/skill-packs';
+import { discoverSkills, matchesQuery, packView } from '../../lib/skill-packs';
+import { filterSkills, sourceChips, type RiskFilter, type SourceFilter } from '../../lib/skill-view';
 
 export type SkillsTab = 'installed' | 'packs' | 'discover';
 
 export function useSkillsView(skills: SkillMeta[], registry: RegistryCatalog | null) {
   const [tab, setTab] = useState<SkillsTab>('installed');
   const [query, setQuery] = useState('');
+  const [source, setSource] = useState<SourceFilter>('all');
+  const [risk, setRisk] = useState<RiskFilter>('any');
   const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -23,10 +26,11 @@ export function useSkillsView(skills: SkillMeta[], registry: RegistryCatalog | n
 
   const installedIds = useMemo(() => new Set(skills.map((s) => s.id)), [skills]);
 
-  const installed = useMemo(() => {
-    const { packs, groups } = organizeInstalled(skills.filter((s) => matchesQuery(s, query)), registry);
-    return { packs, groups: groups.filter((g) => g.items.length) };
-  }, [skills, registry, query]);
+  const chips = useMemo(() => sourceChips(skills, registry), [skills, registry]);
+  const installed = useMemo(
+    () => filterSkills(skills.filter((s) => matchesQuery(s, query)), source, risk, registry),
+    [skills, registry, query, source, risk],
+  );
 
   const packs = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -43,5 +47,5 @@ export function useSkillsView(skills: SkillMeta[], registry: RegistryCatalog | n
     discover: registry ? discoverSkills(registry, installedIds, '').length : undefined,
   };
 
-  return { tab, setTab, query, setQuery, searchRef, installed, packs, discover, counts };
+  return { tab, setTab, query, setQuery, searchRef, chips, source, setSource, risk, setRisk, installed, packs, discover, counts };
 }

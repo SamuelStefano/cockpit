@@ -90,3 +90,21 @@ describe('takeAllPending', () => {
     expect(takeAllPending('s')).toEqual([]);
   });
 });
+
+describe('takePendingBatch size cap', () => {
+  it('does not merge past the prompt cap; the rest stays queued', () => {
+    const big = 'x'.repeat(60_000);
+    enqueuePending('s', item(big));
+    enqueuePending('s', item(big));
+    const first = takePendingBatch('s')!;
+    expect(Buffer.byteLength(first.text)).toBeLessThanOrEqual(100_000);
+    expect(first.text).toBe(big);
+    expect(takePendingBatch('s')!.text).toBe(big);
+  });
+
+  it('still merges small prompts together', () => {
+    enqueuePending('s', item('a'));
+    enqueuePending('s', item('b'));
+    expect(takePendingBatch('s')!.text).toBe('a\n\nb');
+  });
+});

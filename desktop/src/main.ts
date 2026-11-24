@@ -1,0 +1,57 @@
+import { app, globalShortcut, Menu, type BrowserWindow, type Tray } from 'electron';
+import { registerBridge, showWindow } from './bridge';
+import { deckLinkFromArgv, type DeckLink } from './deep-link';
+import { appMenuTemplate } from './menu';
+import { hardenPermissions } from './security';
+import { createTray, HIDDEN_ARG } from './tray';
+import { startUpdater } from './updater';
+import { createMainWindow } from './window';
+
+app.enableSandbox();
+app.setAppUserModelId('com.devfellowship.deck');
+
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  let win: BrowserWindow | null = null;
+  let tray: Tray | null = null;
+  let quitting = false;
+
+  const openLink = (link: DeckLink) => {
+    if (!win) return;
+    showWindow(win);
+    win.webContents.send('deck:link', link);
+  };
+
+  // Unpackaged, this would register electron.exe as the deck:// handler.
+  if (app.isPackaged) app.setAsDefaultProtocolClient('deck');
+
+  app.on('second-instance', (_event, argv) => {
+    if (win) showWindow(win);
+    const link = deckLinkFromArgv(argv);
+    if (link) openLink(link);
+  });
+
+  app.on('before-quit', () => { quitting = true; });
+  app.on('will-quit', () => globalShortcut.unregisterAll());
+  app.on('window-all-closed', () => app.quit());
+
+  void app.whenReady().then(() => {
+    hardenPermissions();
+    Menu.setApplicationMenu(Menu.buildFromTemplate(appMenuTemplate(app.isPackaged)));
+    win = createMainWindow({ startHidden: process.argv.includes(HIDDEN_ARG) });
+    registerBridge(win);
+    tray = createTray(win);
+    startUpdater(() => win);
+    // before-quit does not fire on a Windows shutdown or logoff; hiding here would hold it up.
+    win.on('session-end', () => { quitting = true; });
+    win.on('close', (event) => {
+      if (quitting) return;
+      event.preventDefault();
+      win?.hide();
+    });
+    win.on('closed', () => { win = null; tray?.destroy(); });
+    const link = deckLinkFromArgv(process.argv);
+    if (link) win.webContents.once('did-finish-load', () => openLink(link));
+  });
+}

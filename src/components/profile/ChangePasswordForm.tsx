@@ -5,15 +5,15 @@ import { useNewPasswordForm } from '../auth/useNewPasswordForm';
 // Bloco "Trocar senha" do menu de perfil: fechado por padrão (o menu já é denso),
 // abre um mini-formulário com confirmação. Some sozinho quando o Supabase está
 // desligado — quem passa a prop é o App, e no loopback não existe conta.
-export function ChangePasswordForm({ onSubmit }: { onSubmit: (password: string) => Promise<string | null> }) {
+export function ChangePasswordForm({ onSubmit, bare = false }: { onSubmit: (password: string) => Promise<string | null>; bare?: boolean }) {
   const [open, setOpen] = useState(false);
   const f = useNewPasswordForm(onSubmit, () => setOpen(false));
 
   const toggle = () => { setOpen((o) => !o); f.reset(); };
 
   return (
-    <div className="mt-3 border-t border-neutral-800 pt-3">
-      <Button variant="outline" size="sm" icon="shield" className="w-full" onClick={toggle}>
+    <div className={bare ? 'min-w-0' : 'mt-3 border-t border-neutral-800 pt-3'}>
+      <Button variant="outline" size="sm" icon="shield" className={bare ? '' : 'w-full'} onClick={toggle}>
         {open ? 'Cancelar troca de senha' : 'Trocar senha'}
       </Button>
 
@@ -33,8 +33,8 @@ export function ChangePasswordForm({ onSubmit }: { onSubmit: (password: string) 
         </form>
       )}
 
-      {f.error && <p role="alert" className="mt-1.5 text-[11px] text-red-400">{f.error}</p>}
-      {f.done && !open && <p className="mt-1.5 text-[11px] text-emerald-400">Senha trocada.</p>}
+      {f.error && <p role="alert" className="mt-1.5 text-[12px] text-red-400">{f.error}</p>}
+      {f.done && !open && <p className="mt-1.5 text-[12px] text-emerald-400">Senha trocada.</p>}
     </div>
   );
 }

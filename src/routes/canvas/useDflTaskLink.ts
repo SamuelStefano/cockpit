@@ -6,6 +6,29 @@ import type { DflWriteResult } from '../../cockpit/usePoints';
 export interface DflTaskOption { id: string; name: string; deliveryName: string; epicName: string; projectName: string }
 export interface DflDeliveryOption { epicId: string; deliveryId: string; label: string }
 
+const fold = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
+// Every word must match somewhere in the task's name or its delivery, epic or
+// project: searching by name alone could not find "the task under Itera Player"
+// without remembering its exact title. Accent-insensitive ("pagamento" finds
+// "Pagamentos", "integracao" finds "Integração").
+export function searchDflTasks(tasks: DflTaskOption[], query: string, limit = 8): DflTaskOption[] {
+  const words = fold(query).split(/\s+/).filter(Boolean);
+  if (!words.length) return tasks.slice(0, limit);
+  // Tasks whose own name matches rank first: "itera" must surface a task named
+  // after it before the first 8 unrelated tasks that merely live under Itera.
+  const byName: DflTaskOption[] = [];
+  const byContext: DflTaskOption[] = [];
+  for (const t of tasks) {
+    const name = fold(t.name);
+    const hay = `${name} ${fold(`${t.deliveryName} ${t.epicName} ${t.projectName}`)}`;
+    if (!words.every((w) => hay.includes(w))) continue;
+    (words.some((w) => name.includes(w)) ? byName : byContext).push(t);
+    if (byName.length >= limit) break;
+  }
+  return [...byName, ...byContext].slice(0, limit);
+}
+
 // Flattens the project›epic›delivery›task tree (same snapshot /pontos already
 // fetches — server/dfl-sync.ts's fetchDflBundle, owner-filtered at the
 // source) into the two flat lists the link picker searches over.
@@ -60,11 +83,7 @@ export function useDflTaskLink({ card, snapshot, onLink, onCreateLink, onUnlink 
 
   const tasks = useMemo(() => flattenDflTasks(snapshot), [snapshot]);
   const deliveries = useMemo(() => flattenDflDeliveries(snapshot), [snapshot]);
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return tasks.slice(0, 8);
-    return tasks.filter((t) => t.name.toLowerCase().includes(q)).slice(0, 8);
-  }, [tasks, query]);
+  const filtered = useMemo(() => searchDflTasks(tasks, query), [tasks, query]);
 
   // Step 1: pick a target — just arms the review screen, no network yet.
   const review = (taskId: string) => {

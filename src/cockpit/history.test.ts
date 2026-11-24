@@ -121,3 +121,19 @@ describe('paginação pra trás (carregar antigas)', () => {
     expect(mergeHistory([u('b', 20), u('c', 30)], local, true)).toEqual(local);
   });
 });
+
+describe('mergeHistory with a turn streaming right now', () => {
+  const a = (id: string, ts: number, text = id): Message => ({ id, role: 'assistant', blocks: [{ type: 'text', md: text }], ts } as unknown as Message);
+
+  it('keeps the live bubble even when the snapshot is newer than its start', () => {
+    const live = a('a-live', 100, 'streaming so far');
+    const incoming = [u('p0', 50), u('prompt', 102), a('done-part', 105)];
+    const out = mergeHistory(incoming, [u('p0', 50), live], false, 'a-live');
+    expect(out.map((m) => m.id)).toEqual(['p0', 'prompt', 'a-live']);
+  });
+
+  it('without a live turn the old behaviour holds', () => {
+    const incoming = [u('p0', 50), a('x', 105)];
+    expect(mergeHistory(incoming, [u('p0', 50), a('stale-bubble', 100)]).map((m) => m.id)).toEqual(['p0', 'x']);
+  });
+});

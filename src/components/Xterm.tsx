@@ -1,24 +1,32 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type RefObject } from 'react';
 import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 import type { TermApi } from '../useCockpit';
+import { useTerminalClipboard, type TerminalClipboardApi } from './useTerminalClipboard';
 
 interface Props {
   id: string;
   term: TermApi;
   watch?: string; // session uuid: the pane follows that transcript live
+  botId?: string; // opens in that bot's workspace
   autoFocus?: boolean;
   focusKey?: number; // bump to pull keyboard focus into this terminal
   fontSize?: number;
+  clipboardRef?: RefObject<TerminalClipboardApi | null>; // lets a toolbar copy/paste for this terminal
+  onOutput?: (data: string, replay: boolean) => void; // taps what the PTY prints, after it is drawn
 }
 
 // Monta um xterm.js real e liga no PTY/tmux do backend via WS.
 // Anexa no mount (com replay de scrollback), desanexa no unmount (sessão tmux
 // segue viva). Trocar de aba remonta → reattach + redraw do tmux.
-export function XtermView({ id, term, watch, autoFocus = true, focusKey, fontSize = 12.5 }: Props) {
+export function XtermView({ id, term, watch, botId, autoFocus = true, focusKey, fontSize = typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches ? 14 : 12.5, clipboardRef, onOutput }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const xtRef = useRef<XTerm | null>(null);
+  const clipboard = useTerminalClipboard();
+  // A ref, so a new callback each render never reattaches the PTY.
+  const outputRef = useRef(onOutput);
+  outputRef.current = onOutput;
 
   useEffect(() => {
     const el = ref.current;
@@ -49,18 +57,25 @@ export function XtermView({ id, term, watch, autoFocus = true, focusKey, fontSiz
     // (aba oculta, drag de seleção, pós-dispose) deixa o renderer sem `dimensions`
     // e o xterm estoura em getMouseReportCoords no mousedrag/mouseup.
     let disposed = false;
+    const canFit = () => !disposed && el.isConnected && !!el.offsetParent && el.clientWidth >= 2 && el.clientHeight >= 2;
     const safeFit = () => {
-      if (disposed || !el.isConnected || !el.offsetParent || el.clientWidth < 2 || el.clientHeight < 2) return;
+      if (!canFit()) return;
       try { fit.fit(); term.resize(id, xt.cols, xt.rows); } catch { /* noop */ }
     };
+    // Fit before attach so term-open carries the real size, not xterm's 80x24
+    // default: tmux sizes its client from the open and a queued resize is skipped.
+    if (canFit()) { try { fit.fit(); } catch { /* noop */ } }
     const firstFit = requestAnimationFrame(safeFit);
+    const unbindClipboard = clipboard.bind(xt, el);
+    if (clipboardRef) clipboardRef.current = { copy: clipboard.copy, paste: clipboard.paste };
 
     term.attach(
       id, xt.cols, xt.rows,
-      (d) => xt.write(d),
+      (d) => { xt.write(d); outputRef.current?.(d, false); },
       () => xt.write('\r\n\x1b[2m[sessão encerrada]\x1b[0m\r\n'),
-      (snapshot) => { xt.reset(); xt.write(snapshot); }, // repinta sem duplicar
+      (snapshot) => { xt.reset(); xt.write(snapshot); outputRef.current?.(snapshot, true); }, // repinta sem duplicar
       watch,
+      botId,
     );
     const dataSub = xt.onData((d) => term.input(id, d));
     if (autoFocus) xt.focus();
@@ -78,13 +93,15 @@ export function XtermView({ id, term, watch, autoFocus = true, focusKey, fontSiz
       cancelAnimationFrame(raf);
       ro.disconnect();
       dataSub.dispose();
+      unbindClipboard();
+      if (clipboardRef) clipboardRef.current = null;
       term.detach(id);
       xtRef.current = null;
       xt.dispose();
     };
     // fontSize/autoFocus only matter at mount; changing them must not reattach.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, term, watch]);
+  }, [id, term, watch, botId]);
 
   useEffect(() => {
     if (!focusKey) return;
@@ -93,5 +110,15 @@ export function XtermView({ id, term, watch, autoFocus = true, focusKey, fontSiz
     return () => cancelAnimationFrame(raf);
   }, [focusKey]);
 
-  return <div ref={ref} className="h-full w-full overflow-hidden" style={{ background: '#0a0a0a', padding: '6px 4px 4px 8px' }} />;
+  return (
+    // Padding sits on this wrapper, never on the element xterm opens in:
+    // FitAddon sizes rows/cols from that element's computed width/height,
+    // which under the global border-box includes padding, so the last row
+    // landed half under the bottom edge. letter-spacing: body's -0.011em was
+    // inherited by xterm's glyph-width measurer, every cell got +0.18px of
+    // spacing, and the last ~2 columns of a full line were clipped.
+    <div className="h-full w-full overflow-hidden" style={{ background: '#0a0a0a', padding: '6px 4px 4px 8px', letterSpacing: 'normal' }}>
+      <div ref={ref} data-testid="xterm-host" className="h-full w-full" />
+    </div>
+  );
 }

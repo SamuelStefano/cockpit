@@ -15,6 +15,8 @@ const ORCH = 'orch-session';
 vi.mock('../canvas/orchestrator', () => ({
   readOrchestratorSync: () => ({ name: 'Orchestrator', sessionId: 'orch-session', tmux: 'orch' }),
   isTmuxAliveSync: () => true,
+  paneLostClaudeSync: () => false,
+  tmuxStateSync: () => 'alive',
 }));
 const terms = vi.hoisted(() => ({ hasTerm: vi.fn(() => true), openTerm: vi.fn(), inputTerm: vi.fn() }));
 vi.mock('../terminals', () => terms);
@@ -28,7 +30,6 @@ vi.mock('./broadcast', () => ({ broadcast: vi.fn(), send: vi.fn(), setWss: vi.fn
 vi.mock('./translate', () => ({ translate: vi.fn() }));
 vi.mock('../summary', () => ({ summarize: vi.fn(async () => {}) }));
 vi.mock('../engine/triage', () => ({ classify: vi.fn(), quickAnswer: vi.fn(), killSideRuns: vi.fn(), killSideRunsFor: vi.fn() }));
-vi.mock('../engine/suggest', () => ({ suggestFollowups: vi.fn(async () => []) }));
 vi.mock('./incidents', () => ({ recordIncident: vi.fn() }));
 vi.mock('./recover', () => ({ markRunLive: vi.fn(), clearRunLive: vi.fn(), takeOrphanRuns: vi.fn(() => []) }));
 

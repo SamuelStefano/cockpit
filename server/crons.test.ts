@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { isDue, nextRunAt, getCrons, saveCron, markRan, runCronNow } from './crons';
+import { isDue, nextRunAt, getCrons, saveCron, markRan, runCronNow, pauseBotRoutines } from './crons';
 import type { Cron } from '../shared/protocol';
 
 const base = (over: Partial<Cron>): Cron => ({
@@ -98,5 +98,47 @@ describe('markRan', () => {
     const c = (await getCrons())[0];
     expect(c).toMatchObject({ lastRun: 1200, enabled: false });
     expect(isDue(c, 9_000_000)).toBe(false);
+  });
+});
+
+describe('saveCron on an existing cron', () => {
+  let dir: string;
+  beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'deck-crons-save-')); process.env.COCKPIT_CRONS = join(dir, 'crons.json'); });
+  afterEach(() => { delete process.env.COCKPIT_CRONS; try { rmSync(dir, { recursive: true, force: true }); } catch { /* ok */ } });
+
+  it('an edit from a stale browser list does not rewind lastRun (no second fire)', async () => {
+    const daily = base({ id: 'd', schedule: { kind: 'daily', atMinute: 7 * 60 }, createdAt: 1 });
+    const sevenBrt = Date.UTC(2026, 8, 24, 10, 0);
+    await saveCron(daily);
+    await markRan('d', sevenBrt);
+    await saveCron({ ...daily, prompt: 'edited', createdAt: 999 });
+    const c = (await getCrons())[0];
+    expect(c).toMatchObject({ prompt: 'edited', lastRun: sevenBrt, createdAt: 1 });
+    expect(isDue(c, sevenBrt + 30 * 60_000)).toBe(false);
+  });
+
+  it('still takes the edited fields and enabled flag', async () => {
+    await saveCron(base({ id: 'e' }));
+    await saveCron(base({ id: 'e', enabled: false, name: 'renamed' }));
+    expect((await getCrons())[0]).toMatchObject({ enabled: false, name: 'renamed' });
+  });
+});
+
+describe('pauseBotRoutines', () => {
+  let dir: string;
+  beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'deck-crons-bot-')); process.env.COCKPIT_CRONS = join(dir, 'crons.json'); });
+  afterEach(() => { delete process.env.COCKPIT_CRONS; try { rmSync(dir, { recursive: true, force: true }); } catch { /* ok */ } });
+
+  it('pauses only the routines of that bot and keeps them listed', async () => {
+    await saveCron(base({ id: 'a', botId: 'capo1' }));
+    await saveCron(base({ id: 'b' }));
+    await saveCron(base({ id: 'c', botId: 'other1' }));
+    const items = await pauseBotRoutines('capo1');
+    expect(items?.map((c) => [c.id, c.enabled])).toEqual([['a', false], ['b', true], ['c', true]]);
+    expect((await getCrons()).find((c) => c.id === 'a')?.enabled).toBe(false);
+  });
+  it('returns null when nothing changed', async () => {
+    await saveCron(base({ id: 'a', botId: 'capo1', enabled: false }));
+    expect(await pauseBotRoutines('capo1')).toBeNull();
   });
 });

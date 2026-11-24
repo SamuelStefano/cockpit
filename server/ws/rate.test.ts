@@ -57,4 +57,14 @@ describe('cache do rate-limit', () => {
     rate.setLastRate({ resetsAt: novo, status: 'rejected' });
     expect(rate.getLastRate()).toEqual({ resetsAt: novo, status: 'rejected' });
   });
+
+  it('drops the ceiling of a previous login once the credentials file is newer', () => {
+    rate.setLastRate({ resetsAt: Date.now() + 3_600_000, status: 'rejected' });
+    const setAt = rate.getRateSnapshot()!.setAt;
+    expect(rate.dropRateFromOldLogin(setAt - 1)).toBe(false);
+    expect(rate.getRateSnapshot()).not.toBeNull();
+    expect(rate.dropRateFromOldLogin(setAt + 1)).toBe(true);
+    expect(rate.getRateSnapshot()).toBeNull();
+    expect(rate.dropRateFromOldLogin(setAt + 2)).toBe(false);
+  });
 });

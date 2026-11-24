@@ -1,0 +1,11 @@
+{
+  "name": "@deck/ops",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Deck owner's admin app: diagnostic reports, boxes and Telegram alerts. No runtime dependencies.",
+  "engines": { "node": ">=22.18" },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning --experimental-strip-types src/main.ts"
+  }
+}

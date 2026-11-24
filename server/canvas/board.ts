@@ -7,6 +7,7 @@ import {
   type CanvasSessionStatus, type CardReuse, type CardStatus,
   AREA_IDS, CARD_ID_RE, CARD_STATUSES, CONTENT_FORMATS, FLOW_ID_RE, isFlowEndpoint,
 } from '../../shared/canvas';
+import { withFileLockAsync } from '../ws/file-lock';
 
 // Kanban cards + canvas positions for the canvas route. Lives in ~/.cockpit, out
 // of the agent's workdir, so the agent never reads it as context by accident.
@@ -505,7 +506,10 @@ export async function readBoard(): Promise<CanvasBoard> {
 // error and nothing on disk changes.
 let chain: Promise<unknown> = Promise.resolve();
 export function updateBoard(fn: (b: CanvasBoard) => CanvasBoard): Promise<CanvasBoard> {
-  const next = chain.then(async () => {
+  // `chain` serializes this process; the file lock serializes against the other
+  // one (index on loopback and the relay agent both write this board). Without
+  // it both read the same version and the second write dropped the first.
+  const next = chain.then(() => withFileLockAsync(boardFile(), async () => {
     const updated = fn(await readBoard());
     const f = boardFile();
     await mkdir(dirname(f), { recursive: true });
@@ -518,7 +522,7 @@ export function updateBoard(fn: (b: CanvasBoard) => CanvasBoard): Promise<Canvas
     await writeFile(tmp, JSON.stringify(updated), 'utf8');
     await rename(tmp, f);
     return updated;
-  });
+  }));
   chain = next.catch(() => undefined);
   return next;
 }

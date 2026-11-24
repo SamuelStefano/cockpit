@@ -1,5 +1,6 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
-import { Icon, tokens } from './primitives';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { Icon, IconButton, tokens } from './primitives';
+import type { TerminalClipboardApi } from './useTerminalClipboard';
 import type { Terminal } from '../data/types';
 import type { TermApi } from '../useCockpit';
 
@@ -32,6 +33,7 @@ export function TerminalsPanel({ terminals, activeId, onSelect, onAdd, onClose, 
     const t = setTimeout(() => setKillArmed(null), 3000);
     return () => clearTimeout(t);
   }, [killArmed]);
+  const clipboardRef = useRef<TerminalClipboardApi | null>(null);
   const armOrKill = (id: string) => { if (killArmed === id) { setKillArmed(null); onClose(id); } else setKillArmed(id); };
 
   return (
@@ -40,45 +42,46 @@ export function TerminalsPanel({ terminals, activeId, onSelect, onAdd, onClose, 
         <div className="scroll-thin flex flex-1 items-center gap-1 overflow-x-auto pb-1.5">
           {terminals.map((t) => {
             const on = t.id === active?.id;
+            const dead = term.exited.has(t.id);
+            const armed = killArmed === t.id;
             return (
-              <button
+              <div
                 key={t.id}
-                onClick={() => onSelect(t.id)}
-                className={`group flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-2.5 py-1.5 font-mono text-[11.5px] transition
+                className={`group flex shrink-0 items-center rounded-t-md border-b-2 transition
                   ${on
                     ? 'border-orange-500 bg-neutral-900 text-neutral-100'
                     : 'border-transparent text-neutral-500 hover:bg-neutral-900/50 hover:text-neutral-300'}`}
               >
-                {/* Colour alone used to say "alive" for every tab, dead ones too. */}
-                <span className={`h-1.5 w-1.5 rounded-full ${term.exited.has(t.id) ? 'bg-neutral-600' : 'bg-green-500'}`} style={term.exited.has(t.id) ? undefined : { boxShadow: '0 0 6px var(--ok)' }} aria-label={term.exited.has(t.id) ? 'encerrado' : 'ativo'} />
-                {t.name}
-                {terminals.length > 1 && (
-                  // span (não button) — aninhar button em button é HTML inválido.
-                  <span
-                    role="button"
-                    tabIndex={0}
-                    // Same two-tap rule as "matar": this ✕ also ends the tmux session,
-                    // and on touch screens it is always visible.
-                    aria-label={killArmed === t.id ? 'Confirmar: fechar terminal' : 'Fechar terminal'}
-                    title={killArmed === t.id ? 'Toque de novo pra fechar' : 'Fechar terminal'}
-                    onClick={(e) => { e.stopPropagation(); armOrKill(t.id); }}
-                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); armOrKill(t.id); } }}
-                    className={`-mr-1.5 ml-0.5 rounded-sm p-1.5 transition hover:bg-neutral-800 ${killArmed === t.id ? 'text-red-400 opacity-100' : 'text-neutral-600 hover:text-neutral-300'} sm:pointer-fine:opacity-0 sm:group-hover:opacity-100 sm:group-focus-visible:opacity-100 sm:focus-visible:opacity-100 ${tokens.focusRing}`}
-                  >
-                    <Icon name="x" size={11} />
-                  </span>
-                )}
-              </button>
+                <button onClick={() => onSelect(t.id)} className={`flex items-center gap-1.5 rounded-t-md py-1.5 pl-2.5 pr-1.5 font-mono text-[12px] ${tokens.focusRing}`}>
+                  <span className={`h-1.5 w-1.5 rounded-full ${dead ? 'bg-neutral-600' : 'bg-green-500'}`} aria-label={dead ? 'encerrado' : 'ativo'} />
+                  {t.name}
+                </button>
+                <span className="flex items-center gap-0.5 pr-1 sm:pointer-fine:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
+                  {on && (
+                    <>
+                      <IconButton icon="copy" size="xs" label="Copiar" tip="Copia a seleção · Ctrl+Shift+C" onClick={() => void clipboardRef.current?.copy()} />
+                      <IconButton icon="clipboard" size="xs" label="Colar" tip="Ctrl+V / Ctrl+Shift+V colam · botão direito" onClick={() => void clipboardRef.current?.paste()} />
+                    </>
+                  )}
+                  <IconButton
+                    icon={armed ? 'trash' : 'x'} size="xs"
+                    label={armed ? 'Confirmar: fechar terminal' : 'Fechar terminal'}
+                    tip={armed ? 'Toque de novo pra encerrar a sessão tmux' : 'Fechar terminal (encerra a sessão tmux)'}
+                    className={armed ? 'text-red-400' : ''}
+                    onClick={() => armOrKill(t.id)}
+                  />
+                </span>
+              </div>
             );
           })}
-          <button
-            onClick={onAdd}
-            title="Novo terminal"
-            aria-label="Novo terminal"
-            className="flex shrink-0 items-center justify-center rounded-md p-1.5 text-neutral-500 transition hover:bg-neutral-900 hover:text-orange-400"
-          >
-            <Icon name="plus" size={14} />
-          </button>
+            <button
+              onClick={onAdd}
+              title="Novo terminal"
+              aria-label="Novo terminal"
+              className="flex shrink-0 items-center justify-center rounded-md p-1.5 text-neutral-500 transition hover:bg-neutral-900 hover:text-orange-400"
+            >
+              <Icon name="plus" size={14} />
+            </button>
           {attachable.length > 0 && onAttach && (
             <>
               <span className="mx-1 h-4 w-px shrink-0 bg-neutral-800" />
@@ -87,7 +90,7 @@ export function TerminalsPanel({ terminals, activeId, onSelect, onAdd, onClose, 
                   key={id}
                   onClick={() => onAttach(id)}
                   title={`Reanexar sessão tmux cockpit-${id}`}
-                  className="flex shrink-0 items-center gap-1 rounded-md border border-dashed border-neutral-700 px-2 py-1 font-mono text-[11px] text-neutral-500 transition hover:border-orange-500/40 hover:text-orange-300"
+                  className="flex shrink-0 items-center gap-1 rounded-md border border-dashed border-neutral-700 px-2 py-1 font-mono text-[12px] text-neutral-500 transition hover:border-orange-500/40 hover:text-orange-300"
                 >
                   <Icon name="terminal" size={11} /> {id}
                 </button>
@@ -96,7 +99,7 @@ export function TerminalsPanel({ terminals, activeId, onSelect, onAdd, onClose, 
           )}
         </div>
         {onCloseMobile && (
-          <button onClick={onCloseMobile} title="Fechar terminais" aria-label="Fechar terminais" className="mb-1.5 ml-1 rounded-md p-1.5 text-neutral-500 hover:bg-neutral-800 hover:text-neutral-200">
+          <button onClick={onCloseMobile} title="Fechar terminais" aria-label="Fechar terminais" className="mb-1.5 ml-1 rounded-md p-1.5 text-neutral-500 hover:bg-neutral-800 hover:text-neutral-200 pointer-coarse:flex pointer-coarse:h-10 pointer-coarse:w-10 pointer-coarse:items-center pointer-coarse:justify-center">
             <Icon name="chevronDown" size={16} />
           </button>
         )}
@@ -104,29 +107,11 @@ export function TerminalsPanel({ terminals, activeId, onSelect, onAdd, onClose, 
 
       <div className="relative min-h-0 flex-1">
         {active ? (
-          <Suspense fallback={<div className="flex h-full items-center justify-center font-mono text-[12px] text-neutral-600">abrindo terminal…</div>}>
-            <XtermView key={active.id} id={active.id} term={term} />
+          <Suspense fallback={<div className="flex h-full items-center justify-center font-mono text-[13px] text-neutral-600">abrindo terminal…</div>}>
+            <XtermView key={active.id} id={active.id} term={term} clipboardRef={clipboardRef} />
           </Suspense>
         ) : (
-          <div className="flex h-full items-center justify-center text-[12px] text-neutral-600">nenhum terminal aberto</div>
-        )}
-      </div>
-
-      <div className="flex shrink-0 items-center justify-between border-t border-neutral-800 bg-neutral-950/80 px-3 py-1.5">
-        <div className="flex items-center gap-2 font-mono text-[11px]">
-          {active && term.exited.has(active.id)
-            ? <><span className="h-2 w-2 rounded-full bg-neutral-600" /><span className="text-neutral-500">encerrado</span></>
-            : <><span className="h-2 w-2 rounded-full bg-green-500" style={{ boxShadow: '0 0 6px var(--ok)' }} /><span className="text-green-400">tmux</span></>}
-          {active && <span className="text-neutral-600">cockpit-{active.id}</span>}
-        </div>
-        {active && (
-          <button
-            onClick={() => armOrKill(active.id)}
-            title="Encerra a sessão tmux"
-            className={`flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-medium transition ${killArmed === active.id ? 'border-red-500/60 bg-red-500/15 text-red-300' : 'border-neutral-700 text-neutral-300 hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-400'}`}
-          >
-            <Icon name="trash" size={11} /> {killArmed === active.id ? 'confirmar?' : 'matar'}
-          </button>
+          <div className="flex h-full items-center justify-center text-[13px] text-neutral-600">nenhum terminal aberto</div>
         )}
       </div>
     </div>

@@ -6,13 +6,17 @@ const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select
 // screen-reader users: move focus in when it opens (to `[data-autofocus]` or the
 // first focusable), keep Tab inside it, and give focus back to whatever had it
 // when it closes. Without this, Tab walked the page behind the dialog.
-export function useDialogFocus(ref: RefObject<HTMLElement | null>, open = true): void {
+// `opener` is what had focus before the dialog rendered: content with autoFocus
+// takes focus during commit, before this effect can see who had it.
+export function useDialogFocus(ref: RefObject<HTMLElement | null>, open = true, opener?: RefObject<Element | null>): void {
   useEffect(() => {
     const root = ref.current;
     if (!open || !root) return;
-    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const before = opener?.current ?? document.activeElement;
+    const previous = before instanceof HTMLElement && !root.contains(before) ? before : null;
     const items = () => [...root.querySelectorAll<HTMLElement>(FOCUSABLE)];
-    (root.querySelector<HTMLElement>('[data-autofocus]') ?? items()[0] ?? root).focus();
+    // Content that focused itself on mount (an input with autoFocus) keeps it.
+    if (!root.contains(document.activeElement)) (root.querySelector<HTMLElement>('[data-autofocus]') ?? items()[0] ?? root).focus();
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Tab') return;
       const list = items();

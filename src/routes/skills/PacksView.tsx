@@ -13,11 +13,11 @@ interface Props {
 
 export function PacksView({ packs, installing, onInstall, onOpen }: Props) {
   if (packs.length === 0) {
-    return <EmptyState icon="search" title="Nenhum pack" description="O registro não tem pack que bata com a busca." />;
+    return <EmptyState size="sm" icon="search" title="Nenhum pack" description="O registro não tem pack que bata com a busca." />;
   }
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-[12px] leading-relaxed text-neutral-500">
+      <p className="text-[13px] leading-relaxed text-neutral-500">
         Um pack é uma skill raiz mais as skills que ela chama. Instalar o pack traz as que faltam; as que você já tem ficam como estão.
       </p>
       <PackRoleLegend />

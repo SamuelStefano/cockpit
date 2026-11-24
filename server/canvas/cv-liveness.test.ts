@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
-  busySessionIds, CV_FRESH_MS, cvTermId, idleCvSessionIds, isCvShellLive, isRegistrySessionLive,
-  liveCvSessionIds, liveRegistrySessionIds, parseProcRecord, procStartMatches, procStartTicks,
+  busyHeadlessSessionIds, busySessionIds, CV_FRESH_MS, cvTermId, idleCvSessionIds, isCvShellLive, isRegistrySessionLive,
+  liveCvSessionIds, liveRegistrySessionIds, parseProcRecord, procStartMatches, procStartTicks, tmuxPaneSessionIds,
 } from './cv-liveness';
 
 const NOW = 1_000_000_000;
@@ -81,6 +81,18 @@ describe('busySessionIds — strict, for the send guard only', () => {
   it('has no fresh-mtime fallback — an idle-but-recently-active session is never in this set', () => {
     const ids = busySessionIds([{ pid: 1, sessionId: 'just-finished', status: 'idle' }], deps);
     expect(ids).toEqual([]);
+  });
+});
+
+describe('busyHeadlessSessionIds — what a refused send may park for', () => {
+  it('keeps a busy headless turn and drops a busy cv-shell, whose interactive claude outlives the turn', () => {
+    const records = [
+      { pid: 1, sessionId: 'headless', status: 'busy' },
+      { pid: 2, sessionId: 'shell', status: 'busy', tmux: 'cockpit-cv-a:@1.%1' },
+      { pid: 3, sessionId: 'idle', status: 'idle' },
+    ];
+    expect(busyHeadlessSessionIds(records, { procAlive: () => true })).toEqual(['headless']);
+    expect(busyHeadlessSessionIds(records, { procAlive: () => false })).toEqual([]);
   });
 });
 
@@ -225,5 +237,17 @@ describe('procStartTicks / procStartMatches', () => {
 
   it('parseProcRecord keeps procStart as a string', () => {
     expect(parseProcRecord(JSON.stringify({ pid: 7, sessionId: 's1', procStart: '42' }))?.procStart).toBe('42');
+  });
+});
+
+describe('tmuxPaneSessionIds — idle interactive panes count', () => {
+  it('keeps alive pids with a tmux target, busy or idle', () => {
+    const ids = tmuxPaneSessionIds([
+      { pid: 1, sessionId: 'idle-pane', status: 'idle', tmux: 'cockpit-cv-x:@1.%1' },
+      { pid: 2, sessionId: 'busy-pane', status: 'busy', tmux: 'cockpit-cv-y:@2.%2' },
+      { pid: 3, sessionId: 'headless', status: 'idle' },
+      { pid: 99, sessionId: 'dead-pane', tmux: 'cockpit-cv-z:@3.%3' },
+    ], { procAlive: (pid) => pid !== 99 });
+    expect(ids).toEqual(['busy-pane', 'idle-pane']);
   });
 });

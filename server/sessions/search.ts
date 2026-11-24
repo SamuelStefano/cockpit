@@ -59,9 +59,15 @@ export async function searchSessions(q: string): Promise<SessionMeta[]> {
 // Primeira linha de prosa (user/assistant) que contém o termo. Para no 1º hit —
 // barato mesmo no arquivo de 46MB. Pula ruído (tool_result, base64): se o match
 // só existir fora de prosa, devolve null e o caller mantém o snippet padrão.
-export async function matchSnippet(path: string, q: string): Promise<string | null> {
+// A query that only appears in tool output (a path, an identifier) never hits
+// prose, so the loop above read each of up to 40 matched files to the END —
+// 100+ MB transcripts, on every keystroke. Past this many bytes the snippet
+// falls back to the default one, which is what a miss already does.
+export const MAX_SNIPPET_SCAN_BYTES = 8 * 1024 * 1024;
+
+export async function matchSnippet(path: string, q: string, maxBytes = MAX_SNIPPET_SCAN_BYTES): Promise<string | null> {
   const needle = q.toLowerCase();
-  const input = createReadStream(path);
+  const input = createReadStream(path, { end: maxBytes - 1 });
   const rl = createInterface({ input, crlfDelay: Infinity });
   try {
     for await (const line of rl) {
