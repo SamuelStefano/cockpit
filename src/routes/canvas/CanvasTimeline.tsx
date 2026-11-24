@@ -20,7 +20,7 @@ export function CanvasTimeline({ timeline: tl }: Props) {
         aria-label={tl.playing ? 'pausar' : tl.live ? 'reproduzir os últimos 7 dias' : 'reproduzir a partir daqui'}
         onClick={() => (tl.playing ? tl.pause() : tl.play())}
       />
-      <span className="font-mono text-[10.5px] text-neutral-500">7d atrás</span>
+      <span className="font-mono text-[12px] text-neutral-500">7d atrás</span>
       <input
         type="range" min={tl.rangeStart} max={tl.rangeEnd} value={tl.t} step={60_000}
         onChange={(e) => tl.setT(Number(e.target.value))}
@@ -28,7 +28,7 @@ export function CanvasTimeline({ timeline: tl }: Props) {
         aria-label="linha do tempo do canvas"
         style={{ background: `linear-gradient(to right, rgb(249 115 22) ${pct}%, rgb(38 38 38) ${pct}%)` }}
       />
-      <span className="font-mono text-[10.5px] text-neutral-500">agora</span>
+      <span className="font-mono text-[12px] text-neutral-500">agora</span>
       <Badge tone={tl.live ? 'green' : 'orange'} dot>
         <Icon name="clock" size={10} />
         {tl.live ? 'ao vivo' : fmtTimelineStamp(tl.t)}

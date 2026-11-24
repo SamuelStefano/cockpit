@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { authorize } from './authz';
+import { ROOT_ONLY } from '../../shared/root-frames';
 
 describe('authorize', () => {
   it('admin may send every message type', () => {
@@ -9,7 +10,7 @@ describe('authorize', () => {
   });
 
   it('student may read and drive own chat', () => {
-    for (const t of ['send', 'stop', 'list', 'open', 'open-full', 'search', 'ctx-list', 'ctx-open', 'skill-list', 'skill-open', 'usage-list', 'upload-chunk', 'orchestrator-get'] as const) {
+    for (const t of ['send', 'stop', 'list', 'open', 'open-full', 'search', 'ctx-list', 'ctx-open', 'skill-list', 'skill-open', 'usage-list', 'upload-chunk', 'orchestrator-get', 'tts'] as const) {
       expect(authorize('student', t)).toBe(true);
     }
   });
@@ -26,6 +27,26 @@ describe('authorize', () => {
     }
   });
 
+  it('student reads its own bots files (team-files-get/team-file-get)', () => {
+    expect(authorize('student', 'team-files-get')).toBe(true);
+    expect(authorize('student', 'team-file-get')).toBe(true);
+  });
+
+  it('student may poll grok usage like Claude, and read computer counts', () => {
+    expect(authorize('student', 'grok-usage-get')).toBe(true);
+    expect(authorize('student', 'plan-usage-get')).toBe(true);
+    expect(authorize('student', 'team-computer-get')).toBe(true);
+    expect(authorize('student', 'team-state-get')).toBe(false);
+    expect(authorize('admin', 'team-state-get')).toBe(true);
+    expect(authorize('student', 'term-open')).toBe(false);
+  });
+
+  it('student may log the box Claude CLI in', () => {
+    for (const t of ['claude-login-start', 'claude-login-code', 'claude-login-cancel'] as const) {
+      expect(authorize('student', t)).toBe(true);
+    }
+  });
+
   it('default-deny: an unknown future message type is denied for student', () => {
     expect(authorize('student', 'totally-new-msg' as never)).toBe(false);
     expect(authorize('admin', 'totally-new-msg' as never)).toBe(true);
@@ -38,8 +59,23 @@ describe('authorize', () => {
     }
   });
 
+  it('vault is root-only: admin without root is denied, root admin allowed, student denied', () => {
+    for (const t of ['vault-put', 'vault-list', 'vault-rm'] as const) {
+      expect(authorize('student', t, true)).toBe(false);
+      expect(authorize('admin', t)).toBe(false);
+      expect(authorize('admin', t, true)).toBe(true);
+    }
+  });
+
   it('canvas é admin-only: o grafo expõe toda a memória e o card dispara agente', () => {
     for (const t of ['canvas-get', 'canvas-pos', 'canvas-pos-reset', 'canvas-card-save', 'canvas-card-delete'] as const) {
+      expect(authorize('student', t)).toBe(false);
+      expect(authorize('admin', t)).toBe(true);
+    }
+  });
+
+  it('planner é admin-only', () => {
+    for (const t of ['planner-get', 'planner-task-save', 'planner-task-delete', 'planner-reorder', 'planner-task-handoff'] as const) {
       expect(authorize('student', t)).toBe(false);
       expect(authorize('admin', t)).toBe(true);
     }
@@ -55,10 +91,78 @@ describe('authorize', () => {
     }
   });
 
-  it('financeiro DFL é admin-only: student negado, admin liberado', () => {
+  it('financeiro DFL é root-only: student e admin negados, dono liberado', () => {
     for (const t of ['points-dfl-get', 'points-dfl-sync'] as const) {
       expect(authorize('student', t)).toBe(false);
+      expect(authorize('admin', t)).toBe(false);
+      expect(authorize('admin', t, true)).toBe(true);
+    }
+  });
+
+  it('every owner frame needs root: admin without it is denied, the owner passes', () => {
+    const owner = [
+      'points-get', 'points-add', 'points-correct', 'points-note', 'points-delete',
+      'points-dfl-get', 'points-dfl-sync', 'points-dfl-change', 'points-dfl-invoice',
+      'pontos-agent-tasks', 'drafts-get', 'drafts-op',
+      'admin-env-set', 'admin-env-unset', 'admin-mcp-add', 'admin-mcp-remove',
+      'admin-cli-install', 'admin-cli-update', 'admin-deck-restart',
+      'agent-add-custom', 'agent-probe-draft', 'provider-probe',
+      'claude-import-scan', 'claude-import-apply',
+      'versions-restore',
+      'vault-put', 'vault-list', 'vault-rm', 'prs-get', 'prs-detail-get', 'prs-diff-get', 'prs-session-get', 'prs-merge', 'claude-account-get', 'claude-logout',
+    ] as const;
+    expect([...ROOT_ONLY].sort()).toEqual([...owner].sort());
+    for (const t of owner) {
+      expect(authorize('admin', t)).toBe(false);
+      expect(authorize('student', t)).toBe(false);
+      expect(authorize('student', t, true)).toBe(false);
+      expect(authorize('admin', t, true)).toBe(true);
+    }
+  });
+
+  it('an unlisted future owner frame is denied without root by its prefix', () => {
+    expect(authorize('admin', 'points-future' as never)).toBe(false);
+    expect(authorize('admin', 'points-future' as never, true)).toBe(true);
+  });
+
+  it('a plain admin keeps the rest of the Painel', () => {
+    for (const t of ['admin-health', 'agents-get', 'refresh-models', 'canvas-get', 'term-open'] as const) {
       expect(authorize('admin', t)).toBe(true);
+    }
+  });
+
+  it('student uses the Equipe: team and cron frames pass authz (dispatch coerces them, ws/student-team.ts)', () => {
+    for (const t of ['team-get', 'team-save', 'team-delete', 'crons-get', 'cron-save', 'cron-delete', 'cron-run'] as const) {
+      expect(authorize('student', t)).toBe(true);
+    }
+  });
+
+  it('MCP list: admin and student read it, never owner-only', () => {
+    expect(authorize('admin', 'mcps-get')).toBe(true);
+    expect(authorize('student', 'mcps-get')).toBe(true);
+    expect(ROOT_ONLY.has('mcps-get')).toBe(false);
+  });
+
+  it('meeting frames are admin-only and never owner-only', () => {
+    for (const t of ['team-meeting-start', 'team-meetings-get'] as const) {
+      expect(authorize('admin', t)).toBe(true);
+      expect(authorize('student', t)).toBe(false);
+      expect(ROOT_ONLY.has(t)).toBe(false);
+    }
+  });
+
+  it('connections-get is admin-only and never owner-only', () => {
+    expect(authorize('admin', 'connections-get')).toBe(true);
+    expect(authorize('student', 'connections-get')).toBe(false);
+    expect(ROOT_ONLY.has('connections-get')).toBe(false);
+  });
+});
+
+describe('village frames', () => {
+  it('are admin-only and denied to students by default', () => {
+    for (const t of ['village-get', 'village-config', 'village-dry'] as const) {
+      expect(authorize('admin', t)).toBe(true);
+      expect(authorize('student', t)).toBe(false);
     }
   });
 });

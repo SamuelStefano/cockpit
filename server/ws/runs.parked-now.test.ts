@@ -20,7 +20,6 @@ vi.mock('./broadcast', () => ({ broadcast: vi.fn(), send: vi.fn(), setWss: vi.fn
 vi.mock('./translate', () => ({ translate: vi.fn() }));
 vi.mock('../summary', () => ({ summarize: vi.fn(async () => {}) }));
 vi.mock('../engine/triage', () => ({ classify: vi.fn(), quickAnswer: vi.fn(), killSideRuns: vi.fn(), killSideRunsFor: vi.fn() }));
-vi.mock('../engine/suggest', () => ({ suggestFollowups: vi.fn(async () => []) }));
 vi.mock('./incidents', () => ({ recordIncident: vi.fn() }));
 vi.mock('./recover', () => ({ markRunLive: vi.fn(), clearRunLive: vi.fn(), takeOrphanRuns: vi.fn(() => []) }));
 
@@ -78,6 +77,20 @@ describe('runParkedNow — furar a fila', () => {
     expect(snaps.at(-1)).toMatchObject({ items: [{ text: 'A' }, { text: 'C' }] });
   });
 
+  // The forced prompt must show in the thread right away: release the dead turn's
+  // bubble (triage priority), echo the prompt as the user bubble, then start.
+  it('echoes the forced prompt and frees the interrupted bubble, in that order', () => {
+    const [, b] = fill();
+    startRun({ ws: null, sessionKey: 's1', prompt: 'turno em andamento' });
+    vi.mocked(broadcast).mockClear();
+    runParkedNow('s1', b);
+    const frames = vi.mocked(broadcast).mock.calls.map((c) => c[0] as { t: string });
+    const order = frames.map((f) => f.t).filter((t) => t === 'triage' || t === 'user' || t === 'started');
+    expect(order).toEqual(['triage', 'user', 'started']);
+    expect(frames.find((f) => f.t === 'triage')).toMatchObject({ sessionKey: 's1', action: 'priority' });
+    expect(frames.find((f) => f.t === 'user')).toMatchObject({ sessionKey: 's1', id: b, text: 'B' });
+  });
+
   // O item fica amarrado ao turno: se ele morrer sem consumir o prompt (teto de
   // tokens, crash), o onClose devolve pra fila em vez de queimar o prompt.
   it('amarra o item ao turno que subiu', () => {
@@ -106,3 +119,22 @@ describe('runParkedNow — furar a fila', () => {
 });
 
 process.on('exit', () => rmSync(dir, { recursive: true, force: true }));
+
+describe('runParkedNow — turno vivo com outra chave', () => {
+  beforeEach(() => {
+    threads.clear();
+    clearParked('s1', 'admin');
+    vi.mocked(run).mockClear();
+  });
+
+  // Primeiro turno de um chat novo roda como new-…; a fila usa o id da sessão.
+  it('substitui o thread vivo (new-…) em vez de subir um segundo na chave da fila', () => {
+    const [, b] = fill();
+    startRun({ ws: null, sessionKey: 'new-abc', prompt: 'primeiro turno' });
+    threads.get('new-abc')!.sessionId = 's1';
+    expect(runParkedNow('s1', b)).toEqual({ ok: true });
+    expect(threads.has('s1')).toBe(false);
+    expect(threads.get('new-abc')?.parked?.prompt).toBe('B');
+    expect(threads.get('new-abc')?.parkedFrom).toBe('s1');
+  });
+});

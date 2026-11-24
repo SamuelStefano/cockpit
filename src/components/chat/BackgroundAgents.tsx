@@ -40,7 +40,7 @@ export function BackgroundAgents({ agents }: { agents?: BgAgent[] }) {
   if (!view.length) return null;
   return (
     <div className="flex flex-wrap items-center gap-1.5 px-3 pb-1.5 pt-1">
-      <span className="flex shrink-0 items-center gap-1 font-mono text-[10px] uppercase tracking-wide text-neutral-500">
+      <span className="flex shrink-0 items-center gap-1 font-mono text-[12px] uppercase tracking-wide text-neutral-500">
         <Icon name="sparkles" size={11} /> fundo
       </span>
       {view.map((a) => (

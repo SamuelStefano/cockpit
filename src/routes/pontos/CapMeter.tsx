@@ -14,7 +14,7 @@ export function CapMeter({ valueCents, capCents, over, label = 'do teto' }: Prop
   const pct = Math.round((valueCents / capCents) * 100);
   const fill = Math.min(valueCents, capCents);
   return (
-    <span className="inline-flex items-center gap-2 font-mono text-[11px] tabular-nums" title={`teto por épico: ${brlShort(capCents)}`}>
+    <span className="inline-flex items-center gap-2 font-mono text-[12px] tabular-nums" title={`teto por épico: ${brlShort(capCents)}`}>
       <span className="block w-24">
         <ProgressBar size="xs" segments={[
           { value: fill, tone: over ? 'yellow' : 'orange' },

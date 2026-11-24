@@ -22,7 +22,7 @@ export function Queue() {
         </InfoCard>
         <InfoCard icon="sparkles" iconClass="text-violet-300" title="Resumo & contexto">
           Cada sessão mostra um título destilado pelo agente e um medidor de quanto da janela de contexto já foi usado.
-          Quando o contexto enche, o botão de <span className="font-medium text-neutral-300">nova sessão</span> dá um recomeço limpo sem perder o histórico antigo.
+          Quando o contexto enche, o ícone <span className="font-medium text-neutral-300">Recomeçar com contexto limpo</span> (no topo do chat, a partir de 70 %) dá um recomeço limpo sem perder o histórico antigo.
         </InfoCard>
         <InfoCard icon="clock" iconClass="text-orange-300" title="Mexer na fila">
           O bloco laranja acima do compositor lista o que está esperando. Em cada item dá pra <span className="font-medium text-neutral-300">ver completo</span>,
@@ -54,12 +54,12 @@ export function Queue() {
           <div className="grid gap-2.5 sm:grid-cols-2">
             {TRIAGE.map((t) => (
               <div key={t.label} className={`rounded-xl border p-3 ${t.box}`}>
-                <div className={`mb-1 inline-flex rounded-md px-1.5 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide ${t.chip}`}>{t.label}</div>
-                <p className="text-[12.5px] leading-relaxed text-neutral-400">{t.body}</p>
+                <div className={`mb-1 inline-flex rounded-md px-1.5 py-0.5 text-[12px] font-semibold uppercase tracking-wide ${t.chip}`}>{t.label}</div>
+                <p className="text-[13px] leading-relaxed text-neutral-400">{t.body}</p>
               </div>
             ))}
           </div>
-          <p className="mt-3 text-[12px] leading-relaxed text-neutral-500">
+          <p className="mt-3 text-[13px] leading-relaxed text-neutral-500">
             A decisão e o motivo aparecem como uma etiqueta na sua mensagem. Na dúvida, o padrão é sempre <span className="font-medium text-neutral-400">enfileirar</span> — nada se perde.
             Parar o turno (<span className="font-medium text-neutral-400">Esc</span>) significa silêncio: também limpa a fila e cancela qualquer mensagem ainda em triagem.
           </p>

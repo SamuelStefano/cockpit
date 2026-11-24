@@ -1,0 +1,58 @@
+import { describe, expect, it } from 'vitest';
+import { layoutWings, MAX_COLS, OTHER_WING_ID, SECTORS, sectorRows, slotPosition } from './sectors';
+
+describe('layoutWings', () => {
+  it('keeps the given order and packs columns', () => {
+    const { wings } = layoutWings([{ id: 'a', name: 'A', count: 3 }, { id: 'b', name: 'B', count: 1 }]);
+    expect(wings.map((w) => [w.id, w.colStart, w.cols])).toEqual([['a', 0, 2], ['b', 2, 1]]);
+  });
+  it('folds the smallest wings when 18 single-agent projects overflow the floor', () => {
+    const groups = Array.from({ length: 18 }, (_, i) => ({ id: `p${i}`, name: `P${i}`, count: 1 }));
+    const { wings, folded } = layoutWings(groups);
+    expect(wings.reduce((n, w) => n + w.cols, 0)).toBeLessThanOrEqual(MAX_COLS);
+    expect(wings.reduce((n, w) => n + w.count, 0)).toBe(18);
+    expect(Object.values(folded).every((v) => v === OTHER_WING_ID)).toBe(true);
+  });
+  it('never folds a pinned wing while a project wing can still fold', () => {
+    const groups = [{ id: 'd1', name: 'D1', count: 1, pinned: true }, { id: 'd2', name: 'D2', count: 1, pinned: true }, ...Array.from({ length: 12 }, (_, i) => ({ id: `p${i}`, name: `P${i}`, count: 1 }))];
+    const { wings, folded } = layoutWings(groups);
+    expect(wings.slice(0, 2).map((w) => w.id)).toEqual(['d1', 'd2']);
+    expect(folded.d1).toBeUndefined();
+    expect(folded.d2).toBeUndefined();
+    expect(wings.reduce((n, w) => n + w.cols, 0)).toBeLessThanOrEqual(MAX_COLS);
+  });
+  it('uses the group colour and falls back to the palette', () => {
+    const { wings } = layoutWings([{ id: 'a', name: 'A', count: 1, rug: 0x3b82f6 }, { id: 'b', name: 'B', count: 1 }]);
+    expect(wings[0].rug).toBe(0x3b82f6);
+    expect(wings[1].rug).not.toBe(0x3b82f6);
+  });
+});
+
+describe('slotPosition', () => {
+  it('gives every slot of a wing its own desk', () => {
+    const seen = new Set([0, 1, 2, 3].map((s) => { const p = slotPosition({ colStart: 1 }, s); return `${p.x},${p.z}`; }));
+    expect(seen.size).toBe(4);
+  });
+});
+
+describe('sectorRows', () => {
+  it('counts busy, stuck and waiting per sector', () => {
+    const rows = sectorRows([{ sector: 'build', state: 'working' }, { sector: 'build', state: 'blocked' }, { sector: 'intake', state: 'waiting' }], { ship: { busy: 2 } });
+    expect(rows.find((r) => r.id === 'build')).toMatchObject({ busy: 1, stuck: 1, waiting: 0 });
+    expect(rows.find((r) => r.id === 'intake')).toMatchObject({ waiting: 1 });
+    expect(rows.find((r) => r.id === 'ship')).toMatchObject({ busy: 2 });
+  });
+});
+
+describe('SECTORS', () => {
+  it('never overlaps two sectors and keeps hotkeys unique', () => {
+    for (const a of SECTORS) for (const b of SECTORS) {
+      if (a === b) continue;
+      expect(a.x0 < b.x1 && b.x0 < a.x1 && a.z0 < b.z1 && b.z0 < a.z1).toBe(false);
+    }
+    expect(new Set(SECTORS.map((s) => s.hotkey)).size).toBe(SECTORS.length);
+  });
+  it('has a missions sector on the M key', () => {
+    expect(SECTORS.find((s) => s.id === 'missions')?.hotkey).toBe('T');
+  });
+});

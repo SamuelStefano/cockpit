@@ -2,9 +2,11 @@ import type { WebSocket } from 'ws';
 import { send } from './broadcast';
 import { getLastRate } from './rate';
 import { requestPlanUsageRefresh, planUsageFrame } from './usage-plan';
+import { requestGrokUsageRefresh, grokUsageFrame } from './usage-grok';
 import { getLastModels } from './models';
 import { busyFrame, threads } from './threads';
 import { marathonKeys } from './marathon';
+import { liveElsewhereFrame } from '../canvas/cv-liveness';
 
 // Estado durável que o CLI só emite DURANTE um run (busy/rate/plan-usage/models):
 // uma aba que suspendeu no mobile e voltou ficaria com o snapshot velho até um F5.
@@ -12,6 +14,7 @@ import { marathonKeys } from './marathon';
 // sem duplicar.
 export function sendDurableSnapshot(ws: WebSocket) {
   send(ws, busyFrame());
+  void liveElsewhereFrame().then((f) => send(ws, f), () => {});
   // Replay dos turnos EM VOO: um browser que reconecta (aba suspensa no mobile)
   // enquanto outra aba segue viva não passa pelo reemit do agente (só dispara
   // quando TODOS os browsers sumiram) — sem replay aqui o turno fica mudo e o
@@ -30,6 +33,9 @@ export function sendDurableSnapshot(ws: WebSocket) {
   // snapshot da noite anterior e esperava até 5min por um número atual. O
   // single-flight, o MIN_GAP e o cooldown já seguram o abuso deste pedido.
   requestPlanUsageRefresh();
+  const grokFrame = grokUsageFrame();
+  if (grokFrame) send(ws, grokFrame);
+  void requestGrokUsageRefresh('idle');
   const models = getLastModels();
   if (models.length) send(ws, { t: 'models', models });
   send(ws, { t: 'marathon', keys: marathonKeys() });

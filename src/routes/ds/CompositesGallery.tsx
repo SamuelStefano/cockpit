@@ -1,10 +1,12 @@
 import { useState } from 'react';
-import { Button, EmptyState, Badge, RouteHeader, SectionHeader, Stat, ProgressBar, Tabs, Modal, InlineEdit, fireConfetti } from '../../components/primitives';
+import { Button, EmptyState, Badge, RouteHeader, SectionHeader, Stat, ProgressBar, Tabs, SideNav, Modal, InlineEdit, fireConfetti } from '../../components/primitives';
 import { Section } from './Section';
 import { Row } from './Row';
+import { ModelChipDemo } from './ModelChipDemo';
 
 export function CompositesGallery() {
   const [tab, setTab] = useState<'arvore' | 'faturas' | 'ledger'>('arvore');
+  const [side, setSide] = useState<'conta' | 'uso' | 'pessoas'>('conta');
   const [modalOpen, setModalOpen] = useState(false);
   const [title, setTitle] = useState('Keyframe tracks por box');
   const [pts, setPts] = useState('5');
@@ -89,7 +91,15 @@ export function CompositesGallery() {
           { id: 'faturas', label: 'Faturas', icon: 'file', count: 13 },
           { id: 'ledger', label: 'Ledger', icon: 'star' },
         ]} active={tab} onChange={setTab} />
-        <p className="mt-3 text-[12px] text-neutral-500">Aba ativa: <span className="text-orange-300">{tab}</span></p>
+        <p className="mt-3 text-[13px] text-neutral-500">Aba ativa: <span className="text-orange-300">{tab}</span></p>
+      </Section>
+
+      <Section title="SideNav">
+        <SideNav label="Exemplo de seções" active={side} onSelect={setSide} items={[
+          { id: 'conta', label: 'Conta', icon: 'user' },
+          { id: 'uso', label: 'Uso', icon: 'zap' },
+          { id: 'pessoas', label: 'Pessoas', icon: 'users' },
+        ]} />
       </Section>
 
       <Section title="Modal">
@@ -119,13 +129,16 @@ export function CompositesGallery() {
             title="Nenhuma sessão encontrada"
             description="Ajuste os filtros ou comece uma nova conversa com o agente."
           >
-            <Button icon="plus">Nova sessão</Button>
+            <Button icon="plus">Nova conversa</Button>
           </EmptyState>
+        </div>
+        <div className="mt-3 h-64 rounded-xl border border-neutral-800 bg-neutral-900/40">
+          <EmptyState bit="idle" title="Nenhuma sessão ainda" description="Com o Bit no lugar do ícone." />
         </div>
       </Section>
 
       <Section title="Micro-interações">
-        <p className="mb-3 text-[12px] text-neutral-600">
+        <p className="mb-3 text-[13px] text-neutral-600">
           <code className="text-orange-300">ripple</code> no clique do Button, <code className="text-orange-300">confetti</code> via
           barramento global (dispara em transição de suíte de testes vermelho→verde) e o anel de foco{' '}
           <code className="text-orange-300">pulse-ring</code>. Tudo respeita <code className="text-orange-300">prefers-reduced-motion</code>.
@@ -137,9 +150,10 @@ export function CompositesGallery() {
             <span className="pulse-ring absolute inset-0 ring-2 ring-orange-500/60" />
             <span className="h-2.5 w-2.5 rounded-full bg-orange-500" />
           </span>
-          <span className="text-[12px] text-neutral-600">indicador ao vivo</span>
+          <span className="text-[13px] text-neutral-600">indicador ao vivo</span>
         </Row>
       </Section>
+      <ModelChipDemo />
     </>
   );
 }

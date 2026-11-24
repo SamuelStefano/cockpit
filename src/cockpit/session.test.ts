@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach } from 'vitest';
-import { newId, metaToSession, dedupById, mergeSeen, buildWsUrl, wsBase } from './session';
+import { newId, metaToSession, dedupById, mergeSeen, buildWsUrl, wsBase, withBox } from './session';
 
 describe('buildWsUrl', () => {
   it('returns the base unchanged when no token', () => {
@@ -81,8 +81,33 @@ describe('mergeSeen', () => {
     expect(changed).toBe(true);
   });
   it('preserves local new- ids that the server does not know yet', () => {
-    const { next, changed } = mergeSeen({ 'new-x': 7 }, [{ id: 'a', mtime: 5 }]);
+    const { next, changed } = mergeSeen({ 'new-x': 7 }, [{ id: 'a', mtime: 5 }], new Set(['new-x']));
     expect(next).toEqual({ 'new-x': 7, a: 5 });
     expect(changed).toBe(true);
+  });
+});
+
+describe('mergeSeen pruning', () => {
+  it('drops abandoned new- ids that are no longer open here', () => {
+    const { next, changed } = mergeSeen({ 'new-old': 1, 'new-open': 2, a: 5 }, [{ id: 'a', mtime: 5 }], new Set(['new-open']));
+    expect(next).toEqual({ 'new-open': 2, a: 5 });
+    expect(changed).toBe(true);
+  });
+});
+
+describe('withBox', () => {
+  const id = '11111111-1111-4111-8111-111111111111';
+  it('adds the query when there is none', () => {
+    expect(withBox('wss://r.test/ws', id)).toBe(`wss://r.test/ws?box=${id}`);
+  });
+  it('appends to an existing query', () => {
+    expect(withBox('wss://r.test/ws?x=1', id)).toBe(`wss://r.test/ws?x=1&box=${id}`);
+  });
+  it('replaces a previous box instead of duplicating it', () => {
+    expect(withBox(`wss://r.test/ws?box=old`, id)).toBe(`wss://r.test/ws?box=${id}`);
+  });
+  it('falls back for a relative url', () => {
+    expect(withBox('/ws', id)).toBe(`/ws?box=${id}`);
+    expect(withBox('/ws?a=1', id)).toBe(`/ws?a=1&box=${id}`);
   });
 });

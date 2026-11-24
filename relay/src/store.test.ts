@@ -32,12 +32,6 @@ describe('supabaseStore.agentById', () => {
     expect(await store.agentById('ghost')).toBeNull();
   });
 
-  it('returns null on a non-ok response (fail-closed)', async () => {
-    const { impl } = fakeFetch({ '/agent': { ok: false, body: [] } });
-    const store = supabaseStore({ ...CFG, fetchImpl: impl });
-    expect(await store.agentById('ag-1')).toBeNull();
-  });
-
   it('url-encodes the agent id', async () => {
     const { impl, calls } = fakeFetch({ '/agent': { body: [] } });
     const store = supabaseStore({ ...CFG, fetchImpl: impl });
@@ -110,5 +104,98 @@ describe('supabaseStore pairing', () => {
     expect(await store.createAgent('acc-1', 'PUBKEY', 'vps')).toBe('ag-new');
     const body = JSON.parse(String(calls[0].init?.body));
     expect(body).toMatchObject({ account_id: 'acc-1', public_key: 'PUBKEY', kind: 'vps' });
+  });
+});
+
+describe('supabaseStore.agentById on a failing database', () => {
+  it('throws instead of answering "unknown agent" (the agent would back off for minutes)', async () => {
+    const { impl } = fakeFetch({ '/agent': { ok: false } });
+    await expect(supabaseStore({ ...CFG, fetchImpl: impl }).agentById('ag-1')).rejects.toThrow();
+  });
+});
+
+describe('supabaseStore boxes', () => {
+  it('listBoxes reads only the account live vps boxes, oldest first', async () => {
+    const { impl, calls } = fakeFetch({ '/agent?account_id=eq.': { body: [{ id: 'b1', label: null, last_seen: '2026-10-27T00:00:00Z' }] } });
+    const store = supabaseStore({ ...CFG, fetchImpl: impl });
+    expect(await store.listBoxes('acc-1')).toEqual([{ id: 'b1', label: '', lastSeen: '2026-10-27T00:00:00Z' }]);
+    expect(calls[0].url).toContain('account_id=eq.acc-1');
+    expect(calls[0].url).toContain('kind=eq.vps');
+    expect(calls[0].url).toContain('revoked_at=is.null');
+    expect(calls[0].url).toContain('order=paired_at.asc');
+  });
+
+  it('listBoxes throws on a failed read instead of reporting zero boxes', async () => {
+    const { impl } = fakeFetch({ '/agent': { ok: false } });
+    await expect(supabaseStore({ ...CFG, fetchImpl: impl }).listBoxes('acc-1')).rejects.toThrow();
+  });
+
+  it('renameBox patches only the label, filtered by box AND account', async () => {
+    const { impl, calls } = fakeFetch({ '/agent?id=eq.': { body: [{}] } });
+    const store = supabaseStore({ ...CFG, fetchImpl: impl });
+    expect(await store.renameBox('acc-1', 'b1', 'pc')).toBe(true);
+    expect(calls[0].url).toContain('id=eq.b1&account_id=eq.acc-1');
+    expect(calls[0].init?.method).toBe('PATCH');
+    expect(JSON.parse(String(calls[0].init?.body))).toEqual({ label: 'pc' });
+  });
+
+  it('revokeBox patches only revoked_at and is false when no row of the account matched', async () => {
+    const { impl, calls } = fakeFetch({ '/agent?id=eq.': { body: [] } });
+    const store = supabaseStore({ ...CFG, fetchImpl: impl });
+    expect(await store.revokeBox('acc-1', 'other-account-box')).toBe(false);
+    expect(calls[0].url).toContain('account_id=eq.acc-1');
+    expect(Object.keys(JSON.parse(String(calls[0].init?.body)))).toEqual(['revoked_at']);
+  });
+});
+
+describe('supabaseStore.deleteAccount', () => {
+  const ID = '11111111-2222-3333-4444-555555555555';
+  type Hit = { url: string; method?: string; body?: string };
+  function routed(handler: (h: Hit) => { status: number; body?: unknown }) {
+    const hits: Hit[] = [];
+    const impl = (async (url: string, init?: RequestInit) => {
+      const h = { url: String(url), method: init?.method, body: init?.body as string | undefined };
+      hits.push(h);
+      const r = handler(h);
+      return { ok: r.status >= 200 && r.status < 300, status: r.status, json: async () => r.body ?? [] } as Response;
+    }) as unknown as typeof fetch;
+    return { impl, hits };
+  }
+
+  it('purges shares/<uid>/ objects, then deletes the auth user with the service key', async () => {
+    let listed = 0;
+    const { impl, hits } = routed((h) => {
+      if (h.url.includes('/object/list/shares')) return { status: 200, body: listed++ === 0 ? [{ name: 'a', id: '1' }, { name: 'b', id: '2' }] : [] };
+      return { status: 200 };
+    });
+    expect(await supabaseStore({ ...CFG, fetchImpl: impl }).deleteAccount!(ID)).toBe(true);
+    const rm = hits.find((h) => h.method === 'DELETE' && h.url.endsWith('/storage/v1/object/shares'))!;
+    expect(JSON.parse(rm.body!)).toEqual({ prefixes: [`${ID}/a`, `${ID}/b`] });
+    expect(JSON.parse(hits[0].body!).prefix).toBe(`${ID}/`);
+    const last = hits[hits.length - 1];
+    expect(last.url).toBe(`https://proj.supabase.co/auth/v1/admin/users/${ID}`);
+    expect(last.method).toBe('DELETE');
+  });
+
+  it('treats an already-deleted user as success (idempotent)', async () => {
+    const { impl } = routed((h) => (h.url.includes('/auth/v1/admin/users') ? { status: 404 } : { status: 200, body: [] }));
+    expect(await supabaseStore({ ...CFG, fetchImpl: impl }).deleteAccount!(ID)).toBe(true);
+  });
+
+  it('does not delete the auth user when the share purge fails', async () => {
+    const { impl, hits } = routed((h) => (h.url.includes('/object/list/shares') ? { status: 500 } : { status: 200 }));
+    await expect(supabaseStore({ ...CFG, fetchImpl: impl }).deleteAccount!(ID)).rejects.toThrow();
+    expect(hits.some((h) => h.url.includes('/auth/v1/admin'))).toBe(false);
+  });
+
+  it('throws on an auth failure other than 404', async () => {
+    const { impl } = routed((h) => (h.url.includes('/auth/v1/admin/users') ? { status: 500 } : { status: 200, body: [] }));
+    await expect(supabaseStore({ ...CFG, fetchImpl: impl }).deleteAccount!(ID)).rejects.toThrow();
+  });
+
+  it('refuses a malformed id before any request', async () => {
+    const { impl, hits } = routed(() => ({ status: 200 }));
+    await expect(supabaseStore({ ...CFG, fetchImpl: impl }).deleteAccount!('../x')).rejects.toThrow();
+    expect(hits).toEqual([]);
   });
 });

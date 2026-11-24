@@ -7,7 +7,7 @@ import type { SessionKanbanItem } from './kanban-items';
 afterEach(cleanup);
 
 const item = (id: string, extra: Partial<SessionKanbanItem> = {}): SessionKanbanItem => ({
-  nodeId: `s:${id}`, sessionId: id, title: `sessão ${id}`, subtitle: '', status: 'review', orchestratorChild: false,
+  nodeId: `s:${id}`, sessionId: id, title: `sessão ${id}`, subtitle: '', status: 'review',
   running: false, waitingOnUser: false, needsAttention: false, mtime: Date.now(), ...extra,
 });
 const noop = () => {};
@@ -45,10 +45,10 @@ describe('Kanban — "completar antigos (N)" bulk triage (canvas review item 2)'
     expect(onSessionStatus).toHaveBeenCalledWith('old-2', 'done');
   });
 
-  it('the antigos chip and count sit in the Done header, reachable without opening the list first', () => {
+  it('the stale chip and count sit in the board footer, reachable without opening the list first', () => {
     const items = [item('old-1', { mtime: STALE })];
     const { getByText } = render(<Kanban {...baseProps} sessionItems={items} />);
-    expect(getByText('1 antigos')).toBeTruthy();
+    expect(getByText('1 paradas há +24h')).toBeTruthy();
   });
 });
 
@@ -101,5 +101,39 @@ describe('Kanban — session drops follow the drawer rule', () => {
     expect(statuses).not.toContain('todo');
     expect(statuses).not.toContain('doing');
     expect(statuses).toEqual(expect.arrayContaining(['review', 'done']));
+  });
+});
+
+describe('Kanban — empty columns', () => {
+  it('collapses an empty column to a rail only when another column has content', () => {
+    const { container } = render(<Kanban {...baseProps} sessionItems={[item('a', { status: 'doing', running: true })]} />);
+    const rails = [...container.querySelectorAll('section')].filter((s) => s.className.includes('md:w-11'));
+    expect(rails).toHaveLength(3);
+  });
+
+  it('keeps full columns (not four rails on a blank board) when every column is empty', () => {
+    const { container, getAllByText } = render(<Kanban {...baseProps} sessionItems={[]} />);
+    const sections = [...container.querySelectorAll('section')];
+    expect(sections).toHaveLength(4);
+    for (const s of sections) expect(s.className).toContain('md:flex-1');
+    expect(getAllByText('Nada por aqui')).toHaveLength(4);
+    for (const p of getAllByText('Nada por aqui')) expect(p.parentElement?.className).not.toContain('md:hidden');
+  });
+});
+
+describe('Kanban — session drops', () => {
+  const dragOver = (section: Element, types: string[]) => fireEvent.dragOver(section, { dataTransfer: { types } });
+
+  it('does not accept a session drag over To do, and marks it refused', () => {
+    const { container } = render(<Kanban {...baseProps} sessionItems={[]} />);
+    const todo = container.querySelectorAll('section')[0];
+    expect(dragOver(todo, ['text/deck-session'])).toBe(true);
+    expect(todo.getAttribute('title')).toBe('sessões entram aqui sozinhas');
+  });
+
+  it('accepts a session drag over Review', () => {
+    const { container } = render(<Kanban {...baseProps} sessionItems={[]} />);
+    const review = container.querySelectorAll('section')[2];
+    expect(dragOver(review, ['text/deck-session'])).toBe(false);
   });
 });

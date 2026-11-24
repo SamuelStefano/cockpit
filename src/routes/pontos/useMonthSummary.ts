@@ -25,7 +25,13 @@ export function useMonthSummary({ snapshot, totals, now }: Args) {
     setPointValue(n);
     toast(`Valor do ponto: ${brl(n * 100)} — recebível recalculado; o que já foi pago não muda`);
   };
-  const saveMonthCap = (v: string) => setMonthCapCents(month, Math.round(parseBrl(v) * 100));
+  // The cap only lives in this browser (localStorage), unlike the point value's
+  // effect on the receivable: say so, and which month it is for.
+  const saveMonthCap = (v: string) => {
+    const cents = Math.round(parseBrl(v) * 100);
+    setMonthCapCents(month, cents);
+    toast(`Teto de ${month}: ${brl(cents)} — vale só neste navegador`);
+  };
 
   return {
     cap,

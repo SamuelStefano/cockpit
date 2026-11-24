@@ -8,6 +8,8 @@ import type { CanvasMode } from './useCanvasRoute';
 
 interface Props {
   mode: CanvasMode;
+  // Touch: the pan/zoom canvas view is unavailable, so its tab is dropped.
+  coarse?: boolean;
   onMode: (m: CanvasMode) => void;
   scope: CanvasScope;
   onScope: (s: CanvasScope) => void;
@@ -43,7 +45,13 @@ function StatusChipBadge({ chip, icon, tone, label, onFocus }: {
   chip: StatusChip; icon?: IconName; tone: 'green' | 'yellow' | 'red' | 'neutral'; label: string; onFocus: (nodeId: string) => void;
 }) {
   return (
-    <Badge tone={tone} dot={!icon} onClick={chip.firstNodeId ? () => onFocus(chip.firstNodeId!) : undefined} title={chip.count > 0 ? `focar: ${label}` : undefined}>
+    // Tappable chips were 14px tall (the Badge's py-px): under WCAG 2.5.8's
+    // 24px minimum on a phone. A finger gets a 28px chip (all four, so the row
+    // keeps one rhythm even when a zero chip isn't tappable); a mouse keeps it slim.
+    <Badge
+      tone={tone} dot={!icon} onClick={chip.firstNodeId ? () => onFocus(chip.firstNodeId!) : undefined} title={chip.count > 0 ? `focar: ${label}` : undefined}
+      className="pointer-coarse:px-2.5 pointer-coarse:py-2"
+    >
       {icon && <Icon name={icon} size={10} />}
       {chip.count} {label}
     </Badge>
@@ -86,7 +94,7 @@ export function CanvasFilters(p: Props) {
           <Icon name="layers" size={14} className="text-orange-400" />
           <span className="font-mono text-[14px] font-semibold lowercase tracking-tight text-neutral-100">canvas</span>
         </span>
-        <Tabs items={MODES} active={p.mode} onChange={p.onMode} className="border-b-0" />
+        <Tabs items={p.coarse ? MODES.filter((m) => m.id !== 'canvas') : MODES} active={p.mode} onChange={p.onMode} className="border-b-0" />
         <span className="flex-1" />
         <div className="flex items-center gap-1 sm:hidden">
           <Button variant="ghost" size="sm" icon="sliders" onClick={() => setFiltersOpen(true)}>filtros</Button>

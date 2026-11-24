@@ -103,3 +103,21 @@ describe('Markdown — inline', () => {
     expect(container.textContent).toContain('outra-memoria');
   });
 });
+
+describe('Markdown — blocks next to a code fence', () => {
+  it('renders a heading, a list and a table that follow a fence', () => {
+    const { container } = render(
+      <Markdown md={'```ts\nconst a = 1;\n```\n\n## Next\n\n- one\n- two\n\n```sh\nls\n```\n\n| a | b |\n|---|---|\n| c | d |'} />,
+    );
+    expect(container.querySelector('h2, h3')?.textContent).toContain('Next');
+    expect(container.querySelectorAll('li').length).toBe(2);
+    expect(container.querySelector('table')).not.toBeNull();
+    expect(container.textContent).not.toContain('## Next');
+    expect(container.textContent).not.toContain('- one');
+  });
+
+  it('a table right before a fence has no empty trailing row', () => {
+    const { container } = render(<Markdown md={'| a | b |\n|---|---|\n| c | d |\n\n```ts\nconst a = 1;\n```'} />);
+    expect(container.querySelectorAll('tbody tr').length).toBe(1);
+  });
+});

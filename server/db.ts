@@ -70,7 +70,41 @@ function open(): Database.Database {
       updated_at INTEGER NOT NULL
     );
   `);
+  // Plain-language mission summary per kanban card (server/mission-summary.ts).
+  // Keyed by card id; `card_updated_at` marks which card revision it describes.
+  // Derived and disposable: a missing row only means it is regenerated.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS mission_plain (
+      card_id         TEXT PRIMARY KEY,
+      card_updated_at INTEGER NOT NULL,
+      title           TEXT NOT NULL,
+      what            TEXT NOT NULL,
+      why             TEXT NOT NULL,
+      updated_at      INTEGER NOT NULL
+    );
+  `);
   return db;
+}
+
+export interface MissionPlainRow { cardId: string; cardUpdatedAt: number; title: string; what: string; why: string }
+
+export function setMissionPlain(r: MissionPlainRow): void {
+  try {
+    open()
+      .prepare(`INSERT INTO mission_plain (card_id, card_updated_at, title, what, why, updated_at) VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(card_id) DO UPDATE SET card_updated_at = excluded.card_updated_at, title = excluded.title,
+          what = excluded.what, why = excluded.why, updated_at = excluded.updated_at`)
+      .run(r.cardId, r.cardUpdatedAt, r.title, r.what, r.why, Date.now());
+  } catch { /* lock/disk — disposable, ignore */ }
+}
+
+export function allMissionPlain(): Map<string, MissionPlainRow> {
+  try {
+    const rows = open()
+      .prepare('SELECT card_id AS cardId, card_updated_at AS cardUpdatedAt, title, what, why FROM mission_plain')
+      .all() as MissionPlainRow[];
+    return new Map(rows.map((r) => [r.cardId, r]));
+  } catch { return new Map(); }
 }
 
 export function setSummary(sessionId: string, summary: string): void {
@@ -229,6 +263,7 @@ export function sweepUsage(): void {
     db.prepare('DELETE FROM session_summary WHERE updated_at < ?').run(cutoff);
     // Same for the last-turn outcome (one row per session, never pruned before).
     db.prepare('DELETE FROM session_turn_outcome WHERE updated_at < ?').run(cutoff);
+    db.prepare('DELETE FROM mission_plain WHERE updated_at < ?').run(cutoff);
   } catch { /* lock/disco — ignora, tenta no próximo sweep */ }
 }
 

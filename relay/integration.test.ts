@@ -70,6 +70,7 @@ describe('relay integration (browser ↔ agent, per-account)', () => {
       async listAccounts() { return []; }, async setAdmin() { return true; },
       async markAgentSeen() {}, async createPairingCode() { return { code: 'x', expiresAt: new Date(Date.now() + 600_000).toISOString() }; },
       async consumePairingCode() { return null; }, async createAgent() { return null; },
+      async listBoxes() { return []; }, async renameBox() { return false; }, async revokeBox() { return false; },
     };
     const relay = createRelay({
       iss: 't', jwksUrl: 'http://x', rootEmails: '', store,
@@ -116,6 +117,7 @@ describe('relay integration (browser ↔ agent, per-account)', () => {
       async listAccounts() { return []; }, async setAdmin() { return true; },
       async markAgentSeen() {}, async createPairingCode() { return { code: 'x', expiresAt: new Date(Date.now() + 600_000).toISOString() }; },
       async consumePairingCode() { return null; }, async createAgent() { return null; },
+      async listBoxes() { return []; }, async renameBox() { return false; }, async revokeBox() { return false; },
     };
     const relay = createRelay({
       iss: 't', jwksUrl: 'http://x', rootEmails: '', store,
@@ -161,6 +163,7 @@ describe('relay integration (browser ↔ agent, per-account)', () => {
       async listAccounts() { return []; }, async setAdmin() { return true; },
       async markAgentSeen() {}, async createPairingCode() { return { code: 'x', expiresAt: new Date(Date.now() + 600_000).toISOString() }; },
       async consumePairingCode() { return null; }, async createAgent() { return null; },
+      async listBoxes() { return []; }, async renameBox() { return false; }, async revokeBox() { return false; },
     };
     const relay = createRelay({
       iss: 't', jwksUrl: 'http://x', rootEmails: '', store,
@@ -188,6 +191,7 @@ describe('relay integration (browser ↔ agent, per-account)', () => {
       async listAccounts() { return []; }, async setAdmin() { return true; },
       async markAgentSeen() {}, async createPairingCode() { return { code: 'x', expiresAt: new Date(Date.now() + 600_000).toISOString() }; },
       async consumePairingCode() { return null; }, async createAgent() { return null; },
+      async listBoxes() { return []; }, async renameBox() { return false; }, async revokeBox() { return false; },
     };
     const relay = createRelay({
       iss: 't', jwksUrl: 'http://x', rootEmails: '', store,
@@ -225,6 +229,7 @@ describe('relay integration (browser ↔ agent, per-account)', () => {
       async setAdmin(id, admin) { setCalls.push({ id, admin }); const r = rows.find((x) => x.id === id); if (r) r.isAdmin = admin; return true; },
       async markAgentSeen() {}, async createPairingCode() { return { code: 'x', expiresAt: new Date(Date.now() + 600_000).toISOString() }; },
       async consumePairingCode() { return null; }, async createAgent() { return null; },
+      async listBoxes() { return []; }, async renameBox() { return false; }, async revokeBox() { return false; },
     };
     const relay = createRelay({
       iss: 't', jwksUrl: 'http://x', rootEmails: '', store,
@@ -256,6 +261,90 @@ describe('relay integration (browser ↔ agent, per-account)', () => {
     expect(setCalls).toEqual([{ id: 'accA', admin: true }]); // fellow não escreveu nada
   });
 
+  it('a plain admin account gets no account list', async () => {
+    const store: RelayStore = {
+      async agentById() { return null; }, async isAdmin() { return true; },
+      async listAccounts() { return [{ id: 'accA', email: 'a@x', isAdmin: true }]; }, async setAdmin() { return true; },
+      async markAgentSeen() {}, async createPairingCode() { return { code: 'x', expiresAt: new Date(Date.now() + 600_000).toISOString() }; },
+      async consumePairingCode() { return null; }, async createAgent() { return null; },
+      async listBoxes() { return []; }, async renameBox() { return false; }, async revokeBox() { return false; },
+    };
+    const relay = createRelay({
+      iss: 't', jwksUrl: 'http://x', rootEmails: '', store,
+      resolveIdentity: async () => ({ accountId: 'accA', email: 'a@x', role: 'admin' }),
+    });
+    server = relay.server;
+    await new Promise<void>((r) => server!.listen(0, '127.0.0.1', r));
+    const url = `ws://127.0.0.1:${(server!.address() as AddressInfo).port}`;
+    const admin = new WebSocket(`${url}/ws?token=A1`); sockets.push(admin);
+    const wait = collect(admin);
+    await wait((m) => m.t === 'caps');
+    admin.send(JSON.stringify({ t: 'accounts-list' }));
+    await expect(wait((m) => m.t === 'accounts', 600)).rejects.toThrow();
+  });
+
+  // Owner-only frames (shared/root-frames.ts): only a root account reaches its agent
+  // with them. The escaped variant proves the check reads the parsed `t`.
+  it('drops owner-only frames for admin and fellow accounts, forwards them for root', async () => {
+    const A = makeAgentKeys();
+    let role: 'root' | 'admin' | 'fellow' = 'admin';
+    const store: RelayStore = {
+      async agentById(id) { return id === 'ag-A' ? { accountId: 'accA', publicKey: A.pub } : null; },
+      async isAdmin() { return false; },
+      async listAccounts() { return []; }, async setAdmin() { return true; },
+      async markAgentSeen() {}, async createPairingCode() { return { code: 'x', expiresAt: new Date(Date.now() + 600_000).toISOString() }; },
+      async consumePairingCode() { return null; }, async createAgent() { return null; },
+      async listBoxes() { return []; }, async renameBox() { return false; }, async revokeBox() { return false; },
+    };
+    const relay = createRelay({
+      iss: 't', jwksUrl: 'http://x', rootEmails: '', store,
+      resolveIdentity: async () => ({ accountId: 'accA', email: 'a@x', role }),
+    });
+    server = relay.server;
+    await new Promise<void>((r) => server!.listen(0, '127.0.0.1', r));
+    const url = `ws://127.0.0.1:${(server!.address() as AddressInfo).port}`;
+    const agentA = connectFakeAgent(url, 'ag-A', A.priv); sockets.push(agentA.ws);
+    await agentA.ready;
+
+    const owner = [
+      JSON.stringify({ t: 'points-get' }),
+      JSON.stringify({ t: 'points-add', title: 'x', points: 1 }),
+      JSON.stringify({ t: 'points-dfl-get' }),
+      JSON.stringify({ t: 'pontos-agent-tasks', reqId: 'r', note: '', epicCapCents: 0, monthCapCents: 0, pointValue: 0 }),
+      JSON.stringify({ t: 'drafts-get' }),
+      JSON.stringify({ t: 'admin-env-set', name: 'A', value: 'b' }),
+      JSON.stringify({ t: 'admin-mcp-add', name: 'm', url: 'https://x' }),
+      JSON.stringify({ t: 'admin-cli-install', name: 'x' }),
+      JSON.stringify({ t: 'admin-deck-restart', mode: 'now' }),
+      JSON.stringify({ t: 'agent-add-custom', id: 'x', name: 'X', command: 'sh', args: ['-c', 'id'] }),
+      JSON.stringify({ t: 'agent-probe-draft', id: 'x', name: 'X', command: 'sh', args: [] }),
+      '{"t":"points\\u002ddelete","entryId":"e"}',
+    ];
+    for (const r of ['admin', 'fellow'] as const) {
+      role = r;
+      const b = new WebSocket(`${url}/ws?token=${r}`); sockets.push(b);
+      const wait = collect(b);
+      await wait((m) => m.t === 'caps');
+      for (const f of owner) b.send(f);
+      b.send(JSON.stringify({ t: 'admin-health' }));
+      await wait((m) => m.t === 'echo' && m.saw === 'admin-health');
+      await expect(wait((m) => m.t === 'echo' && /^(points|pontos|drafts|admin-env|admin-mcp|admin-cli|admin-deck|agent-add-custom|agent-probe-draft)/.test(m.saw ?? ''), 300)).rejects.toThrow();
+      await wait((m) => m.t === 'error' && m.message === 'sem permissão');
+      b.close();
+    }
+
+    role = 'root';
+    const root = new WebSocket(`${url}/ws?token=root`); sockets.push(root);
+    const waitR = collect(root);
+    await waitR((m) => m.t === 'caps');
+    root.send(JSON.stringify({ t: 'points-add', title: 'x', points: 1 }));
+    root.send(JSON.stringify({ t: 'admin-env-set', name: 'A', value: 'b' }));
+    root.send(JSON.stringify({ t: 'agent-add-custom', id: 'x', name: 'X', command: 'x', args: [] }));
+    expect((await waitR((m) => m.t === 'echo' && m.saw === 'agent-add-custom')).saw).toBe('agent-add-custom');
+    expect((await waitR((m) => m.t === 'echo' && m.saw === 'points-add')).saw).toBe('points-add');
+    expect((await waitR((m) => m.t === 'echo' && m.saw === 'admin-env-set')).saw).toBe('admin-env-set');
+  });
+
   // Regressão: o pré-filtro de frame de admin é por SUBSTRING sobre o JSON cru.
   // Aspas dentro de texto saem escapadas (\"), então o gatilho não é "mencionar" o
   // nome: é qualquer CAMPO cujo valor seja exatamente `accounts-list`/`set-admin` —
@@ -269,6 +358,7 @@ describe('relay integration (browser ↔ agent, per-account)', () => {
       async listAccounts() { return []; }, async setAdmin() { return true; },
       async markAgentSeen() {}, async createPairingCode() { return { code: 'x', expiresAt: new Date(Date.now() + 600_000).toISOString() }; },
       async consumePairingCode() { return null; }, async createAgent() { return null; },
+      async listBoxes() { return []; }, async renameBox() { return false; }, async revokeBox() { return false; },
     };
     const relay = createRelay({
       iss: 't', jwksUrl: 'http://x', rootEmails: '', store,
@@ -296,6 +386,7 @@ describe('relay integration (browser ↔ agent, per-account)', () => {
       async listAccounts() { return []; }, async setAdmin() { return true; },
       async markAgentSeen() {}, async createPairingCode() { return { code: 'x', expiresAt: new Date(Date.now() + 600_000).toISOString() }; },
       async consumePairingCode() { return null; }, async createAgent() { return null; },
+      async listBoxes() { return []; }, async renameBox() { return false; }, async revokeBox() { return false; },
     };
     const relay = createRelay({ iss: 't', jwksUrl: 'http://x', rootEmails: '', store, resolveIdentity: async () => null });
     server = relay.server;
@@ -314,6 +405,7 @@ describe('createRelay em produção', () => {
     async listAccounts() { return []; }, async setAdmin() { return true; },
     async markAgentSeen() {}, async createPairingCode() { return { code: 'x', expiresAt: new Date(Date.now() + 600_000).toISOString() }; },
     async consumePairingCode() { return null; }, async createAgent() { return null; },
+      async listBoxes() { return []; }, async renameBox() { return false; }, async revokeBox() { return false; },
   };
   it('recusa o stub de identidade com NODE_ENV=production', () => {
     const prev = process.env.NODE_ENV;
@@ -370,6 +462,7 @@ describe('relay: falha do store nega o socket sem derrubar o processo', () => {
     async listAccounts() { return []; }, async setAdmin() { return true; },
     async markAgentSeen() {}, async createPairingCode() { return { code: 'code-1', expiresAt: new Date(Date.now() + 600_000).toISOString() }; },
     async consumePairingCode() { return null; }, async createAgent() { return null; },
+      async listBoxes() { return []; }, async renameBox() { return false; }, async revokeBox() { return false; },
     ...over,
   });
 
@@ -449,6 +542,7 @@ describe('POST /pair/new', () => {
     async listAccounts() { return []; }, async setAdmin() { return true; },
     async markAgentSeen() {}, async createPairingCode() { return { code: 'code-1', expiresAt: new Date(Date.now() + 600_000).toISOString() }; },
     async consumePairingCode() { return null; }, async createAgent() { return null; },
+      async listBoxes() { return []; }, async renameBox() { return false; }, async revokeBox() { return false; },
   };
 
   async function listen() {
@@ -481,5 +575,85 @@ describe('POST /pair/new', () => {
     const codes: number[] = [];
     for (let i = 0; i < 7; i++) codes.push((await pair(base, { headers: { authorization: 'Bearer good' } })).status);
     expect(codes).toEqual([200, 200, 200, 200, 200, 429, 429]);
+  });
+});
+
+describe('relay: browser that leaves during auth', () => {
+  let server: import('node:http').Server | null = null;
+  afterEach(() => { server?.close(); server = null; });
+
+  const store: RelayStore = {
+    async agentById() { return null; }, async isAdmin() { return false; },
+    async listAccounts() { return []; }, async setAdmin() { return true; },
+    async markAgentSeen() {}, async createPairingCode() { return { code: 'x', expiresAt: new Date(Date.now() + 600_000).toISOString() }; },
+    async consumePairingCode() { return null; }, async createAgent() { return null; },
+      async listBoxes() { return []; }, async renameBox() { return false; }, async revokeBox() { return false; },
+  };
+
+  it('is not registered when the socket closed before identity resolved', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => { release = r; });
+    const relay = createRelay({
+      iss: 't', jwksUrl: 'http://x', rootEmails: '', store,
+      resolveIdentity: async () => { await gate; return { accountId: 'accA', email: 'a@x', role: 'fellow' }; },
+    });
+    server = relay.server;
+    await new Promise<void>((r) => server!.listen(0, '127.0.0.1', r));
+    const { port } = server!.address() as AddressInfo;
+
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/ws?token=A1`);
+    await new Promise<void>((r) => ws.on('open', () => r()));
+    ws.close();
+    await new Promise((r) => setTimeout(r, 50));
+    release();
+    await new Promise((r) => setTimeout(r, 50));
+
+    expect(relay.registry.browserCount('accA')).toBe(0);
+  });
+});
+
+describe('relay: pairing with an invalid public key', () => {
+  let server: import('node:http').Server | null = null;
+  afterEach(() => { server?.close(); server = null; });
+
+  it('closes 4400 without consuming the single-use code', async () => {
+    let consumed = 0;
+    const store: RelayStore = {
+      async agentById() { return null; }, async isAdmin() { return false; },
+      async listAccounts() { return []; }, async setAdmin() { return true; },
+      async markAgentSeen() {}, async createPairingCode() { return { code: 'x', expiresAt: new Date(Date.now() + 600_000).toISOString() }; },
+      async consumePairingCode() { consumed++; return 'accA'; }, async createAgent() { return 'ag-1'; },
+      async listBoxes() { return []; }, async renameBox() { return false; }, async revokeBox() { return false; },
+    };
+    const relay = createRelay({ iss: 't', jwksUrl: 'http://x', rootEmails: '', store, resolveIdentity: async () => null });
+    server = relay.server;
+    await new Promise<void>((r) => server!.listen(0, '127.0.0.1', r));
+    const { port } = server!.address() as AddressInfo;
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/agent`);
+    await new Promise<void>((r) => ws.on('open', () => r()));
+    ws.send(JSON.stringify({ t: 'pair', code: 'CODE', publicKey: 'garbage' }));
+    const code = await new Promise<number>((r) => ws.on('close', (c) => r(c)));
+    expect(code).toBe(4400);
+    expect(consumed).toBe(0);
+  });
+});
+
+describe('relay: shutdown with open sockets', () => {
+  it('closes promptly instead of waiting for WebSockets to end on their own', async () => {
+    const store: RelayStore = {
+      async agentById() { return null; }, async isAdmin() { return false; },
+      async listAccounts() { return []; }, async setAdmin() { return true; },
+      async markAgentSeen() {}, async createPairingCode() { return { code: 'x', expiresAt: new Date(Date.now() + 600_000).toISOString() }; },
+      async consumePairingCode() { return null; }, async createAgent() { return null; },
+      async listBoxes() { return []; }, async renameBox() { return false; }, async revokeBox() { return false; },
+    };
+    const relay = createRelay({ iss: 't', jwksUrl: 'http://x', rootEmails: '', store, resolveIdentity: async () => ({ accountId: 'accA', email: 'a@x', role: 'fellow' }) });
+    await new Promise<void>((r) => relay.server.listen(0, '127.0.0.1', r));
+    const { port } = relay.server.address() as AddressInfo;
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/ws?token=A1`);
+    await new Promise<void>((r) => ws.on('open', () => r()));
+    const t0 = Date.now();
+    await new Promise<void>((r) => relay.shutdown(r));
+    expect(Date.now() - t0).toBeLessThan(1500);
   });
 });

@@ -9,6 +9,8 @@ const runs = vi.hoisted(() => ({
   drainParked: vi.fn(),
   runParkedNow: vi.fn(() => ({ ok: true as const })),
   runParkedInBackground: vi.fn(() => ({ forkId: 'f1' })),
+  acceptResumeOffer: vi.fn(() => true),
+  refreshBusyElsewhere: vi.fn(async () => {}),
   // Default: never the Orchestrator's own pane — most tests aren't
   // exercising that exemption (server/ws/runs.ts's real predicate, reused
   // rather than duplicated by the 'send' guard).
@@ -60,6 +62,8 @@ const cvLiveness = vi.hoisted(() => ({
   // grace, minus this process's own threads. Default empty: most tests
   // aren't exercising it.
   readBusyElsewhereSessionIds: vi.fn(async (): Promise<string[]> => []),
+  readTmuxPaneSessionIds: vi.fn(async (): Promise<string[]> => []),
+  readBusyHeadlessElsewhereSessionIds: vi.fn(async (): Promise<string[]> => []),
   // FRESH snapshot for the 'canvas-get' cv-live reply, NOT the guard.
   refreshLivenessSnapshot: vi.fn(async () => ({ live: [] as string[], busyElsewhere: [] as string[], idle: [] as string[] })),
 }));
@@ -100,6 +104,7 @@ const crons = vi.hoisted(() => ({
   getCrons: vi.fn(async () => []), saveCron: vi.fn(async () => []), deleteCron: vi.fn(async () => []),
 }));
 vi.mock('../crons', () => crons);
+vi.mock('../team', () => ({ getTeam: vi.fn(async () => []), saveBot: vi.fn(), deleteBot: vi.fn(), bindBotSession: vi.fn() }));
 const drafts = vi.hoisted(() => ({
   readDrafts: vi.fn(async () => []),
   mutateDrafts: vi.fn(async () => [{ id: 'ep-1', title: 'E', status: 'draft', createdAt: 0, tasks: [] }]),
@@ -202,6 +207,13 @@ describe('send routing (the #130 role seam)', () => {
   // subtracts THIS process's own threads (server/canvas/cv-liveness.ts), so
   // a match there is by construction a turn live in the OTHER one —
   // starting a `claude --resume` on top of it would fork the transcript.
+  it('refuses (send-reject, live-elsewhere) when the target has an idle interactive claude in a tmux pane', async () => {
+    cvLiveness.readTmuxPaneSessionIds.mockResolvedValueOnce(['s1']);
+    await handle(ws, msg(), 'admin');
+    expect(bc.send).toHaveBeenCalledWith(ws, expect.objectContaining({ t: 'send-reject', reason: 'live-elsewhere', msgId: 'm1' }));
+    expect(runs.startRun).not.toHaveBeenCalled();
+    expect(runs.routeSend).not.toHaveBeenCalled();
+  });
   it('refuses (send-reject, live-elsewhere) when the target session is strictly busy elsewhere and not one of THIS process\'s own threads', async () => {
     cvLiveness.readBusyElsewhereSessionIds.mockResolvedValueOnce(['s1']); // msg().sessionId === 's1'
     await handle(ws, msg(), 'admin');
@@ -210,6 +222,28 @@ describe('send routing (the #130 role seam)', () => {
     }));
     expect(runs.startRun).not.toHaveBeenCalled();
     expect(runs.routeSend).not.toHaveBeenCalled();
+  });
+
+  // The turn is a headless `claude -p` owned by the other process: it ends on
+  // its own, so the message is queued for the drainer instead of being lost.
+  it('parks (send-parked) instead of refusing when the busy-elsewhere turn is headless', async () => {
+    cvLiveness.readBusyElsewhereSessionIds.mockResolvedValueOnce(['s1']);
+    cvLiveness.readBusyHeadlessElsewhereSessionIds.mockResolvedValueOnce(['s1']);
+    await handle(ws, msg(), 'admin');
+    expect(parked.addParked).toHaveBeenCalledWith('k1', expect.objectContaining({ prompt: 'hi', resumeId: 's1', role: 'admin' }));
+    expect(bc.send).toHaveBeenCalledWith(ws, expect.objectContaining({ t: 'send-parked', sessionKey: 'k1', msgId: 'm1' }));
+    expect(bc.send).not.toHaveBeenCalledWith(ws, expect.objectContaining({ t: 'send-reject' }));
+    expect(runs.startRun).not.toHaveBeenCalled();
+    expect(runs.routeSend).not.toHaveBeenCalled();
+  });
+
+  it('still refuses a headless busy-elsewhere send when the queue will not take it', async () => {
+    cvLiveness.readBusyElsewhereSessionIds.mockResolvedValueOnce(['s1']);
+    cvLiveness.readBusyHeadlessElsewhereSessionIds.mockResolvedValueOnce(['s1']);
+    parked.addParked.mockReturnValueOnce({ reject: 'fila-cheia' } as never);
+    await handle(ws, msg(), 'admin');
+    expect(bc.send).toHaveBeenCalledWith(ws, expect.objectContaining({ t: 'send-reject', reason: 'live-elsewhere', text: 'hi' }));
+    expect(runs.startRun).not.toHaveBeenCalled();
   });
 
   it('starts normally when the registry has no strict busy-elsewhere match for the session', async () => {
@@ -335,7 +369,7 @@ describe('send routing (the #130 role seam)', () => {
     // BOTH actually reach it and swap resolveFirst/resolveSecond in for the
     // no-op placeholders before either is invoked; calling them any earlier
     // would resolve the placeholder, not the real pending promise, and hang.
-    await new Promise((r) => setTimeout(r, 0));
+    await vi.waitFor(() => expect(cvLiveness.readBusyElsewhereSessionIds).toHaveBeenCalledTimes(2));
     // Let the FIRST call's registry read resolve and fully run its
     // synchronous resolveThreadKey→startRun tail before the second one does.
     resolveFirst([]);
@@ -517,7 +551,7 @@ describe('cron-save boundary', () => {
   } as ClientMsg);
 
   it('persiste um "uma vez" com instante válido', async () => {
-    await handle(ws, msg({ kind: 'once', atMs: 1784973360000 }));
+    await handle(ws, msg({ kind: 'once', atMs: 1784973360000 }), 'admin');
     expect(crons.saveCron).toHaveBeenCalledOnce();
   });
 
@@ -526,6 +560,11 @@ describe('cron-save boundary', () => {
     await handle(ws, msg({ kind: 'once', atMs: 'amanhã' }));
     expect(crons.saveCron).not.toHaveBeenCalled();
     expect(bc.send).toHaveBeenCalledWith(ws, { t: 'error', message: 'cron inválido' });
+  });
+
+  it('rejects a cron without a numeric createdAt (an interval cron would never fire)', async () => {
+    await handle(ws, { t: 'cron-save', cron: { id: 'c1', name: 'n', prompt: 'p', schedule: { kind: 'interval', everyMinutes: 60 }, enabled: true } } as unknown as ClientMsg);
+    expect(crons.saveCron).not.toHaveBeenCalled();
   });
 });
 

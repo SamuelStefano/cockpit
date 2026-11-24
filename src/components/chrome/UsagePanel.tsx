@@ -18,25 +18,27 @@ function Row({ row }: { row: UsageRow }) {
   return (
     <li className="flex flex-col gap-1.5">
       <div className="flex items-baseline justify-between gap-3">
-        <span className="truncate text-[12px] font-medium text-neutral-200">
+        <span className="truncate text-[13px] font-medium text-neutral-200">
           {row.label}
-          {row.scoped && <span className="ml-1.5 text-[10px] uppercase tracking-wide text-neutral-500">modelo</span>}
+          {row.scoped && <span className="ml-1.5 text-[12px] uppercase tracking-wide text-neutral-500">modelo</span>}
         </span>
-        <span className={`shrink-0 text-[12px] font-semibold tabular-nums ${TEXT[row.tone]}`}>{row.pct}%</span>
+        <span className={`shrink-0 text-[13px] font-semibold tabular-nums ${TEXT[row.tone]}`}>{row.pct}%</span>
       </div>
       <div className="h-1.5 overflow-hidden rounded-full bg-neutral-800">
         <div className={`h-full rounded-full transition-all ${BAR[row.tone]}`} style={{ width: `${row.pct}%` }} />
       </div>
-      <span className="text-[10px] tabular-nums text-neutral-500">
+      <span className="text-[12px] tabular-nums text-neutral-500">
         {row.resetsAt ? `reseta em ${relReset(row.resetsAt)}` : 'sem reset agendado'}
       </span>
     </li>
   );
 }
 
+export interface UsagePanelSecondary { title: string; rows: UsageRow[] }
+
 // `reset` vem do gate de cota (não das linhas): é o "quando volto a poder enviar"
 // que a pílula flutuante mostrava antes de sair do chat.
-export function UsagePanel({ rows, reset = '', warn = false, blockedUntil = null, readAt = null, nextReadAt = null }: { rows: UsageRow[]; reset?: string; warn?: boolean; blockedUntil?: number | null; readAt?: number | null; nextReadAt?: number | null }) {
+export function UsagePanel({ rows, reset = '', warn = false, blockedUntil = null, readAt = null, nextReadAt = null, title = 'Uso do plano', secondary, inline = false }: { rows: UsageRow[]; reset?: string; warn?: boolean; blockedUntil?: number | null; readAt?: number | null; nextReadAt?: number | null; title?: string; secondary?: UsagePanelSecondary; inline?: boolean }) {
   const now = Date.now();
   // Bloqueio da conta não é carregamento: "Lendo da conta…" pra sempre escondia
   // que o servidor tinha DESISTIDO de tentar até uma hora marcada.
@@ -47,18 +49,16 @@ export function UsagePanel({ rows, reset = '', warn = false, blockedUntil = null
   // Idade da leitura mesmo SEM bloqueio: o poll também para quando o agente cai ou
   // o browser fica fechado, e aí o número velho não tinha nada que o denunciasse.
   const age = readAt ? relAge(readAt) : '';
-  // No celular a barra fica a <256px da borda esquerda, então um painel w-64
-  // ancorado em right-0 começava fora da tela. Fixo à largura da tela, logo
-  // abaixo do header (3rem + safe-area); volta a ser dropdown a partir de sm.
+  // `inline`: the panel sits inside a Popover that already anchors it.
   return (
     <div
-      role="dialog"
-      aria-label="Detalhe do uso do plano"
-      className={`fixed inset-x-3 top-[calc(3rem+env(safe-area-inset-top)+0.5rem)] z-50 sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-64 ${tokens.radius.lg} ${tokens.surface.raised} p-3.5`}
+      role={inline ? 'group' : 'dialog'}
+      aria-label={title === 'Uso do plano' ? 'Detalhe do uso do plano' : `Detalhe — ${title}`}
+      className={`${inline ? 'w-72 max-w-full p-3.5' : `fixed inset-x-3 top-14 z-50 sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-64 ${tokens.radius.lg} ${tokens.surface.raised} p-3.5`}`}
     >
-      <p className="mb-3 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Uso do plano</p>
+      <p className="mb-3 text-[12px] font-semibold uppercase tracking-wide text-neutral-500">{title}</p>
       {rows.length === 0 ? (
-        <p className="text-[12px] text-neutral-500">{blocked ? `A conta limitou as consultas de uso. Próxima leitura em ${blocked}.` : 'Lendo da conta…'}</p>
+        <p className="text-[13px] text-neutral-500">{blocked ? `A conta limitou as consultas de uso. Próxima leitura em ${blocked}.` : 'Lendo da conta…'}</p>
       ) : (
         <ul className="flex flex-col gap-3">
           {rows.map((row) => (
@@ -67,20 +67,28 @@ export function UsagePanel({ rows, reset = '', warn = false, blockedUntil = null
         </ul>
       )}
       {rows.length > 0 && (blocked ? (
-        <p className="mt-3 border-t border-neutral-800 pt-2.5 text-[11px] text-amber-300/80">
+        <p className="mt-3 border-t border-neutral-800 pt-2.5 text-[12px] text-amber-300/80">
           número de há {age || 'pouco'} · a conta pediu pausa, próxima leitura em {blocked}
         </p>
       ) : budgetWait ? (
-        <p className="mt-3 border-t border-neutral-800 pt-2.5 text-[11px] text-neutral-500">
+        <p className="mt-3 border-t border-neutral-800 pt-2.5 text-[12px] text-neutral-500">
           lido há {age || 'pouco'} · leituras da hora esgotadas, próxima em {budgetWait}
         </p>
       ) : age && (
-        <p className="mt-3 border-t border-neutral-800 pt-2.5 text-[11px] text-neutral-500">lido há {age}</p>
+        <p className="mt-3 border-t border-neutral-800 pt-2.5 text-[12px] text-neutral-500">lido há {age}</p>
       ))}
       {reset && (
-        <p className={`mt-3 border-t border-neutral-800 pt-2.5 text-[11px] tabular-nums ${warn ? 'text-amber-300/90' : 'text-neutral-500'}`}>
+        <p className={`mt-3 border-t border-neutral-800 pt-2.5 text-[12px] tabular-nums ${warn ? 'text-amber-300/90' : 'text-neutral-500'}`}>
           reseta {reset}
         </p>
+      )}
+      {secondary && secondary.rows.length > 0 && (
+        <div className="mt-3 border-t border-neutral-800 pt-2.5">
+          <p className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-neutral-500">{secondary.title}</p>
+          <ul className="flex flex-col gap-3">
+            {secondary.rows.map((row) => <Row key={row.id} row={row} />)}
+          </ul>
+        </div>
       )}
     </div>
   );

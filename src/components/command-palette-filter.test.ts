@@ -42,13 +42,13 @@ describe('capSessions', () => {
   const sessions = Array.from({ length: 150 }, (_, i) => ({ label: `s${i}`, group: 'Sessões' }));
   const other = { label: 'Ir para Chat', group: 'Navegar' };
 
-  it('shows only the recent 40 sessions with no query, keeps other groups', () => {
+  it('shows only the recent 5 sessions with no query, keeps other groups', () => {
     const out = capSessions([other, ...sessions], '');
-    expect(out.filter((c) => c.group === 'Sessões')).toHaveLength(40);
+    expect(out.filter((c) => c.group === 'Sessões')).toHaveLength(5);
     expect(out).toContain(other);
   });
 
-  it('lets a query reach sessions past the first 40', () => {
+  it('lets a query reach sessions past the first 5', () => {
     const hits = filterCommands(sessions, 's120');
     expect(capSessions(hits, 's120').map((c) => c.label)).toEqual(['s120']);
   });

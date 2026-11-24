@@ -3,7 +3,8 @@ import { readFileSync, statSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { minimalEnv } from '../engine/claude';
-import { cliPath } from '../engine/cli-path';
+import { claudeBin, cliPath } from '../engine/cli-path';
+import { leanOneShotArgs } from '../engine/lean-args';
 import { recordIncident } from './incidents';
 
 // Every `claude -p` refreshes the OAuth token on its own when it finds it expired.
@@ -38,7 +39,7 @@ export function refreshDue(expiresAt: number, now: number): boolean {
 
 let brokenAt = 0;
 
-function credMtime(): number {
+export function credMtime(): number {
   try { return statSync(CRED_PATH).mtimeMs; } catch { return 0; }
 }
 
@@ -64,14 +65,21 @@ export function authHold(): boolean {
 
 let inflight = false;
 
+// The ping only exists to make the CLI refresh the token; the answer is discarded.
+export function keepAliveArgs(lean?: boolean): string[] {
+  const base = ['-p', 'ok', '--model', 'haiku', '--effort', 'low', '--max-turns', '1', '--permission-mode', 'plan', '--strict-mcp-config', '--output-format', 'json'];
+  const extra = leanOneShotArgs('Responda ok.', lean);
+  return extra.length ? [...base, ...extra] : [...base, '--no-session-persistence'];
+}
+
 function keepAliveTick(): void {
   if (inflight || authHold() || !refreshDue(readExpiresAt(), Date.now())) return;
   inflight = true;
-  const args = ['-p', 'ok', '--model', 'haiku', '--effort', 'low', '--max-turns', '1', '--permission-mode', 'plan', '--strict-mcp-config', '--no-session-persistence', '--output-format', 'json'];
+  const args = keepAliveArgs();
   let out = '';
   let child;
   try {
-    child = spawn('claude', args, { cwd: tmpdir(), env: { ...minimalEnv(), PATH: cliPath() }, shell: false, stdio: ['ignore', 'pipe', 'pipe'] });
+    child = spawn(claudeBin(), args, { windowsHide: true, cwd: tmpdir(), env: { ...minimalEnv(), PATH: cliPath() }, shell: false, stdio: ['ignore', 'pipe', 'pipe'] });
   } catch { inflight = false; return; }
   const collect = (d: Buffer) => { out = (out + String(d)).slice(-4096); };
   child.stdout?.on('data', collect);

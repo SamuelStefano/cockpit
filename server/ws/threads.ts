@@ -1,4 +1,4 @@
-import type { ToolCall, ToolTodo } from '../../shared/protocol';
+import type { TeamProfile, ToolCall, ToolTodo } from '../../shared/protocol';
 import type { RunHandle } from '../engine/claude';
 import { CONFIG } from '../config';
 import type { Role } from '../auth';
@@ -19,6 +19,10 @@ export interface RunParams {
   mcps?: string[];
   effort?: string;
   allowWorkflow?: boolean;
+  botId?: string;              // turn belongs to a Equipe bot: its session gets bound to the bot
+  appendSystemPrompt?: string; // the bot's identity (server/team-prompt.ts), resolved at dispatch
+  teamHop?: number;            // depth of the bot→bot chain this turn was born from (0/absent = a human started it)
+  profile?: TeamProfile;       // the bot's profile; 'restricted' locks tools/paths (engine/restricted-profile.ts)
 }
 
 // Lista única das chaves de RunParams. O `satisfies Record<keyof RunParams, 0>`
@@ -29,7 +33,7 @@ export interface RunParams {
 // o esforço do primeiro, calado.
 export const RUN_PARAM_KEYS = Object.keys({
   mode: 0, model: 0, maxBudgetUsd: 0, bypass: 0, role: 0,
-  disallowedSkills: 0, mcps: 0, effort: 0, allowWorkflow: 0,
+  disallowedSkills: 0, mcps: 0, effort: 0, allowWorkflow: 0, botId: 0, appendSystemPrompt: 0, teamHop: 0, profile: 0,
 } satisfies Record<keyof RunParams, 0>) as (keyof RunParams)[];
 
 // Extrai só a config do turno de um objeto maior (opções do startRun, item da
@@ -93,7 +97,16 @@ export interface Thread {
   // turno fecha. Fonte do teto de silêncio maior no reaper e do bg-wait branch
   // do routeSend (escreve no stdin em vez de abrir um --resume concorrente).
   pendingBgTasks?: { task_id: string; description?: string }[];
+  // Set when a `result` arrives with background tasks still pending: the turn is
+  // over and the process only stays up for the task notification. A dev server or
+  // a never-ending poll loop keeps it there for hours, so the parked drainer has to
+  // tell this apart from a turn that is still generating (see drainParked).
+  bgWaitSince?: number;
   lastError?: string;   // último erro reportado pelo processo
+  // The API refused the model because the CLI is too old; the raw 400 is held back
+  // and the turn is retried once after the update (runs.ts healOutdatedCli).
+  cliTooOld?: { required: string | null };
+  cliRetried?: boolean;
   lastExitCode?: number | null; // exit code do `claude saiu (N)` mais recente — insumo do gate de OOM (D1)
   lastExitSignal?: string | null; // sinal do OS, quando disponível (SIGTERM/SIGKILL) — mesmo insumo
   // Snapshot acumulado p/ replay no reconnect (#10). Os frames vão por broadcast.
@@ -109,7 +122,37 @@ export interface Thread {
   appTried: Set<string>; // tool_use id já consultado por UI de MCP App — a busca é feita uma vez só por card
 }
 
-export const threads = new Map<string, Thread>();
+// Every set/delete goes through the one Map, so a single hook sees each change of
+// the live-run count (the capacity frame) without touching the dozen call sites.
+class ObservedThreads extends Map<string, Thread> {
+  onChange: (() => void) | null = null;
+  // The hook only feeds the capacity frame: it must never break a run's start or end.
+  private notify(): void {
+    try {
+      this.onChange?.();
+    } catch {
+      // A failed capacity broadcast is retried by the stats loop.
+    }
+  }
+  override set(key: string, value: Thread): this {
+    const had = this.has(key);
+    super.set(key, value);
+    if (!had) this.notify();
+    return this;
+  }
+  override delete(key: string): boolean {
+    const gone = super.delete(key);
+    if (gone) this.notify();
+    return gone;
+  }
+  override clear(): void {
+    const had = this.size > 0;
+    super.clear();
+    if (had) this.notify();
+  }
+}
+
+export const threads = new ObservedThreads();
 
 // Which keys run AND since when. The client stamps its own clock on any key it
 // sees running without a start, and `busy` lands before the per-thread replay:

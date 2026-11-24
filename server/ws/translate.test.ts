@@ -4,6 +4,10 @@ import { threads, type Thread } from './threads';
 import { getLastRate } from './rate';
 import { broadcast } from './broadcast';
 import { isAwaiting, clearAllAwaiting } from './awaiting';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { readPendingQuestions } from '../team-pending';
 
 vi.mock('./broadcast', () => ({ broadcast: vi.fn(), send: vi.fn(), setWss: vi.fn() }));
 vi.mock('./awaiting', () => {
@@ -89,12 +93,40 @@ describe('translate', () => {
     expect(t.numTurns).toBe(3);
   });
 
+  it('broadcasts settled on result only when nothing is pending and not stopped', () => {
+    const t = register();
+    translate(KEY, t, { type: 'result', subtype: 'success' } as never);
+    expect(broadcast).toHaveBeenCalledWith({ t: 'settled', sessionKey: KEY });
+    vi.mocked(broadcast).mockClear();
+    t.pendingBgTasks = [{ task_id: 't1', description: 'x' }];
+    translate(KEY, t, { type: 'result', subtype: 'success' } as never);
+    t.pendingBgTasks = [];
+    t.stopped = true;
+    translate(KEY, t, { type: 'result', subtype: 'success' } as never);
+    expect(broadcast).not.toHaveBeenCalledWith({ t: 'settled', sessionKey: KEY });
+  });
+
   it('tracks the pending background-task list from background_tasks_changed', () => {
     const t = register();
     translate(KEY, t, { type: 'system', subtype: 'background_tasks_changed', tasks: [{ task_id: 't1', description: 'sleep 20' }] } as never);
     expect(t.pendingBgTasks).toEqual([{ task_id: 't1', description: 'sleep 20' }]);
     translate(KEY, t, { type: 'system', subtype: 'background_tasks_changed', tasks: [] } as never);
     expect(t.pendingBgTasks).toEqual([]);
+  });
+
+  it('marks bg-wait on a result with tasks pending and clears it when generation resumes', () => {
+    const t = register();
+    translate(KEY, t, { type: 'system', subtype: 'background_tasks_changed', tasks: [{ task_id: 't1' }] } as never);
+    translate(KEY, t, { type: 'result', subtype: 'success' } as never);
+    expect(t.bgWaitSince).toBeTypeOf('number');
+    translate(KEY, t, { type: 'assistant', message: { content: [] } } as never);
+    expect(t.bgWaitSince).toBeUndefined();
+  });
+
+  it('does not mark bg-wait on a result with nothing pending', () => {
+    const t = register();
+    translate(KEY, t, { type: 'result', subtype: 'success' } as never);
+    expect(t.bgWaitSince).toBeUndefined();
   });
 
   it('broadcasts a compact divider when a background task notifies', () => {
@@ -195,5 +227,25 @@ describe('translate', () => {
     translate(KEY, t, { type: 'assistant', message: { content: [{ type: 'text', text: 'No response requested.' }] } } as never);
     expect(t.text).toBe('');
     expect(vi.mocked(broadcast)).not.toHaveBeenCalledWith(expect.objectContaining({ t: 'delta' }));
+  });
+});
+
+describe('CLI too old for the model', () => {
+  const RAW = 'API Error: 400 Claude Code 2.1.197 does not support this model; version 2.1.280 or newer is required';
+
+  it('holds the synthetic 400 back and flags the turn', () => {
+    const t = register();
+    translate(KEY, t, { type: 'assistant', message: { model: '<synthetic>', content: [{ type: 'text', text: RAW }] } } as never);
+    translate(KEY, t, { type: 'result', subtype: 'success', is_error: true, result: RAW } as never);
+    expect(t.cliTooOld).toEqual({ required: '2.1.280' });
+    expect(t.text).toBe('');
+    expect(vi.mocked(broadcast).mock.calls.some(([m]) => (m as { t: string }).t === 'delta')).toBe(false);
+  });
+
+  it('leaves a real answer that quotes the error alone', () => {
+    const t = register();
+    translate(KEY, t, { type: 'assistant', message: { model: 'claude-opus-5-5', content: [{ type: 'text', text: `The log said: ${RAW}` }] } } as never);
+    expect(t.cliTooOld).toBeUndefined();
+    expect(t.text).toContain('does not support');
   });
 });

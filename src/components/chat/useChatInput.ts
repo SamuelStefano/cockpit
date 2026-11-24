@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import type { PermMode } from '../../../shared/protocol';
 import { classifySlash } from './slash';
 import { nextRecall, type Caret } from './recall';
@@ -12,6 +12,8 @@ import { useSlashPalette } from './useSlashPalette';
 import { useComposerRecall } from './useComposerRecall';
 import { pickFreshUploads } from './dedupe-uploads';
 import { isVirtualKeyboardOnly } from './touch';
+import { OPEN_MODEL_EVENT } from './model-events';
+import { usePersisted } from '../../lib/persist';
 
 interface UseChatInputArgs {
   disabled: boolean;
@@ -42,8 +44,6 @@ export function useChatInput(args: UseChatInputArgs) {
   // "escolher arquivo" e "abrir a câmera" ao mesmo tempo.
   const cameraRef = useRef<HTMLInputElement>(null);
   const touch = useMemo(isVirtualKeyboardOnly, []);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const closeSettings = useCallback(() => setSettingsOpen(false), []);
   // Ditado por voz escreve direto no composer (value/setValue). Mora aqui pra o
   // textarea poder ficar readOnly enquanto grava (não dá pra digitar e ditar ao
   // mesmo tempo: o próximo trecho reconhecido sobrescreveria o que foi digitado).
@@ -52,18 +52,19 @@ export function useChatInput(args: UseChatInputArgs) {
   const mic = useSpeechInput(value, setValue, () => taRef.current?.focus());
   // Assinaturas recém-enviadas pra deduplicar o mesmo arquivo repetido (bug iOS).
   const recentUploads = useRef<Map<string, number>>(new Map());
-  // Sobe vários arquivos respeitando o teto (espelha o backend); retorna quantos
-  // passaram pra o caller decidir se houve upload (ex: paste consome o evento).
+  // Sobe vários arquivos (o teto de tamanho é do onUpload, que avisa); retorna
+  // quantos passaram pra o caller decidir se houve upload (ex: paste consome o evento).
   const uploadFiles = (files: File[]): number => {
     let n = 0;
     for (const f of pickFreshUploads(files, recentUploads.current, Date.now())) {
-      if (f.size > 15_000_000) continue;
       onUpload(f); n++;
     }
     return n;
   };
   const dnd = useFileDrop(uploadFiles, true);
   const { sel, setSel, matches, showPalette, setDismissed } = useSlashPalette(disabled, value, slashCommands);
+  const dismissPalette = () => setDismissed(true);
+  const [hintSeen, setHintSeen] = usePersisted<boolean>('composerHintSeen', false);
   const { histIdx, setHistIdx, recall } = useComposerRecall(history, setValue, taRef);
   // Sugestão fantasma (cinza): histórico global persistido + sessão atual (sessão
   // por último = prioridade, a varredura é do fim). Só com a sessão a sugestão
@@ -94,6 +95,16 @@ export function useChatInput(args: UseChatInputArgs) {
     fitHeight(el);
     el.scrollTop = el.scrollHeight;
   }, [value]);
+  // ⌘. opens the model sheet, ⌘⇧A attaches a file (keyboard path to both composer controls).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.altKey || document.activeElement !== taRef.current) return;
+      if (e.key === '.' && !e.shiftKey) { e.preventDefault(); window.dispatchEvent(new Event(OPEN_MODEL_EVENT)); }
+      else if (e.key.toLowerCase() === 'a' && e.shiftKey) { e.preventDefault(); fileRef.current?.click(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
   useEffect(() => {
     if (focusSignal === 0) return;
     const el = taRef.current;
@@ -105,14 +116,24 @@ export function useChatInput(args: UseChatInputArgs) {
   // Slash-commands emulados no app: o `claude -p` headless NÃO interpreta slash
   // (viram texto literal no prompt). Interceptamos um conjunto conhecido e
   // disparamos a ação local; tudo que não casa segue pro modelo como antes.
-  const runSlash = (raw: string): boolean => {
+  // Returns what stays in the composer (null = not an app-side command).
+  const runSlash = (raw: string): string | null => {
     const a = classifySlash(raw);
-    if (!a) return false;
+    if (!a) return null;
     switch (a.kind) {
-      case 'help': onShowHelp?.(); break;
-      case 'new': onNew(); break;
+      // The composer draft follows the active session, so after onNew the text
+      // after `/new` lands in the new session's composer.
+      case 'help': onShowHelp?.(); return a.rest ?? '';
+      case 'new': onNew(); return a.rest ?? '';
       case 'model': setModel(a.model); break;
-      case 'mode': setMode(a.mode); break;
+      case 'mode':
+        setMode(a.mode);
+        if (a.rest) {
+          recordPrompt(a.rest);
+          if (disabled || paused) onQueue(a.rest);
+          else onSend(a.rest, a.mode);
+        }
+        break;
       // Expande num prompt pronto e envia ao Claude (modo 'auto': lê/grava memória).
       // Ocupado entra na fila; livre vai direto com o modeOverride.
       case 'prompt':
@@ -120,13 +141,15 @@ export function useChatInput(args: UseChatInputArgs) {
         else onSend(a.text, a.mode);
         break;
     }
-    return true;
+    return '';
   };
   const submit = () => {
     if (attUploading) return; // não envia com anexo ainda subindo (perderia o arquivo)
     const v = value.trim();
-    if (v.startsWith('/') && runSlash(v)) {
-      setValue('');
+    const left = v.startsWith('/') ? runSlash(v) : null;
+    if (left !== null) {
+      mic.reset();
+      setValue(left);
       if (taRef.current) taRef.current.style.height = 'auto';
       return;
     }
@@ -137,11 +160,14 @@ export function useChatInput(args: UseChatInputArgs) {
     if (disabled || paused) {
       if (!v && !hasAtt) return;
       if (v) recordPrompt(v);
+      mic.reset();
       onQueue(v); setValue('');
     } else {
       if (!v && !hasAtt) return;
       recordPrompt(v);
+      mic.reset();
       onSend(v); setValue('');
+      if (touch && !hintSeen) setHintSeen(true);
     }
     if (taRef.current) taRef.current.style.height = 'auto';
   };
@@ -162,14 +188,21 @@ export function useChatInput(args: UseChatInputArgs) {
     return el ? { start: el.selectionStart, end: el.selectionEnd } : null;
   };
   const pick = (e: React.ChangeEvent<HTMLInputElement>) => {
-    uploadFiles(Array.from(e.target.files ?? [])); // teto de 15MB espelha o backend
+    uploadFiles(Array.from(e.target.files ?? []));
     e.target.value = '';
   };
+  const compositionEndAt = useRef(-Infinity);
+  const onCompositionEnd = (e: React.CompositionEvent) => { compositionEndAt.current = e.timeStamp; };
   const onKey = (e: React.KeyboardEvent) => {
     // IME em composição (dead key de acento, candidato CJK): o Enter/Tab confirma
     // o candidato, não envia a mensagem. Sem isto, digitar "ã" via ~+a no Linux
-    // dispara um submit no meio da palavra.
-    if (e.nativeEvent.isComposing && (e.key === 'Enter' || e.key === 'Tab' || e.key === 'Escape')) return;
+    // dispara um submit no meio da palavra. → moves between IME segments, so no key
+    // of ours may act while composing. Safari sends the Enter that confirms a CJK
+    // candidate right after compositionend, with isComposing=false and keyCode 229.
+    // keyCode 229 alone is not enough: Linux IBus, Windows IMEs and Android hardware
+    // keyboards report it on every key, and the Enter would never send (#807).
+    if (e.nativeEvent.isComposing) return;
+    if (e.keyCode === 229 && e.timeStamp - compositionEndAt.current < 100) return;
     if (showPalette) {
       if (e.key === 'ArrowDown') { e.preventDefault(); setSel((s) => (s + 1) % matches.length); return; }
       if (e.key === 'ArrowUp') { e.preventDefault(); setSel((s) => (s - 1 + matches.length) % matches.length); return; }
@@ -177,7 +210,8 @@ export function useChatInput(args: UseChatInputArgs) {
         e.preventDefault();
         // Enter num comando app-side runnable dispara a ação direto; Tab (e os que
         // seguem pro Claude) só completam o texto pra revisão antes de enviar.
-        if (e.key === 'Enter' && runSlash('/' + matches[sel])) {
+        if (e.key === 'Enter' && runSlash('/' + matches[sel]) !== null) {
+          mic.reset();
           setValue('');
           if (taRef.current) taRef.current.style.height = 'auto';
           return;
@@ -230,5 +264,5 @@ export function useChatInput(args: UseChatInputArgs) {
     if (histIdx !== null) setHistIdx(null); // digitar sai do modo recall
     fitHeight(e.target);
   };
-  return { taRef, fileRef, cameraRef, sel, setSel, showPalette, matches, complete, submit, onKey, grow, pick, ...dnd, mic, ghost, ghostShown, acceptGhost, touch, settingsOpen, openSettings: () => setSettingsOpen(true), closeSettings };
+  return { taRef, fileRef, cameraRef, sel, setSel, showPalette, matches, complete, submit, onKey, onCompositionEnd, grow, pick, ...dnd, mic, ghost, ghostShown, acceptGhost, touch, dismissPalette, hintSeen };
 }

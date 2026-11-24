@@ -154,6 +154,18 @@ export function busySessionIds(records: ClaudeProcRecord[], d: BusyElsewhereDeps
   return [...out].sort();
 }
 
+// Every alive process the registry places inside a tmux pane, busy or idle.
+// busySessionIds misses the idle ones: an interactive claude sitting at its
+// prompt is still a writer — a `--resume` twin next to it forks the
+// transcript the moment either side takes a turn.
+export function tmuxPaneSessionIds(records: ClaudeProcRecord[], d: BusyElsewhereDeps): string[] {
+  const out = new Set<string>();
+  for (const r of records) {
+    if (r.tmux && d.procAlive(r.pid)) out.add(r.sessionId);
+  }
+  return [...out].sort();
+}
+
 // A cv-shell that is ALIVE (tmux pane + process both up) but NOT live per
 // isCvShellLive — idle, no busy flag, transcript gone stale. That's Claude
 // Code sitting at its prompt waiting on Samuel, not a finished turn; without
@@ -225,6 +237,29 @@ export async function readBusyElsewhereSessionIds(): Promise<string[]> {
   const busyIds = busySessionIds(records, { procAlive: pidAlive });
   const own = runningSessionIds();
   return busyIds.filter((id) => !own.has(id)).sort();
+}
+
+// The subset of the above that is a HEADLESS turn (no tmux pane): a `claude -p`
+// the other Deck process spawned. Its process exits when the turn closes, so a
+// prompt parked for it is safe to drain later — unlike a busy cv-shell, whose
+// interactive claude stays open at its prompt and would get a second writer.
+// FRESH read for the 'send' guard, same reasoning as above: sessions with an
+// alive interactive claude in a tmux pane (idle included), minus this
+// process's own threads.
+export async function readTmuxPaneSessionIds(): Promise<string[]> {
+  const records = await readRecords(procRegistryDir());
+  if (!records.length) return [];
+  const own = runningSessionIds();
+  return tmuxPaneSessionIds(records, { procAlive: pidAlive }).filter((id) => !own.has(id));
+}
+
+export async function readBusyHeadlessElsewhereSessionIds(): Promise<string[]> {
+  const own = runningSessionIds();
+  return busyHeadlessSessionIds(await readRecords(procRegistryDir()), { procAlive: pidAlive }).filter((id) => !own.has(id));
+}
+
+export function busyHeadlessSessionIds(records: ClaudeProcRecord[], d: BusyElsewhereDeps): string[] {
+  return busySessionIds(records.filter((r) => !r.tmux), d);
 }
 
 export interface LivenessSnapshot {
@@ -332,6 +367,29 @@ export function startCvLivenessLoop(hasClients: () => boolean, emit: (msg: Serve
       if (snap.live.join() !== prevLive || snap.idle.join() !== prevIdle) {
         emit({ t: 'cv-live', sessionIds: snap.live, idleSessionIds: snap.idle });
       }
+    } catch { /* best-effort, like the other loops */ } finally { busy = false; }
+  };
+  setInterval(tick, intervalMs).unref();
+}
+
+// 'cv-live' above only reaches admin canvas clients, so the sidebar and the
+// chat never learned that a session was running in the OTHER Deck process: it
+// read idle while every send to it was refused. This loop pushes the strict
+// busy-elsewhere list to every client instead (cheap read, no JSONL stat).
+export async function liveElsewhereFrame(): Promise<Extract<ServerMsg, { t: 'live-elsewhere' }>> {
+  return { t: 'live-elsewhere', sessionIds: await readBusyElsewhereSessionIds().catch(() => [] as string[]) };
+}
+
+export function startLiveElsewhereLoop(hasClients: () => boolean, emit: (msg: ServerMsg) => void, intervalMs = 5000) {
+  let busy = false;
+  let last = '';
+  const tick = async () => {
+    if (busy || !hasClients()) return;
+    busy = true;
+    try {
+      const frame = await liveElsewhereFrame();
+      const key = frame.sessionIds.join();
+      if (key !== last) { last = key; emit(frame); }
     } catch { /* best-effort, like the other loops */ } finally { busy = false; }
   };
   setInterval(tick, intervalMs).unref();

@@ -8,7 +8,7 @@
 
 Painel pessoal de controle de agentes Claude rodando numa VPS: chat com o agente
 (estilo ChatGPT), terminais reais (PTY), sessões persistentes, análise de uso/custo,
-crons, knowledge-graph do código, admin da VPS. SPA React 18 + Vite + TS + Tailwind;
+crons, knowledge-graph do código, admin da VPS. SPA React 19 + Vite + TS + Tailwind 4;
 uma só pessoa usa (dono técnico, dev sênior). Mobile é cidadão de primeira classe —
 metade do uso é do celular, em eventos.
 

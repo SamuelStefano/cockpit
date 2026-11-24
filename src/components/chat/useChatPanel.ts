@@ -1,10 +1,11 @@
 import { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react';
 import { prettyModel } from './toolbar-format';
 import { pendingQuestionIdx } from '../../cockpit/pending-question';
-import type { Session, Message } from '../../data/types';
+import type { Session, Message, UserMessage } from '../../data/types';
 import type { PermMode, ModelInfo } from '../../../shared/protocol';
 import type { QueueItem } from '../../useCockpit';
 import { parseAttachments, replaceBody } from '../../../shared/parse-attachments';
+import { userBody } from './chat-topics';
 
 export type Phase = 'idle' | 'thinking' | 'streaming';
 
@@ -20,6 +21,7 @@ interface Args {
   // mesmo com o browser fechado — o cliente só espelha e edita, não drena mais.
   queue: QueueItem[];
   queueAdd: (text: string) => void;
+  queueRetarget?: (sessionKey: string, model: string) => void;
   queueRemove: (sessionKey: string, id: string) => void;
   queueEdit: (sessionKey: string, id: string, text: string) => void;
   queueMove: (sessionKey: string, id: string, dir: -1 | 1) => void;
@@ -29,7 +31,7 @@ interface Args {
   queueRunNow: (sessionKey: string, id: string) => void;
 }
 
-export function useChatPanel({ session, messages, phase, models, model, lastEnd, onSend, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queueRetry, queueRunBg, queueRunNow }: Args) {
+export function useChatPanel({ session, messages, phase, models, model, lastEnd, onSend, queue, queueAdd, queueRetarget, queueRemove, queueEdit, queueMove, queueClear, queueRetry, queueRunBg, queueRunNow }: Args) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const pinnedRef = useRef(true);
   const [atBottom, setAtBottom] = useState(true);
@@ -50,6 +52,7 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
   // No banner mostramos só o corpo limpo + a contagem de anexos como badge.
   const queuedParsed = useMemo(() => parked.map((p) => parseAttachments(p.text)), [parked]);
   const queued = useMemo(() => queuedParsed.map((q) => q.body), [queuedParsed]);
+  const queuedIds = useMemo(() => parked.map((p) => p.id), [parked]);
   const queuedAtts = useMemo(() => queuedParsed.map((q) => q.attachments.length), [queuedParsed]);
   // Modelo com que cada item foi enfileirado: é daí que o seletor do disparo em
   // background parte, pra não sugerir um modelo diferente do que o item já tinha.
@@ -57,7 +60,11 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
   useEffect(() => { setFullLoaded(false); pinnedRef.current = true; setAtBottom(true); }, [sid]);
 
   const enqueue = (text: string) => queueAdd(text);
-  const clearQueue = () => { if (sid) queueClear(sid); };
+  // By the wire key of each item, like the per-item actions: items queued during a
+  // chat's first turn stay under `new-…` on the server after the display key
+  // migrated, and clearing by the display key left them to drain later.
+  const retargetQueue = (to: string) => { for (const k of new Set(parked.map((p) => p.sessionKey))) queueRetarget?.(k, to); };
+  const clearQueue = () => { for (const k of new Set(parked.map((p) => p.sessionKey))) queueClear(k); };
   const cancelQueueAt = (i: number) => { const it = parked[i]; if (it) queueRemove(it.sessionKey, it.id); };
   // Editar reescreve SÓ o corpo do item: os marcadores de anexo do wire original
   // seguem amarrados a ele (o banner mostra o corpo limpo, não o wire).
@@ -93,7 +100,7 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
   // as linhas `[anexo:]`. Recuperar o prompt trazia os marcadores junto e o reenvio
   // repontava pra um arquivo que já pode ter passado do TTL.
   const sentHistory = useMemo(
-    () => messages.filter((m) => m.role === 'user').map((m) => parseAttachments(m.text).body).filter(Boolean),
+    () => messages.filter((m): m is UserMessage => m.role === 'user').map(userBody).filter(Boolean),
     [messages],
   );
   const modelLabel = useMemo(
@@ -247,7 +254,8 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
 
   return {
     scrollRef, atBottom, promptAbove, onScroll, scrollToBottom, scrollToLastPrompt, captureAnchor,
-    queued, queuedAtts, queuedModels, enqueue, clearQueue, cancelQueueAt, editQueuedAt, moveQueuedItem, queueHeld, resumeQueue, runQueuedInBgAt, runQueuedNowAt, fullLoaded, setFullLoaded,
+    queued, queuedIds, queuedAtts, queuedModels, enqueue, clearQueue, cancelQueueAt, editQueuedAt, moveQueuedItem, queueHeld, resumeQueue, runQueuedInBgAt, runQueuedNowAt, fullLoaded, setFullLoaded,
+    retargetQueue,
     streaming, disabled, isEmpty,
     sentHistory, modelLabel, labelFor,
     planPending, pendingQuestion, failed, retryLast, retryText, bannerConfirm,
