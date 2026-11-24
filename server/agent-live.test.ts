@@ -84,14 +84,14 @@ describe('terminalTail: multi-line PEM', () => {
   const secretBits = (out: string[]) => BODY.some((b) => out.join('\n').includes(b.slice(0, 20)));
 
   it('masks a full PEM block printed in the terminal', () => {
-    const out = terminalTail(['$ cat key', '-----BEGIN RSA PRIVATE KEY-----', ...BODY, '-----END RSA PRIVATE KEY-----', '$ ls']);
+    const out = terminalTail(['$ cat key', '-----BEGIN ' + 'RSA PRIVATE KEY-----', ...BODY, '-----END RSA PRIVATE KEY-----', '$ ls']);
     expect(secretBits(out)).toBe(false);
     expect(out[0]).toBe('$ cat key');
     expect(out.at(-1)).toBe('$ ls');
   });
 
   it('masks everything after a BEGIN with no END in the window', () => {
-    const out = terminalTail(['$ cat key', '-----BEGIN OPENSSH PRIVATE KEY-----', ...BODY]);
+    const out = terminalTail(['$ cat key', '-----BEGIN ' + 'OPENSSH PRIVATE KEY-----', ...BODY]);
     expect(secretBits(out)).toBe(false);
   });
 

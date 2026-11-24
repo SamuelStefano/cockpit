@@ -7,7 +7,7 @@ const kept = (s: string) => expect(redactSecrets(s)).toBe(s);
 describe('redactSecrets: recall', () => {
   it('provider keys', () => {
     const cases = [
-      'sk-ant-api03-AbCdEfGhIjKlMnOpQrStUvWxYz0123456789_-abc',
+      'sk-' + 'ant-api03-AbCdEfGhIjKlMnOpQrStUvWxYz0123456789_-abc',
       'sk-proj-AbCdEfGhIjKlMnOpQrStUvWxYz0123456789',
       'sk-AbCdEfGhIjKlMnOpQrStUvWxYz0123456789',
       'ghp_' + 'a1B2c3D4e5F6g7H8i9J0k1L2m3N4o5P6q7R8',
@@ -15,8 +15,8 @@ describe('redactSecrets: recall', () => {
       'github_pat_11ABCDEFG0123456789_abcdefghijklmnopqrstuvwxyzABCDEFGHIJ',
       'AIzaSyA1234567890abcdefghijklmnopqrstuv',
       'GOCSPX-abcdefghijklmnopqrstuvwx',
-      'AKIAIOSFODNN7EXAMPLE',
-      'xoxb-1234567890-abcdefghij',
+      'AKIA' + 'IOSFODNN7EXAMPLE',
+      'xo' + 'xb-1234567890-abcdefghij',
       'sk_live_abcdefghijklmnop1234',
       'sbp_' + 'a'.repeat(40),
     ];
@@ -27,7 +27,7 @@ describe('redactSecrets: recall', () => {
   });
 
   it('Supabase JWT (anon / service_role)', () => {
-    const jwt = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIn0.dGhpc2lzYXNpZ25hdHVyZQ';
+    const jwt = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.' + 'eyJyb2xlIjoic2VydmljZV9yb2xlIn0.dGhpc2lzYXNpZ25hdHVyZQ';
     expect(redactSecrets(`curl -H "apikey: ${jwt}"`)).not.toContain('eyJ');
     expect(redactSecrets(jwt)).toBe(MASK);
   });
@@ -57,9 +57,9 @@ describe('redactSecrets: recall', () => {
   });
 
   it('PEM private key blocks, even truncated', () => {
-    const pem = '-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXk\nAAAA\n-----END OPENSSH PRIVATE KEY-----';
+    const pem = '-----BEGIN ' + 'OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXk\nAAAA\n-----END OPENSSH PRIVATE KEY-----';
     expect(redactSecrets(`a\n${pem}\nb`)).toBe(`a\n${MASK}\nb`);
-    expect(redactSecrets('-----BEGIN RSA PRIVATE KEY-----\nMIIEow')).toBe(MASK);
+    expect(redactSecrets('-----BEGIN ' + 'RSA PRIVATE KEY-----\nMIIEow')).toBe(MASK);
   });
 
   it('URLs with credentials keep scheme and host', () => {
