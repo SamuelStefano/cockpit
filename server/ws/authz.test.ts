@@ -36,6 +36,8 @@ describe('authorize', () => {
     expect(authorize('student', 'grok-usage-get')).toBe(true);
     expect(authorize('student', 'plan-usage-get')).toBe(true);
     expect(authorize('student', 'team-computer-get')).toBe(true);
+    expect(authorize('student', 'team-state-get')).toBe(false);
+    expect(authorize('admin', 'team-state-get')).toBe(true);
     expect(authorize('student', 'term-open')).toBe(false);
   });
 
@@ -161,5 +163,14 @@ describe('authorize', () => {
     expect(authorize('admin', 'connections-get')).toBe(true);
     expect(authorize('student', 'connections-get')).toBe(false);
     expect(ROOT_ONLY.has('connections-get')).toBe(false);
+  });
+});
+
+describe('village frames', () => {
+  it('are admin-only and denied to students by default', () => {
+    for (const t of ['village-get', 'village-config', 'village-dry'] as const) {
+      expect(authorize('admin', t)).toBe(true);
+      expect(authorize('student', t)).toBe(false);
+    }
   });
 });

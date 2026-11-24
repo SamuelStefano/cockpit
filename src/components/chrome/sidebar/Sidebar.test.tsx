@@ -17,10 +17,9 @@ function setup(over: Partial<SidebarProps> = {}) {
 }
 
 describe('Sidebar', () => {
-  it('starts expanded with a big new-chat button; the palette icon lives in the collapsed rail only', () => {
+  it('starts expanded with new-chat and palette as icons in the header', () => {
     const p = setup();
     expect(screen.getByRole('complementary', { name: 'Navegação principal' }).className).toContain('w-75');
-    expect(screen.queryByRole('button', { name: /^Comandos/ })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Nova conversa' }));
     expect(p.onNew).toHaveBeenCalledOnce();
     fireEvent.click(screen.getByRole('button', { name: 'Recolher barra lateral' }));
@@ -60,9 +59,9 @@ describe('Sidebar', () => {
     expect(screen.queryByRole('navigation', { name: 'Rotas' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Perfil' }));
     const names = within(screen.getByRole('navigation', { name: 'Rotas' })).getAllByRole('button').map((b) => b.getAttribute('aria-label'));
-    expect(names).toEqual(['Canvas', 'Pull requests', 'Pontos', 'Skills', 'Conexões', 'Rotinas', 'Docs']);
-    fireEvent.click(screen.getByRole('button', { name: 'Skills' }));
-    expect(p.nav).toHaveBeenCalledWith('/skills');
+    expect(names).toEqual(['Canvas', 'Pull requests', 'Pontos', 'Loja', 'Rotinas']);
+    fireEvent.click(screen.getByRole('button', { name: 'Rotinas' }));
+    expect(p.nav).toHaveBeenCalledWith('/equipe/rotinas');
     expect(screen.queryByRole('navigation', { name: 'Rotas' })).toBeNull();
   });
 
@@ -88,13 +87,32 @@ describe('Sidebar', () => {
     setup();
     fireEvent.click(screen.getByRole('button', { name: 'Recolher barra lateral' }));
     fireEvent.click(screen.getByRole('button', { name: 'Perfil' }));
-    expect(screen.getByRole('button', { name: 'Conexões' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Canvas' })).toBeTruthy();
   });
 
   it('marks the current route', () => {
-    setup({ route: '/skills' });
+    setup({ route: '/canvas' });
     fireEvent.click(screen.getByRole('button', { name: 'Perfil' }));
-    expect(screen.getByRole('button', { name: 'Skills' }).getAttribute('aria-current')).toBe('page');
+    expect(screen.getByRole('button', { name: 'Canvas' }).getAttribute('aria-current')).toBe('page');
+  });
+
+  it('offers the Store to admin and root, opening /agentes/loja, and hides it from a student', () => {
+    for (const role of ['admin', 'root'] as const) {
+      const p = setup({ role });
+      fireEvent.click(screen.getByRole('button', { name: 'Perfil' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Loja' }));
+      expect(p.nav).toHaveBeenCalledWith('/agentes/loja');
+      cleanup();
+    }
+    setup({ role: 'student' });
+    fireEvent.click(screen.getByRole('button', { name: 'Perfil' }));
+    expect(screen.queryByRole('button', { name: 'Loja' })).toBeNull();
+  });
+
+  it('marks Loja as current on the Store route', () => {
+    setup({ route: '/agentes/loja' });
+    fireEvent.click(screen.getByRole('button', { name: 'Perfil' }));
+    expect(screen.getByRole('button', { name: 'Loja' }).getAttribute('aria-current')).toBe('page');
   });
 
   it('embeds the conversations list only while expanded', () => {

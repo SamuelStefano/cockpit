@@ -28,8 +28,9 @@ import { secretFrameAllowed, SECRET_CHANNEL_MESSAGE, type Transport } from './se
 // authorize, e o cleanup de terminais no close.
 // `root` = the box owner's connection: unlocks the owner-only frames
 // (shared/root-frames.ts). Default false, so a new transport denies them.
-export function serveConnection(ws: WebSocket, opts: { role: Role; root?: boolean; sendCaps?: boolean; transport?: Transport }) {
+export function serveConnection(ws: WebSocket, opts: { role: Role; root?: boolean; sendCaps?: boolean; transport?: Transport; human?: string }) {
   const { role, root = false, sendCaps = true, transport = 'plain' } = opts;
+  const human = transport === 'sealed' && role === 'admin' ? opts.human : undefined;
   (ws as WebSocket & { isAlive?: boolean }).isAlive = true;
   ws.on('pong', () => { (ws as WebSocket & { isAlive?: boolean }).isAlive = true; });
   // No modo dial (agente T3) o caps autoritativo é do relay (papel da conta vem do
@@ -98,7 +99,7 @@ export function serveConnection(ws: WebSocket, opts: { role: Role; root?: boolea
       send(ws, { t: 'error', message: sanitize(String((e as Error)?.message ?? e)) });
       return;
     }
-    handle(ws, msg, role).catch((e) => send(ws, { t: 'error', message: sanitize(String(e?.message ?? e)) }));
+    handle(ws, msg, role, { human }).catch((e) => send(ws, { t: 'error', message: sanitize(String(e?.message ?? e)) }));
   });
 
   ws.on('close', () => {

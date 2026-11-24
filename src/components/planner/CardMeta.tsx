@@ -1,22 +1,36 @@
 import type { PlannerTask } from '../../../shared/planner';
 import type { TeamBot } from '../../../shared/protocol';
+import { isUnsafeTask } from '../../../shared/village-risk';
+import { Badge } from '../primitives';
 import { Mascot } from '../team/Mascot';
 import { DIFFICULTY_LABELS, linkChipLabel } from '../../planner/planner-logic';
 
 const chip = 'max-w-36 truncate rounded px-1.5 py-px text-[11px] leading-4';
 const MAX_LINKS = 2;
 
-export function CardMeta({ task, bots = [] }: { task: PlannerTask; bots?: TeamBot[] }) {
+export function CardMeta({ task, bots = [], onToggleReady }: { task: PlannerTask; bots?: TeamBot[]; onToggleReady?: () => void }) {
   const { tag, difficulty, links } = task;
   const owner = task.ownerBotId ? bots.find((b) => b.id === task.ownerBotId) : undefined;
   // Machine refs (placar:<uuid>) are import keys, not something a person reads.
   const ref = task.ref && !task.ref.includes(':') ? task.ref : undefined;
-  if (!ref && !tag && difficulty === 1 && !links.length && task.source !== 'agent' && !owner) return null;
+  const unsafe = task.column !== 'done' && isUnsafeTask(task);
+  const ready = task.ready === true;
+  const wants = !ready && !!task.wantReady;
+  const canMark = !!onToggleReady && !unsafe;
+  if (!ref && !tag && difficulty === 1 && !links.length && task.source !== 'agent' && !owner && !unsafe && !ready && !wants && !canMark) return null;
   return (
     <div className="mt-2 flex flex-wrap items-center gap-1 text-neutral-500">
       {owner && (
         <span className="flex items-center" title={`Dono: ${owner.name}`} aria-label={`Dono: ${owner.name}`}>
           <Mascot mascot={owner.mascot} size={18} name={owner.name} />
+        </span>
+      )}
+      {ready && <Badge tone="green" title={task.readyBy}>pronta</Badge>}
+      {wants && <Badge tone="yellow" title={`${task.wantReady!.by}: ${task.wantReady!.reason}`}>quer-pronta</Badge>}
+      {unsafe && <Badge tone="red" title="Contém termo de risco ou marcada como insegura: a vila não pega">insegura</Badge>}
+      {canMark && (
+        <span onClick={(e) => e.stopPropagation()}>
+          <Badge tone={ready ? 'neutral' : 'orange'} onClick={onToggleReady}>{ready ? 'Desmarcar pronta' : 'Marcar pronta'}</Badge>
         </span>
       )}
       {ref && <span className={`${chip} bg-neutral-800/70 font-mono text-neutral-400`} title={ref}>{ref}</span>}
