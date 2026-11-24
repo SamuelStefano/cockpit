@@ -29,6 +29,8 @@ interface EquipePageProps {
   meetings?: TeamMeeting[];
   onMeetingsGet?: () => void;
   onMeetingStart?: (input: MeetingInput) => void;
+  teamPaused?: boolean;
+  onTeamPauseSet?: (paused: boolean) => void;
   views: BotView[];
   connected: boolean;
   isAdmin: boolean;
@@ -61,7 +63,8 @@ export function EquipePage(p: EquipePageProps) {
         <Tabs items={items} active={tab} onChange={onTab} className="mb-2.5 lg:mb-4" />
         <TeamWorld
           state={p.teamState ?? null} connected={connected} onRefresh={p.onTeamStateGet} bots={p.bots} meetings={p.meetings ?? []}
-          onMeetingsGet={p.onMeetingsGet ?? (() => {})} onMeetingStart={p.onMeetingStart ?? (() => {})} />
+          onMeetingsGet={p.onMeetingsGet ?? (() => {})} onMeetingStart={p.onMeetingStart ?? (() => {})}
+          paused={p.teamPaused ?? false} onPauseSet={p.onTeamPauseSet} />
       </div>
     );
   }

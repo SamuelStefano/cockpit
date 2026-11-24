@@ -688,7 +688,9 @@ function rejectRun(a: { ws: WebSocket | null; sessionKey: string; prompt: string
 // batch — a 99% o composer ainda não pausa (99,5), cada envio e cada item do dreno
 // in-turn virava "O turno falhou" e o texto se perdia no draft.
 function parkRejected(o: StartRunOptions, verdict: Verdict): boolean {
-  if (!o.ws || o.forkId || (verdict.kind !== 'quota' && verdict.kind !== 'cold-busy')) return false;
+  // A team message has no ws either, but it is a deliberate send from another bot: a
+  // transient gate must park it, not drop it as "não consegui entregar".
+  if ((!o.ws && o.teamHop === undefined) || o.forkId || (verdict.kind !== 'quota' && verdict.kind !== 'cold-busy')) return false;
   // Reached from drainPending inside a child's onClose: a throwing disk write
   // (ENOSPC) here aborted onClose and crashed the process. Not parked = the
   // caller reports the verdict as a normal rejection.
@@ -702,7 +704,7 @@ function parkRejected(o: StartRunOptions, verdict: Verdict): boolean {
   const message = verdict.kind === 'quota'
     ? `Este envio custaria ~${verdict.cost.pctOfWindow}% da janela e não cabe no que sobrou — entrou na fila e roda sozinho quando a janela virar.`
     : 'Outra sessão grande está subindo agora — o prompt entrou na fila e roda assim que ela assentar.';
-  send(o.ws, { t: 'send-parked', sessionKey: o.sessionKey, msgId: o.msgId, message });
+  if (o.ws) send(o.ws, { t: 'send-parked', sessionKey: o.sessionKey, msgId: o.msgId, message });
   broadcastQueue();
   return true;
 }
@@ -776,7 +778,7 @@ function bindBot(botId: string, sessionId: string): void {
   void bindBotSession(botId, sessionId).then((bots) => { if (bots) broadcast({ t: 'team', bots }); }, () => {});
 }
 
-export function startRun(o: StartRunOptions): 'pane' | 'rejected' | undefined {
+export function startRun(o: StartRunOptions): 'pane' | 'rejected' | 'parked' | undefined {
   const { ws, sessionKey, prompt, resumeId, msgId, auto, forkId, queued, flowHop } = o;
   const params = stripRestricted(runParams(o));
   // "Permitir todos os MCPs" chega como o sentinel '*' e é expandido AQUI, não no
@@ -829,9 +831,9 @@ export function startRun(o: StartRunOptions): 'pane' | 'rejected' | undefined {
   // plan, so the Claude quota gate does not hold it.
   const blocking = !isAgentModel(params.model) && (verdict.kind === 'quota' || verdict.kind === 'cold-busy' || (verdict.kind === 'hard' && !intentional));
   if (blocking) {
-    if (parkRejected(o, verdict)) return;
+    if (parkRejected(o, verdict)) return 'parked';
     rejectRun({ ws, sessionKey, prompt, msgId, verdict });
-    return;
+    return verdict.kind === 'hard' ? 'rejected' : undefined;
   }
 
   // Latch pós-pergunta: o flush automático da fila do cliente decide com estado
@@ -1081,6 +1083,7 @@ export function startRun(o: StartRunOptions): 'pane' | 'rejected' | undefined {
       });
       if (thread.sessionId && !thread.stopped && !unattended) void summarize(thread.sessionId);
       threads.delete(sessionKey);
+      if (thread.params.botId) botTurnEnds.set(thread.params.botId, Date.now());
       scheduleTeamStatePush();
       // época só vive enquanto há turno/triagem; senão vaza monotônico. A triage
       // or quick answer still waiting on this key needs it: clearing it back to 0
@@ -1417,6 +1420,9 @@ export function fireCron(cron: Cron): Promise<CronFire> {
 
 // The bot's live turn, under whatever key it runs: its draft key, `bot-<id>`, or the
 // key a tab gave the bound session.
+const botTurnEnds = new Map<string, number>();
+export const botLastTurnEnds = (): ReadonlyMap<string, number> => botTurnEnds;
+
 export function botLiveKey(botId: string, sessionId?: string): string | undefined {
   for (const [k, t] of threads) if (t.params.botId === botId || (sessionId && t.sessionId === sessionId)) return k;
   return undefined;

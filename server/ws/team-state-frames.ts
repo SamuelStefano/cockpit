@@ -6,7 +6,7 @@ import { readTasksCached, readTeamLogCached } from '../team-state-cache';
 import { readPendingQuestions } from '../team-pending';
 import type { Role } from '../auth';
 import { send } from './broadcast';
-import { botLiveKey } from './runs';
+import { botLiveKey, botLastTurnEnds } from './runs';
 import { emitTeamState, registerTeamStateClient, teamStateWindows } from './team-state-push';
 
 // Read-only: composed from the team config, the planner board, the team log and the
@@ -15,7 +15,7 @@ export async function teamStateSnapshots(hours: number[], now = Date.now()): Pro
   const [team, tasks, log] = await Promise.all([getTeam(), readTasksCached(), readTeamLogCached()]);
   const running = new Set(team.filter((b) => botLiveKey(b.id, b.sessionId)).map((b) => b.id));
   const waiting = new Set(readPendingQuestions().map((p) => p.botId));
-  return new Map(hours.map((h) => [h, buildTeamState({ team, tasks, log, running, waiting, now, followUpHours: h })]));
+  return new Map(hours.map((h) => [h, buildTeamState({ team, tasks, log, running, waiting, lastTurnEnd: botLastTurnEnds(), now, followUpHours: h })]));
 }
 
 export async function teamStateSnapshot(followUpHours?: unknown, now = Date.now()): Promise<TeamState> {
@@ -37,7 +37,5 @@ export async function pushTeamState(): Promise<void> {
     if (wanted.size === 0) return;
     const snaps = await teamStateSnapshots([...wanted]);
     emitTeamState((h) => ({ t: 'team-state', state: snaps.get(h)! }));
-    const { pushTeamPanel } = await import('./team-panel-frames');
-    await pushTeamPanel();
   } catch { /* the next pull recovers */ }
 }

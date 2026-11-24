@@ -45,6 +45,11 @@ export function saveBot(input: TeamBotInput, now = Date.now()): Promise<SaveResu
     // rewind the bot's thread to an older session.
     const bot: TeamBot = { ...input, createdAt: prev?.createdAt ?? now, updatedAt: now };
     if (prev?.sessionId) bot.sessionId = prev.sessionId;
+    if (prev?.previousSessionIds) bot.previousSessionIds = prev.previousSessionIds;
+    // The bot form does not edit `home`/`homeSeat` yet: a save without them keeps the stored ones.
+    if (bot.home === undefined && prev?.home) bot.home = prev.home;
+    if (bot.homeSeat === undefined && prev?.homeSeat !== undefined) bot.homeSeat = prev.homeSeat;
+    if (prev?.rotatedAt) bot.rotatedAt = prev.rotatedAt;
     if (prev?.sourceSync && bot.source && sameSource(prev.source, bot.source)) bot.sourceSync = prev.sourceSync;
     if (bot.primary) for (const b of all) if (b.id !== bot.id) delete b.primary;
     if (i >= 0) all[i] = bot; else all.push(bot);
@@ -76,9 +81,31 @@ export function bindBotSession(id: string, sessionId: string, now = Date.now()):
     const bot = all.find((b) => b.id === id);
     if (!bot || bot.sessionId === sessionId) return null;
     bot.sessionId = sessionId;
+    if (bot.previousSessionIds) bot.previousSessionIds = bot.previousSessionIds.filter((x) => x !== sessionId);
+    delete bot.rotatedAt;
     bot.updatedAt = now;
     await writeTeam(all);
     return all;
+  });
+}
+
+export type RotateResult = { ok: true; bots: TeamBot[] } | { ok: false; error: string };
+
+// Drops the bot's bound session so its next turn starts a new one. Only the server
+// writes team.json (every write is serialized), and the busy check runs inside the
+// serialized section so a turn cannot slip in between the check and the write.
+export function rotateBotSession(id: string, isBusy: (bot: TeamBot) => boolean, now = Date.now()): Promise<RotateResult> {
+  return serialize(async (): Promise<RotateResult> => {
+    const all = await getTeam();
+    const bot = all.find((b) => b.id === id);
+    if (!bot) return { ok: false, error: 'bot não encontrado' };
+    if (isBusy(bot)) return { ok: false, error: 'bot ocupado' };
+    if (bot.sessionId) bot.previousSessionIds = [...(bot.previousSessionIds ?? []).filter((x) => x !== bot.sessionId), bot.sessionId].slice(-10);
+    delete bot.sessionId;
+    bot.rotatedAt = now;
+    bot.updatedAt = now;
+    await writeTeam(all);
+    return { ok: true, bots: all };
   });
 }
 

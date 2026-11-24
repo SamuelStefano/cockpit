@@ -62,6 +62,18 @@ const TOOLS = [
     inputSchema: { type: 'object', properties: {} },
   },
   {
+    name: 'team_task_done',
+    description: 'Conclui a tarefa que a vila entregou a você (a que está em claim para você). Só fecha a sua própria; qualquer outra é recusada. Escreva o resultado em arquivo no seu workspace antes e resuma em uma ou duas frases.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        taskId: { type: 'string', description: 'id da tarefa que a vila entregou a você' },
+        summary: { type: 'string', description: 'o que foi entregue, 1 ou 2 frases' },
+      },
+      required: ['taskId', 'summary'],
+    },
+  },
+  {
     name: 'team_handoff',
     description: 'Passa uma tarefa sua para outro bot (o trabalho está saindo do seu setor). Escreva os quatro campos junto com quem recebe; o recebedor vira o dono e você fica como consultor. Só o dono atual (ou qualquer bot, se a tarefa não tem dono) pode passar.',
     inputSchema: {
@@ -164,6 +176,23 @@ async function send(args) {
   return text(describe(await awaitOutcome(id), target.name));
 }
 
+async function taskDone(args) {
+  if (!BOT || !OUTBOX) return text('Equipe indisponível neste turno.', true);
+  const taskId = typeof args.taskId === 'string' ? args.taskId.trim() : '';
+  const summary = typeof args.summary === 'string' ? args.summary.trim() : '';
+  if (!taskId) return text('Informe o taskId.', true);
+  if (!summary) return text('Escreva um resumo do que foi entregue.', true);
+  const id = `m${Date.now().toString(36)}${randomBytes(4).toString('hex')}`;
+  mkdirSync(OUTBOX, { recursive: true });
+  const tmp = join(OUTBOX, `.${id}.tmp`);
+  writeFileSync(tmp, JSON.stringify({ id, from: BOT, to: BOT, text: '', taskDone: { taskId, summary: summary.slice(0, 600) }, hop: 1, ts: Date.now() }));
+  renameSync(tmp, join(OUTBOX, `${id}.json`));
+  const m = await awaitOutcome(id);
+  if (!m) return text('Pedido enviado; o servidor fecha a tarefa em instantes.');
+  if (m.status === 'delivered') return text('Tarefa concluída.');
+  return text(`Não concluída (${m.reason ?? 'recusada'}).`, true);
+}
+
 async function handoff(args) {
   if (!BOT || !OUTBOX) return text('Equipe indisponível neste turno.', true);
   const field = (k) => (typeof args[k] === 'string' ? args[k].trim() : '');
@@ -209,6 +238,7 @@ async function onMessage(msg) {
       try {
         if (name === 'team_list') return reply(msg.id, text(listTeam()));
         if (name === 'team_tasks') return reply(msg.id, text(myTasks()));
+        if (name === 'team_task_done') return reply(msg.id, await taskDone(args));
         if (name === 'team_handoff') return reply(msg.id, await handoff(args));
         if (name === 'team_send') return reply(msg.id, await send(args));
         return reply(msg.id, text(`Tool desconhecida: ${name}`, true));

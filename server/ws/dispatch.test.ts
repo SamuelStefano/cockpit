@@ -369,7 +369,7 @@ describe('send routing (the #130 role seam)', () => {
     // BOTH actually reach it and swap resolveFirst/resolveSecond in for the
     // no-op placeholders before either is invoked; calling them any earlier
     // would resolve the placeholder, not the real pending promise, and hang.
-    await new Promise((r) => setTimeout(r, 0));
+    await vi.waitFor(() => expect(cvLiveness.readBusyElsewhereSessionIds).toHaveBeenCalledTimes(2));
     // Let the FIRST call's registry read resolve and fully run its
     // synchronous resolveThreadKey→startRun tail before the second one does.
     resolveFirst([]);

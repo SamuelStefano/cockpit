@@ -18,6 +18,8 @@ const PROFILES: ReadonlySet<TeamProfile> = new Set(['full', 'restricted']);
 const MODES: ReadonlySet<PermMode> = new Set(['plan', 'auto', 'acceptEdits']);
 const EFFORTS: ReadonlySet<Effort> = new Set(['low', 'medium', 'high', 'xhigh', 'max']);
 export const PROJECT_RE = /^[a-z0-9-]{1,32}$/;
+export const HOME_RE = /^[a-z0-9-]{1,40}$/;
+export const MAX_HOME_SEAT = 63;
 export const SPRITE_RE = /^[a-z0-9-]{1,24}$/;
 const MODEL_RE = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,63}$/;
 
@@ -84,6 +86,8 @@ export function validateBotInput(raw: unknown): BotValidation {
   if (parentId) bot.parentId = parentId;
   if (r.department !== undefined) bot.department = r.department as DepartmentId;
   if (typeof r.project === 'string' && PROJECT_RE.test(r.project)) bot.project = r.project;
+  if (typeof r.home === 'string' && HOME_RE.test(r.home)) bot.home = r.home;
+  if (typeof r.homeSeat === 'number' && Number.isInteger(r.homeSeat) && r.homeSeat >= 0 && r.homeSeat <= MAX_HOME_SEAT) bot.homeSeat = r.homeSeat;
   if (typeof r.sprite === 'string' && SPRITE_RE.test(r.sprite)) bot.sprite = r.sprite;
   if (r.primary === true) bot.primary = true;
   if (model) bot.model = model;

@@ -22,6 +22,7 @@ async function sendCli(onSend: (m: Frame, ws: WebSocket) => void) {
     ws.on('message', (raw) => {
       const m = JSON.parse(String(raw));
       seen.push(m);
+      if (m.t === 'team-get') ws.send(JSON.stringify({ t: 'team', bots: [] }));
       if (m.t === 'send') onSend(m, ws);
     });
   });
