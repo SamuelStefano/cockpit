@@ -1,6 +1,8 @@
 import type { PlanUsage } from '../../shared/protocol';
-import { getRateSnapshot, type RateSnapshot } from './rate';
-import { getLastPlanUsage, requestPlanUsageRefresh } from './usage-plan';
+import { credMtime } from './auth-health';
+import { broadcast } from './broadcast';
+import { dropRateFromOldLogin, getRateSnapshot, type RateSnapshot } from './rate';
+import { getLastPlanUsage, getPlanUsageReadAt, requestPlanUsageRefresh } from './usage-plan';
 
 // Teto de tokens do plano: enquanto vale, NENHUMA fila drena. Sem este gate o
 // drainer disparava o prompt estacionado contra uma sessão sem token — o turno
@@ -15,9 +17,22 @@ export const PLAN_FULL_PCT = 99.5;
 export const UNKNOWN_HOLD_MS = 30 * 60_000;
 
 // Epoch ms até quando a fila deve segurar; 0 = livre pra drenar.
-export function quotaHoldUntil(rate: RateSnapshot | null, usage: PlanUsage | null, now: number): number {
+// Leitura de usage MAIS NOVA que o rate_limit_event e com tudo livre vence o evento:
+// o evento fica velho depois do reset da janela e segurava a fila (resetsAt 0 ou de outro limite).
+const RELEASE_MARGIN_PCT = 95;
+
+function usageFreesRate(rate: RateSnapshot, usage: PlanUsage | null, usageReadAt: number): boolean {
+  if (!usage || usageReadAt <= rate.setAt) return false;
+  if ((usage.limits ?? []).some((l) => l.pct >= RELEASE_MARGIN_PCT)) return false;
+  // Logo após o reset a API devolve five_hour em 0% com resets_at nulo; o evento
+  // rejeitado velho (resetsAt errado/posterior) não pode segurar a fila por isso.
+  if (rate.resetsAt > 0 && usage.resetsAt !== null && usage.resetsAt <= rate.resetsAt) return false;
+  return usage.fiveHour < RELEASE_MARGIN_PCT && usage.sevenDay < RELEASE_MARGIN_PCT;
+}
+
+export function quotaHoldUntil(rate: RateSnapshot | null, usage: PlanUsage | null, now: number, usageReadAt = 0): number {
   let until = 0;
-  if (rate && !ALLOWED.has(rate.status)) {
+  if (rate && !ALLOWED.has(rate.status) && !usageFreesRate(rate, usage, usageReadAt)) {
     const t = rate.resetsAt > 0 ? rate.resetsAt : rate.setAt + UNKNOWN_HOLD_MS;
     if (t > now) until = Math.max(until, t);
   }
@@ -31,18 +46,26 @@ export function quotaHoldUntil(rate: RateSnapshot | null, usage: PlanUsage | nul
 
 // Hold ao vivo (sinais em memória do agente). Enquanto segura, pede um refresh do
 // usage pra soltar a fila assim que a janela virar, sem esperar o poll de 60s.
+// A ceiling hit before `/login` belongs to the old account. The usage poll also drops
+// it, but that poll sits in a 429 cooldown right when the limit is hit, so the queue
+// stayed locked until the OLD account's reset. Checking here frees it on the next pass.
+function liveRate(): RateSnapshot | null {
+  if (dropRateFromOldLogin(credMtime())) broadcast({ t: 'rate', resetsAt: 0, status: 'allowed' });
+  return getRateSnapshot();
+}
+
 export function quotaHold(now = Date.now()): number {
-  const until = quotaHoldUntil(getRateSnapshot(), getLastPlanUsage(), now);
+  const until = quotaHoldUntil(liveRate(), getLastPlanUsage(), now, getPlanUsageReadAt());
   if (until) requestPlanUsageRefresh({ mode: 'idle' });
   return until;
 }
 
 // O turno que acabou de fechar bateu no teto?
 export function planLimited(now = Date.now()): boolean {
-  return quotaHoldUntil(getRateSnapshot(), getLastPlanUsage(), now) > 0;
+  return quotaHoldUntil(liveRate(), getLastPlanUsage(), now, getPlanUsageReadAt()) > 0;
 }
 
-const QUOTA_TEXT = /usage limit|limit reached|out of (tokens|credits)|limite de uso|sem tokens|tokens esgotad/i;
+const QUOTA_TEXT = /usage limit|limit reached|hit your [\w-]+ limit|out of (tokens|credits)|limite de uso|sem tokens|tokens esgotad/i;
 // O CLI que bate no teto imprime uma linha e sai. Um turno que EXPLICA limite de uso
 // pro usuário (resposta legítima que por acaso casa o regex) escreve muito mais que
 // isto — o tamanho é o que separa a bailout do assunto.

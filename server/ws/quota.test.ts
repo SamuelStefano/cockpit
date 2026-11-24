@@ -5,12 +5,25 @@ interface Fakes {
   rate: { status: string; resetsAt: number; setAt: number } | null;
   usage: PlanUsage | null;
   refreshes: number;
+  readAt: number;
+  credMtime: number;
+  frames: unknown[];
 }
-const f: Fakes = { rate: null, usage: null, refreshes: 0 };
+const f: Fakes = { rate: null, usage: null, refreshes: 0, readAt: 0, credMtime: 0, frames: [] };
 
-vi.mock('./rate', () => ({ getRateSnapshot: () => f.rate }));
+vi.mock('./rate', () => ({
+  getRateSnapshot: () => f.rate,
+  dropRateFromOldLogin: (mtime: number) => {
+    if (!f.rate || mtime <= f.rate.setAt) return false;
+    f.rate = null;
+    return true;
+  },
+}));
+vi.mock('./auth-health', () => ({ credMtime: () => f.credMtime }));
+vi.mock('./broadcast', () => ({ broadcast: (m: unknown) => { f.frames.push(m); } }));
 vi.mock('./usage-plan', () => ({
   getLastPlanUsage: () => f.usage,
+  getPlanUsageReadAt: () => f.readAt,
   requestPlanUsageRefresh: () => { f.refreshes++; },
 }));
 
@@ -19,7 +32,7 @@ import { quotaHoldUntil, quotaHold, planLimited, burnedByQuota, UNKNOWN_HOLD_MS,
 const NOW = 1_800_000_000_000;
 
 beforeEach(() => {
-  Object.assign(f, { rate: null, usage: null, refreshes: 0 });
+  Object.assign(f, { rate: null, usage: null, refreshes: 0, readAt: 0, credMtime: 0, frames: [] });
 });
 const rate = (status: string, resetsAt: number, setAt = NOW) => ({ status, resetsAt, setAt });
 const plan = (fiveHour: number, resetsAt: number | null): PlanUsage => ({ fiveHour, sevenDay: 10, resetsAt, sevenDayResetsAt: null, limits: [] });
@@ -66,6 +79,60 @@ describe('quotaHoldUntil', () => {
   });
 });
 
+describe('quotaHoldUntil com usage mais novo que o rate_limit_event', () => {
+  const SET = NOW - 600_000;
+  const FRESH = NOW - 1000;
+
+  it('sem resetsAt, usage novo livre solta', () => {
+    expect(quotaHoldUntil(rate('rejected', 0, SET), plan(1, NOW + 5000), NOW, FRESH)).toBe(0);
+  });
+
+  it('usage mais velho que o evento nao solta', () => {
+    expect(quotaHoldUntil(rate('rejected', 0, SET), plan(1, NOW + 5000), NOW, SET - 1000)).toBe(SET + UNKNOWN_HOLD_MS);
+  });
+
+  it('usage novo em 100% continua segurando', () => {
+    expect(quotaHoldUntil(rate('rejected', 0, SET), plan(100, null), NOW, FRESH)).toBe(SET + UNKNOWN_HOLD_MS);
+  });
+
+  it('99% arredondado nao solta rejected com resetsAt conhecido', () => {
+    const r = rate('rejected', NOW + 9000, SET);
+    expect(quotaHoldUntil(r, plan(99, NOW + 9000), NOW, FRESH)).toBe(NOW + 9000);
+  });
+
+  it('com resetsAt conhecido so solta quando a janela virou', () => {
+    const r = rate('rejected', NOW + 9000, SET);
+    expect(quotaHoldUntil(r, plan(1, NOW + 9000), NOW, FRESH)).toBe(NOW + 9000);
+    expect(quotaHoldUntil(r, plan(1, NOW + 5 * 3_600_000), NOW, FRESH)).toBe(0);
+  });
+
+  it('pos-reset: usage novo em 0% com resetsAt nulo solta evento rejeitado com resetsAt futuro', () => {
+    const r = rate('rejected', NOW + 3_600_000, SET);
+    const u = { ...plan(0, null), sevenDay: 53 };
+    expect(quotaHoldUntil(r, u, NOW, FRESH)).toBe(0);
+  });
+
+  it('pos-reset: usage mais velho que o evento continua segurando', () => {
+    const r = rate('rejected', NOW + 3_600_000, SET);
+    const u = { ...plan(0, null), sevenDay: 53 };
+    expect(quotaHoldUntil(r, u, NOW, SET - 1000)).toBe(NOW + 3_600_000);
+  });
+
+  it('pos-reset: limite em 96% continua segurando', () => {
+    const r = rate('rejected', NOW + 3_600_000, SET);
+    const limits = [{ id: 'x', label: 'x', pct: 96, resetsAt: null, severity: 'critical' as const, scoped: false }];
+    expect(quotaHoldUntil(r, { ...plan(0, null), sevenDay: 53, limits }, NOW, FRESH)).toBe(NOW + 3_600_000);
+  });
+
+  it('sevenDay alto ou qualquer limite alto, escopado ou nao, nao solta', () => {
+    const r = rate('rejected', 0, SET);
+    expect(quotaHoldUntil(r, { ...plan(1, null), sevenDay: 100 }, NOW, FRESH)).toBe(SET + UNKNOWN_HOLD_MS);
+    const limits = [{ id: 'x', label: 'x', pct: 100, resetsAt: null, severity: 'critical' as const, scoped: false }];
+    expect(quotaHoldUntil(r, { ...plan(1, null), limits }, NOW, FRESH)).toBe(SET + UNKNOWN_HOLD_MS);
+    expect(quotaHoldUntil(r, { ...plan(1, null), limits: [{ ...limits[0], scoped: true }] }, NOW, FRESH)).toBe(SET + UNKNOWN_HOLD_MS);
+  });
+});
+
 describe('burnedByQuota', () => {
   it('não devolve nada sem limite ativo', () => {
     expect(burnedByQuota({ limited: false, tools: 0, text: '' })).toBe(false);
@@ -77,6 +144,11 @@ describe('burnedByQuota', () => {
 
   it('devolve quando o CLI respondeu que a quota acabou', () => {
     expect(burnedByQuota({ limited: true, tools: 0, text: 'Claude AI usage limit reached — resets at 5pm' })).toBe(true);
+  });
+
+  it('returns the prompt on the CLI weekly and 5-hour bailouts', () => {
+    expect(burnedByQuota({ limited: false, tools: 0, text: "You've hit your weekly limit · resets Nov 3, 6am (UTC)" })).toBe(true);
+    expect(burnedByQuota({ limited: false, tools: 0, text: "You've hit your 5-hour limit · resets 7:30pm (UTC)" })).toBe(true);
   });
 
   it('devolve pelo texto mesmo sem rate_limit_event (o CLI só imprime e sai)', () => {
@@ -126,6 +198,18 @@ describe('planLimited', () => {
   });
 
   it('falso sem teto', () => {
+    expect(planLimited(NOW)).toBe(false);
+  });
+});
+
+describe('quotaHold after an account switch', () => {
+  it('frees the queue when /login happened after the ceiling, without waiting for a usage read', () => {
+    f.rate = rate('rejected', NOW + 3_600_000, NOW - 60_000);
+    f.credMtime = NOW - 120_000;
+    expect(quotaHold(NOW)).toBe(NOW + 3_600_000);
+    f.credMtime = NOW - 1_000;
+    expect(quotaHold(NOW)).toBe(0);
+    expect(f.frames).toEqual([{ t: 'rate', resetsAt: 0, status: 'allowed' }]);
     expect(planLimited(NOW)).toBe(false);
   });
 });

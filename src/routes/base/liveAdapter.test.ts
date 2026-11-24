@@ -1,0 +1,200 @@
+import { describe, expect, it } from 'vitest';
+import type { Message } from '../../data/types';
+import type { CanvasCard } from '../../../shared/canvas';
+import type { TeamBot } from '../../../shared/protocol';
+import { pickSessions, adaptLive, quietLabel, silentFor, SILENT_MS, emptyPlacement, familyOf, LIVE_AGENT_CAP, nextCronRun, placeSessions, projectOf, type LiveInput } from './liveAdapter';
+
+const NOW = 1_800_000_000_000;
+const input = (over: Partial<LiveInput> = {}): LiveInput => ({ sessions: [], running: new Set(), termStats: {}, threads: {}, tails: {}, teamQuestions: [], areas: {}, cards: null, stats: null, crons: null, mcpServers: null, answered: {}, now: NOW, ...over });
+const sess = (id: string, over = {}) => ({ id, title: `Deck: ${id}`, mtime: NOW - 1000, ...over });
+const card = (id: string, status: CanvasCard['status']): CanvasCard => ({ id, title: id, prompt: '', status, kind: 'task', contextIds: [], sessionIds: [], createdAt: 0, updatedAt: 0 });
+const asking: Message[] = [{ id: 'a', role: 'assistant', blocks: [{ type: 'tool', tool: { id: 't', name: 'AskUserQuestion', status: 'done', output: [], questions: [{ question: 'Ship it?', header: 'h', multiSelect: false, options: [{ label: 'Yes (recommended)' }, { label: 'Other' }] }] } }] } as unknown as Message];
+
+describe('projectOf', () => {
+  it('reads a title prefix and falls back to General', () => {
+    expect(projectOf('Itera: new kind')).toEqual({ id: 'itera', name: 'Itera' });
+    expect(projectOf('[deck] relay')).toEqual({ id: 'deck', name: 'Deck' });
+    expect(projectOf('fix the thing')).toEqual({ id: 'general', name: 'General' });
+    expect(projectOf('whatever', 'dfl').id).toBe('dfl');
+  });
+});
+
+describe('familyOf', () => {
+  it('never guesses a model', () => {
+    expect(familyOf('claude-opus-4')).toBe('opus');
+    expect(familyOf(undefined)).toBe('unknown');
+  });
+});
+
+describe('placeSessions', () => {
+  it('keeps desks stable and reuses only freed slots', () => {
+    const a = placeSessions(emptyPlacement(), [{ id: '1', project: 'x' }, { id: '2', project: 'x' }, { id: '3', project: 'y' }]);
+    const b = placeSessions(a, [{ id: '2', project: 'x' }, { id: '4', project: 'x' }, { id: '3', project: 'y' }]);
+    expect(b.slots.x['2']).toBe(a.slots.x['2']);
+    expect(b.slots.x['4']).toBe(a.slots.x['1']);
+    expect(b.order).toEqual(['x', 'y']);
+  });
+});
+
+const bot = (id: string, over: Partial<TeamBot> = {}) => ({ id, name: `Bot ${id}`, label: 'Role', instructions: '', mascot: { shape: 'cube', color: '#fff' }, profile: {}, ...over }) as unknown as TeamBot;
+
+describe('adaptLive team', () => {
+  it('puts bot sessions in department wings first, in catalog order, with name and colour', () => {
+    const bots = [bot('bfin1', { department: 'finance', sessionId: 's-fin' }), bot('beng1', { department: 'engineering', sessionId: 's-eng' }), bot('bnone', { sessionId: 's-none' })];
+    const r = adaptLive(input({ bots, sessions: [sess('plain'), sess('s-none'), sess('s-fin'), sess('s-eng')], running: new Set(['plain', 's-fin', 's-eng', 's-none']) }), emptyPlacement());
+    expect(r.floor.wings.map((w) => w.name)).toEqual(['Engenharia', 'Finanças', 'Equipe', 'Deck']);
+    expect(r.floor.wings[0].rug).toBe(0x3b82f6);
+    expect(r.floor.wings[1].rug).toBe(0x22c55e);
+    const by = Object.fromEntries(r.floor.agents.map((a) => [a.sessionId, a]));
+    expect(by['s-eng']).toMatchObject({ name: 'Bot beng1', wingId: 'dept:engineering' });
+    expect(by['s-eng'].monitor).toMatchObject({ title: 'Deck: s-eng' });
+    expect(by['s-none'].wingId).toBe('dept:none');
+    expect(by.plain).toMatchObject({ name: 'Deck: plain', wingId: 'deck' });
+  });
+
+  it('resolves a session key through the bot thread key', () => {
+    const r = adaptLive(input({ bots: [bot('babcd', { department: 'growth' })], sessions: [sess('bot-babcd')] }), emptyPlacement());
+    expect(r.floor.agents[0]).toMatchObject({ name: 'Bot babcd', wingId: 'dept:growth' });
+  });
+
+  it('leaves non-bot sessions untouched', () => {
+    const a = adaptLive(input({ sessions: [sess('x'), sess('y')] }), emptyPlacement());
+    const b = adaptLive(input({ bots: [bot('bzzzz', { sessionId: 'other' })], sessions: [sess('x'), sess('y')] }), emptyPlacement());
+    expect(b.floor).toEqual(a.floor);
+  });
+});
+
+describe('adaptLive', () => {
+  it('maps running, idle and waiting to real states', () => {
+    const r = adaptLive(input({ sessions: [sess('run'), sess('idle'), sess('ask', { waiting: true })], running: new Set(['run']) }), emptyPlacement());
+    const by = Object.fromEntries(r.floor.agents.map((a) => [a.sessionId, a.state]));
+    expect(by).toEqual({ run: 'working', idle: 'finished', ask: 'blocked' });
+  });
+
+  it('turns a running session silent after 5 minutes without transcript activity', () => {
+    const ids = ['quiet', 'fresh', 'unknown', 'bg', 'idle'];
+    const r = adaptLive(input({
+      sessions: ids.map((id) => sess(id)), running: new Set(ids.filter((i) => i !== 'idle')),
+      termStats: { quiet: { lastAt: NOW - 7 * 60000 }, fresh: { lastAt: NOW - 60000 }, bg: { lastAt: NOW - 9 * 60000 }, idle: { lastAt: NOW - 9 * 60000 } },
+      bgRunning: { bg: 1 },
+    }), emptyPlacement());
+    const by = Object.fromEntries(r.floor.agents.map((a) => [a.sessionId, a]));
+    expect(by.quiet.state).toBe('silent');
+    expect(by.quiet.line).toBe('No new activity for 7m');
+    expect(by.quiet.monitor).toMatchObject({ now: 'No new activity for 7m' });
+    expect(by.fresh.state).toBe('working');
+    expect(by.unknown.state).toBe('working');
+    expect(by.bg.state).toBe('working');
+    expect(by.idle.state).toBe('finished');
+  });
+
+  it('silentFor and quietLabel never say stuck', () => {
+    expect(silentFor(NOW - SILENT_MS, NOW)).toBeNull();
+    expect(silentFor(NOW - SILENT_MS - 1, NOW)).toBe(SILENT_MS + 1);
+    expect(silentFor(undefined, NOW)).toBeNull();
+    expect(quietLabel(65 * 60000)).toBe('No new activity for 1h 5m');
+    expect(quietLabel(1000)).not.toMatch(/stuck/i);
+  });
+
+  it('caps the floor and reports the rest as elsewhere', () => {
+    const sessions = Array.from({ length: LIVE_AGENT_CAP + 5 }, (_, i) => sess(`s${i}`));
+    const r = adaptLive(input({ sessions, running: new Set(sessions.map((s) => s.id)) }), emptyPlacement());
+    expect(r.floor.agents).toHaveLength(LIVE_AGENT_CAP);
+    expect(r.elsewhere).toBe(5);
+  });
+
+  it('shows the real question and sends the clean option label', () => {
+    const r = adaptLive(input({ sessions: [sess('q', { waiting: true })], threads: { q: asking } }), emptyPlacement());
+    const d = r.decisions[0];
+    expect(d.what).toBe('Ship it?');
+    expect(d.opts[0].label).toBe('Yes');
+    expect(d.actions[0]).toEqual({ kind: 'answer', sessionId: 'q', text: 'Yes' });
+    expect(d.actions[1].kind).toBe('open');
+  });
+
+  it('admits it does not know a question that has not loaded, and asks for the thread', () => {
+    const r = adaptLive(input({ sessions: [sess('q', { waiting: true })] }), emptyPlacement());
+    expect(r.decisions[0].why).toBe('Question text unknown.');
+    expect(r.decisions[0].actions).toEqual([{ kind: 'open', sessionId: 'q' }]);
+    expect(r.missingThreads).toEqual(['q']);
+  });
+
+  it('raises a chat-only decision at 80% context', () => {
+    const r = adaptLive(input({ sessions: [sess('c')], termStats: { c: { contextTokens: 170_000, model: 'claude-sonnet-4-5' } } }), emptyPlacement());
+    expect(r.decisions[0].type).toBe('context');
+    expect(r.decisions[0].actions).toEqual([{ kind: 'open', sessionId: 'c' }]);
+    expect(r.floor.agents[0].ctx).toBeCloseTo(0.85);
+  });
+
+  it('never fabricates: no model, no tail, no crates, no board numbers without data', () => {
+    const r = adaptLive(input({ sessions: [sess('x')] }), emptyPlacement());
+    const a = r.floor.agents[0];
+    expect(a.modelLabel).toBe('unknown');
+    expect(a.ctx).toBeNull();
+    expect(a.monitor).toMatchObject({ kind: 'live', tail: null });
+    expect(r.floor.crates).toEqual([]);
+    expect(r.floor.mountainLabel).toBe('BOARD NOT LOADED');
+    expect(r.floor.mountainCount).toBe(0);
+    expect(r.floor.racks[0].disk).toBeNull();
+    expect(r.floor.clockLabel).toBe('NEXT RUN UNKNOWN');
+    expect(r.floor.machineLabel).toBe('MCP: UNKNOWN');
+  });
+
+  it('sizes the mountain and the belt from the real board', () => {
+    const r = adaptLive(input({ cards: [card('a', 'review'), card('b', 'review'), card('c', 'done'), card('d', 'todo')] }), emptyPlacement());
+    expect(r.floor.mountainCount).toBe(2);
+    expect(r.floor.mountainLabel).toBe('2 CARDS IN REVIEW · 1 DONE');
+    expect(r.floor.crates).toHaveLength(4);
+    expect(r.floor.stations.map((s) => s.label)).toEqual(['TODO 1', 'DOING 0', 'REVIEW 2', 'DONE 1']);
+  });
+
+  it('hides a question once answered, until the session moves on', () => {
+    const s = sess('q', { waiting: true });
+    expect(adaptLive(input({ sessions: [s], answered: { q: s.mtime } }), emptyPlacement()).decisions).toEqual([]);
+    expect(adaptLive(input({ sessions: [s], answered: { q: 1 } }), emptyPlacement()).decisions).toHaveLength(1);
+  });
+});
+
+describe('nextCronRun', () => {
+  const base = { id: 'c', name: 'c', prompt: '', enabled: true, createdAt: NOW };
+  it('ignores disabled crons and computes intervals', () => {
+    expect(nextCronRun({ ...base, enabled: false, schedule: { kind: 'interval', everyMinutes: 5 } }, NOW)).toBeNull();
+    expect(nextCronRun({ ...base, schedule: { kind: 'interval', everyMinutes: 5 } }, NOW)).toBe(NOW + 300000);
+  });
+});
+
+describe('live floor grouping from the real test', () => {
+  it('ignores generic areas and infers the project from the title', () => {
+    expect(projectOf('Revisar o kanban do deck', 'Outros').id).toBe('deck');
+    expect(projectOf('Bug grave no iterahq.dev').id).toBe('itera');
+    expect(projectOf('Algo sem projeto', 'Others').id).toBe('general');
+  });
+  it('puts running sessions first and caps idle desks', () => {
+    const now = 1e9;
+    const sessions = Array.from({ length: 12 }, (_, i) => ({ id: `i${i}`, title: 'Idle work', mtime: now - 1000 * (i + 1) }));
+    const old = { id: 'r', title: 'Old but running', mtime: now - 9e8 };
+    const { shown } = pickSessions({ sessions: [...sessions, old], running: new Set(['r']), now });
+    expect(shown[0].id).toBe('r');
+    expect(shown).toHaveLength(7);
+  });
+});
+
+describe('box link', () => {
+  const written = [{ id: 'a', role: 'assistant', blocks: [{ type: 'tool', tool: { id: 't', name: 'Write', label: 'Write', command: '/x.ts', status: 'done', output: [], diff: { path: '/x.ts', old: '', new: 'y' } } }] }] as unknown as Message[];
+  const s = sess('one');
+  const crates = (over: Partial<LiveInput>) => adaptLive(input({ sessions: [s], ...over }), emptyPlacement()).floor.crates;
+  it('gives a session no box until it has real output', () => {
+    expect(crates({})).toEqual([]);
+  });
+  it('parks a box by the desk once a file or PR exists', () => {
+    expect(crates({ threads: { one: written } })[0]).toMatchObject({ id: 'out-one', agentIds: ['s-one'] });
+    expect(crates({ prs: { one: 1 } })[0]).toMatchObject({ id: 'out-one', band: true });
+  });
+  it('prefers the real card link over a desk box, and keeps it past the status cap', () => {
+    const others = Array.from({ length: 9 }, (_, i) => ({ ...card(`c${i}`, 'todo'), updatedAt: 100 + i }));
+    const mine = { ...card('mine', 'todo'), sessionIds: ['one'] };
+    const out = crates({ cards: [...others, mine], prs: { one: 1 } });
+    expect(out.find((c) => c.id === 'card-mine')?.agentIds).toEqual(['s-one']);
+    expect(out.some((c) => c.id === 'out-one')).toBe(false);
+  });
+});

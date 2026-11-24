@@ -4,6 +4,7 @@ import { FORMAT_LABEL } from '../../../shared/canvas-prompt';
 import type { DflPointsSnapshot } from '../../../shared/protocol';
 import type { DflWriteResult } from '../../cockpit/usePoints';
 import { Button, Input, Modal, ToggleChip } from '../../components/primitives';
+import { useArmed } from '../../components/primitives/useArmed';
 import { STATUS_LABEL } from './canvas-labels';
 import { CardReusePicker } from './CardReusePicker';
 import { DflLinkSection } from './DflLinkSection';
@@ -61,13 +62,14 @@ export function CardEditor({
   // saved once (same reason its context/session chips only work post-save).
   const isDflArea = !isNew && node(`k:${card.id}`)?.area === 'dfl';
 
+  const del = useArmed();
   return (
     <Modal
       open onClose={onClose} icon={content ? 'sparkles' : 'zap'} maxWidth="max-w-xl"
       title={isNew ? (content ? 'Novo conteúdo' : 'Novo card') : 'Editar card'}
       footer={(
         <div className="flex w-full items-center gap-2">
-          {!isNew && <Button variant="danger" size="sm" icon="trash" onClick={() => onDelete(card.id)}>excluir</Button>}
+          {!isNew && <Button variant="danger" size="sm" icon="trash" onClick={() => del.fire(() => onDelete(card.id))}>{del.armed ? 'confirmar?' : 'excluir'}</Button>}
           <span className="flex-1" />
           <Button variant="secondary" size="sm" disabled={!ok} onClick={() => onSave(card)}>{isNew ? 'salvar no ToDo' : 'salvar'}</Button>
           <Button size="sm" icon="play" disabled={!ok || card.status !== 'todo'} onClick={() => onRun(card)}>salvar e rodar</Button>
@@ -97,14 +99,14 @@ export function CardEditor({
         <textarea
           value={card.prompt} onChange={(e) => patch({ prompt: e.target.value })} rows={6}
           placeholder={content ? 'briefing: público, ângulo, o que destacar' : 'o que o agente deve fazer'}
-          className="w-full resize-y rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-[12.5px] text-neutral-100 placeholder:text-neutral-600 focus:border-orange-500/50 focus:outline-hidden"
+          className="w-full resize-y rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-[13px] text-neutral-100 placeholder:text-neutral-600 focus:border-orange-500/50 focus:outline-hidden"
         />
         <div>
-          <div className="mb-1 text-[10.5px] font-medium uppercase tracking-wide text-neutral-500">Contextos e sessões que o agente recebe</div>
+          <div className="mb-1 text-[12px] font-medium uppercase tracking-wide text-neutral-500">Contextos e sessões que o agente recebe</div>
           <div className="flex flex-wrap gap-1">
             <Chips ids={card.contextIds} prefix="c" node={node} onRemove={(id) => patch({ contextIds: card.contextIds.filter((x) => x !== id) })} />
             <Chips ids={card.sessionIds} prefix="s" node={node} onRemove={(id) => patch({ sessionIds: card.sessionIds.filter((x) => x !== id) })} />
-            {!card.contextIds.length && !card.sessionIds.length && <span className="text-[11px] text-neutral-600">nenhum — selecione nós no canvas antes de criar o card</span>}
+            {!card.contextIds.length && !card.sessionIds.length && <span className="text-[12px] text-neutral-600">nenhum — selecione nós no canvas antes de criar o card</span>}
           </div>
         </div>
         <CardReusePicker reuse={card.reuse} candidates={candidates} onClear={() => patch({ reuse: undefined })} onPick={pickReuse} />

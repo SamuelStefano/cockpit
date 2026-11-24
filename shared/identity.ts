@@ -50,6 +50,11 @@ export function parseRootEmails(csv: string | undefined): Set<string> {
 export function canGrantAdmin(role: AccountRole): boolean {
   return role === 'root';
 }
+// The account list carries every e-mail: owner only (a plain admin manages the Deck,
+// not the people in it).
+export function canListAccounts(role: AccountRole): boolean {
+  return role === 'root';
+}
 export function canSeeAllAccounts(role: AccountRole): boolean {
   return role === 'root' || role === 'admin';
 }

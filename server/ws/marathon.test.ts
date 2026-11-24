@@ -50,3 +50,17 @@ describe('marca de maratona', () => {
     expect(M.isMarathon('s3')).toBe(false);
   });
 });
+
+describe('marathon file shared by two processes', () => {
+  it('sees a mark written by the other process, and a toggle keeps it', async () => {
+    const { utimesSync } = await import('node:fs');
+    M.setMarathon('mine', true);
+    // The other backend writes the file directly (same path, its own mark added).
+    writeFileSync(process.env.COCKPIT_MARATHON!, JSON.stringify({ keys: ['mine', 'theirs'] }));
+    const later = Date.now() / 1000 + 5;
+    utimesSync(process.env.COCKPIT_MARATHON!, later, later);
+    expect(M.isMarathon('theirs')).toBe(true);
+    M.setMarathon('mine', false);
+    expect(JSON.parse(readFileSync(process.env.COCKPIT_MARATHON!, 'utf8')).keys).toEqual(['theirs']);
+  });
+});

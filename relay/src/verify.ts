@@ -10,6 +10,9 @@ export interface Identity {
   accountId: string;     // = sub do JWT (server-side, red line #1)
   email: string;
   role: AccountRole;
+  // JWT expiry (ms epoch). The browser socket is closed at this instant: a login
+  // checked only at open kept a stolen/expired/signed-out token's channel alive.
+  expMs?: number;
 }
 
 // Valida os claims já decodificados de um JWT Supabase. PURA (sem rede): checa
@@ -17,7 +20,7 @@ export interface Identity {
 // null em qualquer falha → o chamador trata como identidade falha → fellow.
 export function validateClaims(
   claims: Record<string, unknown> | null | undefined,
-  opts: { iss: string; nowSec: number; rootEmails: ReadonlySet<string>; isAdmin: boolean },
+  opts: { iss: string; nowSec: number; rootEmails: ReadonlySet<string>; rootUserIds?: ReadonlySet<string>; isAdmin: boolean },
 ): Identity | null {
   if (!claims) return null;
   const { iss, sub, email, aud, exp } = claims as {
@@ -28,8 +31,11 @@ export function validateClaims(
   if (!auds.includes('authenticated')) return null;
   if (typeof exp !== 'number' || exp <= opts.nowSec) return null;
   if (!sub || !email) return null;
-  const role = roleFromIdentity(email, opts.isAdmin, opts.rootEmails, emailVerified(claims));
-  return { accountId: sub, email, role };
+  // Root also pinned by id: a fresh sign-up with a root e-mail has a different sub, so
+  // with the id list set it gets no root and falls through to admin/fellow.
+  const pinned = !opts.rootUserIds || opts.rootUserIds.size === 0 || opts.rootUserIds.has(sub);
+  const role = roleFromIdentity(email, opts.isAdmin, pinned ? opts.rootEmails : new Set(), emailVerified(claims));
+  return { accountId: sub, email, role, expMs: exp * 1000 };
 }
 
 // O Supabase põe `email_verified` em `user_metadata`; outros provedores usam o claim
@@ -65,6 +71,18 @@ export async function verifyJwtSignature(token: string, jwks: JwksFn, iss: strin
 // privada (que nasceu e ficou na VPS dele). 32 bytes base64url.
 export function makeChallenge(): string {
   return randomBytes(32).toString('base64url');
+}
+
+// The pairing frame's publicKey must be an Ed25519 SPKI (DER, base64), the only
+// thing verifyAgentSignature can check later. Anything else used to pair fine and
+// then fail every reconnect with a generic "bad sig".
+export function isEd25519Spki(publicKeyB64: string): boolean {
+  try {
+    const key = createPublicKey({ key: Buffer.from(publicKeyB64, 'base64'), format: 'der', type: 'spki' });
+    return key.asymmetricKeyType === 'ed25519';
+  } catch {
+    return false;
+  }
 }
 
 // Verifica a assinatura Ed25519 do agente sobre o challenge. publicKeyB64 = SPKI DER

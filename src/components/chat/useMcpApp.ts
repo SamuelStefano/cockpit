@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ToolCall } from '../../../shared/protocol';
 import { mcpAppDoc } from './mcp-app-doc';
+import { useSandboxDoc } from '../primitives/livepreview/useSandboxDoc';
 
 const MIN_HEIGHT = 120;
 const MAX_HEIGHT = 720;
@@ -15,6 +16,7 @@ export function useMcpApp(tool: ToolCall) {
   const [ready, setReady] = useState(false);
 
   const srcDoc = useMemo(() => (tool.app ? mcpAppDoc(tool.app.html, tool.app.csp) : ''), [tool.app]);
+  const sandbox = useSandboxDoc(ref, srcDoc);
 
   // Entregar de novo a cada mudança de status: o app é montado enquanto a tool
   // ainda roda e precisa saber quando o resultado chegou.
@@ -59,5 +61,5 @@ export function useMcpApp(tool: ToolCall) {
     );
   }, [ready, status, output]);
 
-  return { ref, srcDoc, height, ready };
+  return { ref, sandbox, height, ready };
 }

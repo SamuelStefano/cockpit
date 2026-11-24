@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { relayHttpBase } from '../../cockpit/session';
-import { diagnose, isExpired, remainingMs, fmtCountdown, type RelayProbe, type PairDiagnosis } from './pairing';
+import { issueDeviceCode } from '../../cockpit/device-code';
+import { diagnose, isExpired, remainingMs, fmtCountdown, setupCommand, windowsSetupCommand, type InstallMode, type RelayProbe, type PairDiagnosis } from './pairing';
 
 // Erros com mensagem própria pro usuário; o resto (TypeError de rede, SyntaxError
 // de JSON) vira uma mensagem genérica em vez de vazar "Unexpected token" cru.
@@ -9,27 +10,39 @@ class PairError extends Error {}
 export interface Pairing {
   code: string;
   cmd: string;
+  windowsCmd: string;
   err: string;
   busy: boolean;
   expired: boolean;
   countdown: string | null;
   probe: RelayProbe;
   diagnosis: PairDiagnosis;
+  mode: InstallMode;
+  setMode: (m: InstallMode) => void;
   fetchCode: () => void;
   testConnection: () => void;
 }
 
 const SETUP_URL = 'https://raw.githubusercontent.com/SamuelStefano/cockpit/main/scripts/agent-setup.sh';
+const WINDOWS_SETUP_URL = 'https://raw.githubusercontent.com/SamuelStefano/cockpit/main/scripts/agent-setup.ps1';
 
-export function usePairing(token: string, agentOnline = false): Pairing {
+// passkeyVersion: bump it when this browser adopts a passkey, so the shown
+// command gains its DECK_DEVICE_CODE.
+export function usePairing(token: string, agentOnline = false, admin = false, label = '', passkeyVersion = 0): Pairing {
   const [code, setCode] = useState('');
+  const [deviceCode, setDeviceCode] = useState('');
   const [expiresAt, setExpiresAt] = useState<string | null>(null);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
   const [probe, setProbe] = useState<RelayProbe>('unknown');
+  const [mode, setMode] = useState<InstallMode>('isolated');
   const [now, setNow] = useState(() => Date.now());
 
   const abortRef = useRef<AbortController | null>(null);
+  // Read at call time: supabase refreshes the JWT hourly, and a fetchCode keyed on
+  // it re-ran the mount effect and swapped the code under a half-typed command.
+  const tokenRef = useRef(token);
+  tokenRef.current = token;
   const probeRef = useRef<AbortController | null>(null);
 
   const fetchCode = useCallback(async () => {
@@ -44,9 +57,10 @@ export function usePairing(token: string, agentOnline = false): Pairing {
     try {
       const res = await fetch(`${relayHttpBase()}/pair/new`, {
         method: 'POST',
-        headers: { authorization: `Bearer ${token}` },
+        headers: { authorization: `Bearer ${tokenRef.current}` },
         signal: ctrl.signal,
       });
+      if (res.status === 409) throw new PairError('limite de máquinas atingido — remova uma máquina antes de adicionar outra');
       if (!res.ok) throw new PairError('falha ao gerar código');
       const data = (await res.json().catch(() => null)) as { code?: string; expiresAt?: string } | null;
       if (!data?.code) throw new PairError('resposta inválida do relay — tente de novo');
@@ -61,7 +75,7 @@ export function usePairing(token: string, agentOnline = false): Pairing {
       clearTimeout(timer);
       if (abortRef.current === ctrl) setBusy(false);
     }
-  }, [token]);
+  }, []);
 
   // "Testar conexão": prova de ida-e-volta com o relay AGORA, separada do código.
   // Sem isto o usuário não tinha como saber de que lado estava o silêncio.
@@ -86,6 +100,15 @@ export function usePairing(token: string, agentOnline = false): Pairing {
     return () => { abortRef.current?.abort(); probeRef.current?.abort(); };
   }, [fetchCode]);
 
+  // A fresh device secret per pair code: the one in the shown command is the
+  // only one this browser keeps.
+  useEffect(() => {
+    if (!code) return;
+    let live = true;
+    issueDeviceCode(code).then((c) => { if (live) setDeviceCode(c); }, () => { if (live) setDeviceCode(''); });
+    return () => { live = false; };
+  }, [code, passkeyVersion]);
+
   // Relógio só enquanto há prazo vivo: expirado não precisa mais de tick.
   const expired = isExpired(expiresAt, now);
   useEffect(() => {
@@ -102,13 +125,16 @@ export function usePairing(token: string, agentOnline = false): Pairing {
 
   return {
     code,
-    cmd: code ? `curl -fsSL ${SETUP_URL} | bash -s -- ${code}` : '',
+    cmd: code ? setupCommand(SETUP_URL, code, admin, mode, label, deviceCode) : '',
+    windowsCmd: code ? windowsSetupCommand(WINDOWS_SETUP_URL, code, admin, label, deviceCode) : '',
     err,
     busy,
     expired,
     countdown: left === null ? null : fmtCountdown(left),
     probe,
     diagnosis,
+    mode,
+    setMode,
     fetchCode: () => { void fetchCode(); },
     testConnection: () => { void testConnection(); },
   };

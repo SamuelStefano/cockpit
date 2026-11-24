@@ -61,3 +61,64 @@ describe('ComposerActions', () => {
     expect(onSubmit).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('ComposerActions primary slot', () => {
+  const mic = (over: Partial<{ supported: boolean; listening: boolean }> = {}) => ({ supported: true, listening: false, error: null, toggle: vi.fn(), ...over });
+
+  it('shows the dictation mic and dictates on click', () => {
+    const m = mic();
+    setup({ mic: m });
+    fireEvent.click(screen.getByLabelText('Ditar por voz'));
+    expect(m.toggle).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the mic next to send once there is text', () => {
+    setup({ mic: mic(), hasText: true });
+    expect(screen.getByLabelText('Ditar por voz')).toBeTruthy();
+    expect(screen.getByLabelText('Enviar mensagem')).toBeTruthy();
+  });
+
+  it('turns the mic into stop-dictation while listening', () => {
+    const m = mic({ listening: true });
+    setup({ mic: m, hasText: true });
+    fireEvent.click(screen.getByLabelText('Parar de ditar'));
+    expect(m.toggle).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the mic while a run is busy, before stop', () => {
+    const m = mic();
+    setup({ mic: m, busy: true });
+    fireEvent.click(screen.getByLabelText('Ditar por voz'));
+    expect(m.toggle).toHaveBeenCalledTimes(1);
+    expect(stop()).not.toBeNull();
+  });
+
+  it('has no mic when dictation is unsupported and send stays disabled', () => {
+    setup({ mic: mic({ supported: false }) });
+    expect(screen.queryByLabelText('Ditar por voz')).toBeNull();
+    expect((screen.getByLabelText('Enviar mensagem') as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('empty field: the main button stays a disabled send, never a call', () => {
+    setup({ mic: mic() });
+    expect(screen.queryByLabelText('Ligar')).toBeNull();
+    expect((screen.getByLabelText('Enviar mensagem') as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('never offers the call while a turn runs', () => {
+    setup({ busy: true, mic: mic() });
+    expect(screen.queryByLabelText('Ligar')).toBeNull();
+  });
+  it('a full box turns the send button into a queue button that explains the wait', () => {
+    const { onSubmit } = setup({ paused: true, holdReason: 'capacity', hasText: true });
+    const b = queue()!;
+    expect(b.getAttribute('title')).toContain('vaga');
+    fireEvent.click(b);
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+  });
+
+  it('a spent plan keeps its own wording', () => {
+    setup({ paused: true, hasText: true });
+    expect(queue()!.getAttribute('title')).toContain('tokens');
+  });
+});

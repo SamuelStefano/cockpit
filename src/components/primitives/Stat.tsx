@@ -28,9 +28,9 @@ export function Stat({ label, value, sub, icon, tone = 'neutral', plain = false,
   if (compact) {
     return (
       <div className={`min-w-0 ${className}`}>
-        <div className="truncate font-mono text-[10px] lowercase tracking-wide text-neutral-500">{label}</div>
+        <div className="truncate font-mono text-[12px] lowercase tracking-wide text-neutral-500">{label}</div>
         <div className={`mt-0.5 truncate font-mono text-[15px] font-semibold leading-tight tabular-nums tracking-tight ${t.value}`}>{value}</div>
-        {sub != null && <div className="truncate text-[10.5px] tabular-nums text-neutral-500">{sub}</div>}
+        {sub != null && <div className="truncate text-[12px] tabular-nums text-neutral-500">{sub}</div>}
       </div>
     );
   }
@@ -40,10 +40,10 @@ export function Stat({ label, value, sub, icon, tone = 'neutral', plain = false,
       {t.glow && !plain && <div aria-hidden className={`pointer-events-none absolute -right-6 -top-6 h-20 w-20 rounded-full blur-2xl ${t.glow}`} />}
       <div className="relative flex items-center gap-1.5">
         {icon && <Icon name={icon} size={11} className={t.icon} />}
-        <span className="text-[10.5px] font-medium uppercase tracking-[0.12em] text-neutral-500">{label}</span>
+        <span className="text-[12px] font-medium uppercase tracking-[0.12em] text-neutral-500">{label}</span>
       </div>
       <div className={`relative mt-1 text-[22px] font-bold leading-none tabular-nums tracking-tight ${t.value}`}>{value}</div>
-      {sub != null && <div className="relative mt-1 text-[11px] tabular-nums text-neutral-500">{sub}</div>}
+      {sub != null && <div className="relative mt-1 text-[12px] tabular-nums text-neutral-500">{sub}</div>}
     </div>
   );
 }

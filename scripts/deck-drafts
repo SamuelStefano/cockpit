@@ -20,6 +20,7 @@ import { join, dirname } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { applyDraftOp, sanitizeDrafts, draftPoints } from '../shared/dfl-drafts.ts';
 import { parseDraftsMarkdown } from '../shared/dfl-drafts-md.ts';
+import { withFileLockSync } from '../shared/file-lock.ts';
 
 const USAGE = `uso:
   deck-drafts list
@@ -63,9 +64,14 @@ function list() {
   }
 }
 
+// Every read-modify-write takes the same lock as the server (dfl-drafts.ts):
+// the browser edits this file through the agent while this CLI imports into it,
+// and without the lock one side's write dropped the other's. A die() inside
+// exits holding it; the lock is reclaimed as stale after 5s.
+const locked = (fn) => withFileLockSync(file(), fn);
+
 function addEpic([title]) {
-  const next = apply(load(), { op: 'add-epic', title });
-  save(next);
+  const next = locked(() => { const n = apply(load(), { op: 'add-epic', title }); save(n); return n; });
   const d = next[next.length - 1];
   process.stdout.write(`✓ épico ${d.id}: ${d.title}\n`);
 }
@@ -73,15 +79,14 @@ function addEpic([title]) {
 function addTask([epicId, title, rawPoints, ...refs]) {
   if (!epicId) die('epicId obrigatório');
   const points = Number(String(rawPoints ?? '').replace(',', '.'));
-  const next = apply(load(), { op: 'add-task', epicId, title, points, refs });
-  save(next);
+  locked(() => save(apply(load(), { op: 'add-task', epicId, title, points, refs })));
   process.stdout.write(`✓ task em ${epicId}: ${title} (${fmt(points)} pt)\n`);
 }
 
 function setStatus([raw, status]) {
   const ids = String(raw ?? '').split(',').map((s) => s.trim()).filter(Boolean);
   if (!ids.length) die('id obrigatório');
-  save(apply(load(), { op: 'set-status', id: ids, status }));
+  locked(() => save(apply(load(), { op: 'set-status', id: ids, status })));
   process.stdout.write(`✓ ${ids.join(', ')} → ${status}\n`);
 }
 
@@ -94,16 +99,18 @@ function importMd([path]) {
   try { md = readFileSync(path === '-' ? 0 : path, 'utf8'); } catch { die(`não consegui ler ${path}`); }
   const { epics, warnings } = parseDraftsMarkdown(md);
   if (!epics.length) die('nenhum "## Épico" encontrado');
-  let drafts = load();
-  const seen = new Set(drafts.map((d) => d.title));
   let added = 0;
-  for (const e of epics) {
-    if (seen.has(e.title)) { process.stdout.write(`· já existe: ${e.title}\n`); continue; }
-    drafts = apply(drafts, { op: 'add-epic', title: e.title, deliveries: e.deliveries });
-    added++;
-    process.stdout.write(`✓ ${drafts[drafts.length - 1].id}  ${e.title} — ${fmt(draftPoints(drafts[drafts.length - 1]))} pt\n`);
-  }
-  if (added) save(drafts);
+  locked(() => {
+    let drafts = load();
+    const seen = new Set(drafts.map((d) => d.title));
+    for (const e of epics) {
+      if (seen.has(e.title)) { process.stdout.write(`· já existe: ${e.title}\n`); continue; }
+      drafts = apply(drafts, { op: 'add-epic', title: e.title, deliveries: e.deliveries });
+      added++;
+      process.stdout.write(`✓ ${drafts[drafts.length - 1].id}  ${e.title} — ${fmt(draftPoints(drafts[drafts.length - 1]))} pt\n`);
+    }
+    if (added) save(drafts);
+  });
   for (const w of warnings) process.stderr.write(`aviso: ${w}\n`);
   process.stdout.write(`${added} épico(s) importado(s)\n`);
 }

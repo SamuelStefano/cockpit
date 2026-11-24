@@ -6,6 +6,9 @@ const CONN_META: Record<ConnState, { color: string; label: string }> = {
   down:         { color: 'var(--err)',  label: 'caiu' },
 };
 
+export const connStateLabel = (state: ConnState) => CONN_META[state].label;
+export const connStateColor = (state: ConnState) => CONN_META[state].color;
+
 interface ConnDotProps {
   label: string;
   state: ConnState;
@@ -17,7 +20,9 @@ export function ConnDot({ label, state, compact }: ConnDotProps) {
   const pulse = state === 'reconnecting';
   const description = `${label} · ${meta.label}`;
   return (
-    <div className="group relative flex items-center gap-1.5" title={description} aria-label={description} role="status">
+    // No `title`: the styled bubble below already shows on hover, and the native
+    // tooltip stacked a second copy of the same text over it a moment later.
+    <div className="group relative flex items-center gap-1.5" aria-label={description} role="status">
       <span
         className="relative inline-flex h-2 w-2 rounded-full"
         style={{
@@ -27,8 +32,8 @@ export function ConnDot({ label, state, compact }: ConnDotProps) {
           animation: pulse ? 'pulseRing 1.1s ease-out infinite' : 'none',
         }}
       />
-      {!compact && <span className="text-[11px] font-medium text-neutral-400">{label}</span>}
-      <span className="pointer-events-none absolute left-1/2 top-full z-50 mt-1.5 hidden -translate-x-1/2 whitespace-nowrap rounded-md border border-neutral-700 bg-neutral-900 px-2 py-1 text-[10px] text-neutral-200 shadow-xl group-hover:block">
+      {!compact && <span className="text-[12px] font-medium text-neutral-400">{label}</span>}
+      <span className="pointer-events-none absolute left-1/2 top-full z-50 mt-1.5 hidden -translate-x-1/2 whitespace-nowrap rounded-md border border-neutral-700 bg-neutral-900 px-2 py-1 text-[12px] text-neutral-200 shadow-xl group-hover:block">
         {description}
       </span>
     </div>

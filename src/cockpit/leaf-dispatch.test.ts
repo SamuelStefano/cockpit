@@ -1,14 +1,12 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
-import { useNotes } from './useNotes';
 import { useCrons } from './useCrons';
 import { usePoints } from './usePoints';
 import { useContexts } from './useContexts';
 import { useSkills } from './useSkills';
 import { useGraphs } from './useGraphs';
 import { useAdmin } from './useAdmin';
-import { useHarness } from './useHarness';
 import type { ClientMsg, ServerMsg } from '../../shared/protocol';
 
 // O useCockpit repassa cada frame pela corrente de hooks e para no primeiro que
@@ -17,22 +15,19 @@ import type { ClientMsg, ServerMsg } from '../../shared/protocol';
 // Este teste é a guarda: as reivindicações têm que ser disjuntas.
 const send = vi.fn((_m: ClientMsg) => true);
 
-const CADEIA = ['notes', 'crons', 'points', 'contexts', 'skills', 'graphs', 'admin', 'harness'] as const;
+const CADEIA = ['crons', 'points', 'contexts', 'skills', 'graphs', 'admin'] as const;
 
 const montarCadeia = () => renderHook(() => ({
-  notes: useNotes(send).onMsg,
   crons: useCrons(send).onMsg,
   points: usePoints(send).onMsg,
   contexts: useContexts(send).onMsg,
   skills: useSkills(send).onMsg,
   graphs: useGraphs(send).onMsg,
   admin: useAdmin(send).onMsg,
-  harness: useHarness(send).onMsg,
 })).result.current;
 
 // Um frame representativo de cada tipo que a corrente deve reivindicar, e de quem.
 const FRAMES: [ServerMsg, (typeof CADEIA)[number]][] = [
-  [{ t: 'notes', text: '' }, 'notes'],
   [{ t: 'crons', items: [] }, 'crons'],
   [{ t: 'points', entries: [], total: 0 }, 'points'],
   [{ t: 'points-dfl', snapshot: null }, 'points'],
@@ -49,8 +44,6 @@ const FRAMES: [ServerMsg, (typeof CADEIA)[number]][] = [
   [{ t: 'health', health: { claudeCli: true, sqlite: true, disk: 0, uptime: 0 } as never }, 'admin'],
   [{ t: 'accounts', accounts: [] }, 'admin'],
   [{ t: 'admin-op', ok: true, message: '' }, 'admin'],
-  [{ t: 'harness-tasks', tasks: [] }, 'harness'],
-  [{ t: 'harness-event', taskId: 'a', event: { kind: 'text', text: '' } }, 'harness'],
 ];
 
 describe('corrente de dispatch dos domínios-folha', () => {

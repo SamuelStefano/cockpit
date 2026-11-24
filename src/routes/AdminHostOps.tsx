@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Button, Icon, Input } from '../components/primitives';
+import { Button, Icon, Input, tokens as ui } from '../components/primitives';
 import type { AdminHealth } from '../../shared/protocol';
 import { AdminConfirm } from './AdminConfirm';
+import { validEnvName } from '../../shared/env-name';
 
 // Controle de escrita do host no painel admin (#162, DR-023): tokens de ambiente,
 // MCPs e instalação de CLI. Só role admin chega aqui (o agente nega via authorize);
@@ -11,7 +12,7 @@ import { AdminConfirm } from './AdminConfirm';
 interface AdminHostOpsProps {
   health: AdminHealth | null;
   adminOp: { ok: boolean; message: string } | null;
-  onEnvSet: (name: string, value: string) => void;
+  onEnvSet: (name: string, value: string) => boolean;
   onEnvUnset: (name: string) => void;
   onMcpAdd: (name: string, opts: { command?: string; url?: string }) => void;
   onMcpRemove: (name: string) => void;
@@ -50,10 +51,12 @@ export function AdminHostOps({ health, adminOp, onEnvSet, onEnvUnset, onMcpAdd, 
     setPending(null);
   };
 
+  const envNameBad = envName.trim() !== '' && !validEnvName(envName.trim());
   const addEnv = () => {
     const name = envName.trim();
-    if (!name || !envValue) return;
-    const run = () => { onEnvSet(name, envValue); setEnvName(''); setEnvValue(''); };
+    if (!name || !envValue || !validEnvName(name)) return;
+    // A dropped send (socket down) keeps the secret in the field to retry.
+    const run = () => { if (onEnvSet(name, envValue)) { setEnvName(''); setEnvValue(''); } };
     if ((health?.envTokens ?? []).includes(name)) setReplacing({ kind: 'env', name, run });
     else run();
   };
@@ -73,29 +76,31 @@ export function AdminHostOps({ health, adminOp, onEnvSet, onEnvUnset, onMcpAdd, 
   const present = new Set((health?.clis ?? []).filter((c) => c.present).map((c) => c.name));
 
   return (
-    <div className="mb-5 rounded-xl border border-neutral-800 bg-neutral-900/40 p-4 hairline">
-      <h2 className="mb-3 flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-wide text-neutral-400">
+    <div className="mb-5 rounded-xl border border-neutral-800 bg-neutral-900/40 p-4 hairline max-lg:mb-0 max-lg:rounded-none max-lg:border-0 max-lg:border-t max-lg:bg-transparent max-lg:px-0 max-lg:py-4 max-lg:shadow-none">
+      <h2 className="mb-3 flex items-center gap-1.5 text-[13px] font-semibold uppercase tracking-wide text-neutral-400">
         <Icon name="zap" size={12} /> Controle do host
       </h2>
 
-      <h3 className="mb-1.5 text-[11px] uppercase tracking-wider text-neutral-500">Tokens de ambiente</h3>
+      <h3 className="mb-1.5 text-[12px] uppercase tracking-wider text-neutral-500">Tokens de ambiente</h3>
+      <p className="mb-2 text-[12px] text-amber-300">Todo turno de modelo herda estes tokens. Segredo aqui fica ao alcance do agente: prefira o Drop privado.</p>
       <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center">
-        <Input size="sm" className="min-w-0 flex-1" placeholder="NOME" aria-label="Nome do token de ambiente" value={envName} onChange={(e) => setEnvName(e.target.value)} />
+        <Input size="sm" className="min-w-0 flex-1" placeholder="NOME" aria-label="Nome do token de ambiente" aria-invalid={envNameBad} error={envNameBad} value={envName} onChange={(e) => setEnvName(e.target.value)} />
         <Input size="sm" className="min-w-0 flex-1" type="password" placeholder="valor (não volta)" aria-label="Valor do token de ambiente" value={envValue} onChange={(e) => setEnvValue(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && !e.nativeEvent.isComposing && addEnv()} />
-        <Button variant="secondary" size="sm" onClick={addEnv} disabled={!envName.trim() || !envValue}>Salvar</Button>
+        <Button variant="secondary" size="sm" onClick={addEnv} disabled={!envName.trim() || !envValue || envNameBad}>Salvar</Button>
       </div>
+      {envNameBad && <p role="alert" className="-mt-1 mb-2 text-[12px] text-red-300">Nome inválido: só letras, números e _, sem começar por número (ex: GITHUB_TOKEN).</p>}
       {tokens.length > 0 && (
         <ul className="mb-3 flex flex-wrap gap-1.5">
           {tokens.map((t) => (
-            <li key={t} className="flex items-center gap-1 rounded-md border border-neutral-800 bg-neutral-900/60 px-2 py-0.5 text-[11px] text-neutral-300">
+            <li key={t} className="flex min-w-0 max-w-full items-center gap-1 wrap-anywhere rounded-md border border-neutral-800 bg-neutral-900/60 px-2 py-0.5 text-[12px] text-neutral-300">
               {t}
-              <button onClick={() => setPending({ kind: 'env', name: t })} title={`Remover ${t}`} className="text-neutral-600 hover:text-red-300"><Icon name="x" size={11} /></button>
+              <button onClick={() => setPending({ kind: 'env', name: t })} title={`Remover ${t}`} aria-label={`Remover token ${t}`} className={`shrink-0 text-neutral-600 hover:text-red-300 ${ui.touchBox}`}><Icon name="x" size={11} /></button>
             </li>
           ))}
         </ul>
       )}
 
-      <h3 className="mb-1.5 mt-2 text-[11px] uppercase tracking-wider text-neutral-500">Servidores MCP</h3>
+      <h3 className="mb-1.5 mt-2 text-[12px] uppercase tracking-wider text-neutral-500">Servidores MCP</h3>
       <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center">
         <Input size="sm" className="min-w-0 flex-1" placeholder="nome" aria-label="Nome do servidor MCP" value={mcpName} onChange={(e) => setMcpName(e.target.value)} />
         <Input size="sm" className="min-w-0 flex-1" placeholder="url http(s) ou comando stdio" aria-label="URL ou comando do servidor MCP" value={mcpTarget} onChange={(e) => setMcpTarget(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && !e.nativeEvent.isComposing && addMcp()} />
@@ -104,9 +109,9 @@ export function AdminHostOps({ health, adminOp, onEnvSet, onEnvUnset, onMcpAdd, 
       {mcps.length > 0 && (
         <ul className="mb-3 flex flex-wrap gap-1.5">
           {mcps.map((m) => (
-            <li key={m.name} className="flex items-center gap-1 rounded-md border border-neutral-800 bg-neutral-900/60 px-2 py-0.5 text-[11px] text-neutral-300">
+            <li key={m.name} className="flex min-w-0 max-w-full items-center gap-1 wrap-anywhere rounded-md border border-neutral-800 bg-neutral-900/60 px-2 py-0.5 text-[12px] text-neutral-300">
               {m.name} <span className="text-neutral-600">{m.transport}</span>
-              <button onClick={() => setPending({ kind: 'mcp', name: m.name })} title={`Remover ${m.name}`} className="text-neutral-600 hover:text-red-300"><Icon name="x" size={11} /></button>
+              <button onClick={() => setPending({ kind: 'mcp', name: m.name })} title={`Remover ${m.name}`} aria-label={`Remover MCP ${m.name}`} className={`shrink-0 text-neutral-600 hover:text-red-300 ${ui.touchBox}`}><Icon name="x" size={11} /></button>
             </li>
           ))}
         </ul>
@@ -114,7 +119,7 @@ export function AdminHostOps({ health, adminOp, onEnvSet, onEnvUnset, onMcpAdd, 
 
       {installable.length > 0 && (
         <>
-          <h3 className="mb-1.5 mt-2 text-[11px] uppercase tracking-wider text-neutral-500">Instalar CLI <span className="text-neutral-600">(só loopback)</span></h3>
+          <h3 className="mb-1.5 mt-2 text-[12px] uppercase tracking-wider text-neutral-500">Instalar CLI <span className="text-neutral-600">(só loopback)</span></h3>
           <div className="flex flex-wrap gap-1.5">
             {installable.map((name) => (
               <Button

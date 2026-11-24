@@ -3,6 +3,11 @@ import { emitTurnClosed } from '../canvas/turn-hooks';
 import type { WebSocket } from 'ws';
 import type { Cron, ResumeOfferReason } from '../../shared/protocol';
 import { run, resolveMcpSelection } from '../engine/claude';
+import { runAgent } from '../agents/acp-run';
+import { runByo } from '../agents/byo-run';
+import { byoModelOf } from '../../shared/byo-providers';
+import { restrictedModelError, stripRestricted } from '../engine/restricted-profile';
+import { agentIdOf, billsClaudePlan, isAgentModel } from '../../shared/agents';
 import { CONFIG } from '../config';
 import type { Role } from '../auth';
 import { broadcast, send } from './broadcast';
@@ -10,17 +15,21 @@ import { detach } from './detach';
 import { translate } from './translate';
 import { summarize } from '../summary';
 import { classify, quickAnswer } from '../engine/triage';
-import { suggestFollowups } from '../engine/suggest';
+import { priorityCarry } from './priority-carry';
 import { isAwaiting, clearAwaiting } from './awaiting';
 import { parkedHeads, shiftParked, unshiftParked, addParked, findParked, takeParked, promoteParked, parkedView, isQueuePaused, MAX_PARKED_ATTEMPTS, REJECT_MESSAGE, type ParkedItem } from './parked';
 import { resumableId } from './resume';
+import { parseCliTooOld } from '../engine/cli-version-error';
+import { cliUpdater, type CliUpdateResult } from '../engine/cli-update';
 import { quotaHold, burnedByQuota } from './quota';
 import { getLastPlanUsage, notePlanUsageChanged } from './usage-plan';
+import { noteGrokUsageChanged } from './usage-grok';
+import { scheduleTeamStatePush } from './team-state-push';
 import {
   ctxVerdict, verdictMessage, costFor, isBigColdStart, acquireCold, releaseCold,
-  noteQuotaTransition, inResetCooldown, type Verdict,
+  noteQuotaTransition, inResetCooldown, queueReleaseAt, type Verdict,
 } from './ctx-guard';
-import { markRunLive, clearRunLive, takeOrphanRuns } from './recover';
+import { markRunLive, clearRunLive, takeOrphanRuns, type LiveRun } from './recover';
 import { recordIncident } from './incidents';
 import { readMemInfo, memoryVerdict, nextResumeDelayMs, memoryRunCap } from './mem-guard';
 import {
@@ -29,12 +38,19 @@ import {
 } from './kill-class';
 import { authHold, isAuthFailure, markAuthBroken, AUTH_MESSAGE } from './auth-health';
 import { threadIsMarathon, MARATHON_AUTO_RESUME_CAP } from './marathon';
+import { bindBotSession, getTeam } from '../team';
+import { refreshAgentSource } from '../agent-source';
+import { botTurnParams, botDenyRules } from '../team-prompt';
+import { readMemoriesSafe } from '../memories';
+import { botThreadKey } from '../../shared/team';
+import { clearBotQuestion } from './team-pending-frames';
 import { threads, admitRun, resolveThreadKey, stopSession, stopEpochOf, clearStopEpoch, shouldPreserveLive, runParams, sameParams, type Thread, type RunParams } from './threads';
 import { isAreaAdmissionBlocked } from '../canvas/autopause-loop';
-import { enqueuePending, hasPending, takePendingBatch, takeAllPending, type QueuedSend } from './pending';
-import { readOrchestratorSync, isTmuxAliveSync } from '../canvas/orchestrator';
+import { enqueuePending, takePendingBatch, takeAllPending, type QueuedSend } from './pending';
+import { readOrchestratorSync, isTmuxAliveSync, paneLostClaudeSync, tmuxStateSync } from '../canvas/orchestrator';
 import { orchestratorTermId, buildPastedSend } from '../../shared/canvas';
 import { hasTerm, openTerm, inputTerm } from '../terminals';
+import { readBusyElsewhereSessionIds } from '../canvas/cv-liveness';
 
 // --- morte silenciosa do turno (o "chat simplesmente parou") -----------------
 
@@ -101,8 +117,18 @@ export function acceptResumeOffer(sessionKey: string): boolean {
   if (!offer) return false;
   resumeOffers.delete(sessionKey);
   if (threads.has(sessionKey)) return false;
+  // A stale banner on another device: the session already continued in the other
+  // backend. Resuming it here would be a second writer on the same transcript.
+  if (offer.sessionId && busyElsewhere.has(offer.sessionId)) return false;
   autoResumes.delete(sessionKey);
-  startRun({ ...offer.params, ws: null, sessionKey, prompt: RESUME_PROMPT, resumeId: offer.sessionId, queued: true, flowHop: offer.flowHop });
+  if (startRun({ ...offer.params, ws: null, sessionKey, prompt: RESUME_PROMPT, resumeId: offer.sessionId, queued: true, flowHop: offer.flowHop }) === 'rejected') {
+    // Nothing started. The client already cleared the banner on click, so send the
+    // offer again (and say why) — returning false would show "not available
+    // anymore", which is wrong: it is, just not right now.
+    resumeOffers.set(sessionKey, offer);
+    broadcast({ t: 'error', sessionKey, message: 'A máquina está sem memória livre pra retomar agora — tente de novo em instantes.' });
+    broadcast({ t: 'resume-offer', sessionKey, sessionId: offer.sessionId, reason: 'exhausted', message: 'O turno está guardado — retome quando a memória liberar.' });
+  }
   return true;
 }
 
@@ -135,7 +161,13 @@ function autoResume(sessionKey: string, thread: Thread): void {
   // Avisa aqui, não em quem detectou a morte: só neste ponto a retomada é certa
   // (passou das guardas de corrida acima e do teto de tentativas).
   broadcast({ t: 'error', sessionKey, message: 'Retomando de onde parou…' });
-  startRun({ ...thread.params, ws: null, sessionKey, prompt: RESUME_PROMPT, resumeId: thread.sessionId, flowHop: thread.flowHop });
+  const r = startRun({ ...thread.params, ws: null, sessionKey, prompt: RESUME_PROMPT, resumeId: thread.sessionId, flowHop: thread.flowHop });
+  if (r === 'rejected') {
+    // No room right now (memory): give the attempt back and leave a banner, instead
+    // of "Retomando…" followed by nothing.
+    autoResumes.set(sessionKey, tries - 1);
+    offerResume(sessionKey, thread, 'exhausted', 'A máquina está sem memória livre pra retomar agora. O turno está guardado — retome quando liberar.');
+  }
 }
 
 // D2 — gate de memória na frente do autoResume: subir --resume com a memória
@@ -144,12 +176,28 @@ function autoResume(sessionKey: string, thread: Thread): void {
 // com backoff SEM contar tentativa — o cap real só é gasto quando a retomada
 // roda de fato. Todas as guardas de corrida (threads.has, isAwaiting, etc.) vivem
 // dentro de autoResume() e são reavaliadas do zero a cada disparo do timer.
-interface ResumeWait { waitedMs: number; backoffAttempt: number }
+interface ResumeWait { waitedMs: number; backoffAttempt: number; gen?: string }
+
+// Bumped by every turn that is not our own resume, on its key AND its session id.
+// A resume timer (memory backoff, external-kill wait) re-checked only "is a turn
+// running on this key right now": a turn the user started and FINISHED during the
+// wait slipped past it, and the timer later resumed the dead turn with its old
+// params — a phantom "Continue de onde parou" redoing superseded work.
+const resumeGen = new Map<string, number>();
+function bumpResumeGen(key?: string): void {
+  if (key) resumeGen.set(key, (resumeGen.get(key) ?? 0) + 1);
+}
+function resumeGenOf(sessionKey: string, sessionId?: string): string {
+  return `${resumeGen.get(sessionKey) ?? 0}:${sessionId ? resumeGen.get(sessionId) ?? 0 : 0}`;
+}
 
 function maybeAutoResume(sessionKey: string, thread: Thread, cause: DeathCause, wait: ResumeWait = { waitedMs: 0, backoffAttempt: 1 }): void {
-  // Um turno novo já pegou a sessão enquanto esperávamos: nada a retomar, e
-  // atropelá-lo seria pior que não retomar.
-  if (threads.has(sessionKey)) return;
+  const gen = wait.gen ?? resumeGenOf(sessionKey, thread.sessionId);
+  if (resumeGenOf(sessionKey, thread.sessionId) !== gen) return;
+  // Um turno novo já pegou a sessão enquanto esperávamos (inclusive sob outra
+  // chave, ex. o id real de um chat new-…): nada a retomar, e atropelá-lo seria
+  // pior que não retomar.
+  if (threads.has(sessionKey) || (thread.sessionId && resolveThreadKey(thread.sessionId))) return;
   // Sinal EXTERNO (deploy, varredura do earlyoom, pkill): o processo não quebrou,
   // alguém o matou — e quem matou costuma matar todos os irmãos na mesma rajada e
   // subir um processo novo em seguida. Re-disparar agora entrega o `--resume` de
@@ -165,7 +213,7 @@ function maybeAutoResume(sessionKey: string, thread: Thread, cause: DeathCause, 
     }
     if (gate === 'wait') {
       const timer = setTimeout(
-        () => maybeAutoResume(sessionKey, thread, cause, { ...wait, waitedMs: wait.waitedMs + EXTERNAL_POLL_MS }),
+        () => maybeAutoResume(sessionKey, thread, cause, { ...wait, gen, waitedMs: wait.waitedMs + EXTERNAL_POLL_MS }),
         EXTERNAL_POLL_MS,
       );
       timer.unref?.();
@@ -179,7 +227,7 @@ function maybeAutoResume(sessionKey: string, thread: Thread, cause: DeathCause, 
   // como sempre se a memória continuar ruim. Preso pra sempre seria pior que isso.
   if (delay === null) { autoResume(sessionKey, thread); return; }
   const timer = setTimeout(
-    () => maybeAutoResume(sessionKey, thread, cause, { waitedMs: wait.waitedMs + delay, backoffAttempt: wait.backoffAttempt + 1 }),
+    () => maybeAutoResume(sessionKey, thread, cause, { gen, waitedMs: wait.waitedMs + delay, backoffAttempt: wait.backoffAttempt + 1 }),
     delay,
   );
   timer.unref?.();
@@ -221,22 +269,22 @@ export function drainParked(): void {
   // durante um reset, o cooldown nunca armava e o primeiro dreno após retomar
   // subia em cima da janela recém-virada.
   const hold = quotaHold();
-  noteQuotaTransition(hold);
+  // Clientes só sabem do cooldown se forem avisados na virada.
+  if (noteQuotaTransition(hold)) broadcastQueue();
   if (isQueuePaused()) return; // pausa manual do usuário: segura tudo até retomar
-  if (authHold()) return;      // dead OAuth login: every fired prompt would die until /login
-  if (hold) return;            // sem token: o turno morreria no limite e o prompt seria queimado
   // Janela recém-virada: em 04/09 uma sessão de 631k subiu 1 MINUTO após o reset e
   // já tinha comido 0,77M do ciclo novo quando o Samuel abriu o Deck. O #519
   // espalha a fila pelo tick de 30s; este cooldown dá ao poll de usage (60s) tempo
-  // de trazer o número novo antes do primeiro disparo.
-  if (inResetCooldown()) return;
+  // de trazer o número novo antes do primeiro disparo. A cota é do Claude: um item
+  // de agente externo (Grok) segue, porque a conta dele não está nessa janela.
   let fired = 0;
   for (const { sessionKey, first } of parkedHeads()) {
     if (fired >= MAX_DRAIN_PER_PASS) break;
     // Reavaliado a cada disparo: o turno que acabou de subir pode ter estourado a
     // janela, e o teto lido só no topo do dreno deixaria o resto da fila subir em
-    // cima de uma quota que já acabou.
-    if (quotaHold()) break;
+    // cima de uma quota que já acabou. Item de agente externo não gasta essa janela.
+    // Same for a dead OAuth login: every Claude prompt would die until /login, an agent's would not.
+    if (billsClaudePlan(first.model) && (authHold() || quotaHold() || inResetCooldown())) continue;
     if (first.held) continue;                   // bateu o teto de tentativas: espera o usuário mandar retomar
     // Turno parou numa pergunta: o translate mata o run pra o card ficar respondível,
     // então a sessão fica ociosa e o drainer a via como livre. O item subia como se
@@ -244,7 +292,12 @@ export function drainParked(): void {
     // card sumia sem nunca ter sido respondido. Só a resposta do usuário (ou o
     // queue-force) destrava.
     if (isAwaiting(sessionKey)) continue;
-    if (resolveThreadKey(sessionKey)) continue; // turno rodando: um por vez
+    const liveKey = resolveThreadKey(sessionKey);
+    if (liveKey && !isBgWaiting(liveKey)) continue; // turno rodando: um por vez
+    // Busy in the other process, unless it is the Orchestrator's own session: that
+    // is an interactive claude (always "busy" in the registry while it works) and
+    // its queue items are pasted into its pane, never run headless.
+    if (busyElsewhere.has(first.resumeId ?? sessionKey) && !orchestratorPaneTarget(first.resumeId ?? sessionKey, first.role)) continue;
     // Área do canvas estourou o orçamento (autopause ligado): não readmite trabalho
     // DESACOMPANHADO ali — senão o item sobe, autopause para de novo em ~30s, e o
     // dreno tenta de novo no próximo tick (stop→drain→stop). O chat manual do
@@ -264,7 +317,11 @@ export function drainParked(): void {
     // Só quota (sem janela) e cold-busy (transitório) seguram — e em silêncio, que
     // o próximo tick resolve.
     const pre = ctxVerdict({ sessionId: first.resumeId, sessionKey, usage: getLastPlanUsage() });
-    if (pre.kind === 'quota' || pre.kind === 'cold-busy') continue;
+    if (billsClaudePlan(first.model) && (pre.kind === 'quota' || pre.kind === 'cold-busy')) continue;
+    if (liveKey) {
+      if (deliverIntoBgWait(liveKey, sessionKey)) fired++;
+      continue;
+    }
     // Runs on a 30s timer: a disk error here must not escape as an uncaughtException.
     let item: ParkedItem | undefined;
     try { item = shiftParked(sessionKey); }
@@ -275,8 +332,13 @@ export function drainParked(): void {
     // se aquele transcript não existe mais, roda como turno novo em vez de morrer.
     const resume = resumableId(item.resumeId);
     if (item.resumeId && !resume) recordIncident({ kind: 'parked-resume-morto', sessionKey, sessionId: item.resumeId, detail: `item ${item.id} disparado como turno novo` });
-    const delivered = startRun({ ...runParams(item), ws: null, sessionKey, prompt: item.prompt, resumeId: resume, queued: true });
+    // msgId = the item id: startRun echoes the prompt as the user bubble. Without it a
+    // drained prompt only showed up after a transcript reload.
+    const delivered = startRun({ ...runParams(item), ws: null, sessionKey, prompt: item.prompt, resumeId: resume, queued: true, msgId: item.id });
     if (delivered === 'pane') { fired++; broadcastQueue(); continue; }
+    // Refused for capacity: not the item's fault, so no attempt is counted (three
+    // memory refusals in a row used to mark it `held` and freeze the session's queue).
+    if (delivered === 'rejected') { unshiftParked(sessionKey, item, false); broadcastQueue(); continue; }
     // O run pode nem ter subido (teto de sessões simultâneas): sem isto o item já
     // saiu do disco e o prompt sumia. Subiu = fica amarrado ao thread pra voltar
     // pra fila se o teto de tokens matar o turno.
@@ -284,7 +346,15 @@ export function drainParked(): void {
     // Só conta o que virou turno de verdade: um item devolvido não gastou quota, e
     // gastar o teto da passada com ele seguraria a fila sem motivo.
     if (th) { th.parked = item; fired++; }
-    else unshiftParked(sessionKey, item);
+    else {
+      // Same 30s timer as the shift above: a disk error putting the item back
+      // must not escape as an uncaughtException either.
+      try { unshiftParked(sessionKey, item); }
+      catch (e) {
+        broadcast({ t: 'error', sessionKey, message: `Não consegui devolver o item à fila (${(e as Error).message}). Pedido: ${item.prompt.slice(0, 200)}` });
+        recordIncident({ kind: 'run-error', sessionKey, detail: `drain unshift failed: ${(e as Error).message}`.slice(0, 400) });
+      }
+    }
     // O item saiu (ou voltou) do parked.json: sem este broadcast a fila drenada some
     // do disco mas continua na tela de quem não está na sessão — o drainer roda com
     // ws null e o 'started' do turno não mexe na lista de fila do cliente.
@@ -292,8 +362,48 @@ export function drainParked(): void {
   }
 }
 
+function isBgWaiting(liveKey: string): boolean {
+  const th = threads.get(liveKey);
+  return !!th?.bgWaitSince && !!th.pendingBgTasks?.length;
+}
+
+// A turn that already answered but whose process stays alive for a background task
+// (dev server, poll loop) used to hold its parked queue for hours: the drainer only
+// fires on sessions without a thread. Same move as routeSend's bg-wait branch —
+// write the item onto the live stdin instead of a second `--resume` on the transcript.
+function deliverIntoBgWait(liveKey: string, sessionKey: string): boolean {
+  const th = threads.get(liveKey);
+  if (!th) return false;
+  let item: ParkedItem | undefined;
+  try { item = shiftParked(sessionKey); }
+  catch (e) { console.error('[drainParked] shift failed:', (e as Error).message); return false; }
+  if (!item) return false;
+  if (!th.handle.send(item.prompt)) {
+    try { unshiftParked(sessionKey, item, false); }
+    catch (e) { recordIncident({ kind: 'run-error', sessionKey, detail: `drain unshift failed: ${(e as Error).message}`.slice(0, 400) }); }
+    broadcastQueue();
+    return false;
+  }
+  th.bgWaitSince = undefined;
+  th.prompt = item.prompt;
+  broadcast({ t: 'user', sessionKey: liveKey, id: item.id, text: item.prompt, ts: Date.now() });
+  broadcastQueue();
+  return true;
+}
+
+// Sessions running a turn in the OTHER backend process (index ↔ relay agent) or
+// in an interactive claude, from the shared process registry. The drainer only
+// saw this process's threads, so a prompt queued on a session the other backend
+// was running started `claude -p --resume` on top of it: two writers on one
+// transcript. Refreshed before every drain tick (and before a resume click).
+let busyElsewhere: ReadonlySet<string> = new Set();
+export async function refreshBusyElsewhere(): Promise<void> {
+  try { busyElsewhere = new Set(await readBusyElsewhereSessionIds()); } catch { /* keep the last read */ }
+}
+const drainTick = () => { void refreshBusyElsewhere().then(drainParked, drainParked); };
+
 function broadcastQueue(): void {
-  broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
+  broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused(), releaseAt: queueReleaseAt() });
 }
 
 export type BgRunReject = 'sem-item' | 'sem-contexto' | 'sem-quota' | 'sem-slot' | 'falhou' | 'ctx-grande';
@@ -331,8 +441,10 @@ export type BgRunReject = 'sem-item' | 'sem-contexto' | 'sem-quota' | 'sem-slot'
 export function runParkedInBackground(
   sessionKey: string, id: string, role?: Role, model?: string, attachRecovery = true, enforceHardCtxCap = false, flowHop?: number,
 ): { forkId: string } | { reject: BgRunReject } {
-  if (quotaHold()) return { reject: 'sem-quota' };
   const peek = findParked(sessionKey, id);
+  // Sem item ainda conta como cota do Claude: a recusa antiga era 'sem-quota'
+  // antes de olhar a fila, e um modelo externo explícito é o único furo.
+  if (quotaHold() && billsClaudePlan(model ?? peek?.model)) return { reject: 'sem-quota' };
   if (!peek) return { reject: 'sem-item' };
   // O fork LÊ o transcript inteiro do pai: é cold-start do tamanho da sessão de
   // origem, não um turno novo barato. Ainda assim o teto de contexto não barra —
@@ -340,7 +452,7 @@ export function runParkedInBackground(
   // envio manual. Quota e cold-busy seguram (janela de verdade acabando).
   const v = ctxVerdict({ sessionId: peek.resumeId, usage: getLastPlanUsage() });
   if (enforceHardCtxCap && v.kind === 'hard') return { reject: 'ctx-grande' };
-  if (v.kind === 'quota' || v.kind === 'cold-busy') return { reject: 'sem-quota' };
+  if (billsClaudePlan(model ?? peek.model) && (v.kind === 'quota' || v.kind === 'cold-busy')) return { reject: 'sem-quota' };
   // Sem transcript não há o que forkar, e rodar como turno novo perderia justamente
   // o contexto que é o motivo do disparo.
   const parent = resumableId(peek.resumeId);
@@ -384,7 +496,8 @@ export type NowRunReject = 'sem-item' | 'segurado' | 'fila-pausada' | 'sem-quota
 // pegava o item no tick seguinte, com a UI do index sem ver turno nenhum.
 export function runParkedNow(sessionKey: string, id: string, role?: Role): { ok: true } | { reject: NowRunReject } {
   if (isQueuePaused()) return { reject: 'fila-pausada' };
-  if (quotaHold()) return { reject: 'sem-quota' };
+  const queued = findParked(sessionKey, id);
+  if (quotaHold() && billsClaudePlan(queued?.model)) return { reject: 'sem-quota' };
   // Pergunta pendente: o drainer ignora a sessão até a resposta, então promover e
   // matar o turno deixaria o item no topo sem nada subir. Recusa aqui em vez de
   // limpar o latch: abrir mão do card é decisão explícita do usuário (queue-force).
@@ -405,14 +518,26 @@ export function runParkedNow(sessionKey: string, id: string, role?: Role): { ok:
   // disparo em background) — a falha é do disparo, não do prompt.
   const item = takeParked(sessionKey, id, role);
   if (!item) return { reject: 'sem-item' };
-  stopSession(sessionKey);
+  // The live turn can be keyed differently from the queue (a new chat's first
+  // turn runs as `new-…` while the queue uses its session id). Start on THAT key,
+  // like routeSend does, so startRun replaces it: on the queue's key the dying
+  // thread counted against the cap, and its onClose drained pending prompts onto
+  // the same session while this turn ran (two writers).
+  const liveKey = resolveThreadKey(sessionKey) ?? sessionKey;
+  stopSession(liveKey);
   const resume = resumableId(item.resumeId);
   if (item.resumeId && !resume) recordIncident({ kind: 'parked-resume-morto', sessionKey, sessionId: item.resumeId, detail: `item ${item.id} disparado como turno novo` });
-  const delivered = startRun({ ...runParams(item), ws: null, sessionKey, prompt: item.prompt, resumeId: resume, queued: true });
+  // Same frame the 'priority' triage sends: the client drops the interrupted turn's
+  // bubble latch, so the new 'started' opens a fresh bubble instead of streaming into
+  // the dead one. msgId on startRun echoes the forced prompt as the user bubble.
+  broadcast({ t: 'triage', sessionKey: liveKey, action: 'priority', reason: 'enviado agora da fila' });
+  const delivered = startRun({ ...runParams(item), ws: null, sessionKey: liveKey, prompt: item.prompt, resumeId: resume, queued: true, msgId: item.id });
   if (delivered === 'pane') { broadcastQueue(); return { ok: true }; }
-  const th = threads.get(sessionKey);
+  const th = threads.get(liveKey);
   if (!th) { unshiftParked(sessionKey, item, false); broadcastQueue(); return { reject: 'falhou' }; }
   th.parked = item;
+  // A dying run-now turn puts its item back on the queue it came from.
+  if (liveKey !== sessionKey) th.parkedFrom = sessionKey;
   // Explicit user click (queue-force), not the passive drainer — never a
   // stoppable candidate for canvas/autopause.ts (review #595 point 1).
   th.parkedForced = true;
@@ -426,13 +551,13 @@ let parkedTimer: ReturnType<typeof setInterval> | null = null;
 export function startParkedDrainer(intervalMs = 30_000): void {
   drainerEnabled = true;
   if (parkedTimer) return;
-  parkedTimer = setInterval(drainParked, intervalMs);
+  parkedTimer = setInterval(drainTick, intervalMs);
   parkedTimer.unref?.();
   // Primeira passada logo no boot: o restart do agente (deploy, OOM) zera o tick, e
   // sem isto a fila ficava parada até o primeiro intervalo mesmo com a sessão ociosa.
   // Depois da retomada dos órfãos (15s), pra não subir um item numa sessão que o
   // resumeOrphanRuns vai reocupar.
-  setTimeout(drainParked, Math.min(intervalMs, 16_000)).unref?.();
+  setTimeout(drainTick, Math.min(intervalMs, 16_000)).unref?.();
 }
 
 // Devolve o item pro topo da fila. No teto de tentativas pausa a fila inteira: o
@@ -462,8 +587,12 @@ function requeueParked(sessionKey: string, item: ParkedItem, bump = true): void 
 // com o chat mudo até reclamar: os `claude -p` filhos morrem junto do agente e não
 // sobra ninguém pra perceber (o onClose nem chega a rodar). takeOrphanRuns já zera
 // o registro, então um crash-loop não re-dispara os mesmos turnos em cascata.
-export function resumeOrphanRuns(): void {
-  for (const o of takeOrphanRuns()) {
+// `orphans` is taken at boot, synchronously, before any new turn can register:
+// read 15s later (when the relay is up to hear the notices), the registry also
+// held turns started INSIDE that window, and they were "resumed" on top of
+// themselves.
+export function resumeOrphanRuns(orphans: LiveRun[] = takeOrphanRuns()): void {
+  for (const o of orphans) {
     // Chaveia pelo sessionId, não pela key salva: uma sessão nova nasce com key
     // 'new-…' e o mapeamento pro id real vive no cliente, que o restart derrubou —
     // retomar na key velha viraria um chat fantasma que ninguém vê. Também dedupa
@@ -477,7 +606,9 @@ export function resumeOrphanRuns(): void {
       continue;
     }
     const key = o.sessionId;
-    if (!SESSION_KEY_RE.test(key) || threads.has(key)) continue;
+    // resolveThreadKey, not threads.has: a chat started meanwhile runs as `new-…`
+    // with this session id, and a second `--resume` would write the same transcript.
+    if (!SESSION_KEY_RE.test(key) || resolveThreadKey(key)) continue;
     // Never auto-resume the Orchestrator's own session headlessly: it isn't
     // a `claude -p` child we spawned (its "turno" lives in the tmux pane, an
     // interactive process the boot never touched), so there's nothing here
@@ -557,13 +688,23 @@ function rejectRun(a: { ws: WebSocket | null; sessionKey: string; prompt: string
 // batch — a 99% o composer ainda não pausa (99,5), cada envio e cada item do dreno
 // in-turn virava "O turno falhou" e o texto se perdia no draft.
 function parkRejected(o: StartRunOptions, verdict: Verdict): boolean {
-  if (!o.ws || o.forkId || (verdict.kind !== 'quota' && verdict.kind !== 'cold-busy')) return false;
-  const r = addParked(o.sessionKey, { ...runParams(o), prompt: o.prompt, resumeId: o.resumeId });
+  // A team message has no ws either, but it is a deliberate send from another bot: a
+  // transient gate must park it, not drop it as "não consegui entregar".
+  if ((!o.ws && o.teamHop === undefined) || o.forkId || (verdict.kind !== 'quota' && verdict.kind !== 'cold-busy')) return false;
+  // Reached from drainPending inside a child's onClose: a throwing disk write
+  // (ENOSPC) here aborted onClose and crashed the process. Not parked = the
+  // caller reports the verdict as a normal rejection.
+  let r: ReturnType<typeof addParked>;
+  try { r = addParked(o.sessionKey, { ...runParams(o), prompt: o.prompt, resumeId: o.resumeId }); }
+  catch (e) {
+    recordIncident({ kind: 'run-error', sessionKey: o.sessionKey, detail: `park failed: ${(e as Error).message}`.slice(0, 400) });
+    return false;
+  }
   if ('reject' in r) return false;
   const message = verdict.kind === 'quota'
     ? `Este envio custaria ~${verdict.cost.pctOfWindow}% da janela e não cabe no que sobrou — entrou na fila e roda sozinho quando a janela virar.`
     : 'Outra sessão grande está subindo agora — o prompt entrou na fila e roda assim que ela assentar.';
-  send(o.ws, { t: 'send-parked', sessionKey: o.sessionKey, msgId: o.msgId, message });
+  if (o.ws) send(o.ws, { t: 'send-parked', sessionKey: o.sessionKey, msgId: o.msgId, message });
   broadcastQueue();
   return true;
 }
@@ -589,16 +730,25 @@ export function orchestratorPaneTarget(targetSessionId: string | undefined, role
   if (!targetSessionId || role !== 'admin') return undefined;
   const orch = readOrchestratorSync();
   if (!orch || orch.sessionId !== targetSessionId) return undefined;
-  return isTmuxAliveSync(orch.tmux) ? orch : undefined;
+  return isTmuxAliveSync(orch.tmux) && !paneLostClaudeSync(orch.tmux) ? orch : undefined;
 }
 
-export function deliverToOrchestratorPane(targetSessionId: string | undefined, text: string, role?: Role): boolean {
+// 'refused' = the target IS the live Orchestrator pane but openTerm hit the
+// terminal cap: the caller must neither fall through to a headless twin writing
+// the same transcript nor report the prompt as delivered.
+export type PaneDelivery = 'delivered' | 'refused' | false;
+export const PANE_REFUSED = 'o painel do Orchestrator não abriu (limite de terminais) — o prompt não foi entregue; feche um terminal e reenvie';
+
+export function deliverToOrchestratorPane(targetSessionId: string | undefined, text: string, role?: Role): PaneDelivery {
   const orch = orchestratorPaneTarget(targetSessionId, role);
   if (!orch) return false;
+  // tmux couldn't answer: don't paste (the pane may be gone and `new-session -A`
+  // would make a bare shell), don't spawn headless either.
+  if (tmuxStateSync(orch.tmux) === 'unknown') return 'refused';
   const termId = orchestratorTermId(orch);
-  if (!hasTerm(termId)) openTerm(termId, 120, 40, () => {}, () => {}, () => {});
+  if (!hasTerm(termId) && !openTerm(termId, 120, 40, () => {}, () => {}, () => {})) return 'refused';
   inputTerm(termId, buildPastedSend(text));
-  return true;
+  return 'delivered';
 }
 
 // The client latches `inFlight` on every send and only a 'done' clears it;
@@ -612,9 +762,25 @@ function echoPaneDelivery(sessionKey: string, msgId: string | undefined, prompt:
 // 'pane' = the prompt was pasted into the Orchestrator's live tmux pane: it WAS
 // delivered, but no thread exists. Queue callers must not read "no thread" as a
 // failed spawn, or they put the item back and paste it again on every tick.
-export function startRun(o: StartRunOptions): 'pane' | undefined {
+// 'rejected' = refused for capacity (memory or the concurrent-run cap). With a
+// socket the sender gets an error; without one (auto-resume, a resume click, the
+// in-turn queue) the caller must keep the work, or it vanishes silently.
+// Same admission rule startRun applies (memory-aware cap; replacing always passes).
+export const hasFreeRunSlot = (): boolean => hasRoom('');
+function hasRoom(sessionKey: string): boolean {
+  const effCap = memoryRunCap(readMemInfo().availMb, CONFIG.maxConcurrentRuns, threads.size);
+  return admitRun(threads.size, threads.has(sessionKey), effCap);
+}
+
+// The first turn of a bot is where its continuous thread is born: persist the id
+// so the next turn resumes it, and tell every tab the bot now has a thread.
+function bindBot(botId: string, sessionId: string): void {
+  void bindBotSession(botId, sessionId).then((bots) => { if (bots) broadcast({ t: 'team', bots }); }, () => {});
+}
+
+export function startRun(o: StartRunOptions): 'pane' | 'rejected' | 'parked' | undefined {
   const { ws, sessionKey, prompt, resumeId, msgId, auto, forkId, queued, flowHop } = o;
-  const params = runParams(o);
+  const params = stripRestricted(runParams(o));
   // "Permitir todos os MCPs" chega como o sentinel '*' e é expandido AQUI, não no
   // cliente: a lista concreta fica no thread (retomada, tools.ts, sameParams) já
   // filtrada pelo role, e um MCP adicionado hoje vale no próximo turno.
@@ -630,9 +796,19 @@ export function startRun(o: StartRunOptions): 'pane' | undefined {
     if (ws) send(ws, { t: 'error', sessionKey, message: 'prompt grande demais' });
     return;
   }
-  if (!forkId && deliverToOrchestratorPane(resumeId ?? sessionKey, prompt, params.role)) {
+  const profileError = restrictedModelError(params.profile, params.model);
+  if (profileError) {
+    if (ws) send(ws, { t: 'error', sessionKey, message: profileError });
+    return 'rejected';
+  }
+  const pane = forkId ? false : deliverToOrchestratorPane(resumeId ?? sessionKey, prompt, params.role);
+  if (pane === 'delivered') {
     echoPaneDelivery(sessionKey, msgId, prompt);
     return 'pane';
+  }
+  if (pane === 'refused') {
+    if (ws) send(ws, { t: 'error', sessionKey, message: PANE_REFUSED });
+    return;
   }
 
   // Gate de CONTEXTO — antes do latch de pergunta e do admitRun: um envio recusado
@@ -648,12 +824,16 @@ export function startRun(o: StartRunOptions): 'pane' | undefined {
   // tente de novo" a cada tick do dreno. Quem avisa continua sendo o
   // SaturationBanner + o custo do envio no composer.
   const intentional = (!!ws && !auto) || !!queued;
+  // An ACP agent bills its own account (SuperGrok, ChatGPT…), never the Claude
+  // plan or context window, so the Claude quota gate does not apply to it.
   const verdict = ctxVerdict({ sessionId: resumeId, sessionKey, usage: getLastPlanUsage() });
-  const blocking = verdict.kind === 'quota' || verdict.kind === 'cold-busy' || (verdict.kind === 'hard' && !intentional);
+  // An ACP agent bills its own account (SuperGrok, ChatGPT…), never the Claude
+  // plan, so the Claude quota gate does not hold it.
+  const blocking = !isAgentModel(params.model) && (verdict.kind === 'quota' || verdict.kind === 'cold-busy' || (verdict.kind === 'hard' && !intentional));
   if (blocking) {
-    if (parkRejected(o, verdict)) return;
+    if (parkRejected(o, verdict)) return 'parked';
     rejectRun({ ws, sessionKey, prompt, msgId, verdict });
-    return;
+    return verdict.kind === 'hard' ? 'rejected' : undefined;
   }
 
   // Latch pós-pergunta: o flush automático da fila do cliente decide com estado
@@ -683,7 +863,7 @@ export function startRun(o: StartRunOptions): 'pane' | undefined {
         : 'limite de sessões simultâneas atingido';
       send(ws, { t: 'error', sessionKey, message });
     }
-    return;
+    return 'rejected';
   }
   if (replacing) {
     const old = threads.get(sessionKey)!;
@@ -701,7 +881,11 @@ export function startRun(o: StartRunOptions): 'pane' | undefined {
   // fechamento saudável zerava, então um turno morto que não fechou saudável (ex.:
   // reapado) deixava a cota gasta pra sempre e a próxima falha de verdade era
   // recusada com "a retomada automática também falhou".
-  if (prompt !== RESUME_PROMPT) autoResumes.delete(sessionKey);
+  if (prompt !== RESUME_PROMPT) {
+    autoResumes.delete(sessionKey);
+    bumpResumeGen(sessionKey);
+    bumpResumeGen(resumeId);
+  }
   // Turno novo na sessão: a oferta pendente do turno morto perdeu o sentido (e
   // clicá-la depois atropelaria este run).
   resumeOffers.delete(sessionKey);
@@ -716,9 +900,14 @@ export function startRun(o: StartRunOptions): 'pane' | undefined {
   else releaseCold(sessionKey);
 
   let live = false; // este turno já foi registrado no live-runs.json?
+  let botBound = !params.botId || !!forkId; // a fork writes a new id: it must not steal the bot's thread
   let parkedConsumed = false; // o item de fila deste turno já saiu do registro em disco?
   const thread: Thread = { handle: { kill: () => {}, send: () => false }, params, prompt, startedAt: Date.now(), sessionId: forkId ?? resumeId, text: '', thinking: '', tools: [], toolStart: new Map(), taskNotifies: new Map(), tasks: new Map(), taskCreates: new Map(), appTried: new Set(), flowHop };
   threads.set(sessionKey, thread);
+  scheduleTeamStatePush();
+  // Any new turn of the bot (a routine, a peer's message) moves its thread past the
+  // open question: the card goes read-only, so the roster must stop waiting too.
+  if (params.botId && !forkId) clearBotQuestion(params.botId);
   // Eco da mensagem do usuário a todos os clientes ANTES do 'started' (bolha do
   // usuário aparece antes da do assistente). Só quando o cliente mandou msgId — o
   // dedup no remetente depende de casar o id otimista dele.
@@ -726,19 +915,27 @@ export function startRun(o: StartRunOptions): 'pane' | undefined {
   // Carimba o modelo PEDIDO na bolha desde o start: sem isto a bolha em voo ficava
   // sem modelo e o label caía no seletor vivo, mudando retroativamente ao trocar de
   // modelo. O 'done' refina pro efetivo (revela fallback silencioso).
-  broadcast({ t: 'started', sessionKey, model: params.model });
+  broadcast({ t: 'started', sessionKey, model: params.model, startedAt: thread.startedAt });
 
   // `run()` can throw synchronously (spawn ENOMEM, EMFILE leaving no stdio). The
   // thread is already registered and the cold slot held, so without this the
   // session stays busy forever with a no-op kill, and callers on timers turn the
   // throw into an uncaughtException that kills every other run.
-  const started = catchSpawn(() => run({
+  const started = catchSpawn(() => (byoModelOf(params.model) ? runByo : isAgentModel(params.model) ? runAgent : run)({
     ...params,
     prompt,
     resumeId,
     forkId,
     onEvent: (ev) => {
       translate(sessionKey, thread, ev);
+      if (!botBound && thread.sessionId) { botBound = true; bindBot(params.botId!, thread.sessionId); }
+      // The turn already answered and only waits on a background task: a restart
+      // now must not resume it with "continue where you left off". If the task
+      // finishes and the CLI continues, the next frame marks it live again below.
+      if (thread.bgWaitSince) {
+        if (live) { live = false; clearRunLive(sessionKey); }
+        return;
+      }
       // Registra o turno em disco assim que o sessionId aparece. É o que permite
       // retomá-lo quando o PROCESSO INTEIRO morre (restart/OOM/deploy): aí o onClose
       // não roda e a retomada em memória não existe mais. Só o agente escreve, pelo
@@ -761,10 +958,12 @@ export function startRun(o: StartRunOptions): 'pane' | undefined {
       }
     },
     onError: (raw, exit) => {
+      if (exit) { thread.lastExitCode = exit.code; thread.lastExitSignal = exit.signal ?? null; }
+      const tooOld = thread.tools.length === 0 && !thread.text.trim() ? parseCliTooOld(raw) : null;
+      if (tooOld) { thread.cliTooOld = tooOld; return; }
       const auth = isAuthFailure(raw);
       const message = auth ? AUTH_MESSAGE : raw;
       thread.lastError = message;
-      if (exit) { thread.lastExitCode = exit.code; thread.lastExitSignal = exit.signal ?? null; }
       broadcast({ t: 'error', sessionKey, message });
       if (auth) markAuthBroken(sessionKey);
       else recordIncident({ kind: 'run-error', sessionKey, sessionId: thread.sessionId, detail: message.slice(0, 400) });
@@ -778,9 +977,23 @@ export function startRun(o: StartRunOptions): 'pane' | undefined {
       // turno que já fechou e cairia em cold-busy à toa.
       if (holdsCold) releaseCold(sessionKey);
       if (live && !shouldPreserveLive()) clearRunLive(sessionKey); // fechou: não é mais órfão (salvo no shutdown, onde o boot retoma)
+      if (cliHealable(thread)) {
+        threads.delete(sessionKey);
+        scheduleTeamStatePush();
+        void healOutdatedCli({ sessionKey, thread, resumeId, forkId, queued });
+        return;
+      }
+      if (thread.cliTooOld && !thread.userStopped && thread.tools.length === 0) {
+        thread.endReason ??= 'cli-too-old';
+        thread.lastError = cliHealFailedNote({ ok: false, from: '', to: '', message: 'o modelo segue recusado depois de atualizar' }, thread.cliTooOld.required);
+        broadcast({ t: 'error', sessionKey, message: thread.lastError });
+      }
       // Teto de tokens: um veredito só pro fechamento inteiro (devolver o item
       // drenado, segurar as filas e não retomar em cima do limite).
       const hold = quotaHold();
+      // A cota estourada é a do Claude. Um turno de Grok que fecha no meio dela
+      // ainda pode drenar o que o usuário mandou em seguida.
+      const claudeHeld = hold > 0 && billsClaudePlan(thread.params.model);
       // Turno que subiu da fila e morreu no limite sem consumir o prompt: devolve o
       // item pro topo em vez de perdê-lo (era o prompt "queimado" do bug).
       const parked = thread.parked;
@@ -803,7 +1016,7 @@ export function startRun(o: StartRunOptions): 'pane' | undefined {
       // o que sobrou. Sem tentativa contada (ver requeueParked).
       if (parked && thread.budgetStopped) {
         requeueParked(thread.parkedFrom ?? sessionKey, parked, false);
-      } else if (parked && (!produced || authBurned || burnedByQuota({ limited: hold > 0, tools: thread.tools.length, text: thread.text }))) {
+      } else if (parked && (!produced || authBurned || burnedByQuota({ limited: claudeHeld, tools: thread.tools.length, text: thread.text }))) {
         requeueParked(thread.parkedFrom ?? sessionKey, parked);
       }
       // Turno que morreu no meio sem dizer nada: avisa ANTES do 'done' (a bolha de
@@ -823,17 +1036,26 @@ export function startRun(o: StartRunOptions): 'pane' | undefined {
           exitCode: thread.lastExitCode, signal: thread.lastExitSignal,
           userStopped: thread.userStopped, reaped: !!thread.reaped, info: memInfo,
         });
+        // No session id = the prompt never reached a transcript: there is nothing to
+        // `--resume`, so promising it only left the user waiting. Hand the prompt back.
+        // Same test the resume paths use: a fork that died before its transcript
+        // existed has a session id but nothing to resume either. A queued item that
+        // went back to the queue will run again by itself — don't ask for a resend.
+        const resumable = !!thread.sessionId && !!resumableId(thread.sessionId);
+        const lost = resumable ? ''
+          : thread.parked ? ' O pedido voltou pra fila e roda de novo sozinho.'
+          : ` O pedido não chegou a ser salvo, então não dá pra retomar — reenvie: "${thread.prompt.slice(0, 200)}"`;
         if (cause === 'oom') {
-          broadcast({ t: 'error', sessionKey, message: 'A máquina ficou sem memória e o sistema matou este turno. Vou retomar quando a memória voltar.' });
+          broadcast({ t: 'error', sessionKey, message: lost ? `A máquina ficou sem memória e o sistema matou este turno.${lost}` : 'A máquina ficou sem memória e o sistema matou este turno. Vou retomar quando a memória voltar.' });
           recordIncident({ kind: 'oom-kill', sessionKey, sessionId: thread.sessionId, detail: `availMb=${memInfo.availMb} swapFreeMb=${memInfo.swapFreeMb} swapTotalMb=${memInfo.swapTotalMb}` });
         } else if (cause === 'external-signal') {
           // Marca a rajada ANTES de qualquer espera: os irmãos que morrerem na
           // mesma leva empurram a janela de silêncio uns dos outros.
           noteExternalKill();
-          broadcast({ t: 'error', sessionKey, message: 'Algo fora do Deck matou este turno (deploy ou o sistema). Vou retomar assim que a máquina assentar.' });
+          broadcast({ t: 'error', sessionKey, message: lost ? `Algo fora do Deck matou este turno (deploy ou o sistema).${lost}` : 'Algo fora do Deck matou este turno (deploy ou o sistema). Vou retomar assim que a máquina assentar.' });
           recordIncident({ kind: 'external-kill', sessionKey, sessionId: thread.sessionId, detail: `exit=${thread.lastExitCode ?? '?'} signal=${thread.lastExitSignal ?? '-'} availMb=${memInfo.availMb}` });
         } else {
-          broadcast({ t: 'error', sessionKey, message: 'O turno caiu antes de terminar (o processo morreu sem resposta).' });
+          broadcast({ t: 'error', sessionKey, message: `O turno caiu antes de terminar (o processo morreu sem resposta).${lost}` });
           recordIncident({ kind: 'silent-death', sessionKey, sessionId: thread.sessionId, detail: `${Math.round((Date.now() - thread.startedAt) / 1000)}s vivo, ${thread.tools.length} tools, ${thread.text.length} chars de resposta` });
         }
       }
@@ -841,7 +1063,9 @@ export function startRun(o: StartRunOptions): 'pane' | undefined {
       // O turno que acabou de fechar é EXATAMENTE o que moveu a barra de uso.
       // Sem este gatilho o número só chegava no próximo poll (ou num F5).
       notePlanUsageChanged();
+      if (thread.params.model && agentIdOf(thread.params.model) === 'grok') noteGrokUsageChanged();
       broadcast({ t: 'done', sessionKey, sessionId: thread.sessionId ?? '', costUsd: thread.costUsd, durationMs: thread.durationMs, numTurns: thread.numTurns, turnTokens: thread.turnTokens, inputTokens: thread.inputTokens, outputTokens: thread.outputTokens, endReason: thread.endReason, model: thread.model, stopped: thread.stopped });
+      if (!thread.stopped) broadcast({ t: 'turn-summary', sessionKey, sessionId: thread.sessionId ?? '', ok: thread.endReason === 'success' });
       // Resumo IA do que a sessão fez, atualizado ao fim do turno (pedido do Samuel).
       // Fire-and-forget: best-effort, nunca bloqueia/derruba o fechamento do run.
       // Pula em stop do usuário (turno interrompido não vale uma chamada API paga) —
@@ -851,30 +1075,26 @@ export function startRun(o: StartRunOptions): 'pane' | undefined {
       // Turno DESACOMPANHADO (cron agendado, maratona): ninguém vai ler o resumo nem
       // clicar num chip de continuação entre um turno e o próximo, e cada um deles é
       // uma chamada de API paga por turno fechado.
-      const unattended = sessionKey.startsWith('cron-') || threadIsMarathon(sessionKey, thread.sessionId);
+      const unattended = sessionKey.startsWith('cron-') || !!thread.params.teamHop || threadIsMarathon(sessionKey, thread.sessionId);
       emitTurnClosed({
         sessionKey, sessionId: thread.sessionId, prompt: thread.prompt, text: thread.text, params: thread.params,
-        ok: isCleanTurnClose(thread, { silent, authBurned, quotaBurned: burnedByQuota({ limited: hold > 0, tools: thread.tools.length, text: thread.text }) }),
+        ok: isCleanTurnClose(thread, { silent, authBurned, quotaBurned: burnedByQuota({ limited: claudeHeld, tools: thread.tools.length, text: thread.text }) }),
         hop: thread.flowHop ?? 0, unattended,
       });
       if (thread.sessionId && !thread.stopped && !unattended) void summarize(thread.sessionId);
-      // Chips de continuação (estilo ChatGPT): só em turno de usuário concluído de
-      // verdade (não stop, não cron, não AskUserQuestion pendente) e sem fila — um
-      // prompt enfileirado vai rodar já; sugerir tópicos agora seria ruído. Se um
-      // turno novo começar antes do haiku voltar, o resultado é descartado.
-      if (!thread.stopped && !thread.questioned && !unattended && !hasPending(sessionKey)) {
-        void suggestFollowups(thread.prompt, thread.text, sessionKey).then((items) => {
-          if (items.length && !threads.has(sessionKey)) broadcast({ t: 'suggestions', sessionKey, items });
-        }).catch(() => {});
-      }
       threads.delete(sessionKey);
-      clearStopEpoch(sessionKey); // época só vive enquanto há turno/triagem; senão vaza monotônico
+      if (thread.params.botId) botTurnEnds.set(thread.params.botId, Date.now());
+      scheduleTeamStatePush();
+      // época só vive enquanto há turno/triagem; senão vaza monotônico. A triage
+      // or quick answer still waiting on this key needs it: clearing it back to 0
+      // made a stop pressed during triage look like no stop at all.
+      if (!epochHolds.has(sessionKey)) clearStopEpoch(sessionKey);
       // Após AskUserQuestion o turno aguarda a RESPOSTA do usuário (próximo prompt) —
       // não drenar a fila aqui, senão um enfileirado fura na frente da resposta.
       if (!thread.questioned) {
         // Sem token, a fila in-turn (memória) não pode nem rodar nem esperar em RAM:
         // vira fila ESTACIONADA (disco), que drena sozinha no reset.
-        if (hold || authBurned) parkPending(sessionKey, thread.sessionId);
+        if (claudeHeld || authBurned) parkPending(sessionKey, thread.sessionId);
         else {
           drainPending(sessionKey, thread.sessionId);
           // Gatilho da fila estacionada: se a in-turn (pending) não pegou a sessão,
@@ -893,22 +1113,78 @@ export function startRun(o: StartRunOptions): 'pane' | undefined {
       if (silent || (thread.reaped && thread.reaped !== 'total')) {
         // Sem token não adianta retomar nada (o turno novo morreria no limite
         // igual), mas o turno também não pode sumir: vira oferta com o motivo.
-        if (hold) offerResume(sessionKey, thread, 'quota', 'O turno caiu e a janela de token acabou — retomar agora morreria no limite. Retome quando a janela virar.');
+        if (claudeHeld) offerResume(sessionKey, thread, 'quota', 'O turno caiu e a janela de token acabou — retomar agora morreria no limite. Retome quando a janela virar.');
         else maybeAutoResume(sessionKey, thread, cause);
       }
     },
   }));
   if ('error' in started) {
-    if (threads.get(sessionKey) === thread) threads.delete(sessionKey);
+    if (threads.get(sessionKey) === thread) { threads.delete(sessionKey); scheduleTeamStatePush(); }
     if (holdsCold) releaseCold(sessionKey);
-    clearStopEpoch(sessionKey);
+    if (!epochHolds.has(sessionKey)) clearStopEpoch(sessionKey);
     if (thread.parked) requeueParked(thread.parkedFrom ?? sessionKey, thread.parked);
     recordIncident({ kind: 'run-error', sessionKey, detail: `spawn failed: ${started.error}`.slice(0, 400) });
     broadcast({ t: 'error', sessionKey, message: `Não consegui iniciar o turno: ${started.error}` });
     broadcast({ t: 'done', sessionKey, sessionId: thread.sessionId ?? '', stopped: true });
+    broadcast({ t: 'turn-summary', sessionKey, sessionId: thread.sessionId ?? '', ok: false });
     return;
   }
   thread.handle = started.handle;
+}
+
+export function cliHealable(t: Thread): boolean {
+  return !!t.cliTooOld && !t.cliRetried && !t.userStopped && t.tools.length === 0;
+}
+
+export function cliHealedNote(r: CliUpdateResult): string {
+  return `Claude Code atualizado para ${r.to}; reenviando.`;
+}
+
+export function cliHealFailedNote(r: CliUpdateResult, required: string | null): string {
+  const need = required ? ` (o modelo exige a ${required} ou mais nova)` : '';
+  return `O Claude Code desta máquina está desatualizado${need} e a atualização automática falhou: ${r.message}. `
+    + 'Rode `npm install -g --prefix ~/.deck-npm @anthropic-ai/claude-code@latest` na box (ou `deck-agent` → reinstalar) e reenvie.';
+}
+
+// The turn closed on "Claude Code X does not support this model": nothing ran, so
+// the CLI is updated in place (single-flight, even with other turns running — only
+// the binary on disk changes) and the same prompt goes again, once. The session
+// stays "running" in the UI meanwhile: no 'done' until the retry closes.
+async function healOutdatedCli(p: { sessionKey: string; thread: Thread; resumeId?: string; forkId?: string; queued?: boolean }): Promise<void> {
+  const { sessionKey, thread } = p;
+  const required = thread.cliTooOld?.required ?? null;
+  const parked = thread.parked;
+  thread.parked = undefined;
+  let r: CliUpdateResult;
+  try { r = await cliUpdater().heal(required); }
+  catch (e) { r = { ok: false, from: '', to: '', message: (e as Error).message }; }
+  recordIncident({ kind: 'cli-too-old', sessionKey, sessionId: thread.sessionId, detail: `${r.from || '?'} -> ${r.to || '?'} (exigida ${required ?? '?'}): ${r.ok ? 'atualizado' : r.message}`.slice(0, 400) });
+  const closeAsFailed = (message: string) => {
+    if (parked) requeueParked(thread.parkedFrom ?? sessionKey, parked, false);
+    thread.lastError = message;
+    broadcast({ t: 'error', sessionKey, message });
+    broadcast({ t: 'done', sessionKey, sessionId: thread.sessionId ?? '', stopped: true });
+    emitTurnClosed({ sessionKey, sessionId: thread.sessionId, prompt: thread.prompt, text: '', params: thread.params, ok: false, hop: thread.flowHop ?? 0, unattended: true });
+    if (!epochHolds.has(sessionKey)) clearStopEpoch(sessionKey);
+  };
+  if (!r.ok) { closeAsFailed(cliHealFailedNote(r, required)); return; }
+  // The user sent something else while the CLI updated: that turn already runs on it.
+  if (threads.has(sessionKey)) {
+    if (parked) requeueParked(thread.parkedFrom ?? sessionKey, parked, false);
+    return;
+  }
+  broadcast({ t: 'error', sessionKey, message: cliHealedNote(r) });
+  const resumable = !!thread.sessionId && !!resumableId(thread.sessionId);
+  startRun({
+    ...thread.params, ws: null, sessionKey, prompt: thread.prompt,
+    resumeId: resumable ? thread.sessionId : p.resumeId,
+    forkId: resumable ? undefined : p.forkId,
+    queued: p.queued || !!parked, flowHop: thread.flowHop,
+  });
+  const next = threads.get(sessionKey);
+  if (!next || next === thread) { closeAsFailed('Claude Code atualizado, mas não consegui reenviar agora — reenvie a mensagem.'); return; }
+  next.cliRetried = true;
+  if (parked) { next.parked = parked; next.parkedFrom = thread.parkedFrom; }
 }
 
 export function catchSpawn<T>(start: () => T): { handle: T } | { error: string } {
@@ -924,8 +1200,24 @@ function drainPending(sessionKey: string, resumeId?: string) {
   const batch = takePendingBatch(sessionKey);
   if (!batch) return;
   const { first, text } = batch;
-  // msgId undefined: a bolha do usuário já foi ecoada no routeSend (não duplica).
-  startRun({ ...runParams(first), ws: first.ws, sessionKey, prompt: text, resumeId });
+  if (hasRoom(sessionKey)) {
+    // msgId undefined: a bolha do usuário já foi ecoada no routeSend (não duplica).
+    startRun({ ...runParams(first), ws: first.ws, sessionKey, prompt: text, resumeId });
+    return;
+  }
+  // No room (memory / concurrent cap). Checked BEFORE startRun: its refusal would
+  // tell the sender "tente de novo" while the batch is parked here, and a resend
+  // would then run twice. The in-turn queue lives only in memory, so park the
+  // batch (and the rest) on disk for the drainer.
+  broadcast({ t: 'error', sessionKey, message: 'Sem memória livre agora: a mensagem foi pra fila e sobe sozinha quando liberar.' });
+  try {
+    const p = addParked(sessionKey, { ...runParams(first), prompt: text, resumeId });
+    if ('reject' in p) broadcast({ t: 'error', sessionKey, message: `Sem memória livre e a fila recusou a mensagem (${p.reject}). Reenvie: ${text.slice(0, 120)}` });
+  } catch (e) {
+    broadcast({ t: 'error', sessionKey, message: `Não consegui guardar a mensagem (${(e as Error).message}). Reenvie: ${text.slice(0, 120)}` });
+  }
+  parkPending(sessionKey, resumeId);
+  broadcastQueue();
 }
 
 // Migra a fila in-turn pra fila estacionada quando os tokens acabam: os itens saem
@@ -936,11 +1228,20 @@ function parkPending(sessionKey: string, resumeId?: string): void {
   const arr = takeAllPending(sessionKey);
   if (arr.length === 0) return;
   for (const it of arr) {
-    const r = addParked(sessionKey, {
-      ...runParams(it),
-      prompt: it.merge ? `Complemento do pedido anterior:\n\n${it.prompt}` : it.prompt,
-      resumeId,
-    });
+    // Runs inside a child's onClose: a throwing write must not abort it (and the
+    // process). Report the prompt instead of losing it silently.
+    let r: ReturnType<typeof addParked>;
+    try {
+      r = addParked(sessionKey, {
+        ...runParams(it),
+        prompt: it.merge ? `Complemento do pedido anterior:\n\n${it.prompt}` : it.prompt,
+        resumeId,
+      });
+    } catch (e) {
+      broadcast({ t: 'error', sessionKey, message: `Não consegui guardar um prompt em espera (${(e as Error).message}). Reenvie: ${it.prompt.slice(0, 120)}` });
+      recordIncident({ kind: 'run-error', sessionKey, detail: `park pending failed: ${(e as Error).message}`.slice(0, 400) });
+      continue;
+    }
     // Recusa aqui apagaria um prompt que o usuário já mandou: a migração é a última
     // parada dele (a fila in-turn vive só em memória). Avisa em vez de sumir.
     if ('reject' in r) {
@@ -970,6 +1271,15 @@ export interface RouteSendOptions extends RunParams {
   displayKey?: string;
 }
 
+// Per-key count of triages / quick answers waiting on a model call, each holding a
+// stop epoch it will compare afterwards. See the onClose clearStopEpoch.
+const epochHolds = new Map<string, number>();
+function holdEpoch(key: string): void { epochHolds.set(key, (epochHolds.get(key) ?? 0) + 1); }
+function releaseEpoch(key: string): void {
+  const n = (epochHolds.get(key) ?? 1) - 1;
+  if (n > 0) epochHolds.set(key, n); else epochHolds.delete(key);
+}
+
 export async function routeSend(o: RouteSendOptions) {
   const { ws, sessionKey, prompt, resumeId, msgId, displayKey = sessionKey } = o;
   const params = runParams(o);
@@ -980,10 +1290,12 @@ export async function routeSend(o: RouteSendOptions) {
   // before this fix, or a race) would otherwise run the full triage path
   // below and end up enqueued against THAT twin instead of ever reaching the
   // real pane. Deliver straight into the pane and skip triage entirely.
-  if (deliverToOrchestratorPane(resumeId ?? sessionKey, prompt, params.role)) {
+  const pane = deliverToOrchestratorPane(resumeId ?? sessionKey, prompt, params.role);
+  if (pane === 'delivered') {
     echoPaneDelivery(sessionKey, msgId, prompt);
     return;
   }
+  if (pane === 'refused') { send(ws, { t: 'error', sessionKey: displayKey, message: PANE_REFUSED }); return; }
   const cur = threads.get(sessionKey);
   if (!cur) { startRun({ ...params, ws, sessionKey, prompt, resumeId, msgId }); return; } // corrida: turno fechou
 
@@ -999,6 +1311,7 @@ export async function routeSend(o: RouteSendOptions) {
   if (cur.pendingBgTasks?.length && cur.handle.send(prompt)) {
     if (msgId) broadcast({ t: 'user', sessionKey, id: msgId, text: prompt, ts: Date.now() });
     cur.prompt = prompt;
+    cur.bgWaitSince = undefined;
     return;
   }
 
@@ -1006,7 +1319,14 @@ export async function routeSend(o: RouteSendOptions) {
   if (msgId) broadcast({ t: 'user', sessionKey, id: msgId, text: prompt, ts: Date.now() });
 
   const epoch = stopEpochOf(sessionKey);
-  const verdict = await classify(cur.prompt, cur.text, prompt, sessionKey);
+  holdEpoch(sessionKey);
+  let verdict: Awaited<ReturnType<typeof classify>>;
+  try { verdict = await classify(cur.prompt, cur.text, prompt, sessionKey); }
+  finally { releaseEpoch(sessionKey); }
+  // A message sent before the client saw the first `system` carries no resumeId,
+  // but the turn it followed has one by now: starting without it put the
+  // follow-up in a brand-new session and the first exchange fell out of context.
+  const resumeFrom = resumeId ?? cur.sessionId;
 
   // Stop durante o await da triagem → o usuário pediu silêncio; descarta.
   if (stopEpochOf(sessionKey) !== epoch) return;
@@ -1016,7 +1336,7 @@ export async function routeSend(o: RouteSendOptions) {
   // mataria um run que nunca avaliamos (flap/queima de token), 'merge'/'wait'
   // enfileiraria contra outra linhagem. Re-checa identidade antes de agir.
   if (threads.get(sessionKey) !== cur) {
-    if (!threads.has(sessionKey)) startRun({ ...params, ws, sessionKey, prompt, resumeId });
+    if (!threads.has(sessionKey)) startRun({ ...params, ws, sessionKey, prompt, resumeId: resumeFrom });
     else if (!enqueuePending(sessionKey, { ...params, ws, prompt, merge: false })) {
       broadcast({ t: 'error', sessionKey, message: 'fila de mensagens cheia' });
     }
@@ -1031,17 +1351,15 @@ export async function routeSend(o: RouteSendOptions) {
       // Carrega o progresso parcial do turno morto no prompt: o trabalho já pensado
       // não estava no JSONL (turno interrompido), então sem isso o modelo re-derivava
       // do zero (a "repetição de pensamento" reportada). msgId undefined: bolha já ecoada.
-      const carry = cur.text || cur.thinking
-        ? `Você estava no meio de: ${cur.prompt}\n\nProgresso até agora (não repita, continue daqui):\n${(cur.thinking || '').slice(-1500)}\n${(cur.text || '').slice(-1500)}\n\nNOVA INSTRUÇÃO URGENTE (priorize):\n${prompt}`
-        : prompt;
-      startRun({ ...params, ws, sessionKey, prompt: carry, resumeId });
+      const carry = priorityCarry(cur, prompt, !!resumeFrom);
+      startRun({ ...params, ws, sessionKey, prompt: carry, resumeId: resumeFrom });
       return;
     }
     case 'answer':
       // Fallback: haiku falhou/timeout (retorna '') → NÃO engolir a mensagem em
       // silêncio; degrada pra 'wait' (responde quando o turno fechar).
       detach(ws, runQuickAnswer(sessionKey, prompt, epoch, () => {
-        if (!threads.has(sessionKey)) { startRun({ ...params, ws, sessionKey, prompt, resumeId }); return; }
+        if (!threads.has(sessionKey)) { startRun({ ...params, ws, sessionKey, prompt, resumeId: resumeFrom }); return; }
         if (!enqueuePending(sessionKey, { ...params, ws, prompt, merge: false })) {
           broadcast({ t: 'error', sessionKey, message: 'fila de mensagens cheia' });
         }
@@ -1061,7 +1379,10 @@ export async function routeSend(o: RouteSendOptions) {
 // a época muda e a resposta é descartada — senão a quick-answer pingava depois do
 // stop. O killSideRunsFor no onStop já mata o processo; o guard cobre a corrida.
 async function runQuickAnswer(sessionKey: string, prompt: string, epoch: number, onEmpty?: () => void) {
-  const text = await quickAnswer(prompt, sessionKey);
+  holdEpoch(sessionKey);
+  let text: string;
+  try { text = await quickAnswer(prompt, sessionKey); }
+  finally { releaseEpoch(sessionKey); }
   if (stopEpochOf(sessionKey) !== epoch) return;
   if (!text) { onEmpty?.(); return; }
   broadcast({ t: 'quick-answer', sessionKey, id: `qa-${Date.now().toString(36)}`, text, ts: Date.now() });
@@ -1072,8 +1393,11 @@ async function runQuickAnswer(sessionKey: string, prompt: string, epoch: number,
 // Se a sessão do cron já estiver rodando (turno anterior não fechou), startRun
 // substitui (replacing) — não acumula. Novo turno (sem resume): cada disparo é
 // independente. O stream vai por broadcast pra qualquer cliente conectado.
-export function fireCron(cron: Cron): void {
-  if (!cron || typeof cron.prompt !== 'string' || !cron.prompt.trim()) return;
+// A cron with `botId` is a bot routine and takes the bot's path (fireBotRoutine).
+export type CronFire = 'started' | 'skipped' | 'blocked' | 'bot-busy' | 'bot-gone';
+export function fireCron(cron: Cron): Promise<CronFire> {
+  if (!cron || typeof cron.prompt !== 'string' || !cron.prompt.trim()) return Promise.resolve('skipped');
+  if (cron.botId) return fireBotRoutine(cron, cron.botId).catch(() => 'skipped' as const);
   // Mesmo gate de admissão do drainParked. Um cron não carrega resumeId (cada
   // disparo é turno novo), então a sessão desta chamada em si nunca é
   // classificável de antemão — a chave estável `cron-<id>` é o segundo sinal
@@ -1081,7 +1405,7 @@ export function fireCron(cron: Cron): void {
   // MESMO cron produziu (canvas/autopause-loop.ts's lastAreaOfKey), que fica
   // valendo até o cron rodar de novo e (talvez) mudar de área.
   const cronKey = `cron-${cron.id}`;
-  if (isAreaAdmissionBlocked(undefined, cronKey)) return;
+  if (isAreaAdmissionBlocked(undefined, cronKey)) return Promise.resolve('blocked');
   startRun({
     ws: null,
     sessionKey: cronKey,
@@ -1091,4 +1415,51 @@ export function fireCron(cron: Cron): void {
     model: cron.model,
     effort: cron.effort || 'low',
   });
+  return Promise.resolve('started');
+}
+
+// The bot's live turn, under whatever key it runs: its draft key, `bot-<id>`, or the
+// key a tab gave the bound session.
+const botTurnEnds = new Map<string, number>();
+export const botLastTurnEnds = (): ReadonlyMap<string, number> => botTurnEnds;
+
+export function botLiveKey(botId: string, sessionId?: string): string | undefined {
+  for (const [k, t] of threads) if (t.params.botId === botId || (sessionId && t.sessionId === sessionId)) return k;
+  return undefined;
+}
+
+// A routine never replaces a live bot turn: a plain cron replacing its own `cron-<id>`
+// only kills its previous fire, but here it would kill a conversation. It skips the
+// tick instead of queueing — an interval routine queued behind a long conversation
+// would pile up stale copies of itself; the next tick tries again.
+async function fireBotRoutine(cron: Cron, botId: string): Promise<CronFire> {
+  const team = await getTeam();
+  const bot = team.find((b) => b.id === botId);
+  if (!bot) return 'bot-gone';
+  if (bot.sessionId && (await readBusyElsewhereSessionIds().catch(() => [] as string[])).includes(bot.sessionId)) return 'bot-busy';
+  const key = botThreadKey(botId);
+  const turn = botTurnParams(team, key, undefined, await readMemoriesSafe());
+  if (!turn) return 'bot-gone';
+  if (botLiveKey(botId, bot.sessionId)) return 'bot-busy';
+  if (isAreaAdmissionBlocked(turn.resumeId, key)) return 'blocked';
+  if (turn.profile === 'full') {
+    const bots = await refreshAgentSource(bot).catch(() => null);
+    if (bots) broadcast({ t: 'team', bots });
+  }
+  const denied = await botDenyRules(turn);
+  startRun({
+    ws: null,
+    sessionKey: key,
+    prompt: cron.prompt,
+    resumeId: turn.resumeId,
+    msgId: `cron-${Date.now().toString(36)}`,
+    mode: turn.mode ?? cron.mode,
+    model: turn.model ?? cron.model,
+    effort: turn.effort ?? (cron.effort || 'low'),
+    botId,
+    appendSystemPrompt: turn.appendSystemPrompt,
+    profile: turn.profile,
+    ...(denied.length ? { disallowedSkills: denied } : {}),
+  });
+  return 'started';
 }

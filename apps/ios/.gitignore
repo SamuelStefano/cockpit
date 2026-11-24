@@ -1,0 +1,6 @@
+node_modules/
+/ios/
+dist-ios/
+.expo/
+.secrets/
+*.p8

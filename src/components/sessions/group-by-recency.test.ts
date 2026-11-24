@@ -28,8 +28,8 @@ describe('groupByRecency', () => {
       ],
       opts(),
     );
-    expect(groups.map((g) => g.label)).toEqual(['Hoje', 'Ontem', '7 dias', '30 dias', 'Anteriores']);
-    expect(groups.map((g) => g.items.map((s) => s.id))).toEqual([['today'], ['yest'], ['week'], ['month'], ['old']]);
+    expect(groups.map((g) => g.label)).toEqual(['Hoje', 'Ontem', 'Últimos 7 dias', 'Antigas']);
+    expect(groups.map((g) => g.items.map((s) => s.id))).toEqual([['today'], ['yest'], ['week'], ['month', 'old']]);
   });
 
   it('routes running sessions to the top bucket regardless of mtime', () => {
@@ -37,7 +37,7 @@ describe('groupByRecency', () => {
       [session('r', startOfToday - 90 * DAY)],
       opts({ running: new Set(['r']) }),
     );
-    expect(groups).toEqual([{ label: 'Trabalhando agora', items: [session('r', startOfToday - 90 * DAY)] }]);
+    expect(groups).toEqual([{ label: 'Trabalhando', items: [session('r', startOfToday - 90 * DAY)] }]);
   });
 
   it('puts pinned (non-running) sessions in the Fixadas bucket', () => {
@@ -45,12 +45,20 @@ describe('groupByRecency', () => {
     expect(groups.map((g) => g.label)).toEqual(['Fixadas']);
   });
 
+  it('orders Fixadas first, then Trabalhando, then the dates', () => {
+    const groups = groupByRecency(
+      [session('t', startOfToday + 1000), session('r', startOfToday + 2000), session('p', startOfToday + 3000)],
+      opts({ pinned: new Set(['p']), running: new Set(['r']) }),
+    );
+    expect(groups.map((g) => g.label)).toEqual(['Fixadas', 'Trabalhando', 'Hoje']);
+  });
+
   it('prefers running over pinned when a session is both', () => {
     const groups = groupByRecency(
       [session('x', startOfToday + 1000)],
       opts({ pinned: new Set(['x']), running: new Set(['x']) }),
     );
-    expect(groups.map((g) => g.label)).toEqual(['Trabalhando agora']);
+    expect(groups.map((g) => g.label)).toEqual(['Trabalhando']);
   });
 
   it('groups waiting sessions right below the running ones, ahead of recency', () => {
@@ -62,7 +70,7 @@ describe('groupByRecency', () => {
       ],
       opts({ running: new Set(['rodando']) }),
     );
-    expect(groups.map((g) => g.label)).toEqual(['Trabalhando agora', 'Aguardando você', 'Hoje']);
+    expect(groups.map((g) => g.label)).toEqual(['Trabalhando', 'Aguardando você', 'Hoje']);
     expect(groups[1].items.map((s) => s.id)).toEqual(['perguntou']);
   });
 
@@ -71,7 +79,7 @@ describe('groupByRecency', () => {
       [{ ...session('x', startOfToday + 1000), waiting: true }],
       opts({ running: new Set(['x']) }),
     );
-    expect(groups.map((g) => g.label)).toEqual(['Trabalhando agora']);
+    expect(groups.map((g) => g.label)).toEqual(['Trabalhando']);
   });
 
   it('prefers waiting over pinned', () => {
@@ -95,7 +103,7 @@ describe('groupByRecency', () => {
       [{ ...session('velha', now - WAITING_WINDOW_MS - 60_000), waiting: true }],
       opts(),
     );
-    expect(groups.map((g) => g.label)).toEqual(['7 dias']);
+    expect(groups.map((g) => g.label)).toEqual(['Últimos 7 dias']);
     expect(groups[0].items.map((s) => s.id)).toEqual(['velha']);
   });
 

@@ -2,11 +2,11 @@ import { useEffect, useRef, useState } from 'react';
 import { useProfile } from '../../lib/profile';
 import { downscale } from './downscale';
 import { avatarFileError } from './avatar-file';
+import { escapeLayerOpen } from '../primitives/useEscapeLayer';
 
 export function useProfileMenu(userId?: string) {
   const profile = useProfile(userId);
   const [open, setOpen] = useState(false);
-  const [iconOpen, setIconOpen] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -18,7 +18,7 @@ export function useProfileMenu(userId?: string) {
     // chegava e o menu ficava aberto sob outro overlay (mesmo caso do RouteMenu).
     const onDoc = (e: PointerEvent) => { if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false); };
     // Um Esc fecha um overlay só: ignora keypress já consumido e marca o que consome.
-    const onEsc = (e: KeyboardEvent) => { if (e.key === 'Escape' && !e.defaultPrevented && !e.isComposing) { e.preventDefault(); setOpen(false); } };
+    const onEsc = (e: KeyboardEvent) => { if (e.key === 'Escape' && !e.defaultPrevented && !e.isComposing && !escapeLayerOpen()) { e.preventDefault(); setOpen(false); } };
     document.addEventListener('pointerdown', onDoc);
     document.addEventListener('keydown', onEsc);
     return () => { document.removeEventListener('pointerdown', onDoc); document.removeEventListener('keydown', onEsc); };
@@ -38,5 +38,5 @@ export function useProfileMenu(userId?: string) {
       .finally(() => setUploading(false));
   };
 
-  return { ...profile, open, setOpen, iconOpen, setIconOpen, uploadError, uploading, fileRef, wrapRef, onFile };
+  return { ...profile, open, setOpen, uploadError, uploading, fileRef, wrapRef, onFile };
 }

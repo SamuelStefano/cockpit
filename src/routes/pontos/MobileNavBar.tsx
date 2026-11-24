@@ -25,10 +25,10 @@ export function MobileNavBar({ selection, open, onOpen, children }: Props) {
         className={`flex h-10 w-full items-center gap-2.5 rounded-lg border border-neutral-800 bg-neutral-900/60 px-3 text-left ${tokens.focusRing}`}>
         <Icon name="layers" size={14} className="shrink-0 text-orange-400" />
         <span className="flex min-w-0 flex-1 flex-col leading-tight">
-          <span className="truncate font-mono text-[10px] lowercase text-neutral-500">{kind}</span>
+          <span className="truncate font-mono text-[12px] lowercase text-neutral-500">{kind}</span>
           <span className="truncate text-[13px] font-medium text-neutral-100">{title}</span>
         </span>
-        {pts != null && <span className="shrink-0 font-mono text-[12px] tabular-nums text-neutral-400">{fmtPts(pts)} pt</span>}
+        {pts != null && <span className="shrink-0 font-mono text-[13px] tabular-nums text-neutral-400">{fmtPts(pts)} pt</span>}
         <Icon name="chevronDown" size={14} className="shrink-0 text-neutral-500" />
       </button>
       <Drawer open={open} onClose={() => onOpen(false)} title="Épicos">

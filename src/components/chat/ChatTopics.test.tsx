@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach, vi } from 'vitest';
+import { useState } from 'react';
 import { render, cleanup, screen, fireEvent } from '@testing-library/react';
-import { ChatTopics } from './ChatTopics';
+import { act } from 'react';
+import { ChatTopics, CLOSE_GRACE_MS } from './ChatTopics';
 
 afterEach(cleanup);
 
@@ -20,7 +22,8 @@ describe('ChatTopics', () => {
   it('closed: only the rail, one tick per topic, active tick in orange', () => {
     const { container } = render(<ChatTopics topics={topics} activeId="u2" open={false} setOpen={() => {}} onJump={() => {}} />);
     expect(screen.queryByRole('navigation')).toBeNull();
-    const ticks = container.querySelectorAll('button > span');
+    // each tick is a shrinkable slot (button > span) holding the 2px mark
+    const ticks = container.querySelectorAll('button > span > span');
     expect(ticks.length).toBe(3);
     expect(ticks[1].className).toContain('bg-orange-400');
     expect(ticks[0].className).not.toContain('bg-orange-400');
@@ -39,5 +42,58 @@ describe('ChatTopics', () => {
     render(<ChatTopics topics={topics} activeId="u1" open={false} setOpen={setOpen} onJump={() => {}} />);
     fireEvent.click(screen.getByLabelText(/Tópicos da conversa/));
     expect(setOpen).toHaveBeenCalledWith(true);
+  });
+
+  it('closes the open list on Escape and on a tap outside', () => {
+    const setOpen = vi.fn();
+    render(<ChatTopics topics={topics} activeId="u1" open setOpen={setOpen} onJump={() => {}} />);
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(setOpen).toHaveBeenLastCalledWith(false);
+    setOpen.mockClear();
+    fireEvent.mouseDown(document.body);
+    expect(setOpen).toHaveBeenLastCalledWith(false);
+  });
+
+  it('a tap opens the list: the emulated mouseenter before the click does not toggle it shut', () => {
+    function Harness() {
+      const [open, setOpen] = useState(false);
+      return <ChatTopics topics={topics} activeId="u1" open={open} setOpen={setOpen} onJump={() => {}} />;
+    }
+    render(<Harness />);
+    const rail = screen.getByLabelText(/Tópicos da conversa/);
+    // touch tap sequence: pointer events (touch), then the compat mouse events, then click
+    fireEvent.pointerEnter(rail, { pointerType: 'touch' });
+    fireEvent.mouseEnter(rail);
+    fireEvent.mouseOver(rail);
+    fireEvent.click(rail);
+    expect(rail.getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('navigation')).toBeTruthy();
+  });
+
+  it('mouse leaving waits a grace period, so the pointer can cross the gap to the list', () => {
+    vi.useFakeTimers();
+    try {
+      function Harness() {
+        const [open, setOpen] = useState(false);
+        return <ChatTopics topics={topics} activeId="u1" open={open} setOpen={setOpen} onJump={() => {}} />;
+      }
+      render(<Harness />);
+      const rail = screen.getByLabelText(/Tópicos da conversa/);
+      fireEvent.pointerEnter(rail, { pointerType: 'mouse' });
+      expect(screen.getByRole('navigation')).toBeTruthy();
+      fireEvent.pointerLeave(rail, { pointerType: 'mouse' });
+      act(() => { vi.advanceTimersByTime(CLOSE_GRACE_MS - 50); });
+      expect(screen.getByRole('navigation')).toBeTruthy();
+      // reaches the list in time: stays open past the grace period
+      fireEvent.pointerEnter(screen.getByRole('navigation'), { pointerType: 'mouse' });
+      act(() => { vi.advanceTimersByTime(CLOSE_GRACE_MS * 2); });
+      expect(screen.getByRole('navigation')).toBeTruthy();
+      // leaves for good: closes once the grace period runs out
+      fireEvent.pointerLeave(screen.getByRole('navigation'), { pointerType: 'mouse' });
+      act(() => { vi.advanceTimersByTime(CLOSE_GRACE_MS); });
+      expect(screen.queryByRole('navigation')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

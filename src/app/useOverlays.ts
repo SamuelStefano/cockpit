@@ -15,9 +15,11 @@ export function useOverlays(route: string) {
   const [palette, setPalette] = useState(false);
   const [help, setHelp] = useState(false);
 
+  // Opening the drawer closes the other overlays: the terminal sheet sits under
+  // the header, so the hamburger stayed tappable and stacked the drawer on top.
   const setDrawer = useCallback((v: boolean) => {
     setDrawerState(v);
-    if (v) setRouteMenuState(false);
+    if (v) { setRouteMenuState(false); setTermSheet(false); }
   }, []);
   const setRouteMenu = useCallback((v: boolean) => {
     setRouteMenuState(v);
