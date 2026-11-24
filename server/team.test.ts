@@ -26,6 +26,14 @@ describe('team store', () => {
     expect(r.ok && r.bots[0].createdAt).toBe(100);
   });
 
+  it('keeps the stored home and homeSeat when a save omits them', async () => {
+    await saveBot(bot('capo1', { home: 'deck', homeSeat: 3 }), 100);
+    let r = await saveBot(bot('capo1', { label: 'ceo' }), 200);
+    expect(r.ok && r.bots[0]).toMatchObject({ home: 'deck', homeSeat: 3 });
+    r = await saveBot(bot('capo1', { home: 'dfl', homeSeat: 0 }), 300);
+    expect(r.ok && r.bots[0]).toMatchObject({ home: 'dfl', homeSeat: 0 });
+  });
+
   it('keeps exactly one primary', async () => {
     await saveBot(bot('aaaa1'));
     expect((await getTeam())[0].primary).toBe(true);

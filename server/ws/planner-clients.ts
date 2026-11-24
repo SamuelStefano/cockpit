@@ -1,6 +1,7 @@
 import type { WebSocket } from 'ws';
 import type { ServerMsg } from '../../shared/protocol';
 import { send } from './broadcast';
+import { scheduleTeamStatePush } from './team-state-push';
 
 // Admin-only fan-out: 'planner-get' is admin-gated in authz.ts, so any socket
 // that registers here is already admin. broadcast() would reach every role.
@@ -14,6 +15,7 @@ export function registerPlannerClient(ws: WebSocket): void {
 
 export function emitPlannerMsg(msg: ServerMsg): void {
   for (const ws of clients) send(ws, msg);
+  if (msg.t === 'planner-board') scheduleTeamStatePush();
 }
 
 export function _resetPlannerClients(): void {

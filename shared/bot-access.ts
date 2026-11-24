@@ -26,7 +26,8 @@ export function parsePermissions(raw: unknown): BotPermissions | null {
 }
 
 export const MAX_BOT_SKILLS = 300;
-const SKILL_ID_RE = /^[a-zA-Z0-9_-]{1,80}$/;
+// A skill id is `<skill>` or a plugin skill `<plugin>:<skill>`, each part in the same charset.
+export const SKILL_ID_RE = /^[a-zA-Z0-9_-]{1,80}(?::[a-zA-Z0-9_-]{1,80})?$/;
 
 export function parseSkillIds(raw: unknown): string[] | null {
   if (!Array.isArray(raw) || raw.length > MAX_BOT_SKILLS) return null;

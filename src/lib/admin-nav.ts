@@ -10,6 +10,6 @@ export function connectionsTabFromHash(hash: string): ConnectionsTab | null {
 }
 
 export function openAdminTab(tab: 'agents' | 'models' | 'mcps'): void {
-  history.pushState(null, '', `/conexoes#${TAB_OF[tab]}`);
+  history.pushState(null, '', `/configuracoes/conexoes#${TAB_OF[tab]}`);
   window.dispatchEvent(new PopStateEvent('popstate'));
 }

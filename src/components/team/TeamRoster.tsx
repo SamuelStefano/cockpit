@@ -1,6 +1,5 @@
 import { Icon, tokens } from '../primitives';
 import { Mascot } from './Mascot';
-import { LivingPhrase } from './LivingPhrase';
 import { TeamDot } from './TeamDot';
 import type { TeamEntry } from './team-order';
 
@@ -18,13 +17,12 @@ interface TeamRosterProps {
   fold?: { counts: Record<string, number>; open: readonly string[]; onToggle: (id: string) => void };
 }
 
-// The roster rows shared by the expanded rail and the team sheet: mascot, name, star, live phrase.
+// The roster rows shared by the expanded rail and the team sheet: mascot, name, star and the bot's role (never a message).
 export function TeamRoster({ entries, activeId, onOpen, rowHeight = 44, indent = true, phrases = true, mascotSize = 32, fold }: TeamRosterProps) {
   return (
     <>
       {entries.map(({ view, depth }) => {
-        const { bot, state, preview } = view;
-        const live = state === 'thinking' || state === 'working';
+        const { bot, state } = view;
         const count = fold?.counts[bot.id] ?? 0;
         const expanded = !!fold?.open.includes(bot.id);
         const row = (
@@ -43,9 +41,7 @@ export function TeamRoster({ entries, activeId, onOpen, rowHeight = 44, indent =
                 {bot.primary && <Icon name="star" size={11} className="shrink-0 fill-orange-400 text-orange-400" />}
                 {count > 0 && !expanded && <span className="shrink-0 text-[11px] font-normal text-neutral-500">· +{count}</span>}
               </span>
-              {phrases && (live
-                ? <LivingPhrase active startedAt={view.startedAt} className="text-[12px] text-neutral-500" />
-                : preview && <span className="block truncate text-[12px] text-neutral-500">{preview}</span>)}
+              {phrases && <span className="block h-4 truncate text-[12px] text-neutral-500">{bot.label}</span>}
             </span>
           </button>
         );

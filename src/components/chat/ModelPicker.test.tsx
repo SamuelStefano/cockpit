@@ -55,7 +55,7 @@ describe('ModelPicker', () => {
     expect(queryByLabelText('Haiku 4.5')).toBeTruthy();
     expect(queryByLabelText('Grok · agente')).toBeNull();
     fireEvent.click(getByText('Adicionar modelo ou provedor'));
-    expect(location.pathname + location.hash).toBe('/conexoes#adicionar');
+    expect(location.pathname + location.hash).toBe('/configuracoes/conexoes#adicionar');
   });
 
   it('offers "Gerenciar" only to admins', () => {

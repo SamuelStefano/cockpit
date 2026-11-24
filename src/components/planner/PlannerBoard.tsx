@@ -19,9 +19,10 @@ interface PlannerBoardProps {
   onAdd: (column: Column, title: string) => void;
   onOpen: (id: string) => void;
   onMove: (id: string, column: Column, index: number) => void;
+  onToggleReady?: (id: string, ready: boolean) => void;
 }
 
-export function PlannerBoard({ tasks, bots, visible, filtering, now, showAllDone, onToggleAllDone, onAdd, onOpen, onMove }: PlannerBoardProps) {
+export function PlannerBoard({ tasks, bots, visible, filtering, now, showAllDone, onToggleAllDone, onAdd, onOpen, onMove, onToggleReady }: PlannerBoardProps) {
   const coarse = useCoarse();
   const [mobile, setMobile] = useState<Column>('today');
   const dnd = usePlannerDnd(tasks, visible, showAllDone, onMove);
@@ -35,7 +36,7 @@ export function PlannerBoard({ tasks, bots, visible, filtering, now, showAllDone
           <PlannerColumn
             key={c} column={c} tasks={lists[c]} bots={bots} filtering={filtering} coarse={coarse} hiddenDone={hiddenDoneCount(visible, now)} showAllDone={showAllDone}
             className={c === mobile ? '' : 'max-md:hidden'} onToggleAllDone={onToggleAllDone}
-            onAdd={(title) => onAdd(c, title)} onOpen={onOpen} onMove={onMove}
+            onAdd={(title) => onAdd(c, title)} onOpen={onOpen} onMove={onMove} onToggleReady={onToggleReady}
             dnd={{
               dragId: dnd.dragId, overIndex: dnd.over?.column === c ? dnd.over.index : null, startDrag: dnd.startDrag, reset: dnd.reset,
               overCard: (e, i) => dnd.overCard(e, c, i), overColumn: (e) => dnd.overColumn(e, c, lists[c].length), drop: (e) => dnd.drop(e, c),

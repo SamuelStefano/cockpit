@@ -15,9 +15,12 @@ import type { ByoKeyView } from './byo-providers';
 import type { AgentView, AgentPreset, AgentStatus, AgentCustomField } from './agents';
 import type { TeamMessage } from './team-messages';
 import type { TeamMeeting } from './team-meeting';
+import type { TeamState } from './team-state';
+import type { TalkChunkPayload, TalkPayload } from './team-talk';
 import type { PrDetail, PrDiff, PrsSnapshot, SessionPrs } from './prs';
 import type { BoxHealth, SmokeResult } from './box-health';
 import type { VersionKind, VersionMeta } from './versions';
+import type { VillagePlanView, VillageView } from './village';
 
 export interface ToolDiff {
   path: string;
@@ -460,8 +463,19 @@ export interface TeamBot {
   mascot: TeamMascot;
   parentId?: string;
   department?: DepartmentId;
+  // Project house the bot works in on the team world (a project id, e.g. 'itera').
+  project?: string;
+  // Building the bot lives in on the team world (a building id, e.g. 'deck').
+  home?: string;
+  // Desk index inside that building (0..63); the world uses it when the desk is free.
+  homeSeat?: number;
+  sprite?: string;
   primary?: boolean;
   sessionId?: string;
+  // Sessions this bot left behind on `team rotate` (newest last); a turn aimed at one still speaks as the bot.
+  previousSessionIds?: string[];
+  // Set by `team rotate`: the next turn starts a fresh session carrying the bot's handoff file. Cleared once it binds.
+  rotatedAt?: number;
   profile: TeamProfile;
   model?: string;
   // Stored only for now: the automatic switch to it is a later slice.
@@ -480,7 +494,7 @@ export interface TeamBot {
 export interface AgentSource { repo: string; path: string }
 export interface AgentSourceSync { at: number; commit?: string; error?: string }
 // What the browser may send: sessionId/createdAt/updatedAt/sourceSync are the server's.
-export type TeamBotInput = Omit<TeamBot, 'sessionId' | 'createdAt' | 'updatedAt' | 'sourceSync'>;
+export type TeamBotInput = Omit<TeamBot, 'sessionId' | 'rotatedAt' | 'createdAt' | 'updatedAt' | 'sourceSync'>;
 // A bot's AskUserQuestion still waiting on the human. Persisted server-side
 // (~/.cockpit/team-pending.json) so a question asked by a routine or a bot↔bot
 // turn, with nobody watching, survives a reload and reaches another device.
@@ -867,8 +881,15 @@ export type ClientMsg =
   | { t: 'agent-build'; reqId: string; history: { role: 'user' | 'assistant'; text: string }[]; draft: { name: string; label: string; instructions: string; skills: string[] } }
   | { t: 'team-messages-get'; botId?: string; peer?: string; before?: number }
   | { t: 'team-pause-set'; paused: boolean }
+  | { t: 'village-get' }
+  | { t: 'village-config'; enabled?: boolean; dailyCap?: number }
+  | { t: 'village-dry' }
+  | { t: 'team-rotate'; botId: string }
   | { t: 'team-meeting-start'; question: string; participantIds: string[]; moderatorId: string }
   | { t: 'team-meetings-get' }
+  | { t: 'team-state-get'; followUpHours?: number }
+  | { t: 'team-talk-get'; botId: string; recording?: boolean }
+  | { t: 'team-talk-send'; botId: string; text: string; msgId: string; recording?: boolean }
   | { t: 'team-files-get'; botId: string }
   | { t: 'team-file-get'; botId: string; path: string }
   | { t: 'team-computer-get'; botId: string }
@@ -962,6 +983,7 @@ export type ClientMsg =
   | { t: 'canvas-card-delete'; id: string }
   | { t: 'planner-get' }
   | { t: 'planner-task-save'; task: PlannerTask }
+  | { t: 'planner-task-ready'; id: string; ready: boolean }
   | { t: 'planner-task-delete'; id: string }
   | { t: 'planner-reorder'; moves: PlannerMove[] }
   | { t: 'planner-task-handoff'; id: string; handoff: Omit<TaskHandoff, 'at'> }
@@ -1084,7 +1106,13 @@ export type ServerMsg =
   | { t: 'team-messages'; items: TeamMessage[]; botId?: string; peer?: string; before?: number }
   | { t: 'team-message'; item: TeamMessage }
   | { t: 'team-paused'; paused: boolean }
+  | { t: 'village'; village: VillageView }
+  | { t: 'village-plan'; plan: VillagePlanView }
+  | { t: 'team-rotate-result'; botId: string; ok: boolean; error?: string; words?: number }
   | { t: 'team-meetings'; items: TeamMeeting[] }
+  | { t: 'team-state'; state: TeamState }
+  | { t: 'team-talk'; talk: TalkPayload }
+  | { t: 'team-talk-chunk'; botId: string; msgId?: string; chunk: TalkChunkPayload }
   | { t: 'team-meeting'; item: TeamMeeting }
   | { t: 'team-pending'; items: TeamPendingQuestion[] }
   | { t: 'team-files'; botId: string; items: BotFile[]; error?: string }

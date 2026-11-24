@@ -5,7 +5,7 @@ import type { TeamEntry } from '../team/team-order';
 
 // The section starts collapsed: a long team pushed the chats below the fold.
 export function useAgentFold(entries: TeamEntry[], activeId: string | null) {
-  const [expanded, setExpanded] = usePersisted<boolean>('sidebar.agents.section', false);
+  const [expanded, setExpanded] = usePersisted<boolean>('sidebar.agents.section', true);
   const [openIds, setOpenIds] = usePersisted<string[]>('sidebar.agents.open', []);
   const fold = useMemo(() => foldTeam(entries, new Set(openIds)), [entries, openIds]);
   const glance = useMemo(() => glanceEntries(entries, activeId), [entries, activeId]);

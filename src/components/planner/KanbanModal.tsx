@@ -27,7 +27,7 @@ export function KanbanModal({ open, onClose, planner, bots }: { open: boolean; o
       <div className="relative flex min-h-0 flex-1 flex-col">
         <PlannerBoard
           tasks={planner.tasks} bots={bots} visible={f.visible} filtering={f.filtering} now={now} showAllDone={k.showAllDone}
-          onToggleAllDone={() => k.setShowAllDone((v) => !v)} onAdd={k.add} onOpen={k.setEditingId} onMove={k.move}
+          onToggleAllDone={() => k.setShowAllDone((v) => !v)} onAdd={k.add} onOpen={k.setEditingId} onMove={k.move} onToggleReady={planner.onPlannerReady}
         />
         {editing && <TaskEditor key={editing.id} task={editing} bots={bots} onSave={k.save} onDelete={k.remove} onBack={() => k.setEditingId(null)} />}
       </div>

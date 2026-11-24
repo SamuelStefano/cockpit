@@ -1,0 +1,22 @@
+{
+ "version": 1,
+ "animations": {
+  "dust_run": {
+   "sheet": "dust.png",
+   "x": 0,
+   "y": 0,
+   "frame_w": 16,
+   "frame_h": 16,
+   "frames": 6,
+   "fps": 14,
+   "anchor": [
+    8,
+    14
+   ],
+   "blend": "normal",
+   "loop": false,
+   "note": "one-shot puff at the feet of a running character; anchor = ground point behind the heel",
+   "layer": "ground"
+  }
+ }
+}

@@ -7,7 +7,8 @@ import { withFileLockAsync } from './ws/file-lock';
 
 // What team-mcp.mjs drops in the outbox, one file per message.
 export interface SpoolHandoff { taskId: string; done: string; pending: string; reason: string; switchPoint: string }
-export interface SpoolMessage { id: string; from: string; to: string; text: string; hop: number; ts: number; handoff?: SpoolHandoff }
+export interface SpoolTaskDone { taskId: string; summary: string }
+export interface SpoolMessage { id: string; from: string; to: string; text: string; hop: number; ts: number; handoff?: SpoolHandoff; taskDone?: SpoolTaskDone }
 
 export type HandoffOutcome = { ok: true; text: string } | { ok: false; reason: string };
 
@@ -17,6 +18,7 @@ export interface OutboxDeps {
   getTeam: () => Promise<TeamBot[]>;
   deliver: (m: SpoolMessage, team: TeamBot[]) => Promise<Delivery>;
   applyHandoff?: (m: SpoolMessage & { handoff: SpoolHandoff }, team: TeamBot[]) => Promise<HandoffOutcome>;
+  applyTaskDone?: (m: SpoolMessage & { taskDone: SpoolTaskDone }, team: TeamBot[]) => Promise<HandoffOutcome>;
   emit?: (m: TeamMessage) => void;
   now?: () => number;
 }
@@ -79,8 +81,10 @@ export function parseSpool(raw: string): SpoolMessage | null {
     if (typeof r.id !== 'string' || !TEAM_MSG_ID_RE.test(r.id)) return null;
     if (typeof r.from !== 'string' || typeof r.to !== 'string' || typeof r.text !== 'string') return null;
     const handoff = parseHandoff(r.handoff);
+    const td = r.taskDone as Partial<SpoolTaskDone> | undefined;
+    const taskDone = td && typeof td.taskId === 'string' && typeof td.summary === 'string' ? { taskId: td.taskId, summary: td.summary } : undefined;
     const hop = Number.isInteger(r.hop) && (r.hop as number) > 0 ? (r.hop as number) : 1;
-    return { id: r.id, from: r.from, to: r.to, text: r.text, hop, ts: typeof r.ts === 'number' ? r.ts : Date.now(), ...(handoff ? { handoff } : {}) };
+    return { id: r.id, from: r.from, to: r.to, text: r.text, hop, ts: typeof r.ts === 'number' ? r.ts : Date.now(), ...(handoff ? { handoff } : {}), ...(taskDone ? { taskDone } : {}) };
   } catch { return null; }
 }
 
@@ -100,7 +104,21 @@ async function resolveHandoff(spool: SpoolMessage, team: TeamBot[], deps: Outbox
   catch (e) { return { ok: false, reason: (e as Error).message.slice(0, 200) }; }
 }
 
+// A task-done spool is not a message: it closes the sender's own claimed task and is
+// never delivered to anyone. It skips the message brakes (hop, hourly budget, pause):
+// a bot that already did the work must be able to close it.
+async function applyDone(spool: SpoolMessage & { taskDone: SpoolTaskDone }, team: TeamBot[], deps: OutboxDeps): Promise<{ status: TeamMessageStatus; reason?: string; text: string }> {
+  const text = `team_task_done ${spool.taskDone.taskId}`;
+  if (!team.some((b) => b.id === spool.from)) return { status: 'blocked', reason: 'remetente não é da equipe', text };
+  if (!deps.applyTaskDone) return { status: 'blocked', reason: 'fechar tarefa indisponível', text };
+  try {
+    const r = await deps.applyTaskDone(spool, team);
+    return r.ok ? { status: 'delivered', text } : { status: 'blocked', reason: r.reason, text };
+  } catch (e) { return { status: 'failed', reason: (e as Error).message.slice(0, 200), text }; }
+}
+
 async function judgeAndDeliver(spool: SpoolMessage, team: TeamBot[], log: TeamMessage[], deps: OutboxDeps, nowMs: number): Promise<{ status: TeamMessageStatus; reason?: string; text: string }> {
+  if (spool.taskDone) return applyDone({ ...spool, taskDone: spool.taskDone }, team, deps);
   const bad = invalid(spool, team);
   if (bad) return { status: 'blocked', reason: bad, text: spool.text };
   const verdict = judgeTeamMessage({ paused: isTeamPaused(), hop: spool.hop, sentLastHour: sentSince(log, spool.from, nowMs - HOUR_MS) });

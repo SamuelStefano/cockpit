@@ -9,6 +9,8 @@ import { broadcast } from './broadcast';
 import { hasInteractiveClaude } from '../canvas/term-stats';
 import { readBusyElsewhereSessionIds } from '../canvas/cv-liveness';
 import { applyBotHandoff } from './team-handoff';
+import { applyTaskDone } from '../village/done';
+import { scheduleTeamStatePush } from './team-state-push';
 import { enqueuePending } from './pending';
 import { addParked } from './parked';
 import { resumableId } from './resume';
@@ -58,12 +60,17 @@ export async function deliverTeamMessage(m: SpoolMessage, team: TeamBot[]): Prom
   if (raced) return queueLive(raced);
   const r = startRun({ ...params, ws: null, sessionKey: key, prompt, resumeId: resume, msgId: `team-${m.id}` });
   if (r === 'pane' || threads.has(key)) return 'delivered';
+  if (r === 'parked') return 'queued';
   if (r === 'rejected') return park(parkKey, params, prompt, resume);
+  console.error(`[team-deliver] ${m.id} to ${m.to}: startRun returned ${String(r)} and no thread is live`);
   return 'failed';
 }
 
 // Both Deck processes run this: the rename claim picks who delivers, and each
 // process broadcasts from the shared log so every tab sees every message.
 export function startTeamMessaging(): void {
-  startTeamOutbox({ getTeam, deliver: deliverTeamMessage, applyHandoff: (m, team) => applyBotHandoff(m, team) }, (item) => broadcast({ t: 'team-message', item }));
+  startTeamOutbox({ getTeam, deliver: deliverTeamMessage, applyHandoff: (m, team) => applyBotHandoff(m, team), applyTaskDone: (m, team) => applyTaskDone(m, team) }, (item) => {
+    broadcast({ t: 'team-message', item });
+    scheduleTeamStatePush();
+  });
 }

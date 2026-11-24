@@ -8,6 +8,7 @@ export interface PlannerApi {
   loaded: boolean;
   onPlannerGet: () => void;
   onPlannerSave: (task: PlannerTask) => void;
+  onPlannerReady: (id: string, ready: boolean) => void;
   onPlannerDelete: (id: string) => void;
   onPlannerMove: (id: string, column: PlannerColumn, index: number) => PlannerMove | null;
   onMsg: (msg: ServerMsg) => boolean;
@@ -25,6 +26,8 @@ export function usePlanner(send: (m: ClientMsg) => boolean): PlannerApi {
     setTasks((prev) => (prev.some((t) => t.id === task.id) ? prev.map((t) => (t.id === task.id ? task : t)) : [...prev, task]));
     send({ t: 'planner-task-save', task });
   }, [send]);
+
+  const onPlannerReady = useCallback((id: string, ready: boolean) => { send({ t: 'planner-task-ready', id, ready }); }, [send]);
 
   const onPlannerDelete = useCallback((id: string) => {
     setTasks((prev) => prev.filter((t) => t.id !== id));
@@ -49,7 +52,7 @@ export function usePlanner(send: (m: ClientMsg) => boolean): PlannerApi {
   }, []);
 
   return useMemo(
-    () => ({ tasks, loaded, onPlannerGet, onPlannerSave, onPlannerDelete, onPlannerMove, onMsg }),
-    [tasks, loaded, onPlannerGet, onPlannerSave, onPlannerDelete, onPlannerMove, onMsg],
+    () => ({ tasks, loaded, onPlannerGet, onPlannerSave, onPlannerReady, onPlannerDelete, onPlannerMove, onMsg }),
+    [tasks, loaded, onPlannerGet, onPlannerSave, onPlannerReady, onPlannerDelete, onPlannerMove, onMsg],
   );
 }

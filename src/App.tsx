@@ -4,9 +4,11 @@ import { useEdgeSwipeOpen } from './components/useEdgeSwipeOpen';
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { memorizePrompt } from './components/chat/memorize';
 import { KanbanButton } from './components/planner/KanbanButton';
+import { VilaButton } from './components/chrome/VilaButton';
 import { Sidebar } from './components/chrome/sidebar/Sidebar';
 import { MobileTopBar } from './components/chrome/sidebar/MobileTopBar';
 import { TopBarSlotContext } from './components/chrome/sidebar/TopBarSlot';
+import { MobileTabBar } from './components/chrome/sidebar/MobileTabBar';
 import { MobileNavDrawer } from './components/chrome/sidebar/MobileNavDrawer';
 import { SessionsPanel } from './components/Sessions';
 import { QuotaBanner } from './components/chrome/QuotaBanner';
@@ -28,6 +30,7 @@ import { useJustDone } from './components/bit/useJustDone';
 import type { LinkState } from './components/bit/turn-bit-state';
 import { RouteContent } from './app/RouteContent';
 import { SettingsModal } from './app/SettingsModal';
+import { settingsPages } from './app/settings-pages';
 import { useSettingsBackdrop } from './app/useSettingsBackdrop';
 import { useAgentNav } from './app/useAgentNav';
 import { useCockpit } from './useCockpit';
@@ -41,7 +44,7 @@ import { boxStore } from './cockpit/boxes-store';
 import { takePendingPrompt, PROMPT_LINK_MAX } from './cockpit/prompt-link';
 import { toast } from './components/primitives/toast-bus';
 import { takeNewIntent } from './cockpit/box-intent';
-import { AGENT_MEETINGS, AGENT_NEW, AGENT_STORE, useRoute } from './useRoute';
+import { AGENT_MEETINGS, AGENT_NEW, AGENT_STORE, menuRoute, useRoute } from './useRoute';
 import { capacityBlocksSend } from './lib/capacity';
 import { loadPref } from './lib/persist';
 import { SUPABASE_ENABLED } from './lib/supabase';
@@ -58,7 +61,7 @@ import { useRoleLanding } from './app/useRoleLanding';
 import { useIsMobile } from './app/useIsMobile';
 import { useKeyboardOpen } from './app/useKeyboardOpen';
 import { useKeyboardViewport } from './app/useKeyboardViewport';
-import { entryOpensNewChat } from './app/entry-landing';
+import { entryOpensNewChat, entryLandsOnTeamHome } from './app/entry-landing';
 import { useTabTitle } from './app/useTabTitle';
 import { useOfflineLatch } from './app/useOfflineLatch';
 import { useReconnectAction } from './app/useReconnectAction';
@@ -195,7 +198,7 @@ function CockpitBody() {
     setActiveSessionId(pick);
   }, [activeSessionId, sessions, archived, chatId, setActiveSessionId]);
 
-  useRoleLanding({ route, capsKnown: !!caps, role, nav });
+  useRoleLanding({ route, capsKnown: !!caps, role, nav, landOnTeam: entryLandsOnTeamHome });
 
   // Between a reload and the first session list there is no active session yet: without
   // this the chat flashed the empty "new chat" screen before jumping back to the open one.
@@ -236,14 +239,14 @@ function CockpitBody() {
   const sidebarProps = { ...sessionsProps, agents: agent.views, activeAgentId: agent.active?.bot.id ?? null, onOpenAgent: agent.open, onNewAgent: isAdmin ? agent.openNew : undefined };
   const quotaNotice = claudeQuota && quotaGate.warn && !quotaClosed && rate ? <QuotaBanner reset={relReset(rate.resetsAt)} onClose={() => setQuotaClosed(true)} /> : null;
   const bodyFooter = isMobile ? null : <BodyFooter end={quotaNotice} />;
-  const chatWithTeam = { ...chatProps, teamSlot: isAdmin && cockpit.planner ? <KanbanButton planner={cockpit.planner} bots={cockpit.bots} /> : undefined, footer: bodyFooter };
+  const chatWithTeam = { ...chatProps, teamSlot: isAdmin ? <><VilaButton route={route} isAdmin={isAdmin} onGo={nav} />{cockpit.planner && <KanbanButton planner={cockpit.planner} bots={cockpit.bots} />}</> : undefined, footer: bodyFooter };
   const openPalette = () => { setDrawer(false); setPalette(true); };
   const account = { userId: sbAuth.session?.user.id, onSignOut: SUPABASE_ENABLED ? sbAuth.signOut : undefined, onChangePassword: SUPABASE_ENABLED ? sbAuth.changePassword : undefined, drops: dropApi };
 
   const closeDrawer = useCallback(() => setDrawer(false), [setDrawer]);
   const drawerNav = drawer ? (
     <Sidebar
-      route={route} nav={(to) => { setDrawer(false); nav(to); }} role={role}
+      route={menuRoute(route, agentId)} nav={(to) => { setDrawer(false); nav(to); }} role={role}
       onNew={handleNew} onPalette={openPalette}
       bitState={bitState} conn={conn.ws} account={account}
       sessions={<SessionsPanel {...sidebarProps} embedded onCloseMobile={closeDrawer} />}
@@ -255,7 +258,6 @@ function CockpitBody() {
   const chatSurface = viewRoute === '/';
   const pageTitle = viewRoute === '/agentes'
     ? (!agentId ? 'Escritório' : agentId === AGENT_NEW ? 'Novo agente' : agentId === AGENT_STORE ? 'Loja' : agentId === AGENT_MEETINGS ? 'Reuniões' : agent.views.find((v) => v.bot.id === agentId)?.bot.name ?? 'Agente')
-    : viewRoute === '/skills' && skillId ? skills.find((x) => x.id === skillId)?.name ?? skillId
     : navLabel(viewRoute) ?? (viewRoute === '/onboarding' ? 'Começar' : 'Deck');
 
   const connectionsCtx = useMemo(() => ({ connections: cockpit.connections, loaded: cockpit.connectionsLoaded, refresh: cockpit.onConnectionsGet }), [cockpit.connections, cockpit.connectionsLoaded, cockpit.onConnectionsGet]);
@@ -310,14 +312,14 @@ function CockpitBody() {
       <div className="flex min-h-0 flex-1">
         {!isMobile && (
           <Sidebar
-            route={route} nav={nav} role={role} navCounts={navCounts} onNew={handleNew} onPalette={() => setPalette(true)}
+            route={menuRoute(route, agentId)} nav={nav} role={role} navCounts={navCounts} onNew={handleNew} onPalette={() => setPalette(true)}
             bitState={bitState} conn={conn.ws} account={account}
             sessions={<SessionsPanel {...sidebarProps} embedded />}
             rail={<RailChats sessions={sidebarSessions} running={runningAnywhere} activeId={activeSessionId} onSelect={selectSession} />}
           />
         )}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          {isMobile && !chatSurface && (
+          {isMobile && !chatSurface && viewRoute !== '/equipe' && (
             <MobileTopBar onMenu={() => setDrawer(!drawer)} menuOpen={drawer} title={pageTitle} slotRef={setTopBarSlot} />
           )}
           {/* Âncora de altura zero no fluxo: o aviso pende daqui, logo abaixo do topo da coluna. */}
@@ -330,18 +332,21 @@ function CockpitBody() {
           </div>
 
           <RouteContent
-            route={viewRoute} agentRoute={{ id: agentId, tab: agentTab, open: navAgent }} skillRoute={{ id: skillId, open: navSkill }} isMobile={isMobile} isAdmin={isAdmin} isRoot={isRoot} connected={conn.ws === 'connected'}
+            route={viewRoute} agentRoute={{ id: agentId, tab: agentTab, open: navAgent }} isMobile={isMobile} isAdmin={isAdmin} capsKnown={!!caps} isRoot={isRoot} connected={conn.ws === 'connected'}
             cockpit={cockpit} chatProps={chatWithTeam} termProps={termProps}
             onOpenSession={selectSession} agent={agent}
-            onOpenAgentChat={(m) => { handleNew(); setModel(m); nav('/'); }}
             layout={{ rowRef }}
             mobile={{ drawer, setDrawer, termSheet, setTermSheet, runningTerm, drawerNav }}
           />
           <SettingsModal
             open={settings.open} onClose={settings.close} route={route} role={role} nav={nav} isMobile={isMobile} connected={conn.ws === 'connected'}
             cockpit={cockpit} account={account} usageDock={usageDock} onOpenSession={selectSession}
+            pages={settingsPages({ cockpit, connected: conn.ws === 'connected', isAdmin, isRoot, skillRoute: { id: skillId, open: navSkill }, onOpenAgentChat: (m) => { handleNew(); setModel(m); nav('/'); } })}
           />
           {!isMobile && !chatSurface && bodyFooter}
+          {isMobile && !keyboardOpen && (
+            <MobileTabBar role={role} route={viewRoute} onNavigate={nav} onConversations={() => setDrawer(true)} onMore={() => setDrawer(true)} />
+          )}
         </div>
       </div>
       {isMobile && !chatSurface && (

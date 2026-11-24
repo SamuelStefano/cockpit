@@ -79,6 +79,16 @@ describe('useTeam messages and pause', () => {
     expect(sent).toEqual([{ t: 'team-pause-set', paused: false }, { t: 'team-messages-get', botId: 'capo1', peer: 'ativ1' }]);
   });
 
+  it('keeps the latest team-state snapshot and asks for it', () => {
+    const { result, sent } = mount();
+    expect(result.current.teamState).toBeNull();
+    const state = { at: 1, followUpHours: 4, bots: [], handoffs: [], followUps: [] };
+    act(() => { expect(result.current.onMsg({ t: 'team-state', state })).toBe(true); });
+    expect(result.current.teamState).toEqual(state);
+    act(() => { result.current.onTeamStateGet(); });
+    expect(sent).toEqual([{ t: 'team-state-get' }]);
+  });
+
   it('keeps meetings newest first and upserts by id', () => {
     const { result, sent } = mount();
     const m = (id: string, createdAt: number, status: 'round1' | 'done' = 'round1') => ({ id, question: 'q', participantIds: ['a', 'b'], moderatorId: 'a', status, answers: [], createdAt, updatedAt: createdAt });
