@@ -2,14 +2,13 @@ import { describe, it, expect } from 'vitest';
 import raw from '../../../../public/world/v2/world.tmj?raw';
 import homesRaw from '../../../../scripts/team-homes.json?raw';
 import {
-  V2_TILE_LAYERS, blockedTiles, botId, objects, propsOf, rectOf, tileOf, tilesOfType, validateWorldV2, type Homes, type V2Map,
+  V2_TILE_LAYERS, blockedTiles, botId, objects, propsOf, reachable, rectOf, tileOf, tilesOfType, validateWorldV2, type Homes, type V2Map,
 } from './world-v2-check';
 
 const map = JSON.parse(raw) as V2Map;
-// Stage 1 draws only the civic centre; bots whose house is not on the map yet are left out.
-const built = new Set(objects(map).map((o) => String(propsOf(o).id)));
+// Every house is on the map now, so every bot in the file is checked.
 const allHomes = (JSON.parse(homesRaw) as { homes: Homes }).homes;
-const homes: Homes = Object.fromEntries(Object.entries(allHomes).filter(([, h]) => built.has(h.house)));
+const homes: Homes = allHomes;
 const clone = (): V2Map => JSON.parse(raw) as V2Map;
 const find = (m: V2Map, id: string) => objects(m).find((o) => propsOf(o).id === id)!;
 
@@ -32,23 +31,65 @@ describe('team-homes.json', () => {
 });
 
 describe('world v2 map', () => {
-  it('is a 96x64 orthogonal map of 32px tiles under 1.5 MB', () => {
-    expect(map.width).toBe(96);
-    expect(map.height).toBe(64);
+  it('is a 128x80 orthogonal map of 32px tiles under 1.5 MB', () => {
+    expect(map.width).toBe(128);
+    expect(map.height).toBe(80);
     expect(map.tilewidth).toBe(32);
     expect(map.tileheight).toBe(32);
     expect(new TextEncoder().encode(raw).length).toBeLessThan(1.5 * 1024 * 1024);
+  });
+
+  it('builds a house for every home in team-homes.json and staffs every house but the library', () => {
+    const ids = new Set(objects(map).map((o) => String(propsOf(o).id)));
+    const missing = Object.entries(homes).filter(([, h]) => !ids.has(h.house)).map(([n, h]) => `bot "${n}" lives in house "${h.house}", which is not on the map`);
+    expect(missing).toEqual([]);
+    const staffed = new Set(Object.values(homes).map((h) => h.house));
+    const empty = objects(map).filter((o) => propsOf(o).kind === 'house' && propsOf(o).id !== 'biblioteca' && !staffed.has(String(propsOf(o).id)))
+      .map((o) => `house "${String(propsOf(o).id)}" has no bot in team-homes.json`);
+    expect(empty).toEqual([]);
+    expect(Object.keys(homes)).toHaveLength(21);
   });
 
   it('passes the validator', () => {
     expect(validateWorldV2(map, homes)).toEqual([]);
   });
 
-  it('embeds both v2 tilesets with consecutive firstgids', () => {
-    expect(map.tilesets.map((t) => t.name)).toEqual(['tiles-exterior', 'tiles-interior']);
+  it('embeds the v2 tilesets with consecutive firstgids', () => {
+    expect(map.tilesets.map((t) => t.name)).toEqual(['tiles-exterior', 'tiles-interior', 'tiles-extra']);
     expect(map.tilesets[0]!.firstgid).toBe(1);
-    expect(map.tilesets[1]!.firstgid).toBe(1 + map.tilesets[0]!.tilecount);
-    for (const ts of map.tilesets) expect(ts.image).toMatch(/^tiles-(exterior|interior)\.png$/);
+    for (let i = 1; i < map.tilesets.length; i++) expect(map.tilesets[i]!.firstgid).toBe(map.tilesets[i - 1]!.firstgid + map.tilesets[i - 1]!.tilecount);
+    for (const ts of map.tilesets) expect(ts.image).toMatch(/^tiles-(exterior|interior|extra)\.png$/);
+  });
+
+  it('gives every house a name sign on its facade and the project houses a PR counter slot', () => {
+    const houses = objects(map).filter((o) => propsOf(o).kind === 'house');
+    const signs = objects(map).filter((o) => propsOf(o).kind === 'sign');
+    const slots = objects(map).filter((o) => propsOf(o).kind === 'pr-slot');
+    const within = (o: typeof houses[number], r: ReturnType<typeof rectOf>): boolean =>
+      o.x >= r.x * 32 && o.y >= (r.y - 6) * 32 && o.x + o.width <= (r.x + r.w) * 32 && o.y + o.height <= (r.y + r.h) * 32;
+    const noSign = houses.filter((h) => !signs.some((s) => propsOf(s).house === propsOf(h).id && within(s, rectOf(map, h))))
+      .map((h) => `house "${String(propsOf(h).id)}" has no sign`);
+    expect(noSign).toEqual([]);
+    for (const id of ['itera', 'dfl', 'deck', 'qa', 'corte-radar']) {
+      const slot = slots.find((o) => propsOf(o).house === id);
+      expect(slot, `house "${id}" has no pr-slot`).toBeDefined();
+      expect([slot!.width, slot!.height]).toEqual([14, 9]);
+      expect(within(slot!, rectOf(map, find(map, id)))).toBe(true);
+    }
+    const layers = ['walls', 'furniture_high'].map((n) => map.layers.find((l) => l.name === n)!.data!);
+    const extra = map.tilesets.find((t) => t.name === 'tiles-extra')!;
+    for (const s of signs.filter((o) => !propsOf(o).builtin)) {
+      const g = layers.map((d) => d[Math.floor((s.y + 4) / 32) * map.width + Math.floor((s.x + 4) / 32)]!);
+      expect(g.some((v) => v >= extra.firstgid && v < extra.firstgid + extra.tilecount), `sign of "${String(propsOf(s).house)}" has no sign tiles`).toBe(true);
+    }
+  });
+
+  it('draws Corte Radar as a vertical landmark taller than wide', () => {
+    const r = rectOf(map, find(map, 'corte-radar'));
+    expect(r.h).toBeGreaterThan(r.w);
+    const tower = tilesOfType(map, 'furniture_high', 'radar_tower');
+    const ys = tower.map((p) => p.y);
+    expect(Math.max(...ys) - Math.min(...ys) + 1).toBeGreaterThanOrEqual(6);
   });
 
   it('seats 8 around one round table in the meeting room, seat 0 at the head', () => {
@@ -80,6 +121,68 @@ describe('world v2 map', () => {
     for (const c of objects(map).filter((o) => o.point && propsOf(o).room === 'sala')) {
       const t = tileOf(map, c);
       expect(blocked.has(t.y * map.width + t.x)).toBe(false);
+    }
+  });
+
+  it('has a pier with two boats and the PORTO sign', () => {
+    const pier = rectOf(map, objects(map).find((o) => propsOf(o).kind === 'pier')!);
+    expect(objects(map).filter((o) => propsOf(o).kind === 'boat')).toHaveLength(2);
+    const sign = objects(map).find((o) => propsOf(o).kind === 'dock-sign')!;
+    expect(propsOf(sign).image).toBe('fx/porto-sign.png');
+    const blocked = blockedTiles(map);
+    for (let y = pier.y; y < pier.y + pier.h - 1; y++) expect(blocked.has(y * map.width + pier.x)).toBe(false);
+  });
+
+  it('adds the Bosque e Lago district east and south of the old 96x64 town, inside the map', () => {
+    const zones = map.layers.find((l) => l.name === 'zones')!.objects!;
+    const zone = (name: string) => zones.find((z) => z.name === name);
+    for (const name of ['Bosque e Lago', 'Bosque do Sul', 'Lago', 'Piquenique do Lago', 'Clareira do Sul', 'Estrada do Bosque', 'Trilha do Bosque']) {
+      expect(zone(name), `zone "${name}" is missing`).toBeDefined();
+    }
+    const outside = (r: ReturnType<typeof rectOf>): boolean => r.x >= 96 || r.y >= 64;
+    for (const name of ['Bosque e Lago', 'Bosque do Sul', 'Lago']) expect(outside(rectOf(map, zone(name)!))).toBe(true);
+    const lake = rectOf(map, objects(map).find((o) => propsOf(o).kind === 'lake')!);
+    expect(outside(lake)).toBe(true);
+    expect(tilesOfType(map, 'ground', 'water').filter((p) => p.x >= lake.x && p.x < lake.x + lake.w && p.y >= lake.y && p.y < lake.y + lake.h).length).toBeGreaterThan(40);
+    expect(objects(map).filter((o) => propsOf(o).kind === 'picnic')).toHaveLength(4);
+    expect(objects(map).filter((o) => propsOf(o).kind === 'trail').length).toBeGreaterThanOrEqual(6);
+    expect(objects(map).filter((o) => propsOf(o).kind === 'tree' && outside({ ...tileOf(map, o), w: 1, h: 1 })).length).toBeGreaterThan(80);
+    const W = map.width * map.tilewidth;
+    const H = map.height * map.tileheight;
+    const out = [...objects(map), ...zones].filter((o) => o.x < 0 || o.y < 0 || o.x + o.width > W || o.y + o.height > H).map((o) => o.name);
+    expect(out).toEqual([]);
+  });
+
+  it('keeps the old town where it was and the old edge joined to the new land', () => {
+    expect(rectOf(map, find(map, 'prefeitura'))).toEqual({ x: 42, y: 12, w: 13, h: 9 });
+    expect(rectOf(map, find(map, 'banco'))).toEqual({ x: 6, y: 51, w: 12, h: 10 });
+    expect(rectOf(map, find(map, 'radio'))).toEqual({ x: 81, y: 17, w: 9, h: 11 });
+    expect(rectOf(map, objects(map).find((o) => propsOf(o).kind === 'pier')!)).toEqual({ x: 85, y: 49, w: 2, h: 11 });
+    const ground = map.layers.find((l) => l.name === 'ground')!.data!;
+    expect(ground.every((g) => g > 0)).toBe(true);
+    const blocked = blockedTiles(map);
+    // the east road and the south trails cross the old edge at x = 95/96 and y = 63/64
+    for (const p of [{ x: 95, y: 30 }, { x: 96, y: 30 }, { x: 63, y: 63 }, { x: 63, y: 64 }, { x: 47, y: 63 }, { x: 47, y: 64 }]) {
+      expect(blocked.has(p.y * map.width + p.x), `tile ${p.x},${p.y} is blocked`).toBe(false);
+      expect(tilesOfType(map, 'ground', 'dirt').some((t) => t.x === p.x && t.y === p.y), `tile ${p.x},${p.y} is not road`).toBe(true);
+    }
+  });
+
+  it('lets a bot walk from the plaza spawn to the lake pier, both picnic areas and the south trail', () => {
+    const blocked = blockedTiles(map);
+    const spawn = objects(map).find((o) => o.point && propsOf(o).kind === 'plaza-spawn' && propsOf(o).role === 'avatar')!;
+    const reach = reachable(map, blocked, tileOf(map, spawn));
+    const lookout = tileOf(map, objects(map).find((o) => propsOf(o).kind === 'lookout')!);
+    const pier = rectOf(map, objects(map).find((o) => propsOf(o).kind === 'lake-pier')!);
+    expect(lookout.x >= pier.x && lookout.x < pier.x + pier.w && lookout.y >= pier.y && lookout.y < pier.y + pier.h).toBe(true);
+    expect(reach.has(lookout.y * map.width + lookout.x)).toBe(true);
+    for (const o of objects(map).filter((p) => propsOf(p).kind === 'picnic')) {
+      const r = rectOf(map, o);
+      expect(reach.has((r.y + 1) * map.width + r.x - 1), `picnic "${o.name}" cannot be reached`).toBe(true);
+    }
+    for (const name of ['Trilha do Bosque', 'Trilha do Lago (leste)', 'Trilha da Praia']) {
+      const r = rectOf(map, objects(map).find((o) => o.name === name)!);
+      expect(reach.has((r.y + r.h - 1) * map.width + r.x + r.w - 1), `"${name}" cannot be reached`).toBe(true);
     }
   });
 
@@ -130,5 +233,22 @@ describe('world v2 map', () => {
     expect(errs).toContain('bot "ghost" has 0 desks, expected 1');
     expect(errs).toContain('bot "under" lives in house "escritorio", which is not on the map');
     expect(botId('Íris')).toBe('iris');
+  });
+});
+
+describe('ground surfaces (run dust)', () => {
+  const surfaceByGid = new Map<number, string>();
+  for (const ts of map.tilesets) for (const t of ts.tiles ?? []) { const s = propsOf(t).surface; if (typeof s === 'string') surfaceByGid.set(ts.firstgid + t.id, s); }
+  const ground = map.layers.find((l) => l.name === 'ground')!.data!;
+  const at = (x: number, y: number): string | undefined => surfaceByGid.get(ground[y * map.width + x]! & 0x1fffffff);
+
+  it('tags every ground tile with a surface', () => {
+    const missing = ground.filter((g) => g !== 0 && !surfaceByGid.has(g & 0x1fffffff));
+    expect(missing).toHaveLength(0);
+  });
+  it('marks the plaza paved, the pier wood and the lake trail as loose ground', () => {
+    expect(at(48, 30)).toBe('paved');
+    expect(at(85, 52)).toBe('wood');
+    expect(new Set(ground.filter((g) => g !== 0).map((g) => surfaceByGid.get(g & 0x1fffffff)))).toEqual(new Set(['grass', 'dirt', 'sand', 'paved', 'floor', 'wood', 'water']));
   });
 });

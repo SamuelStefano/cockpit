@@ -11,6 +11,8 @@ import { npcSprite, type Flight, type NpcView, type WorldView } from './world-st
 import { pickWanderTile, tileKey, wanderDelay, wanderTiles } from './world-wander';
 import { planCarry } from './world-carry';
 import { FX_SHADOW, FX_SHADOW_SMALL, ParticleSim, fxFrame, jumpLift, stepPhase, walkBob, type Particle } from './world-juice';
+import { DUST_ANCHOR, DUST_FPS, DUST_FRAME, DUST_FRAMES, DUST_POOL, dustAllowed, dustTick, legFrameMs, lookahead, runSpeed, stickRuns, surfaceOfProps } from './world-run';
+import type { Surface } from './world-run';
 import { CHIBI_FRAME_H, CHIBI_FRAME_W, FX_FRAME, assignVariants, chibiFrame, hashId, idleAnim, shirtTint, walkAnim } from './world-chibi';
 
 // Phaser lives only in this module, loaded with a dynamic import from TeamWorld.tsx.
@@ -72,6 +74,8 @@ export interface WorldHandle {
   setRecording: (recording: boolean) => void;
   setSelection: (selecting: boolean, ids: string[]) => void;
   celebrate: (id: string) => void;
+  // Virtual stick, each axis in -1..1; (0, 0) releases it.
+  setStick: (x: number, y: number) => void;
   refresh: () => void;
   destroy: () => void;
 }
@@ -145,7 +149,13 @@ class WorldScene extends Phaser.Scene {
   private route: Point[] = [];
   private avatarFace: Face = 'down';
   private marker!: Phaser.GameObjects.Ellipse;
-  private keys!: Record<'W' | 'A' | 'S' | 'D' | 'UP' | 'DOWN' | 'LEFT' | 'RIGHT', Phaser.Input.Keyboard.Key>;
+  private keys!: Record<'W' | 'A' | 'S' | 'D' | 'UP' | 'DOWN' | 'LEFT' | 'RIGHT' | 'SHIFT', Phaser.Input.Keyboard.Key>;
+  private stick = { x: 0, y: 0 };
+  private dustAcc = 0;
+  private dustNext = 0;
+  private dust: Phaser.GameObjects.Sprite[] = [];
+  private surfaceAt: (x: number, y: number) => Surface = () => 'unknown';
+  private look = { x: 0, y: 0 };
   private downAt = new Map<number, Point>();
   private pinchDist = 0;
   private pinchRatio = 1;
@@ -203,6 +213,7 @@ class WorldScene extends Phaser.Scene {
     this.load.spritesheet('chibi', `${BASE}world/chibi.png`, { frameWidth: CHIBI_FRAME_W, frameHeight: CHIBI_FRAME_H });
     this.load.spritesheet('chibi-shirt', `${BASE}world/chibi-shirt.png`, { frameWidth: CHIBI_FRAME_W, frameHeight: CHIBI_FRAME_H });
     this.load.spritesheet('fx', `${BASE}world/fx.png`, { frameWidth: FX_FRAME, frameHeight: FX_FRAME });
+    this.load.spritesheet('dust', `${BASE}world/v2/fx/dust.png`, { frameWidth: DUST_FRAME, frameHeight: DUST_FRAME });
     this.load.spritesheet('indoor', `${BASE}world/indoor.png`, { ...sheet, spacing: 1 });
     this.load.tilemapTiledJSON('world', `${BASE}world/world.tmj`);
   }
@@ -220,6 +231,7 @@ class WorldScene extends Phaser.Scene {
     for (const h of HOUSES) this.buildHouse(h);
     this.buildTrees();
     this.buildAvatar();
+    this.buildDust();
     this.buildParticles();
     this.bindInput();
     this.scale.on('resize', () => { if (this.mode === 'god' && !this.userMoved) this.applyMode(false); });
@@ -322,6 +334,26 @@ class WorldScene extends Phaser.Scene {
     for (let i = 0; i < this.sim.cap; i++) this.fx.push(this.add.image(0, 0, 'fx', 0).setDepth(9_500).setVisible(false));
   }
 
+  // Optional atlas: without dust.png the run falls back to the small fx.png dust particle.
+  private buildDust(): void {
+    if (!this.textures.exists('dust')) return;
+    this.anims.create({ key: 'dust-run', frames: this.anims.generateFrameNumbers('dust', { start: 0, end: DUST_FRAMES - 1 }), frameRate: DUST_FPS, repeat: 0 });
+    for (let i = 0; i < DUST_POOL; i++) {
+      const s = this.add.sprite(0, 0, 'dust', 0).setOrigin(DUST_ANCHOR.x / DUST_FRAME, DUST_ANCHOR.y / DUST_FRAME).setVisible(false);
+      s.on(Phaser.Animations.Events.ANIMATION_COMPLETE, () => s.setVisible(false));
+      this.dust.push(s);
+    }
+  }
+
+  private puff(x: number, y: number, dirX: number, dirY: number): void {
+    const px = Math.round(x - dirX * 4);
+    const py = Math.round(y - dirY * 3);
+    if (this.dust.length === 0) { this.emit('dust', px, py, -dirX * 10, -6, 320); return; }
+    const s = this.dust[this.dustNext]!;
+    this.dustNext = (this.dustNext + 1) % this.dust.length;
+    s.setPosition(px, py).setDepth(99 + py).setFlipX(this.dustNext % 2 === 0).setVisible(true).play('dust-run');
+  }
+
   private emit(kind: Particle['kind'], x: number, y: number, vx: number, vy: number, life: number): void {
     this.sim.spawn(kind, x, y, vx, vy, life);
   }
@@ -348,6 +380,10 @@ class WorldScene extends Phaser.Scene {
     const props = (index: number): Record<string, unknown> => (map.tilesets.find((t) => t.containsTileIndex(index))?.getTileProperties(index) as Record<string, unknown> | undefined) ?? {};
     const ground = map.createLayer('ground', sets, 0, 0)!.setDepth(0);
     this.tintGround(ground, props);
+    this.surfaceAt = (x, y) => {
+      const t = ground.getTileAtWorldXY(x, y);
+      return t ? surfaceOfProps(props(t.index)) : 'unknown';
+    };
     map.createLayer('walls', sets, 0, 0)!.setDepth(5);
     map.createLayer('furniture', sets, 0, 0)!.setDepth(6);
     this.buildDecor(map, sets, props);
@@ -836,7 +872,7 @@ class WorldScene extends Phaser.Scene {
     const kb = this.input.keyboard;
     if (kb) {
       const k = (c: string) => kb.addKey(c, false);
-      this.keys = { W: k('W'), A: k('A'), S: k('S'), D: k('D'), UP: k('UP'), DOWN: k('DOWN'), LEFT: k('LEFT'), RIGHT: k('RIGHT') };
+      this.keys = { W: k('W'), A: k('A'), S: k('S'), D: k('D'), UP: k('UP'), DOWN: k('DOWN'), LEFT: k('LEFT'), RIGHT: k('RIGHT'), SHIFT: k('SHIFT') };
     }
     this.input.addPointer(1);
     this.input.mouse?.disableContextMenu();
@@ -868,6 +904,12 @@ class WorldScene extends Phaser.Scene {
       this.wheelAcc = 0;
       this.stepCameraZoom(dir);
     });
+  }
+
+  setStick(x: number, y: number): void {
+    const len = Math.hypot(x, y);
+    const k = len > 1 ? 1 / len : 1;
+    this.stick = { x: x * k, y: y * k };
   }
 
   private stepCameraZoom(dir: number): void {
@@ -909,6 +951,12 @@ class WorldScene extends Phaser.Scene {
       vx = (k.D.isDown || k.RIGHT.isDown ? 1 : 0) - (k.A.isDown || k.LEFT.isDown ? 1 : 0);
       vy = (k.S.isDown || k.DOWN.isDown ? 1 : 0) - (k.W.isDown || k.UP.isDown ? 1 : 0);
     }
+    let running = !!k?.SHIFT.isDown;
+    if (vx === 0 && vy === 0 && (this.stick.x !== 0 || this.stick.y !== 0)) {
+      vx = this.stick.x;
+      vy = this.stick.y;
+      running = stickRuns(Math.hypot(vx, vy));
+    }
     const a = this.avatar;
     if (vx !== 0 || vy !== 0) {
       this.route = [];
@@ -922,16 +970,27 @@ class WorldScene extends Phaser.Scene {
     }
     if (vx !== 0 || vy !== 0) {
       const len = Math.hypot(vx, vy);
-      const step = (AVATAR_SPEED * dt) / 1000;
+      const step = (runSpeed(AVATAR_SPEED, running) * dt) / 1000;
+      const fromX = a.x;
+      const fromY = a.y;
       const nx = a.x + (vx / len) * step;
       const ny = a.y + (vy / len) * step;
       if (!this.blockedAt(nx, a.y)) a.x = nx;
       if (!this.blockedAt(a.x, ny)) a.y = ny;
       this.avatarFace = Math.abs(vx) > Math.abs(vy) ? (vx < 0 ? 'left' : 'right') : (vy < 0 ? 'up' : 'down');
-      a.setFrame(charFrame(AVATAR_CHAR, 1 + (Math.floor(this.time.now / 130) % 2), this.avatarFace));
+      a.setFrame(charFrame(AVATAR_CHAR, 1 + (Math.floor(this.time.now / legFrameMs(running)) % 2), this.avatarFace));
+      const moved = a.x !== fromX || a.y !== fromY;
+      const tick = dustTick(this.dustAcc, dt, running && moved);
+      this.dustAcc = tick.acc;
+      if (tick.count > 0 && dustAllowed(this.surfaceAt(a.x, a.y - 1))) for (let i = 0; i < tick.count; i++) this.puff(a.x, a.y, vx / len, vy / len);
+      this.look = lookahead(this.look, moved ? vx : 0, moved ? vy : 0, dt);
     } else {
       a.setFrame(charFrame(AVATAR_CHAR, 0, this.avatarFace));
+      this.dustAcc = 0;
+      this.look = lookahead(this.look, 0, 0, dt);
     }
+    // Phaser subtracts the follow offset, so looking ahead means the negated vector.
+    if (this.mode === 'avatar') this.cameras.main.setFollowOffset(-Math.round(this.look.x), -Math.round(this.look.y));
     a.setDepth(100 + a.y);
     this.avatarPill.c.setPosition(Math.round(a.x), Math.round(a.y) - 17);
   }
@@ -1010,6 +1069,7 @@ export function createWorld(opts: WorldOptions): WorldHandle {
     setRecording: (r) => scene.setRecording(r),
     setSelection: (s, ids) => scene.setSelection(s, ids),
     celebrate: (id) => scene.celebrate(id),
+    setStick: (x, y) => scene.setStick(x, y),
     refresh: () => game.scale.refresh(),
     destroy: () => game.destroy(true),
   };

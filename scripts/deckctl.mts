@@ -432,7 +432,31 @@ export async function awaitDelivery(client: Client, key: string, msgId: string, 
   return { kind: 'delivered' };
 }
 
+// `@Name` addresses a bot; a session id that a bot rotated away from lands on its
+// current session. Returns undefined when the arg is neither.
+export function botSessionTarget(team: Pick<TeamBot, 'id' | 'name' | 'sessionId' | 'previousSessionIds'>[], arg: string): { sessionId?: string; botName: string } | undefined {
+  if (arg.startsWith('@')) {
+    const key = arg.slice(1).trim().toLowerCase();
+    const b = team.find((x) => x.id === arg.slice(1).trim()) ?? team.find((x) => x.name.toLowerCase() === key);
+    if (!b) throw new Error(`no bot "${arg.slice(1)}" in the team${team.length ? ` — one of: ${team.map((x) => x.name).join(', ')}` : ''}`);
+    return { sessionId: b.sessionId, botName: b.name };
+  }
+  const b = team.find((x) => x.previousSessionIds?.some((id) => id.startsWith(arg)) && !(x.sessionId ?? '').startsWith(arg));
+  return b ? { sessionId: b.sessionId, botName: b.name } : undefined;
+}
+
 async function cmdSend(id: string, text: string, flags: Flags): Promise<void> {
+  if (id.startsWith('@') || id.length >= 8) {
+    const client = await connect();
+    const team = await fetchTeam(client);
+    client.close();
+    const hit = orFail(() => botSessionTarget(team, id));
+    if (hit) {
+      if (!hit.sessionId) fail(`${hit.botName} was rotated and has no session yet — wait for the first turn to bind it`);
+      if (!id.startsWith('@')) console.error(`${hit.botName} moved to session ${shortId(hit.sessionId)}; sending there`);
+      return sendText(hit.sessionId, text, flags);
+    }
+  }
   const full = await resolveSessionId(id);
   return sendText(full, text, flags);
 }

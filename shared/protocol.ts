@@ -472,6 +472,8 @@ export interface TeamBot {
   sprite?: string;
   primary?: boolean;
   sessionId?: string;
+  // Sessions this bot left behind on `team rotate` (newest last); a turn aimed at one still speaks as the bot.
+  previousSessionIds?: string[];
   // Set by `team rotate`: the next turn starts a fresh session carrying the bot's handoff file. Cleared once it binds.
   rotatedAt?: number;
   profile: TeamProfile;

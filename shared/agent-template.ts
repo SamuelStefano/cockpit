@@ -1,3 +1,4 @@
+import { SKILL_ID_RE } from './bot-access';
 import type { MascotShape, TeamBot } from './protocol';
 import { MAX_INSTRUCTIONS_BYTES, MAX_LABEL, MAX_NAME } from './team';
 import { isDepartmentId, type DepartmentId } from './departments';
@@ -7,7 +8,6 @@ export const TEMPLATE_KIND = 'deck-agent';
 export const TEMPLATE_VERSION = 1;
 export const MAX_TEMPLATE_BYTES = 24 * 1024;
 const MAX_TEMPLATE_SKILLS = 40;
-const SKILL_ID_RE = /^[a-zA-Z0-9_-]{1,80}$/;
 const HEX_RE = /^#[0-9a-fA-F]{6}$/;
 const SHAPES: ReadonlySet<string> = new Set<MascotShape>(['drop', 'blob', 'tri', 'bean']);
 const LINK_PARAM = 'agente';

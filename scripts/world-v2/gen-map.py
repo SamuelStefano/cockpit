@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
-"""Builds public/world/v2/world.tmj: the 96x64 city map (32 px tiles) of the village, from Lara's
+"""Builds public/world/v2/world.tmj: the 128x80 city map (32 px tiles) of the village, from Lara's
 zones (mapa-cidade-zonas.json) and the v2 tilesets. Deterministic.
 
-Run: python3 scripts/world-v2/gen-map.py
+The first 96x64 tiles are the original town; the land east (x >= 96) and south (y >= 64) of it is the
+"Bosque e Lago" district. Nothing of the original town moves when the map grows.
+
+Run: python3 scripts/world-v2/gen-map.py [--stage base|full]  (base = the civic centre only)
 
 Buildings are drawn cut away: the facade band (roof + front wall, or a landmark facade) sits on the
 door side, the rest of the footprint is the visible interior. Collision = tiles with `block` in the
@@ -22,7 +25,8 @@ V2 = os.path.join(ROOT, "public", "world", "v2")
 OUT = os.path.join(V2, "world.tmj")
 HOMES = os.path.join(ROOT, "scripts", "team-homes.json")
 
-W, H, T = 96, 64, 32
+W, H, T = 128, 80, 32
+OLD_W, OLD_H = 96, 64
 LAYERS = ["ground", "ground2", "walls", "furniture_low", "furniture_high", "lights"]
 BLOCKING = ("ground", "walls", "furniture_low")
 
@@ -65,7 +69,8 @@ def load_tileset(name, firstgid):
 
 TS_EXT, ITEMS_EXT, PROPS_EXT = load_tileset("tiles-exterior", 1)
 TS_INT, ITEMS_INT, PROPS_INT = load_tileset("tiles-interior", 1 + TS_EXT["tilecount"])
-SETS = {"ext": (TS_EXT, ITEMS_EXT, PROPS_EXT), "int": (TS_INT, ITEMS_INT, PROPS_INT)}
+TS_XT, ITEMS_XT, PROPS_XT = load_tileset("tiles-extra", TS_INT["firstgid"] + TS_INT["tilecount"])
+SETS = {"ext": (TS_EXT, ITEMS_EXT, PROPS_EXT), "int": (TS_INT, ITEMS_INT, PROPS_INT), "xt": (TS_XT, ITEMS_XT, PROPS_XT)}
 
 
 def h32(*a):
@@ -164,6 +169,8 @@ class World:
 
 
 def props_of(g):
+    if g >= TS_XT["firstgid"]:
+        return PROPS_XT.get(g - TS_XT["firstgid"], {})
     if g >= TS_INT["firstgid"]:
         return PROPS_INT.get(g - TS_INT["firstgid"], {})
     return PROPS_EXT.get(g - 1, {})
@@ -402,19 +409,42 @@ def facade(w, b, by, F, door_x):
                 w.put("ext", "wall_lamp_day", X, wy, "furniture_low")
                 w.put("ext", "wall_lamp_glow", X, wy, "lights")
                 break
-    lm = b.get("landmark")
+    sign = "sign_" + b["id"]
+    if not b.get("landmark") and sign in ITEMS_XT:
+        it = ITEMS_XT[sign]
+        assert it["roof"] == roof, (b["id"], it["roof"], roof)
+        sx = x + (bw - it["w"]) // 2
+        sy = by + roof_rows - 1
+        w.put("xt", sign, sx, sy, "furniture_high")
+        b["sign_px"] = (sx * T + it["text"][0], sy * T + it["text"][1], it["text"][2], it["text"][3])
+        if "pr_slot" in it:
+            b["slot_px"] = (sx * T + it["pr_slot"][0], sy * T + it["pr_slot"][1], it["pr_slot"][2], it["pr_slot"][3])
+    annex = b.get("annex")
+    lm = b.get("landmark") or annex
     if lm:
-        it = ITEMS_EXT[lm]
+        lts = b.get("lm_ts", "ext")
+        it = SETS[lts][1][lm]
         lw, lh = it["w"], it["h"]
         lx = b["lm_x"]
         ly = wy + 2 - lh
+        if annex:
+            for j in range(lh):
+                for i in range(lw):
+                    w.reserved.add((lx + i, ly + j))
+        elif "text" in it:
+            b["sign_px"] = (lx * T + it["text"][0], ly * T + it["text"][1], it["text"][2], it["text"][3])
+        else:
+            b["sign_px"] = (lx * T, ly * T, lw * T, (lh - 2) * T)
+            b["sign_builtin"] = True
+        if "pr_slot" in it and not annex:
+            b["slot_px"] = (lx * T + it["pr_slot"][0], ly * T + it["pr_slot"][1], it["pr_slot"][2], it["pr_slot"][3])
         for j in range(lh):
             for i in range(lw):
                 tid = it["ids"][j][i]
                 X, Y = lx + i, ly + j
                 if tid < 0:
                     continue
-                gid = 1 + tid
+                gid = SETS[lts][0]["firstgid"] + tid
                 if Y >= by:
                     w.clear(X, Y, ["walls", "furniture_low", "furniture_high", "ground2"])
                 if j < lh - 2:
@@ -478,6 +508,13 @@ def house_obj(w, b, homes):
     props["doorX"], props["doorY"] = dx, dy
     w.rect_obj(b["id"], b["x"], b["y"], b["w"], b["h"], **props)
     w.zone(b["label"], "building", b["x"], b["y"], b["w"], b["h"])
+    if "sign_px" in b:
+        sx, sy, sw, sh = b["sign_px"]
+        w.obj("%s-sign" % b["id"], sx, sy, sw, sh, kind="sign", house=b["id"], label=b["label"].upper(),
+              builtin=bool(b.get("sign_builtin")))
+    if "slot_px" in b:
+        sx, sy, sw, sh = b["slot_px"]
+        w.obj("%s-pr-slot" % b["id"], sx, sy, sw, sh, kind="pr-slot", house=b["id"])
 
 
 # ---------------------------------------------------------------- zones
@@ -569,7 +606,7 @@ def zone_mountain(w):
         w.zone("torre box%d" % (k + 1), "tower", x, 3, 2, 3)
     for k in range(0, 27, 2):
         tree(w, k, (k * 5) % 3 - 1 if k else -1, "pine")
-    for k in range(68, 96, 2):
+    for k in range(68, W, 2):
         tree(w, k, (k * 7) % 3 - 1, "pine")
     for x, y in ((26, 2), (66, 2), (26, 5), (66, 5), (28, -1), (64, -1), (30, 2), (62, -1), (31, -1),
                  (44, -2), (50, -2), (35, 0), (58, 0), (39, 1), (53, 4), (63, 5)):
@@ -639,6 +676,436 @@ def seat_desks(w, b, homes, spots, face="up"):
         desk(w, b, x, y, s, by_seat.get(s), face)
 
 
+# ---------------------------------------------------------------- stage 2 zones
+
+def zone_engenharia(w, homes):
+    w.zone("Bairro Engenharia", "area", 2, 15, 37, 31)
+    qa = building(w, {"id": "qa", "label": "Oficina QA", "x": 7, "y": 18, "w": 10, "h": 10, "door": "bottom",
+                      "door_x": 12, "band": "south", "wall": "brick", "roof": "terra", "roof_rows": 1,
+                      "bays": ["window_shop", "window_square"], "iwall": "mint", "floor": "floor_wood_v",
+                      "department": "engineering", "tint": "#ff6fa8dc", "icon": "ext:sign_gear",
+                      "signs": {2: "sign_gear"}, "door_item": "door_glass"})
+    wall_decor(w, qa, 1, "whiteboard")
+    wall_decor(w, qa, 4, "window_g")
+    wall_decor(w, qa, 6, "clock")
+    item(w, "bookshelf_1", 15, 20)
+    item(w, "plant_succulent", 14, 21)
+    seat_desks(w, qa, homes, [(8, 21), (11, 21), (14, 22)][:2] + [(8, 23)])
+    item(w, "plant_monstera", 15, 23)
+    house_obj(w, qa, homes)
+
+    deck = building(w, {"id": "deck", "label": "Casa Deck", "x": 20, "y": 16, "w": 10, "h": 12, "door": "bottom",
+                        "door_x": 25, "band": "south", "wall": "blue", "roof": "slate", "roof_rows": 1,
+                        "bays": ["window_pair", "window_square"], "iwall": "cream", "floor": "floor_wood_h",
+                        "department": "engineering", "tint": "#fff08a3c", "icon": "ext:sign_cup",
+                        "awnings": {1: "awning_blue_l", 2: "awning_blue_r", 7: "awning_blue_l",
+                                    8: "awning_blue_r"}, "door_item": "door_arched"})
+    wall_decor(w, deck, 1, "window_r")
+    wall_decor(w, deck, 3, "art_landscape")
+    wall_decor(w, deck, 4, "clock")
+    wall_decor(w, deck, 6, "wall_cabinet")
+    wall_decor(w, deck, 7, "hood")
+    item(w, "counter", 25, 18)
+    item(w, "counter_sink", 26, 18)
+    item(w, "counter_stove", 27, 18)
+    item(w, "fridge", 28, 18)
+    item(w, "bookshelf_0", 21, 18)
+    item(w, "bookshelf_2", 22, 18)
+    rug(w, "rug_rect", 23, 21)
+    seat_desks(w, deck, homes, [(21, 20), (27, 20), (21, 23), (24, 23), (27, 23), (24, 20)])
+    house_obj(w, deck, homes)
+
+    dfl = building(w, {"id": "dfl", "label": "Casa DFL", "x": 7, "y": 33, "w": 10, "h": 9, "door": "top",
+                       "door_x": 12, "band": "north", "wall": "cream", "roof": "green", "roof_rows": 1,
+                       "bays": ["window_arched", "window_pair"], "floor": "floor_wood_light",
+                       "department": "engineering", "tint": "#ff8ab87a", "icon": "ext:sign_flower",
+                       "signs": {7: "sign_flower"}})
+    seat_desks(w, dfl, homes, [(8, 37), (14, 37)])
+    item(w, "sofa", 8, 39)
+    item(w, "plant_monstera", 15, 39)
+    rug(w, "rug_round", 10, 38)
+    item(w, "lamp_floor", 11, 36)
+    house_obj(w, dfl, homes)
+
+    itera = building(w, {"id": "itera", "label": "Casa Itera", "x": 20, "y": 33, "w": 10, "h": 9, "door": "top",
+                         "door_x": 25, "band": "north", "wall": "pink", "roof": "brown", "roof_rows": 1,
+                         "bays": ["window_shop", "window_arched"], "floor": "floor_wood_v",
+                         "department": "engineering", "tint": "#ff3fd17f", "icon": "ext:sign_bread",
+                         "awnings": {1: "awning_green_l", 2: "awning_green_r", 7: "awning_green_l",
+                                     8: "awning_green_r"}})
+    seat_desks(w, itera, homes, [(21, 37), (27, 37), (21, 39)])
+    item(w, "bookshelf_1", 28, 39)
+    item(w, "plant_ficus", 24, 39)
+    rug(w, "rug_rect", 24, 37)
+    house_obj(w, itera, homes)
+
+    seg = building(w, {"id": "seguranca", "label": "Segurança", "x": 32, "y": 33, "w": 7, "h": 8, "door": "top",
+                       "door_x": 35, "band": "north", "wall": "cream", "roof": "slate", "roof_rows": 1,
+                       "landmark": "security", "lm_x": 34, "floor": "floor_checker_bw",
+                       "department": "engineering", "tint": "#ff4a6fa5", "icon": "ext:security"})
+    w.put("ext", "siren", 35, 32, "furniture_high")
+    w.put("ext", "siren_glow", 35, 32, "lights")
+    seat_desks(w, seg, homes, [(33, 36), (33, 38)])
+    item(w, "vault_door", 36, 36)
+    item(w, "server_rack", 37, 38)
+    house_obj(w, seg, homes)
+
+
+def zone_growth(w, homes):
+    w.zone("Bairro Growth", "area", 61, 15, 32, 31)
+    est = building(w, {"id": "estudio", "label": "Estúdio", "x": 67, "y": 16, "w": 12, "h": 12,
+                       "door": "bottom", "door_x": 73, "band": "south", "wall": "blue", "roof": "slate",
+                       "roof_rows": 1, "bays": ["window_square"], "landmark": "studio", "lm_x": 72,
+                       "iwall": "cream", "floor": "floor_wood_h", "department": "growth", "tint": "#fff08a24",
+                       "icon": "ext:studio"})
+    wall_decor(w, est, 2, "screen")
+    wall_decor(w, est, 8, "window_r")
+    wall_decor(w, est, 10, "art_abstract")
+    w.put("int", "stage", 68, 19, "furniture_low")
+    w.put("int", "stage_shadow", 68, 19, "ground2")
+    item(w, "easel", 76, 18)
+    item(w, "lamp_floor", 77, 18)
+    seat_desks(w, est, homes, [(68, 22), (75, 21), (71, 21)])
+    item(w, "plant_monstera", 77, 22)
+    house_obj(w, est, homes)
+
+    rad = building(w, {"id": "radio", "label": "Rádio", "x": 81, "y": 17, "w": 9, "h": 11, "door": "bottom",
+                       "door_x": 85, "band": "south", "wall": "pink", "roof": "green", "roof_rows": 1,
+                       "bays": ["window_pair"], "landmark": "radio", "lm_x": 84, "iwall": "mint",
+                       "floor": "floor_wood_v", "department": "growth", "tint": "#ffe86fa0", "icon": "ext:radio"})
+    wall_decor(w, rad, 2, "window_g")
+    wall_decor(w, rad, 5, "art_landscape")
+    seat_desks(w, rad, homes, [(82, 20), (86, 20)])
+    item(w, "sofa", 82, 22)
+    item(w, "plant_ficus", 88, 19)
+    house_obj(w, rad, homes)
+
+    tor = building(w, {"id": "corte-radar", "label": "Torre Corte Radar", "x": 62, "y": 33, "w": 7, "h": 13,
+                       "door": "bottom", "door_x": 65, "band": "south", "wall": "blue", "roof": "slate",
+                       "roof_rows": 1, "bays": ["window_square"], "annex": "radar_tower", "lm_ts": "xt",
+                       "lm_x": 69, "iwall": "sky", "floor": "floor_checker_warm", "department": "growth",
+                       "tint": "#ffa970d8", "icon": "xt:radar_tower"})
+    wall_decor(w, tor, 2, "screen")
+    seat_desks(w, tor, homes, [(63, 37), (66, 37), (63, 40), (66, 40)])
+    item(w, "plant_ficus", 67, 42)
+    house_obj(w, tor, homes)
+
+    # Feira / jardim
+    w.zone("Feira / jardim", "area", 77, 34, 13, 9)
+    hedge_h(w, 77, 82, 34)
+    hedge_h(w, 85, 89, 34)
+    hedge_h(w, 77, 89, 42)
+    w.paint(83, 34, 84, 41, "D", inset=True)
+    w.paint(77, 37, 89, 38, "D", inset=True)
+    for x, y in ((78, 35), (80, 35), (87, 35), (78, 40), (80, 40), (82, 40)):
+        decal(w, x, y, "flower_patch")
+    for x, y in ((79, 39), (89, 40), (88, 35)):
+        bush(w, x, y, "flower")
+    bench(w, 80, 36, "down")
+    bench(w, 86, 36, "down")
+    for i, p in enumerate("lmr"):
+        w.put("ext", "awning_yellow_" + p, 86 + i, 39, "furniture_high")
+    w.put("int", "shop_counter", 86, 40, "furniture_low")
+    w.put("int", "shop_counter_shadow", 86, 40, "ground2")
+    item(w, "barrel", 85, 40, "ext")
+
+
+def zone_sul(w, homes):
+    ban = building(w, {"id": "banco", "label": "Banco", "x": 6, "y": 51, "w": 12, "h": 10, "door": "top",
+                       "door_x": 12, "band": "north", "wall": "cream", "roof": "terra", "roof_rows": 2,
+                       "bays": ["window_arched"], "landmark": "bank", "lm_x": 10, "floor": "floor_checker_warm",
+                       "department": "finance", "tint": "#ff9ccf6a", "icon": "ext:bank"})
+    seat_desks(w, ban, homes, [(7, 56), (14, 56), (7, 58)])
+    item(w, "vault_door", 15, 58)
+    item(w, "counter", 10, 57)
+    item(w, "counter", 11, 57)
+    item(w, "plant_ficus", 16, 55)
+    house_obj(w, ban, homes)
+
+    lib = building(w, {"id": "biblioteca", "label": "Biblioteca", "x": 26, "y": 51, "w": 12, "h": 10,
+                       "door": "top", "door_x": 32, "band": "north", "wall": "brick", "roof": "slate",
+                       "roof_rows": 2, "bays": ["window_square"], "landmark": "library", "lm_x": 30,
+                       "floor": "floor_wood_h", "department": "operations", "tint": "#ffa970d8",
+                       "icon": "ext:library"})
+    for i, x in enumerate((27, 28, 35, 36)):
+        item(w, "bookshelf_%d" % (i % 3), x, 55)
+    rug(w, "rug_round", 31, 56)
+    seat_desks(w, lib, homes, [(27, 58), (30, 58), (33, 58), (35, 57)])
+    house_obj(w, lib, homes)
+
+    # Parque
+    w.zone("Parque (ociosos)", "area", 52, 51, 22, 12)
+    w.paint(52, 54, 73, 55, "D", inset=True)
+    w.paint(62, 50, 63, 62, "D", inset=True)
+    water = {(x, y) for x in range(55, 59) for y in range(60, 63)} | {(56, 59), (57, 59), (54, 61), (59, 61)}
+    for (x, y) in water:
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                w.corner[y + dy][x + dx] = "S"
+    for (x, y) in water:
+        w.corner[y][x] = "W"
+    for x, y, v in ((52, 51, "round"), (55, 51, "autumn"), (66, 51, "round"), (70, 51, "pine"), (51, 57, "pine"),
+                    (66, 58, "autumn"), (70, 58, "round"), (60, 51, "round")):
+        tree(w, x, y, v)
+    for x, y, f in ((57, 53, "down"), (65, 53, "down"), (65, 57, "up"), (69, 61, "down")):
+        bench(w, x, y, f)
+    for x, y in ((55, 56), (68, 56), (60, 60), (65, 61)):
+        decal(w, x, y, "flower_patch")
+    lamp(w, 60, 53)
+    lamp(w, 68, 53)
+
+    # Porto
+    w.zone("Porto (deploys)", "area", 77, 46, 19, 18)
+    w.paint(77, 46, 95, 63, "S")
+    w.paint(82, 52, 95, 63, "W")
+    w.paint(84, 51, 91, 51, "W")
+    w.paint(80, 57, 82, 63, "W")
+    w.paint(79, 60, 80, 63, "W")
+    w.paint(93, 50, 95, 51, "W")
+    for y in range(49, 60):
+        for x in (85, 86):
+            w.reserved.add((x, y))
+    w.rect_obj("pier", 85, 49, 2, 11, kind="pier", id="pier", label="Píer")
+    w.zone("píer", "pier", 85, 49, 2, 11)
+
+
+def pier_detail(w):
+    for y in range(49, 60):
+        for x in (85, 86):
+            set_ground(w, x, y, "ext", "dock_planks_v")
+    for y in range(52, 59):
+        w.put("ext", "dock_edge_w", 85, y, "ground2")
+        w.put("ext", "dock_edge_e", 86, y, "ground2")
+    w.put("ext", "dock_edge_s", 85, 59, "furniture_low")
+    w.put("ext", "dock_edge_s", 86, 59, "furniture_low")
+    w.put("ext", "dock_bollard", 87, 50, "furniture_low")
+    w.put("ext", "dock_rope_coil", 83, 50, "furniture_low")
+    for k, (bt, x, y) in enumerate((("fish", 87, 55), ("row", 83, 56))):
+        w.put("ext", "boat_shadow", x, y, "ground2")
+        w.put("ext", "boat_" + bt, x, y, "furniture_low")
+        w.rect_obj("boat-%d" % k, x, y, 2, 2, kind="boat", variant=bt)
+    item(w, "barrel", 80, 50, "ext")
+    item(w, "crate", 81, 50, "ext")
+    item(w, "crate_stack", 79, 49, "ext")
+    w.rect_obj("porto-sign", 87, 47, 3, 2, kind="dock-sign", image="fx/porto-sign.png", label="PORTO")
+    lamp(w, 84, 49)
+
+
+# ---------------------------------------------------------------- Bosque e Lago (east and south)
+
+LAKE_PIER = (111, 13, 2, 8)
+FOREST_CLEARINGS = [(104, 13, 17, 23), (24, 64, 14, 5)]
+
+
+def sea_north_shore(x):
+    return 50 if x < 100 else 51 if x < 105 else 52 if x < 114 else 51 if x < 120 else 50
+
+
+def sea_west_shore(y):
+    return 79 if y <= 67 else 78 if y <= 72 else 76 if y <= 75 else 74
+
+
+def zone_bosque(w):
+    w.zone("Bosque e Lago", "area", OLD_W, 0, W - OLD_W, 46)
+    w.zone("Bosque do Sul", "area", 0, OLD_H, 77, H - OLD_H)
+    # the sea of the port keeps going east and south, so the old map edge is no longer a coast cut
+    for cx in range(OLD_W + 1, W + 1):
+        top = 47 if 112 <= cx < 122 else 46
+        for cy in range(top, H + 1):
+            w.corner[cy][cx] = "S" if cy < sea_north_shore(cx) else "W"
+    for cy in range(OLD_H + 1, H + 1):
+        c = sea_west_shore(cy)
+        for cx in range(c - 2, OLD_W + 1):
+            w.corner[cy][cx] = "S" if cx < c else "W"
+    # lake
+    water = {(cx, cy) for cx in range(104, 121) for cy in range(15, 27)
+             if ((cx - 112.5) / 6.0) ** 2 + ((cy - 20.5) / 4.6) ** 2 <= 1.0}
+    for (x, y) in water:
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                w.corner[y + dy][x + dx] = "S"
+    for (x, y) in water:
+        w.corner[y][x] = "W"
+    # islet in the bay
+    for cx in range(103, 116):
+        for cy in range(60, 71):
+            d = ((cx - 109) / 5.5) ** 2 + ((cy - 65) / 4.2) ** 2
+            if d <= 1.0:
+                w.corner[cy][cx] = "G" if d <= 0.45 else "S"
+    w.zone("Ilhota", "area", 103, 60, 12, 10)
+    w.rect_obj("lago", 106, 16, 13, 9, kind="lake", id="lago", label="Lago")
+    w.zone("Lago", "lake", 105, 15, 15, 11)
+    px, py, pw, ph = LAKE_PIER
+    w.rect_obj("pier-lago", px, py, pw, ph, kind="lake-pier", id="pier-lago", label="Píer do Lago")
+    w.zone("píer do lago", "pier", px, py, pw, ph)
+    w.zone("Piquenique do Lago", "picnic", 105, 27, 14, 8)
+    w.zone("Clareira do Sul", "picnic", 24, 64, 14, 5)
+    trails = [
+        ("Estrada do Bosque", "road", 93, 29, 10, 3),
+        ("Trilha do Lago (oeste)", "trail", 102, 11, 2, 27),
+        ("Trilha do Lago (norte)", "trail", 102, 11, 20, 2),
+        ("Trilha do Lago (leste)", "trail", 120, 11, 2, 27),
+        ("Trilha do Lago (sul)", "trail", 102, 36, 20, 2),
+        ("Trilha da Praia", "trail", 110, 37, 2, 9),
+        ("Trilha do Parque", "trail", 62, 62, 2, 8),
+        ("Trilha da Avenida", "trail", 46, 55, 2, 15),
+        ("Trilha do Bosque", "trail", 8, 69, 68, 2),
+    ]
+    for name, kind, x, y, rw, rh in trails:
+        x0 = x - 1 if name == "Estrada do Bosque" else x
+        w.paint(x0, y, x + rw - 1, y + rh - 1, "D", inset=True)
+        w.rect_obj(name, x, y, rw, rh, kind=kind)
+        w.zone(name, "road", x, y, rw, rh)
+    w.paint(px, 12, px + 1, 13, "D")
+    w.paint(111, 33, 112, 36, "D")
+    w.paint(30, 67, 31, 69, "D")
+
+
+def is_grass(w, x, y):
+    g = w.L["ground"][y][x]
+    return 1 <= g <= 4
+
+
+def can_tree(w, x, y):
+    if x < 0 or y < 0 or x + 1 >= W or y + 2 >= H:
+        return False
+    for j in range(3):
+        for i in range(2):
+            X, Y = x + i, y + j
+            if not is_grass(w, X, Y) or w.L["furniture_high"][Y][X] or w.L["furniture_low"][Y][X] or \
+                    (X, Y) in w.reserved:
+                return False
+    return True
+
+
+def forest(w, x0, y0, x1, y1, density, variants, seed):
+    """scatter trees over the free grass of a rectangle; density = chance in 100 per tile"""
+    for y in range(y0, y1 + 1):
+        for x in range(x0, x1 + 1):
+            if in_clearing(x, y):
+                continue
+            r = h32(x, y, seed)
+            if r % 100 < density and can_tree(w, x, y):
+                tree(w, x, y, variants[(r >> 8) % len(variants)])
+
+
+GROVE_PALETTES = [("pine", "pine", "round"), ("round", "round", "autumn"), ("autumn", "round", "pine"),
+                  ("pine", "autumn", "pine"), ("round", "pine", "round"), ("autumn", "autumn", "round")]
+
+
+def in_clearing(x, y):
+    return any(cx - 2 < x < cx + cw and cy - 3 < y < cy + ch for cx, cy, cw, ch in FOREST_CLEARINGS)
+
+
+def groves(w, x0, y0, x1, y1, seed, gap=(2, 4), vertical=False):
+    """Woods along a strip: groups of 3-5 trees of a mixed palette, loosely placed inside the strip, with a
+    clearing of gap[0]..gap[1] tiles between groups. Everything comes from h32, so the map stays reproducible."""
+    lo, hi = (y0, y1) if vertical else (x0, x1)
+    m0, m1 = (x0, x1) if vertical else (y0, y1)
+    pos = lo + h32(seed, 0) % 2
+    while pos <= hi:
+        n = 3 + h32(pos, seed, 1) % 3
+        span = n + (4 if vertical else 3) + h32(pos, seed, 5) % 2
+        pal = GROVE_PALETTES[h32(pos, seed, 2) % len(GROVE_PALETTES)]
+        placed = 0
+        for k in range(n * 6):
+            r = h32(pos, k, seed, 3)
+            a = pos + r % span
+            b = m0 + (r >> 8) % (m1 - m0 + 1)
+            x, y = (b, a) if vertical else (a, b)
+            if a > hi or in_clearing(x, y) or not can_tree(w, x, y):
+                continue
+            tree(w, x, y, pal[(r >> 16) % len(pal)])
+            placed += 1
+            if placed == n:
+                break
+        pos += span + gap[0] + h32(pos, seed, 4) % (gap[1] - gap[0] + 1)
+
+
+def jittered_tree(w, x, y, variant, seed):
+    """a hand-placed tree nudged by up to one tile, so lists of them stop reading as rows"""
+    for k in range(3):
+        r = h32(x, y, seed, k)
+        dx, dy = r % 3 - 1, (r >> 8) % 3 - 1
+        if (dx or dy) and can_tree(w, x + dx, y + dy):
+            return tree(w, x + dx, y + dy, variant)
+    tree(w, x, y, variant)
+
+
+def picnic(w, k, x, y):
+    """two benches facing each other across a crate table"""
+    bench(w, x, y, "down")
+    item(w, "crate", x, y + 1, "ext")
+    item(w, "crate", x + 1, y + 1, "ext")
+    bench(w, x, y + 2, "up")
+    w.rect_obj("picnic-%d" % k, x, y, 2, 3, kind="picnic")
+
+
+def bosque_detail(w):
+    px, py, pw, ph = LAKE_PIER
+    for y in range(py, py + ph):
+        for x in (px, px + 1):
+            set_ground(w, x, y, "ext", "dock_planks_v")
+    for y in range(16, py + ph - 1):
+        w.put("ext", "dock_edge_w", px, y, "ground2")
+        w.put("ext", "dock_edge_e", px + 1, y, "ground2")
+    for x in (px, px + 1):
+        w.put("ext", "dock_edge_s", x, py + ph - 1, "furniture_low")
+    w.point_obj("lago-mirante", px, py + ph - 2, kind="lookout", face="down")
+    w.put("ext", "dock_bollard", px + 2, 14, "furniture_low")
+    w.put("ext", "boat_shadow", 114, 20, "ground2")
+    w.put("ext", "boat_row", 114, 20, "furniture_low")
+    bench(w, 108, 13, "down")
+    bench(w, 114, 13, "down")
+    bench(w, 108, 27, "up")
+    bench(w, 114, 27, "up")
+    lamp(w, 110, 13)
+    lamp(w, 113, 34)
+    w.put("ext", "signpost", 105, 27, "furniture_low")
+    w.put("ext", "shadow_pole", 105, 28, "ground2", soft=True)
+    w.put("ext", "signpost", 96, 27, "furniture_low")
+    w.put("ext", "shadow_pole", 96, 28, "ground2", soft=True)
+    picnic(w, 0, 107, 30)
+    picnic(w, 1, 115, 30)
+    for x, y, k in ((106, 29, "flower"), (118, 29, "berry"), (110, 31, "plain"), (113, 30, "flower"),
+                    (105, 34, "berry"), (118, 34, "flower"), (106, 14, "plain"), (117, 14, "berry")):
+        bush(w, x, y, k)
+    for x, y in ((109, 28), (111, 29), (112, 28), (116, 28), (107, 34), (109, 33), (114, 32), (117, 33),
+                 (105, 31), (119, 31), (107, 14), (116, 14), (119, 13), (104, 14)):
+        decal(w, x, y, "flower_patch")
+    for x, y, v in ((104, 23, "round"), (118, 23, "autumn"), (104, 31, "round"), (119, 32, "round")):
+        if can_tree(w, x, y):
+            tree(w, x, y, v)
+    # south clearing
+    picnic(w, 2, 27, 65)
+    picnic(w, 3, 33, 65)
+    bench(w, 70, 67, "down")
+    lamp(w, 29, 66)
+    w.put("ext", "signpost", 49, 66, "furniture_low")
+    w.put("ext", "shadow_pole", 49, 67, "ground2", soft=True)
+    for x, y, k in ((25, 65, "flower"), (36, 66, "berry"), (25, 67, "plain")):
+        bush(w, x, y, k)
+    for x, y in ((26, 68), (29, 64), (32, 68), (35, 64), (36, 68), (24, 66)):
+        decal(w, x, y, "flower_patch")
+    # woods: pines up north, mixed elsewhere, thick along the new map edges
+    mixed = ["round", "round", "autumn", "pine", "round"]
+    forest(w, OLD_W, 2, W - 2, 8, 45, ["pine"], 11)
+    forest(w, 123, 9, W - 2, 43, 85, ["pine", "round", "pine", "autumn"], 12)
+    forest(w, OLD_W, 9, 100, 43, 16, mixed, 13)
+    forest(w, 104, 39, 122, 43, 22, mixed, 14)
+    groves(w, 0, 75, 76, H - 3, 15, gap=(1, 3))
+    groves(w, 3, 71, 76, 74, 19, gap=(3, 7))
+    groves(w, 0, 61, 2, 73, 16, gap=(1, 3), vertical=True)
+    groves(w, 3, 61, 48, 63, 20, gap=(2, 5))
+    forest(w, 3, OLD_H, 76, 70, 14, mixed, 17)
+    forest(w, 103, 60, 115, 70, 100, ["pine", "round"], 18)
+
+
+BOSQUE_TARGETS = [("lake pier", (111, 19)), ("lake picnic", (109, 31)), ("lake south bank", (111, 27)),
+                  ("beach trail", (111, 47)), ("south clearing", (30, 66)), ("south trail west", (9, 70)),
+                  ("south trail east", (75, 70))]
+
+
 # ---------------------------------------------------------------- decoration
 
 def scatter(w):
@@ -654,17 +1121,10 @@ def scatter(w):
 
 
 def border_trees(w, full):
-    spots = []
-    for y in range(12, 46, 4):
-        spots.append((0, y, "pine" if y % 8 else "round"))
-    for y in range(12, 44, 4):
-        spots.append((94, y, "round" if y % 8 else "autumn"))
-    for x in range(0, 50, 4):
-        spots.append((x, 61, "round" if x % 8 else "pine"))
-    for x, y, v in spots:
-        if not full and (y >= 44 or x >= 92):
-            continue
-        tree(w, x, y, v)
+    """the west edge of the town and, on the full map, the old east edge; the south woods are in bosque_detail"""
+    groves(w, 0, 12, 2, 60 if full else 43, 21, gap=(1, 3), vertical=True)
+    if full:
+        groves(w, 93, 12, 95, 43, 22, gap=(2, 4), vertical=True)
 
 
 def neighbourhood_trees(w, full):
@@ -674,9 +1134,9 @@ def neighbourhood_trees(w, full):
              (8, 13, "round"), (40, 42, "round"), (43, 40, "autumn"), (2, 38, "pine"), (2, 33, "round"),
              (90, 22, "round"), (79, 21, "pine"), (66, 12, "round"), (79, 13, "autumn"), (88, 13, "round"),
              (39, 51, "round"), (21, 52, "autumn"), (2, 52, "round"), (2, 56, "pine"), (43, 52, "pine"),
-             (74, 51, "autumn"), (90, 31, "pine"), (60, 44, "round"), (71, 44, "autumn")]
+             (74, 51, "autumn"), (90, 31, "pine"), (60, 44, "round"), (74, 44, "autumn")]
     for x, y, v in base + (extra if full else []):
-        tree(w, x, y, v)
+        jittered_tree(w, x, y, v, 23)
     for x, y in ((38, 23), (58, 24), (44, 18), (52, 20)):
         bush(w, x, y, "berry" if (x + y) % 2 else "plain")
 
@@ -746,7 +1206,7 @@ def write(w, path):
          "orthogonal", "renderorder": "right-down", "width": W, "height": H, "tilewidth": T, "tileheight": T,
          "infinite": False, "nextlayerid": lid + 1, "nextobjectid": len(w.objects) + len(zones) + 1,
          "properties": [prop("generator", "scripts/world-v2/gen-map.py")],
-         "tilesets": [TS_EXT, TS_INT], "layers": layers}
+         "tilesets": [TS_EXT, TS_INT, TS_XT], "layers": layers}
     s = json.dumps(m, indent=1, ensure_ascii=False)
     for n in LAYERS:
         rows = [",".join(str(v) for v in w.L[n][y]) for y in range(H)]
@@ -760,7 +1220,8 @@ def load_homes(path):
     return {slug: {"house": e["house"], "seat": e["seat"]} for slug, e in json.load(open(path))["homes"].items()}
 
 
-def build(full):
+def build(stage):
+    full = stage == "full"
     homes = load_homes(HOMES)
     w = World()
     zone_roads(w)
@@ -768,6 +1229,11 @@ def build(full):
     zone_cabine(w, homes)
     zone_prefeitura(w, homes)
     zone_sala(w)
+    if full:
+        zone_engenharia(w, homes)
+        zone_growth(w, homes)
+        zone_sul(w, homes)
+        zone_bosque(w)
     for b in w.buildings:
         stub(w, b)
     terrain(w)
@@ -778,15 +1244,22 @@ def build(full):
             i, j = x - b["x"], y - b["y"]
             w.L["ground"][y][x] = w.gid("int", fl(i, j) if callable(fl) else fl)
     plaza_detail(w)
+    if full:
+        pier_detail(w)
     neighbourhood_trees(w, full)
     border_trees(w, full)
+    if full:
+        bosque_detail(w)
     scatter(w)
-    errs = walk_check(w)
+    errs = walk_check(w, BOSQUE_TARGETS if full else ())
     return w, errs
 
 
 def main():
-    w, errs = build(False)
+    stage = "full"
+    if "--stage" in sys.argv:
+        stage = sys.argv[sys.argv.index("--stage") + 1]
+    w, errs = build(stage)
     for e in errs:
         print("WALK:", e)
     write(w, OUT)
