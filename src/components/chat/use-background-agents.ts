@@ -3,6 +3,8 @@ import type { BgAgent } from '../../../shared/protocol';
 
 // Quanto tempo um agente concluído fica no "✓ done" antes de sumir.
 const DONE_LINGER_MS = 4000;
+// Wider than the server's 2 s scan, so a finish seen on the next tick still counts.
+const RECENT_END_MS = 10_000;
 
 export interface ViewAgent extends BgAgent {
   elapsedMs: number; // tempo decorrido tickando no cliente (não depende de novo evento)
@@ -35,7 +37,12 @@ export function useBackgroundAgents(incoming: BgAgent[] | undefined): ViewAgent[
   }
   for (const a of agents) {
     if (a.status === 'done' || a.status === 'failed') {
-      if (!linger.current.has(a.id) && !expired.current.has(a.id)) linger.current.set(a.id, { agent: a, until: now + DONE_LINGER_MS });
+      if (linger.current.has(a.id) || expired.current.has(a.id)) continue;
+      // The server lists every agent the session ever ran, so reopening or resuming
+      // an old chat would replay "concluído" for work finished hours ago.
+      const justEnded = prev.current.get(a.id)?.status === 'running' || now - (a.startedAt + a.durationMs) < RECENT_END_MS;
+      if (justEnded) linger.current.set(a.id, { agent: a, until: now + DONE_LINGER_MS });
+      else expired.current.add(a.id);
     } else {
       linger.current.delete(a.id);
       expired.current.delete(a.id);

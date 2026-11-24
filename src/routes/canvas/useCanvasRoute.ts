@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
-  AreaBudget, AreaId, CanvasBoard, CanvasCard, CanvasFlow, CanvasGraph, CanvasNode, CanvasPos, CardStatus, ContentFormat, OrchestratorActivity, SessionPeek, TermStats,
+  AreaBudget, AreaId, CanvasBoard, CanvasCard, CanvasFlow, CanvasGraph, CanvasNode, CanvasPos, CardStatus, ContentFormat, SessionPeek, TermStats,
 } from '../../../shared/canvas';
 import { AREA_IDS } from '../../../shared/canvas';
 import { buildContentPrompt, buildContinuePrompt, buildTaskPrompt } from '../../../shared/canvas-prompt';
@@ -16,10 +16,9 @@ import { filterCanvas, type CanvasScope } from './canvas-filter';
 import { bounds, layoutCanvas } from './canvas-layout';
 import { boundSessions, mergeBoard, moveCard, newCardId, resolveSaveStatus, stuckContinueCard } from './canvas-board';
 import {
-  deriveSessionItems, doneRecentSessionIds, orchestratorKanbanItem, resolvePendingBoundIds, type LiveSessionInfo, type SessionKanbanItem,
+  deriveSessionItems, doneRecentSessionIds, resolvePendingBoundIds, type LiveSessionInfo, type SessionKanbanItem,
 } from './kanban-items';
 import { placeWindows, TERM_H, TERM_W, winKey } from './canvas-terms';
-import { isOrchestratorNode } from './orchestrator';
 
 export interface CanvasRouteProps {
   connected: boolean;
@@ -91,9 +90,6 @@ export interface CanvasRouteProps {
   onDflTaskCreateLink: (cardId: string, taskName: string, epicId: string, deliveryId: string, why: string, what: string) => Promise<DflWriteResult>;
   onDflTaskUnlink: (cardId: string) => boolean;
   onDflTaskConfirmSync: (cardId: string) => Promise<DflWriteResult>;
-  // The dock's "Em andamento" panel — see useOrchestratorActivityPoll.
-  orchestratorActivity: OrchestratorActivity | null;
-  onOrchestratorActivityGet: () => void;
   cvLiveSessionIds: string[];
   // A cv shell alive but idle (waiting on Samuel) — optional, an older
   // server simply never sends it.
@@ -204,15 +200,10 @@ export function useCanvasRoute(p: CanvasRouteProps, windowIds: string[], shells:
   const visibleIds = useMemo(() => new Set(visible.nodes.map((n) => n.id)), [visible.nodes]);
   const windows = useMemo(() => new Set(windowIds.filter((id) => visibleIds.has(id))), [windowIds, visibleIds]);
   const byId = useMemo(() => new Map([...merged.nodes, ...shells].map((n) => [n.id, n])), [merged.nodes, shells]);
-  // Claims lane slot 0 (top-left) the first time it opens — see placeWindows.
-  const orchestratorWindowIds = useMemo(
-    () => new Set([...windows].filter((id) => isOrchestratorNode(byId.get(id) ?? { kind: 'session', ref: '' }, p.graph?.orchestrator))),
-    [windows, byId, p.graph?.orchestrator],
-  );
   const areaOf = useCallback((id: string) => byId.get(id)?.area, [byId]);
   const pos = useMemo(
-    () => placeWindows(layoutCanvas(layoutBase.nodes, layoutBase.edges, p.board.pos), p.board.pos, [...windows], orchestratorWindowIds, areaOf),
-    [layoutBase, p.board.pos, windows, orchestratorWindowIds, areaOf],
+    () => placeWindows(layoutCanvas(layoutBase.nodes, layoutBase.edges, p.board.pos), p.board.pos, [...windows], areaOf),
+    [layoutBase, p.board.pos, windows, areaOf],
   );
   const rectOf = useCallback((id: string) => {
     const at = pos[id];
@@ -363,19 +354,12 @@ export function useCanvasRoute(p: CanvasRouteProps, windowIds: string[], shells:
     // fresh Set when the pending map mutates; its value isn't read.
     [pendingTick, p.pendingSessionIds],
   );
-  const orchestratorSessionId = p.graph?.orchestrator?.sessionId;
   const sessionItems = useMemo(() => deriveSessionItems({
-    nodes: merged.nodes, edges: merged.edges, cards: p.board.cards, showAutomation, extraBoundIds, orchestratorSessionId, ...nodeStatusOpts,
+    nodes: merged.nodes, edges: merged.edges, cards: p.board.cards, showAutomation, extraBoundIds, ...nodeStatusOpts,
   }),
   // eslint-disable-next-line react-hooks/exhaustive-deps -- nodeStatusOpts is a
   // fresh object every render; its own members are the real deps.
-  [merged, p.board.cards, showAutomation, extraBoundIds, orchestratorSessionId, p.running, p.board.sessionStatus, turnStartedAt, liveSessions, p.interrupted, cvLive, idleCvLive]);
-  const orchestratorItem = useMemo(
-    () => orchestratorKanbanItem(merged.nodes, nodeStatusOpts, orchestratorSessionId),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- nodeStatusOpts is a
-    // fresh object every render; its own members are the real deps.
-    [merged.nodes, orchestratorSessionId, p.running, p.board.sessionStatus, turnStartedAt, liveSessions, p.interrupted, cvLive, idleCvLive],
-  );
+  [merged, p.board.cards, showAutomation, extraBoundIds, p.running, p.board.sessionStatus, turnStartedAt, liveSessions, p.interrupted, cvLive, idleCvLive]);
 
   // A 'continue' reuse send runCard already moved to "doing" can still be
   // refused by the SERVER after the fact — the double-writer guard
@@ -572,7 +556,7 @@ export function useCanvasRoute(p: CanvasRouteProps, windowIds: string[], shells:
     merged, visible, pos, windows, onDrop, worldBounds, coreBounds, byId, waiting,
     selected, selectedNodes, select, clearSelection,
     draft, setDraft, newDraft, editCard, saveCard, runCard, setStatus, deleteCard, cardSessions,
-    sessionItems, orchestratorItem, onSessionStatus, onSessionStatusBulk,
+    sessionItems, onSessionStatus, onSessionStatusBulk,
     hiddenSessionIdSet, hideSession, unhideAllSessions,
   };
 }

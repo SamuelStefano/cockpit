@@ -35,3 +35,28 @@ describe('AttachmentChips', () => {
     expect(screen.getByText('repetido')).toBeTruthy();
   });
 });
+
+describe('AttachmentChips thumbnails', () => {
+  it('requests a thumb for a local image and renders it once available', () => {
+    const onThumb = vi.fn();
+    const { rerender, container } = render(
+      <AttachmentChips attachments={[{ name: 'shot.png', path: 'attachments/a/shot.png' }]} onRemoveAttachment={vi.fn()} onThumb={onThumb} />,
+    );
+    expect(onThumb).toHaveBeenCalledWith('attachments/a/shot.png');
+    expect(container.querySelector('img')).toBeNull();
+    URL.createObjectURL = vi.fn(() => 'blob:thumb');
+    URL.revokeObjectURL = vi.fn();
+    rerender(
+      <AttachmentChips attachments={[{ name: 'shot.png', path: 'attachments/a/shot.png' }]} onRemoveAttachment={vi.fn()} onThumb={onThumb} thumbs={{ 'attachments/a/shot.png': 'AAAA' }} />,
+    );
+    expect(container.querySelector('img')?.getAttribute('src')).toBe('blob:thumb');
+  });
+
+  it('does not request a thumb while uploading or for non-images', () => {
+    const onThumb = vi.fn();
+    render(
+      <AttachmentChips attachments={[{ name: 'a.png', path: 'p1', uploading: true }, { name: 'b.pdf', path: 'p2' }]} onRemoveAttachment={vi.fn()} onThumb={onThumb} />,
+    );
+    expect(onThumb).not.toHaveBeenCalled();
+  });
+});

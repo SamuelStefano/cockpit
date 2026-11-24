@@ -1,22 +1,27 @@
 import { Icon } from '../primitives';
-import { ChatInputToolbar } from './ChatInputToolbar';
 import { ComposerNotice } from './ComposerNotice';
 import { ComposerActions } from './ComposerActions';
 import { ComposerGhost } from './ComposerGhost';
-import { ComposerTools } from './ComposerTools';
-import { ComposerSettingsSheet } from './ComposerSettingsSheet';
+import { GhostChip } from './GhostChip';
+import { ComposerPlus } from './ComposerPlus';
+import { ModelPicker } from './ModelPicker';
 import { AttachmentChips } from './AttachmentChips';
 import { QueuedBanner } from './QueuedBanner';
 import { SlashPalette, SLASH_LIST_ID, slashOptionId } from './SlashPalette';
-import type { PermMode, Effort, ModelInfo, Caps, SkillMeta } from '../../../shared/protocol';
+import type { PermMode, Effort, ModelInfo, Caps } from '../../../shared/protocol';
 import type { Attachment } from '../../useCockpit';
 import { useChatInput } from './useChatInput';
+import { useScreenshotOffer } from './useScreenshotOffer';
+import { ScreenshotPrompt } from './ScreenshotPrompt';
 import { composerMaxH } from './fit-height';
+import { FocusCollapse } from './FocusCollapse';
+import { FocusSummary } from './FocusSummary';
 
 export { ChatEmpty } from './ChatEmpty';
 
 interface ChatInputProps {
   disabled: boolean;
+  placeholder?: string;
   onSend: (text: string, modeOverride?: PermMode) => void;
   onStop: () => void;
   value: string;
@@ -28,13 +33,11 @@ interface ChatInputProps {
   setBypass: (b: boolean) => void;
   model: string;
   setModel: (m: string) => void;
+  modelLocked?: string;
   models: ModelInfo[];
   onRefreshModels: () => void;
   effort: Effort;
   setEffort: (e: Effort) => void;
-  skills: SkillMeta[];
-  selectedSkills: string[];
-  setSelectedSkills: (ids: string[]) => void;
   mcpServers: string[];
   selectedMcps: string[];
   setSelectedMcps: (ids: string[]) => void;
@@ -43,8 +46,11 @@ interface ChatInputProps {
   onUpload: (file: File) => void;
   onRemoveAttachment: (path: string) => void;
   onOpenAttachment?: (path: string, name: string) => void;
+  attThumbs?: Record<string, string>;
+  onAttThumb?: (path: string) => void;
   focusSignal: number;
   queued: string[];
+  queuedIds: string[];
   queuedAtts?: number[];
   queuedModels: string[];
   onRunQueuedBg: (i: number, model: string) => void;
@@ -56,62 +62,68 @@ interface ChatInputProps {
   queueHeld?: boolean;
   onResumeQueue?: () => void;
   queuePaused?: boolean;
+  queueReleaseAt?: number;
   onToggleQueuePause?: () => void;
   paused?: boolean;
+  // The box has no free run slot: send turns into "Enfileirar" and the server queue holds the message.
+  capacityFull?: boolean;
+  agentOut?: { name: string; use: () => void };
   quotaResetsAt?: number | null;
   history: string[];
   pendingConfirm?: () => void;
   onNew: () => void;
   onShowHelp?: () => void;
-  keyboardOpen?: boolean;
+  onCall?: () => void;
+  focusMode?: boolean;
 }
 
 export function ChatInput(props: ChatInputProps) {
-  const { disabled, onStop, value, setValue, mode, setMode, caps, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, attachments, onRemoveAttachment, onOpenAttachment, queued, queuedAtts, queuedModels, onRunQueuedBg, onRunQueuedNow, onCancelQueueAt, onEditQueuedAt, onMoveQueued, queueHeld = false, onResumeQueue, queuePaused = false, onToggleQueuePause, paused = false, quotaResetsAt, keyboardOpen = false } = props;
+  const { disabled, placeholder, onStop, value, setValue, mode, setMode, caps, bypass, setBypass, model, setModel, modelLocked, models, onRefreshModels, effort, setEffort, mcpServers, selectedMcps, setSelectedMcps, attachments, onRemoveAttachment, onOpenAttachment, attThumbs, onAttThumb, queued, queuedIds, queuedAtts, queuedModels, onRunQueuedBg, onRunQueuedNow, onCancelQueueAt, onEditQueuedAt, onMoveQueued, queueHeld = false, onResumeQueue, queuePaused = false, queueReleaseAt = 0, onToggleQueuePause, paused = false, capacityFull = false, agentOut, quotaResetsAt, onCall, focusMode } = props;
+  const holding = paused || capacityFull;
   const hasAtt = attachments.length > 0;
   const attUploading = attachments.some((a) => a.uploading);
   const resetLabel = quotaResetsAt ? new Date(quotaResetsAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : null;
-  const { taRef, fileRef, cameraRef, sel, setSel, showPalette, matches, complete, submit, onKey, grow, pick, dragging, onDragEnter, onDragOver, onDragLeave, onDrop, onPaste, mic, ghost, ghostShown, acceptGhost, touch, settingsOpen, openSettings, closeSettings } = useChatInput({ ...props, hasAtt, attUploading });
-  const settings = { caps, bypass, setBypass, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, model, setModel, models, onRefreshModels, effort, setEffort };
-  // Com o teclado aberto o thread cabe em ~150px: a barra sai de cena e os ajustes
-  // passam a morar nos sliders do ComposerTools. Exige `touch` porque o sheet só
-  // existe abaixo de `sm` — janela de desktop baixa dispara o keyboardOpen e ficaria
-  // sem barra E sem sheet.
-  const compact = keyboardOpen && touch;
+  const { taRef, fileRef, cameraRef, sel, setSel, showPalette, matches, complete, submit, onKey, onCompositionEnd, grow, pick, dragging, onDragEnter, onDragOver, onDragLeave, onDrop, onPaste, mic, ghost, ghostShown, acceptGhost, touch, dismissPalette, hintSeen } = useChatInput({ ...props, paused: holding, hasAtt, attUploading });
+  const shots = useScreenshotOffer(props.onUpload);
+  const settings = { mode, setMode, caps, bypass, setBypass, model, mcpServers, selectedMcps, setSelectedMcps };
   // `relative z-20` na casca: o header sticky do CodeBlock é z-10 no contexto
   // raiz e pintava POR CIMA dos popovers do composer (MCP/skills), cobrindo
   // itens da lista. O composer precisa de um contexto próprio acima dele.
   return (
-    <div className="relative z-20 shrink-0 border-t border-neutral-800 bg-neutral-900/60 px-3 py-3 backdrop-blur-sm">
-      {!compact && <ChatInputToolbar mode={mode} setMode={setMode} onOpenSettings={openSettings} {...settings} />}
-      {settingsOpen && <ComposerSettingsSheet onClose={closeSettings} {...settings} />}
-      {hasAtt && <AttachmentChips attachments={attachments} onRemoveAttachment={onRemoveAttachment} onOpen={onOpenAttachment} />}
+    <div className="relative z-20 shrink-0 px-3 py-3">
+      <div className="mx-auto w-full max-w-[760px]">
       {mic.error && <ComposerNotice icon="mic" onDismiss={mic.dismissError}>{mic.error}</ComposerNotice>}
+      <FocusCollapse hidden={!!focusMode}>
+      {hasAtt && <AttachmentChips attachments={attachments} onRemoveAttachment={onRemoveAttachment} onOpen={onOpenAttachment} thumbs={attThumbs} onThumb={onAttThumb} />}
+      <ScreenshotPrompt s={shots} />
       {mic.hint && <ComposerNotice icon="mic" tone="info" onDismiss={mic.dismissHint}>{mic.hint}</ComposerNotice>}
-      {queued.length > 0 && <QueuedBanner queued={queued} queuedAtts={queuedAtts} queuedModels={queuedModels} models={models} onRunBg={onRunQueuedBg} onRunNow={onRunQueuedNow} onCancelQueueAt={onCancelQueueAt} onEdit={onEditQueuedAt} onMove={onMoveQueued} held={queueHeld} onResume={onResumeQueue} paused={queuePaused} onTogglePause={onToggleQueuePause} quotaHeld={paused} resetLabel={resetLabel} />}
+      {queued.length > 0 && <QueuedBanner queued={queued} queuedIds={queuedIds} queuedAtts={queuedAtts} queuedModels={queuedModels} models={models} onRunBg={onRunQueuedBg} onRunNow={onRunQueuedNow} onCancelQueueAt={onCancelQueueAt} onEdit={onEditQueuedAt} onMove={onMoveQueued} held={queueHeld} onResume={onResumeQueue} paused={queuePaused} releaseAt={queueReleaseAt} onTogglePause={onToggleQueuePause} quotaHeld={paused} resetLabel={resetLabel} />}
       {paused && (
         <ComposerNotice icon="clock">
           Tokens do plano esgotados — chat pausado{resetLabel ? ` até ${resetLabel}` : ''}. Nada é perdido: a fila retoma sozinha quando a janela resetar.
+          {agentOut && <button type="button" onClick={agentOut.use} className="ml-2 font-semibold underline underline-offset-2">Continuar com {agentOut.name}</button>}
         </ComposerNotice>
       )}
+      </FocusCollapse>
       <input ref={fileRef} type="file" multiple onChange={pick} className="hidden" />
       <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={pick} className="hidden" />
+      {focusMode && <div><FocusSummary queued={queued.length} attachments={attachments.length} /></div>}
       <div className="relative" onDragEnter={onDragEnter} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
       {dragging && (
-        <div className="absolute inset-0 z-40 flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-orange-500/60 bg-neutral-950/85 text-[13px] font-medium text-orange-300 backdrop-blur-xs">
+        <div className="absolute inset-0 z-40 flex items-center justify-center gap-2 rounded-3xl border-2 border-dashed border-orange-500/60 bg-neutral-950/85 text-[13px] font-medium text-orange-300 backdrop-blur-xs">
           <Icon name="paperclip" size={15} /> Solte os arquivos pra anexar
         </div>
       )}
-      {showPalette && <SlashPalette matches={matches} sel={sel} setSel={setSel} complete={complete} />}
-      <div className="elev-1 flex items-end gap-2 rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 transition focus-within:border-orange-500/50 focus-within:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05),0_0_0_3px_rgba(249,115,22,0.08),0_6px_20px_-6px_rgba(0,0,0,0.6)]">
-        <ComposerTools
-          touch={touch} compact={compact} mic={mic}
+      {touch && ghost && !showPalette && <GhostChip ghostShown={ghostShown} acceptGhost={acceptGhost} />}
+      {showPalette && <SlashPalette matches={matches} sel={sel} setSel={setSel} complete={complete} onDismiss={touch ? dismissPalette : undefined} />}
+      <div className="elev-1 flex flex-wrap items-end gap-1.5 rounded-[26px] pointer-coarse:pt-2.5 border border-neutral-700 bg-neutral-950 py-1.5 pl-1.5 pr-2 transition focus-within:border-[#3a3a42]">
+        <ComposerPlus
+          touch={touch} mic={mic} onCall={onCall} settings={settings}
           onAttach={() => fileRef.current?.click()}
           onPhoto={() => cameraRef.current?.click()}
-          onOpenSettings={openSettings}
         />
-        <div className="relative min-w-0 flex-1">
-          {ghost && <ComposerGhost value={value} ghostShown={ghostShown} acceptGhost={acceptGhost} />}
+        <div className="relative min-w-0 flex-1 pointer-coarse:order-first pointer-coarse:basis-full pointer-coarse:px-2.5">
+          {ghost && <ComposerGhost value={value} ghostShown={ghostShown} acceptGhost={acceptGhost} chip={!touch} />}
           <textarea
             ref={taRef}
             rows={1}
@@ -122,25 +134,30 @@ export function ChatInput(props: ChatInputProps) {
             value={value}
             onChange={grow}
             onKeyDown={onKey}
+            onCompositionEnd={onCompositionEnd}
             onPaste={onPaste}
             readOnly={mic.listening}
             enterKeyHint={touch ? 'enter' : 'send'}
-            // A 390px o placeholder longo quebrava em 2 linhas e o composer vazio
-            // já nascia com o dobro da altura.
-            placeholder={paused ? 'Tokens esgotados — digite p/ enfileirar (envia ao resetar)…' : mic.listening ? 'Ouvindo… fale agora' : disabled ? (touch ? 'Turno rodando: triagem decide a vez…' : 'Mensagem com o turno rodando (a triagem decide a vez)…') : touch ? 'Mensagem…' : 'Pergunte ou peça um comando…  (↵ envia, ⇧↵ quebra linha)'}
+            placeholder={holding ? 'Enfileirar mensagem…' : mic.listening ? 'Ouvindo…' : placeholder ?? (touch && !hintSeen ? 'Mensagem · Enter quebra linha' : 'Mensagem · / comandos e skills')}
             style={{ maxHeight: composerMaxH() }}
-            className="scroll-thin relative w-full resize-none bg-transparent py-1 text-[15px] leading-7 text-neutral-100 placeholder-neutral-600 outline-hidden"
+            className="scroll-thin relative w-full resize-none pr-3 bg-transparent py-1 text-[16px] leading-7 text-neutral-100 placeholder-neutral-600 outline-hidden"
           />
         </div>
+        <div className="flex shrink-0 items-center pointer-coarse:ml-auto">
+          <ModelPicker compact model={model} setModel={setModel} models={models} onRefreshModels={onRefreshModels} canManage={caps?.role === 'admin' || caps?.role === 'root'} locked={modelLocked} effort={effort} setEffort={setEffort} />
+        </div>
         <ComposerActions
+          mic={mic}
           busy={disabled}
-          paused={paused}
+          paused={holding}
+          holdReason={paused ? 'quota' : 'capacity'}
           hasText={!!value.trim()}
           hasAtt={hasAtt}
           attUploading={attUploading}
           onSubmit={submit}
           onStop={onStop}
         />
+      </div>
       </div>
       </div>
     </div>

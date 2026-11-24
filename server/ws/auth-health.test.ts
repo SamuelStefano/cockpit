@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from 'vitest';
 vi.mock('../engine/claude', () => ({ minimalEnv: () => ({}) }));
 vi.mock('./incidents', () => ({ recordIncident: () => {} }));
 
-const { isAuthFailure, authHoldFrom, refreshDue, REFRESH_LEAD_MS } = await import('./auth-health');
+const { isAuthFailure, authHoldFrom, refreshDue, REFRESH_LEAD_MS, keepAliveArgs } = await import('./auth-health');
 
 describe('isAuthFailure', () => {
   it('matches the CLI bailout line', () => {
@@ -40,5 +40,20 @@ describe('refreshDue', () => {
   it('is not due with plenty of time left or without a login', () => {
     expect(refreshDue(now + REFRESH_LEAD_MS + 60_000, now)).toBe(false);
     expect(refreshDue(0, now)).toBe(false);
+  });
+});
+
+describe('keepAliveArgs', () => {
+  it('pings lean: no tools, no settings, no transcript, flags never repeated', () => {
+    const args = keepAliveArgs(true);
+    expect(args[args.indexOf('--tools') + 1]).toBe('');
+    expect(args.filter((a) => a === '--no-session-persistence')).toHaveLength(1);
+    expect(args).toContain('--strict-mcp-config');
+  });
+
+  it('keeps the old argv when lean one-shots are off', () => {
+    const args = keepAliveArgs(false);
+    expect(args).not.toContain('--tools');
+    expect(args).toContain('--no-session-persistence');
   });
 });

@@ -2,9 +2,10 @@ import { readFileSync, writeFileSync, mkdirSync, renameSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { homedir } from 'node:os';
 import type { Role } from '../auth';
-import type { ParkedView } from '../../shared/protocol';
+import type { ParkedView, TeamProfile } from '../../shared/protocol';
 import { CONFIG } from '../config';
 import { withFileLock } from './file-lock';
+import { billsClaudePlan, isAgentModel } from '../../shared/agents';
 
 // Fila ESTACIONADA (overnight/quota-out), distinta da fila `pending` do runs.ts
 // (triagem in-turn, drenada no onClose). Aqui ficam os prompts que o usuário
@@ -38,6 +39,10 @@ export interface ParkedItem {
   role?: Role;
   disallowedSkills?: string[];
   mcps?: string[];
+  botId?: string;
+  appendSystemPrompt?: string;
+  teamHop?: number;
+  profile?: TeamProfile;
   at: number;
   // Quantas vezes este item já voltou pra fila depois de um turno que não o consumiu.
   attempts?: number;
@@ -70,6 +75,10 @@ export function coerceItem(o: unknown): ParkedItem | null {
     role: r.role === 'admin' || r.role === 'student' ? (r.role as Role) : undefined,
     disallowedSkills: Array.isArray(r.disallowedSkills) ? r.disallowedSkills.filter((x): x is string => typeof x === 'string') : undefined,
     mcps: Array.isArray(r.mcps) ? r.mcps.filter((x): x is string => typeof x === 'string') : undefined,
+    botId: typeof r.botId === 'string' ? r.botId : undefined,
+    appendSystemPrompt: typeof r.appendSystemPrompt === 'string' ? r.appendSystemPrompt : undefined,
+    teamHop: typeof r.teamHop === 'number' ? r.teamHop : undefined,
+    profile: r.profile === 'restricted' || r.profile === 'full' ? (r.profile as TeamProfile) : undefined,
     at: typeof r.at === 'number' ? r.at : Date.now(),
     attempts: typeof r.attempts === 'number' ? r.attempts : undefined,
     held: r.held === true ? true : undefined,
@@ -310,6 +319,19 @@ export function retryParked(sessionKey: string, id: string): boolean {
     delete it.attempts;
     saveParked(map);
     return true;
+  });
+}
+
+// Moves the session's Claude items to an agent the user just switched to. A bot's
+// items keep the bot's model: the bot decides who answers its thread.
+export function retargetParked(sessionKey: string, model: string): number {
+  if (!SESSION_KEY_RE.test(sessionKey) || !isAgentModel(model)) return 0;
+  return withParkedLock(() => {
+    const map = loadParked();
+    const items = (map[sessionKey] ?? []).filter((x) => !x.botId && billsClaudePlan(x.model));
+    for (const it of items) it.model = model;
+    if (items.length) saveParked(map);
+    return items.length;
   });
 }
 

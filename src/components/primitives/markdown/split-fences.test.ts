@@ -43,4 +43,13 @@ describe('splitFences', () => {
     const md = '```\nx\n```\n\n   ';
     expect(splitFences(md)).toEqual([{ t: 'code', lang: '', code: 'x' }]);
   });
+
+  it('drops the blank lines around a fence, so the next block starts clean', () => {
+    const md = 'intro\n\n```ts\nconst a = 1;\n```\n\n## Next\n\n- one';
+    expect(splitFences(md)).toEqual([
+      { t: 'prose', text: 'intro' },
+      { t: 'code', lang: 'ts', code: 'const a = 1;' },
+      { t: 'prose', text: '## Next\n\n- one' },
+    ]);
+  });
 });

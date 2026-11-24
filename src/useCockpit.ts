@@ -1,12 +1,23 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { markAgentRestarting } from './app/restartNotice';
 import type { Session, Message, Block, ToolTodo } from './data/types';
-import type { ClientMsg, ServerMsg, SysStats, PermMode, Effort, ModelInfo, TurnStats, Caps, PlanUsage, ParkedView, BgAgent } from '../shared/protocol';
+import type { ClientMsg, ServerMsg, SysStats, CapacityInfo, PermMode, Effort, ModelInfo, TurnStats, Caps, PlanUsage, ParkedView, BgAgent, ClaudeLoginView, ClaudeAccount } from '../shared/protocol';
 import { loadPref, savePref, setPref, usePrefListener } from './lib/persist';
 import { MODE_KEY, MODEL_KEY, EFFORT_KEY } from './lib/account-prefs';
 import { persistableModelOverrides } from './cockpit/model-overrides';
-import { SUPABASE_ENABLED } from './lib/supabase';
+import { SUPABASE_ENABLED, supabase } from './lib/supabase';
+import { SealedSocket } from './cockpit/sealed-socket';
+import { boxHealthStore } from './cockpit/box-health-store';
+import { boxStore, rosterMsg } from './cockpit/boxes-store';
+import { onAuthClose, tokenUnchangedAndLive, RELAY_AUTH_RETRY_MS, shouldRefreshSession, dialOnTokenChange } from './cockpit/ws-auth';
+import { TOKEN_EXPIRED_CLOSE, TOKEN_EXPIRED_EVENT } from './lib/auth-events';
+import { useClientVisibility } from './cockpit/useClientVisibility';
+import { loadSeen, saveSeen } from './cockpit/box-unread';
 import { requestNotifyPermission, notifyTurnDone, notifyTurnError } from './lib/notify';
-import { wsUrlWithToken, newId, metaToSession, mergeServerSessions, adoptClaimedRow, dedupById, mergeSeen, isCronPing } from './cockpit/session';
+import { claimGameOnce, recordGameEvent } from './game/game-bus';
+import { toolGameEvent } from './game/real-events';
+import { wsBase, withBox, wsUrlWithToken, newId, metaToSession, mergeServerSessions, adoptClaimedRow, dedupById, mergeSeen, isCronPing } from './cockpit/session';
+import { setTtsSender, handleTtsMsg } from './cockpit/tts-bus';
 import { computeStalled, computeUpdated } from './cockpit/signals';
 import { upsertTool, appendDelta, appendThinking } from './cockpit/blocks';
 import { selectEvictions, pruneRefs } from './cockpit/evict';
@@ -14,22 +25,40 @@ import { resolveKey, moveKey } from './cockpit/migrate';
 import { addOffer, clearOffer, type ResumeOffers, type ResumeOfferView } from './cockpit/resume-offers';
 import { mergeHistory, prependHistory } from './cockpit/history';
 import { liveTokens } from './cockpit/live-tokens';
+import { persistableDrafts, DRAFTS_SAVE_MS } from './cockpit/drafts';
 import { insertCompact } from './cockpit/insert-compact';
 import { seedRunStart } from './cockpit/run-start';
 import { useTerminals, type TermApi } from './cockpit/useTerminals';
-import { useNotes, type Notes } from './cockpit/useNotes';
 import { useDrops, type Drops } from './cockpit/useDrops';
+import { useVault, type Vault } from './cockpit/useVault';
 import { useCrons, type Crons } from './cockpit/useCrons';
+import { useTeam, type Team } from './cockpit/useTeam';
+import { useBotFiles, type BotFiles } from './cockpit/useBotFiles';
+import { useBotComputer, type BotComputers } from './cockpit/useBotComputer';
+import { useGrokUsage, type GrokUsage } from './cockpit/useGrokUsage';
+import { botDraftKey } from '../shared/team';
+import { botAliases } from './cockpit/bot-alias';
 import { usePoints, type Points } from './cockpit/usePoints';
 import { useContexts, type Contexts } from './cockpit/useContexts';
 import { useSkills, type Skills } from './cockpit/useSkills';
+import { useMemories, type Memories } from './cockpit/useMemories';
 import { useGraphs, type Graphs } from './cockpit/useGraphs';
+import { usePlanner, type PlannerApi } from './planner/usePlanner';
 import { useCanvas, type CanvasApi } from './cockpit/useCanvas';
 import { buildForkWire, buildSendWire as buildSendWirePure } from './cockpit/send-wire';
-import { MAX_PROMPT_BYTES } from '../shared/limits';
+import { MAX_PROMPT_BYTES, MAX_UPLOAD_BYTES, uploadWatchdogMs } from '../shared/limits';
 import { aliasRoutedKey, type PendingCanvasSend } from './cockpit/canvas-send-tracker';
 import { useAdmin, type Admin } from './cockpit/useAdmin';
-import { useHarness, type Harness } from './cockpit/useHarness';
+import { useMcps, type Mcps } from './cockpit/useMcps';
+import { useClaudeImport, type ClaudeImportApi } from './cockpit/useClaudeImport';
+import { useAgents, type AgentsApi } from './cockpit/useAgents';
+import type { Connection } from '../shared/connections';
+import type { ProbeResult } from '../shared/provider-probe';
+import { useConnections } from './cockpit/useConnections';
+import { useProviderProbe } from './cockpit/useProviderProbe';
+import { promoteModel } from './cockpit/promote-model';
+import { resolveSessionModel } from './cockpit/session-model';
+import { createReopenThrottle } from './cockpit/reopen-throttle';
 import { stripLongContext } from '../shared/long-context';
 import { composerCost, type ComposerCost } from './components/chat/send-cost';
 import { addThumb, shouldRequestThumb } from './lib/att-thumb-cache';
@@ -53,8 +82,10 @@ export interface AttachmentPreview { path: string; name: string; dataB64?: strin
 export type QueueItem = ParkedView & { key: string };
 export type { TermApi };
 import type { ConnState } from './components/primitives';
+import { recordClose, recordConnEvent } from './app/connectionTelemetry';
 import { toast } from './components/primitives/toast-bus';
 import { benchDispatch, failAllBenchPending, setBenchSender } from './components/primitives/livepreview/bench-bus';
+import { failAllPrsPending, prsDispatch, setPrsSender } from './routes/prs/prs-bus';
 import type { Phase } from './components/Chat';
 
 // Heartbeat app-level (watchdog de socket meio-aberto). Manda um ping a cada
@@ -69,13 +100,27 @@ const HEARTBEAT_STALE_MS = 40_000;
 const CANVAS_SEND_PENDING_MS = 20_000;
 
 // A superfície pública dos domínios-folha é a dos próprios hooks, menos os canais
-// internos: `onMsg` (dispatch), `onGraphReconnect` e `onOrchestratorReconnect`
-// (ganchos do socket).
-type LeafApis = Omit<Notes & Drops & Crons & Points & Contexts & Skills & Graphs & CanvasApi & Admin & Harness, 'onMsg' | 'onGraphReconnect' | 'onOrchestratorReconnect'>;
+// internos: `onMsg` (dispatch), `onGraphReconnect`
+// (gancho do socket).
+type LeafApis = Omit<Drops & Vault & Crons & Team & BotFiles & BotComputers & GrokUsage & Points & Contexts & Memories & Skills & Graphs & CanvasApi & Admin, 'onMsg' | 'onGraphReconnect' | 'onCanvasReconnect'>;
 
 export interface Cockpit extends LeafApis {
+  planner: PlannerApi;
+  agents: AgentsApi;
+  claudeImport: ClaudeImportApi;
+  mcps: Mcps['mcps'];
+  mcpsBusy: boolean;
+  onMcpsGet: () => void;
+  connections: Connection[];
+  connectionsLoaded: boolean;
+  onConnectionsGet: () => void;
+  probeResult: ProbeResult | null;
+  probeBusy: boolean;
+  onProviderProbe: (endpoint: string, key?: string) => boolean;
+  onProviderProbeReset: () => void;
   onLaunchAgent: (prompt: string, title: string) => string | null;
   onSendTo: (sessionId: string, text: string) => boolean;
+  onOpenBot: (botId: string, sessionId: string | undefined, title: string) => void;
   // `at`: when the server actually rejected — lets a stale, never-dismissed
   // error (no open terminal ever consumed it) be told apart from the send it
   // ACTUALLY belongs to, by any caller correlating against a later event
@@ -97,20 +142,23 @@ export interface Cockpit extends LeafApis {
   activeId: string;
   setActiveId: (id: string) => void;
   messages: Message[];
+  threads: Record<string, Message[]>;
+  onLoadThread: (id: string) => void;
   terminalBusy: boolean;
   sessionTodos?: ToolTodo[];
-  // Tópicos de continuação pós-turno da sessão ativa (chips estilo ChatGPT).
-  followups?: string[];
-  dismissFollowups: () => void;
+  allSessionTodos: Record<string, ToolTodo[]>; // every session, for the Base screen
   phase: Phase;
+  settled: boolean;
   running: Set<string>;
+  runningAnywhere: Set<string>; // running ∪ live in the other backend process (display only)
   stalled: Set<string>;
   updated: Set<string>;
+  seen: Record<string, number>;
   runStart: Record<string, number>;
   draft: string;
   setDraft: (v: string) => void;
   conn: { ws: ConnState; sse: ConnState };
-  reconnectNow: () => void;
+  reconnectNow: (opts?: { force?: boolean }) => void;
   authRequired: boolean;
   agentOnline: boolean;
   submitToken: (token: string) => void;
@@ -120,10 +168,18 @@ export interface Cockpit extends LeafApis {
   planBlockedUntil: number | null;
   planReadAt: number | null;
   stats: SysStats | null;
+  capacity: CapacityInfo | null;
   mode: PermMode;
   setMode: (m: PermMode) => void;
   caps: Caps | null;
   claudeReady: boolean;
+  claudeLogin: ClaudeLoginView;
+  onClaudeLoginStart: () => void;
+  onClaudeLoginCode: (code: string) => void;
+  onClaudeLoginCancel: () => void;
+  claudeAccount: ClaudeAccount | null;
+  onClaudeAccountGet: () => void;
+  onClaudeLogout: () => void;
   bypass: boolean;
   setBypass: (b: boolean) => void;
   model: string;
@@ -152,6 +208,7 @@ export interface Cockpit extends LeafApis {
   liveTurnTokens: number;
   turnStartedAt?: number;
   bgAgents: BgAgent[];
+  allBgAgents: Record<string, BgAgent[]>; // every session, for the Base screen
   usage: Record<string, number>;
   truncated: boolean;
   lastTurn?: TurnStats;
@@ -177,6 +234,7 @@ export interface Cockpit extends LeafApis {
   onEditUser: (msgId: string, text: string) => void;
   onStop: (sessionKey?: string) => void;
   onNew: () => void;
+  onNewWithDraft: (text: string) => string;
   onHandoff: (sessionId: string) => void;
   handoffBusy: boolean;
   onFunnel: (sessionIds: string[]) => void;
@@ -196,7 +254,9 @@ export interface Cockpit extends LeafApis {
   queueMove: (sessionKey: string, id: string, dir: -1 | 1) => void;
   queueClear: (sessionKey: string) => void;
   queuePaused: boolean;
+  queueReleaseAt: number;
   queueSetPaused: (v: boolean) => void;
+  queueRetarget: (sessionKey: string, model: string) => void;
   queueRetry: (sessionKey: string, id: string) => void;
   queueRunBg: (sessionKey: string, id: string, model?: string) => void;
   queueRunNow: (sessionKey: string, id: string) => void;
@@ -216,6 +276,11 @@ export function useCockpit(): Cockpit {
   const [threads, setThreads] = useState<Record<string, Message[]>>({});
   const [drafts, setDrafts] = useState<Record<string, string>>(() => loadPref('drafts', {} as Record<string, string>));
   const [phases, setPhases] = useState<Record<string, Phase>>({});
+  // Keys whose CLI already emitted the final result; display-only, cleared on any new activity and on `done`.
+  const [settledKeys, setSettledKeys] = useState<Record<string, boolean>>({});
+  const markSettled = useCallback((key: string, on: boolean) => {
+    setSettledKeys((s) => (!!s[key] === on ? s : { ...s, [key]: on }));
+  }, []);
   const [lastUsageAt, setLastUsageAt] = useState<Record<string, number>>({});
   // Espelho síncrono pro handler do WS (closure estável não enxerga o state).
   const phasesRef = useRef<Record<string, Phase>>({});
@@ -233,6 +298,7 @@ export function useCockpit(): Cockpit {
   const [planNextReadAt, setPlanNextReadAt] = useState<number | null>(null);
   const [marathon, setMarathon] = useState<Set<string>>(new Set());
   const [stats, setStats] = useState<SysStats | null>(null);
+  const [capacity, setCapacity] = useState<CapacityInfo | null>(null);
   const [bgAgents, setBgAgents] = useState<Record<string, BgAgent[]>>({}); // sessionKey -> agentes de fundo ativos
   const [archived, setArchived] = useState<Session[]>([]);
   const [usage, setUsage] = useState<Record<string, number>>({}); // sessionKey -> tokens de contexto
@@ -248,9 +314,12 @@ export function useCockpit(): Cockpit {
   const [truncated, setTruncated] = useState<Record<string, boolean>>({}); // sessionKey -> open dropou histórico antigo
   const [turnStats, setTurnStats] = useState<Record<string, TurnStats>>({}); // sessionKey -> custo/duração reais do último turno
   const [interrupted, setInterrupted] = useState<Record<string, string>>({}); // sessionKey -> endReason (budget/max_turns) p/ oferecer "continuar"
+  // Sessions with a turn live in the OTHER Deck backend process ('live-elsewhere').
+  const [liveElsewhere, setLiveElsewhere] = useState<string[]>([]);
   const [searchResults, setSearchResults] = useState<Session[]>([]);
   const searchQ = useRef('');
   const [queue, setQueue] = useState<QueueItem[]>([]); // fila estacionada (servidor), broadcast dos queue-*
+  const [queueReleaseAt, setQueueReleaseAt] = useState(0);
   const [queuePaused, setQueuePausedState] = useState(false); // pausa manual da fila (servidor)
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const attachmentsRef = useRef<Attachment[]>([]);
@@ -313,6 +382,8 @@ export function useCockpit(): Cockpit {
   // Default true: só mostramos o aviso quando o backend confirma ready:false, pra
   // não piscar um alerta assustador antes da 1ª mensagem (ou com backend antigo).
   const [claudeReady, setClaudeReady] = useState<boolean>(true);
+  const [claudeAccount, setClaudeAccount] = useState<ClaudeAccount | null>(null);
+  const [claudeLogin, setClaudeLogin] = useState<ClaudeLoginView>({ state: 'idle' });
   const [bypass, setBypass] = useState<boolean>(false); // nunca persistido: opt-in por sessão, default off
   const bypassRef = useRef<boolean>(false);
   // Modelo por SESSÃO — nunca global: trocar a versão numa conversa não pode
@@ -345,14 +416,15 @@ export function useCockpit(): Cockpit {
   const [mcpServers, setMcpServers] = useState<string[]>([]); // nomes disponíveis (mensagem mcp-servers no connect)
   // sessionId -> mtime já visto. Sessão cujo mtime no servidor avançou além do
   // visto = "atualizada" (produziu output enquanto você não olhava — run noturno).
-  const [seen, setSeen] = useState<Record<string, number>>(() => loadPref<Record<string, number>>('seen', {}));
+  // The app remounts on a box switch, so this is fixed for the life of the hook.
+  const seenBox = useRef(boxStore.get().pref).current;
+  const [seen, setSeen] = useState<Record<string, number>>(() => loadSeen(seenBox));
   // Sessão ativa com escrita vinda de FORA do app (claude no terminal) há <5s.
   const [terminalBusyId, setTerminalBusyId] = useState<string | null>(null);
   // Snapshot corrente da lista de tarefas por sessão (vem no frame history).
   const [sessionTodos, setSessionTodos] = useState<Record<string, ToolTodo[]>>({});
   // Tópicos de continuação sugeridos pós-turno (chips estilo ChatGPT), por sessão.
   // Efêmeros: somem ao enviar a próxima mensagem (novo turno gera novos).
-  const [followups, setFollowups] = useState<Record<string, string[]>>({});
   // Turno que morreu e o servidor decidiu NÃO retomar sozinho: o motivo fica na
   // tela com um botão de retomada até o próximo turno da sessão.
   const [resumeOffers, setResumeOffers] = useState<ResumeOffers>({});
@@ -377,6 +449,10 @@ export function useCockpit(): Cockpit {
   // usuário voltou ao resumido de propósito, e o servidor não deve sobrepor.
   const viewMode = useRef<Record<string, 'chain' | 'full'>>({});
   const extBusyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Re-checked when the (possibly trailing) reopen fires: the session may have
+  // been left, or a run of this app may have started, in the meantime.
+  const touchReopen = useRef<ReturnType<typeof createReopenThrottle> | null>(null);
+  const touchReopenFire = useRef<(id: string) => void>(() => {});
   const migratedTo = useRef<Record<string, string>>({});  // new-xxx -> claude sessionId já migrado (idempotência: 2º `done` não re-migra nem zera o thread)
   // State, só p/ consumidores de fora (useCanvasRoute extraBoundIds) que
   // precisam de algo que dispare re-render — o resto deste hook lê
@@ -411,6 +487,9 @@ export function useCockpit(): Cockpit {
   const activeRef = useRef('');
   const sessionsRef = useRef<Session[]>([]);
   const retry = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const authBackoffUntil = useRef(0); // relay 4401: no immediate redial before this
+  const rejectedToken = useRef(''); // the token the relay last answered 4401 to
+  const lastRelayRefresh = useRef(0);
   const retryDelay = useRef(1500); // backoff exponencial, reset no connect bem-sucedido
   const heartbeat = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastRecvAt = useRef(0); // ts do último frame recebido (QUALQUER tipo): alimenta o watchdog de socket meio-aberto
@@ -440,30 +519,57 @@ export function useCockpit(): Cockpit {
     return true;
   }, []);
 
+  useClientVisibility(caps, send);
+
+  useEffect(() => { const off = boxStore.subscribe(() => { const m = rosterMsg(); if (m) send(m); }); return () => { off(); }; }, [send]);
+
   // Domínios-folha: estado próprio, frames próprios e ações que só chamam `send`.
   // Nada aqui toca sessão/turno, então cada um vive num hook e o switch abaixo só
   // repassa o frame — `onMsg` devolve true quando reivindicou o tipo.
-  const notesApi = useNotes(send);
+  useEffect(() => { setTtsSender(send); return () => setTtsSender(null); }, [send]);
   const dropsApi = useDrops(send);
+  const vaultApi = useVault(send);
   const cronsApi = useCrons(send);
+  const teamApi = useTeam(send);
+  const botFilesApi = useBotFiles(send);
+  const botComputerApi = useBotComputer(send);
+  const grokUsageApi = useGrokUsage(send);
   const pointsApi = usePoints(send);
   const contextsApi = useContexts(send);
+  const memoriesApi = useMemories(send);
   const skillsApi = useSkills(send);
   const graphsApi = useGraphs(send);
   const canvasApi = useCanvas(send);
+  const plannerApi = usePlanner(send);
   const adminApi = useAdmin(send);
-  const harnessApi = useHarness(send);
+  const mcpsApi = useMcps(send);
+  const claudeImportApi = useClaudeImport(send);
+  const agentsApi = useAgents(send);
+  const connectionsApi = useConnections(send);
+  const probeApi = useProviderProbe(send);
+  useEffect(() => { Object.assign(migratedTo.current, botAliases(teamApi.bots, migratedTo.current)); }, [teamApi.bots]);
+  // The alias needs the team before a server-side bot turn starts, not only once
+  // /equipe is opened. Team frames are admin-only: a fellow asking would get an error.
+  const { onTeamGet } = teamApi;
+  const teamAllowed = caps?.role === 'admin' || caps?.role === 'root';
+  useEffect(() => { if (teamAllowed && conn.ws === 'connected') onTeamGet(); }, [teamAllowed, conn.ws, onTeamGet]);
   // O onServer é um callback estável (o socket guarda a 1ª referência); ler os
   // handlers por ref evita recriá-lo — e reabrir o WS — a cada render.
   const leafHandlers = useRef<((m: ServerMsg) => boolean)[]>([]);
-  leafHandlers.current = [notesApi.onMsg, dropsApi.onMsg, cronsApi.onMsg, pointsApi.onMsg, contextsApi.onMsg, skillsApi.onMsg, graphsApi.onMsg, canvasApi.onMsg, adminApi.onMsg, harnessApi.onMsg];
-  // Três domínios-folha também entram na reconciliação de reconnect. Referências
+  leafHandlers.current = [dropsApi.onMsg, vaultApi.onMsg, cronsApi.onMsg, teamApi.onMsg, botFilesApi.onMsg, botComputerApi.onMsg, grokUsageApi.onMsg, pointsApi.onMsg, contextsApi.onMsg, memoriesApi.onMsg, skillsApi.onMsg, graphsApi.onMsg, canvasApi.onMsg, plannerApi.onMsg, adminApi.onMsg, mcpsApi.onMsg, claudeImportApi.onMsg, agentsApi.onMsg, connectionsApi.onMsg, probeApi.onMsg, handleTtsMsg];
+  // Domínios-folha que também entram na reconciliação de reconnect. Referências
   // estáveis (useCallback sobre `send`), então não recriam o `reconcile`.
   const { onUsageList } = adminApi;
   const { onSkillList } = skillsApi;
   const { onPointsGet } = pointsApi;
+  // The ledger is root-only on the server: asking as admin/fellow only earns a
+  // "sem permissão". Re-runs on every reconnect (conn.ws flips).
+  const isRoot = caps?.role === 'root';
+  useEffect(() => { if (isRoot && conn.ws === 'connected') onPointsGet(); }, [isRoot, conn.ws, onPointsGet]);
+  const { onPlannerGet } = plannerApi;
+  useEffect(() => { if (teamAllowed && conn.ws === 'connected') onPlannerGet(); }, [teamAllowed, conn.ws, onPlannerGet]);
   const { onGraphReconnect } = graphsApi;
-  const { onOrchestratorReconnect } = canvasApi;
+  const { onCanvasReconnect } = canvasApi;
 
   // Re-abertura automática (reconnect, session-touched, reconciliação de busy):
   // preserva a visão escolhida. Traz sempre a última página; o mergeHistory com
@@ -473,9 +579,14 @@ export function useCockpit(): Cockpit {
       ? { t: 'open-full', sessionId: id }
       : { t: 'open', sessionId: id, chainOnly: viewMode.current[id] === 'chain' }
   ), []);
+  touchReopenFire.current = (id: string) => {
+    if (activeRef.current === id && !inFlight.current.has(id)) send(reopenMsg(id));
+  };
+  useEffect(() => () => touchReopen.current?.cancel(), []);
 
   // O card do bench vive fundo na árvore do markdown e precisa falar com o WS.
   useEffect(() => { setBenchSender(send); return () => setBenchSender(null); }, [send]);
+  useEffect(() => { setPrsSender(send); return () => setPrsSender(null); }, [send]);
 
   const { term, onTermData, onTermReplay, onTermExit, onTerms, discovered: discoveredTerms, listTerms, reattach } = useTerminals(send);
 
@@ -572,6 +683,15 @@ export function useCockpit(): Cockpit {
     setUsage(move);
     setTurnStats(move);
     setInterrupted(move);
+    // The session's pinned model, its context meter model/age and its background
+    // agents were left under `new-…`: the next turn after migration ran on the
+    // default model (a different one if it changed meanwhile), and the meter lost
+    // its [1m] denominator.
+    if (oldKey in modelBySessionRef.current) { modelBySessionRef.current = moveKey(modelBySessionRef.current, oldKey, newId); setModelBySession(modelBySessionRef.current); }
+    setUsageModel(move);
+    setLastUsageAt(move);
+    setBgAgents(move);
+    if (oldKey in usageRef.current) { usageRef.current[newId] = usageRef.current[oldKey]; delete usageRef.current[oldKey]; }
     // Se o `list` já trouxe newId como linha persistida, renomear oldKey->newId
     // criaria DUAS linhas com o mesmo id. Renomeia a local e remove a duplicata
     // do servidor (a local carrega o estado em voo, então fica preferida).
@@ -582,7 +702,7 @@ export function useCockpit(): Cockpit {
     setSeen((prev) => {
       if (!(oldKey in prev)) return prev;
       const next = moveKey(prev, oldKey, newId);
-      savePref('seen', next);
+      saveSeen(seenBox, next);
       return next;
     });
     // Anexo pendente também migra: um ack de upload em voo ainda aponta pra
@@ -628,12 +748,20 @@ export function useCockpit(): Cockpit {
   const onNew = useCallback(() => {
     const id = newId('new-');
     ownNew.current.add(id);
-    const s: Session = { id, title: 'Nova sessão', relative: 'agora', snippet: 'Sem mensagens ainda', mtime: Date.now(), hasTerminal: false, active: true };
+    const s: Session = { id, title: 'Nova conversa', relative: 'agora', snippet: 'Sem mensagens ainda', mtime: Date.now(), hasTerminal: false, active: true };
     setSessions((prev) => [s, ...prev.map((x) => ({ ...x, active: false }))]);
     setThreads((prev) => ({ ...prev, [id]: [] }));
     focusSession(id);
+    recordGameEvent({ type: 'session_new' });
     return id;
   }, [focusSession]);
+
+  // Keyed by the new id: setDraft targets activeRef, which has not updated yet.
+  const onNewWithDraft = useCallback((text: string) => {
+    const id = onNew();
+    setDrafts((d) => ({ ...d, [id]: text }));
+    return id;
+  }, [onNew]);
 
   const onServer = useCallback((msg: ServerMsg) => {
     for (const h of leafHandlers.current) if (h(msg)) return;
@@ -642,6 +770,7 @@ export function useCockpit(): Cockpit {
       case 'queue': {
         setQueue(msg.items.map((i) => ({ ...i, key: resolveKey(migratedTo.current, i.sessionKey) })));
         setQueuePausedState(msg.paused);
+        setQueueReleaseAt(msg.releaseAt ?? 0);
         return;
       }
       // Recusa de uma AÇÃO da fila (furar a fila, rodar em paralelo). Vem separada
@@ -705,6 +834,7 @@ export function useCockpit(): Cockpit {
           return [...semOrfa, { id: newId('e'), role: 'assistant', blocks: [{ type: 'text', md: `⏳ ${msg.message}` }] }];
         });
         inFlight.current.delete(msg.sessionKey);
+        pendingCanvasSend.current.delete(msg.sessionKey);
         return;
       }
       case 'caps': {
@@ -715,7 +845,12 @@ export function useCockpit(): Cockpit {
         if (!msg.caps.canBypass) { bypassRef.current = false; setBypass(false); }
         return;
       }
-      case 'claude-auth': { setClaudeReady(msg.ready); return; }
+      case 'claude-auth': { setClaudeReady(msg.ready); send({ t: 'claude-account-get' }); return; }
+      case 'claude-account': { setClaudeAccount(msg.account); return; }
+      case 'agent-restarting': { markAgentRestarting(); return; }
+      case 'agent-health': { boxHealthStore.applyHealth(msg.health); return; }
+      case 'box-smoke': { boxHealthStore.applySmoke(msg as unknown as Record<string, unknown>); return; }
+      case 'claude-login': { setClaudeLogin({ state: msg.state, url: msg.url, error: msg.error }); return; }
       case 'agent-online': { setAgentOnline(true); return; }
       case 'agent-offline': { setAgentOnline(false); return; }
       case 'sessions': {
@@ -723,8 +858,8 @@ export function useCockpit(): Cockpit {
         // Baseline: sessão vista pela 1ª vez entra no `seen` com o mtime atual
         // (não vira "atualizada" retroativamente). Só mtime que AVANÇA depois badgeia.
         setSeen((prev) => {
-          const { next, changed } = mergeSeen(prev, msg.items);
-          if (changed) savePref('seen', next);
+          const { next, changed } = mergeSeen(prev, msg.items, new Set([activeRef.current]));
+          if (changed) saveSeen(seenBox, next);
           return changed ? next : prev;
         });
         setLoading(false);
@@ -736,7 +871,7 @@ export function useCockpit(): Cockpit {
           // `prepend` = página anterior pedida pelo "carregar antigas". Fora dela, o
           // frame é snapshot da última página: em "ver tudo" (full) o keepOlder segura
           // o que já foi paginado pra trás, senão o refresh encolhia a janela.
-          const next = msg.prepend ? prependHistory(msg.messages, local) : mergeHistory(msg.messages, local, !!msg.full);
+          const next = msg.prepend ? prependHistory(msg.messages, local) : mergeHistory(msg.messages, local, !!msg.full, runMsg.current[msg.sessionId]);
           return { ...prev, [msg.sessionId]: next };
         });
         resumeId.current[msg.sessionId] = msg.sessionId;
@@ -753,11 +888,16 @@ export function useCockpit(): Cockpit {
         setTruncated((t) => ({ ...t, [msg.sessionId]: deeper ? !!t[msg.sessionId] : !!msg.truncated }));
         return;
       }
+      case 'live-elsewhere': { setLiveElsewhere(msg.sessionIds); return; }
       case 'busy': {
         // Snapshot autoritativo do servidor (envia no connect): quais keys têm
         // run vivo. Reconcilia o phases local — cobre sessões que ESTE cliente
         // não iniciou (run noturno, outra aba) e limpa keys que já terminaram.
-        const live = new Set(msg.keys);
+        // The server keeps the key a run was born with (a resume or a queue drain
+        // after migration still runs as `new-…`): resolve to the display key first,
+        // or the live run looked dead here and a ghost `new-…` phase appeared.
+        const keys = msg.keys.map((k) => resolveKey(migratedTo.current, k));
+        const live = new Set(keys);
         {
           const seeded = seedRunStart(runStartRef.current, msg.startedAt, (k) => resolveKey(migratedTo.current, k));
           if (seeded) { runStartRef.current = seeded; setRunStart({ ...seeded }); }
@@ -765,12 +905,16 @@ export function useCockpit(): Cockpit {
         // Reconcilia a guarda síncrona: descarta keys que ficaram presas (envio
         // enquanto desconectado nunca recebeu started/done) e marca as vivas.
         for (const k of [...inFlight.current]) if (!live.has(k)) inFlight.current.delete(k);
+        // A stop whose `done` was lost with the socket: the turn is gone, so the
+        // latch must go too — left set, it hid every later run of the session
+        // (phase stayed idle, inFlight never set) until one of them closed.
+        for (const k of [...stopping.current]) if (!live.has(k)) stopping.current.delete(k);
         // Não reviver sessão que o usuário acabou de parar: o kill leva até ~5s
         // (SIGTERM→SIGKILL) e o thread ainda consta vivo neste snapshot. Sem o
         // latch `stopping`, um 'busy' pós-stop (disparado a cada reconnect por
         // visibilidade/rede) re-acende inFlight+phase e o botão parar parece
         // não funcionar — a key limpa sozinha no 'done' do kill.
-        for (const k of msg.keys) if (!stopping.current.has(k)) inFlight.current.add(k);
+        for (const k of keys) if (!stopping.current.has(k)) inFlight.current.add(k);
         // Turno que FECHOU enquanto o browser esteve desconectado: o done nunca
         // chegou, então runMsg aponta pra uma bolha truncada — o próximo 'started'
         // reusaria essa bolha ("já em voo") e o turno novo streamaria dentro do
@@ -782,11 +926,19 @@ export function useCockpit(): Cockpit {
           if (!k.startsWith('new-')) {
             opened.current.delete(k);
             if (activeRef.current === k && send(reopenMsg(k))) opened.current.add(k);
+          } else if (resumeId.current[k] && !migratedTo.current[k]) {
+            // A first turn whose `done` was lost: without it the key never migrated,
+            // so the chat stayed `new-…` with a cut-off answer, and rename/handoff/
+            // "ver tudo" refused the key. Migrate now, as `done` would have, and take
+            // the re-fetch path even for our own session (its local history is short
+            // of the end the lost frames carried).
+            ownNew.current.delete(k);
+            migrateKey(k, resumeId.current[k]);
           }
         }
         setPhases((p) => {
           const n = { ...p };
-          for (const k of msg.keys) if (n[k] !== 'streaming' && !stopping.current.has(k)) n[k] = 'thinking';
+          for (const k of keys) if (n[k] !== 'streaming' && !stopping.current.has(k)) n[k] = 'thinking';
           for (const k of Object.keys(n)) {
             if (!live.has(k) && (n[k] === 'thinking' || n[k] === 'streaming')) n[k] = 'idle';
           }
@@ -809,7 +961,8 @@ export function useCockpit(): Cockpit {
           stopping.current.delete(msg.sessionId);
         }
         if (activeRef.current === msg.sessionId && !inFlight.current.has(msg.sessionId)) {
-          send(reopenMsg(msg.sessionId));
+          touchReopen.current ??= createReopenThrottle((id) => touchReopenFire.current(id));
+          touchReopen.current.touch(msg.sessionId);
           // Escrita externa recente = turno do terminal em andamento: acende um
           // indicador no chat (estrelinha) que apaga 5s após a última escrita.
           setTerminalBusyId(msg.sessionId);
@@ -903,10 +1056,9 @@ export function useCockpit(): Cockpit {
         runMsg.current[key] = id;
         // Carimba o modelo pedido na bolha desde já: sem isto o label caía no seletor
         // vivo e mudava retroativamente ao trocar de modelo. O 'done' refina pro efetivo.
-        updateThread(key, (prev) => [...prev, { id, role: 'assistant', blocks: [], ts: Date.now(), ...(msg.model ? { model: msg.model } : {}) }]);
+        updateThread(key, (prev) => [...prev, { id, role: 'assistant', blocks: [], ts: msg.startedAt ?? Date.now(), ...(msg.model ? { model: msg.model } : {}) }]);
         setPhases((p) => ({ ...p, [key]: 'thinking' }));
-        // Turno novo: os chips de continuação do turno anterior ficaram obsoletos.
-        setFollowups((f) => { if (!(key in f)) return f; const n = { ...f }; delete n[key]; return n; });
+        markSettled(key, false);
         // Início do turno: fixa a base de contexto pra medir o gasto AO VIVO deste
         // turno (delta) no indicador estilo terminal. Zera o contador exibido.
         turnBaseRef.current[key] = usageRef.current[key] || 0;
@@ -982,6 +1134,7 @@ export function useCockpit(): Cockpit {
         serverKey.current[key] = msg.sessionKey;
         lastActivity.current[key] = Date.now();
         if (!stopping.current.has(key)) setPhases((p) => ({ ...p, [key]: 'streaming' }));
+        markSettled(key, false);
         patchRunMsg(key, (b) => appendDelta(b, msg.text));
         bumpLiveTokens(key, msg.text);
         return;
@@ -991,6 +1144,7 @@ export function useCockpit(): Cockpit {
         serverKey.current[key] = msg.sessionKey;
         lastActivity.current[key] = Date.now();
         if (!stopping.current.has(key)) setPhases((p) => ({ ...p, [key]: 'streaming' }));
+        markSettled(key, false);
         patchRunMsg(key, (b) => appendThinking(b, msg.text));
         bumpLiveTokens(key, msg.text);
         return;
@@ -1009,6 +1163,9 @@ export function useCockpit(): Cockpit {
           updateThread(key, (prev) => [...prev, { id, role: 'assistant', blocks: [], ts: Date.now() }]);
         }
         patchRunMsg(key, (b) => upsertTool(b, msg.tool));
+        const gameEvent = toolGameEvent(msg.tool);
+        // A reconnect replays old tool frames long after the bus's short dedupe window.
+        if (gameEvent && claimGameOnce(`pr:${gameEvent.key}`, new Date().toISOString().slice(0, 10))) recordGameEvent(gameEvent);
         return;
       }
       case 'rate': {
@@ -1026,14 +1183,6 @@ export function useCockpit(): Cockpit {
         setMarathon(new Set(msg.keys));
         return;
       }
-      case 'suggestions': {
-        // Chips de continuação pós-turno. Chegou depois de um turno novo começar?
-        // O gate do servidor já descarta; aqui só ignora se a sessão está rodando.
-        const key = resolveKey(migratedTo.current, msg.sessionKey);
-        if (phasesRef.current[key] === 'thinking' || phasesRef.current[key] === 'streaming') return;
-        setFollowups((f) => ({ ...f, [key]: msg.items }));
-        return;
-      }
       case 'models': {
         setModels(msg.models);
         const list = msg.models;
@@ -1042,13 +1191,7 @@ export function useCockpit(): Cockpit {
         // (opus/sonnet/haiku) ou numa versão descontinuada, promove pra a concreta
         // mais recente da família — sem isto uma sessão esquecida num id
         // caro/depreciado (ex: opus-4-7 salvo há meses) seguiria queimando ~5x.
-        const promote = (cur: string): string => {
-          if (list.some((m) => m.id === cur)) return cur;
-          const upgrade = ['opus', 'sonnet', 'haiku'].includes(cur)
-            ? list.find((m) => m.id.includes(cur))
-            : (list.find((m) => m.id.includes('sonnet')) ?? list[0]);
-          return upgrade ? upgrade.id : cur;
-        };
+        const promote = (cur: string): string => promoteModel(list, cur);
         const nextDefault = promote(defaultModelRef.current);
         if (nextDefault !== defaultModelRef.current) {
           defaultModelRef.current = nextDefault;
@@ -1107,11 +1250,17 @@ export function useCockpit(): Cockpit {
         setStats(msg.stats);
         return;
       }
+      case 'capacity': {
+        const { live, cap, configCap, availMb } = msg;
+        setCapacity((prev) => (prev && prev.live === live && prev.cap === cap && prev.configCap === configCap ? prev : { live, cap, configCap, availMb }));
+        return;
+      }
       case 'bgAgents': {
+        const bgKey = resolveKey(migratedTo.current, msg.sessionKey);
         setBgAgents((b) => {
-          if (msg.agents.length) return { ...b, [msg.sessionKey]: msg.agents };
-          if (!(msg.sessionKey in b)) return b;
-          const next = { ...b }; delete next[msg.sessionKey]; return next;
+          if (msg.agents.length) return { ...b, [bgKey]: msg.agents };
+          if (!(bgKey in b)) return b;
+          const next = { ...b }; delete next[bgKey]; return next;
         });
         return;
       }
@@ -1151,6 +1300,14 @@ export function useCockpit(): Cockpit {
       case 'bench-bundle':
       case 'bench-error': {
         benchDispatch(msg);
+        return;
+      }
+      case 'prs':
+      case 'prs-detail':
+      case 'prs-diff':
+      case 'prs-session':
+      case 'prs-merge-result': {
+        prsDispatch(msg);
         return;
       }
       case 'uploaded': {
@@ -1210,12 +1367,21 @@ export function useCockpit(): Cockpit {
         onTermExit(msg.termId);
         return;
       }
+      case 'settled': {
+        const key = resolveKey(migratedTo.current, msg.sessionKey);
+        if (!stopping.current.has(key)) markSettled(key, true);
+        return;
+      }
       case 'done': {
         // `done` duplicado após a migração chega keyed pelo `new-xxx` antigo;
         // redireciona p/ o id real já migrado pra não tocar uma key órfã.
         const key = resolveKey(migratedTo.current, msg.sessionKey);
+        // A `done` replayed after a reconnect finds no live turn here, so it never counts twice.
+        const liveTurn = inFlight.current.has(key) || !!runMsg.current[key];
+        const concurrent = inFlight.current.size;
         inFlight.current.delete(key);
         stopping.current.delete(key);
+        markSettled(key, false);
         reconcileTools(key);
         // Carimba o modelo EFETIVO do turno na bolha (revela --fallback-model e
         // evita rotular bolhas antigas com o modelo atual ao trocar mid-thread).
@@ -1238,7 +1404,8 @@ export function useCockpit(): Cockpit {
           setTurnStats((t) => ({ ...t, [key]: { costUsd: msg.costUsd, durationMs: msg.durationMs, numTurns: msg.numTurns, model: msg.model } }));
         }
         const resumable = !!msg.endReason && (msg.endReason.includes('budget') || msg.endReason.includes('max_turns'));
-        if (msg.endReason && msg.endReason !== 'success') {
+        // error_shown: the engine already put the reason in the chat (ACP agents).
+        if (msg.endReason && msg.endReason !== 'success' && msg.endReason !== 'error_shown') {
           const note = msg.endReason.includes('budget')
             ? `⚠️ Turno interrompido: teto de gasto atingido${msg.costUsd !== undefined ? ` ($${msg.costUsd.toFixed(3)})` : ''}.`
             : msg.endReason.includes('max_turns')
@@ -1267,14 +1434,16 @@ export function useCockpit(): Cockpit {
         // Stop do usuário também fecha o turno via 'done' (limpa o phase), mas é
         // interrupção deliberada — não notificar "turno concluído".
         if (msg.stopped) return;
+        if (liveTurn) recordGameEvent({ type: 'turn_done', concurrent, key: `${key}:${msg.durationMs ?? ''}:${msg.turnTokens ?? ''}` });
         const id = msg.sessionId ?? key;
         notifyTurnDone(
           sessionsRef.current.find((s) => s.id === id || s.id === key)?.title ?? '',
           () => {
             focusSession(id);
             setSessions((prev) => prev.map((s) => ({ ...s, active: s.id === id })));
-            if (id && !id.startsWith('new-') && !opened.current.has(id) && send({ t: 'open', sessionId: id })) opened.current.add(id);
+            if (id && !id.startsWith('new-') && !opened.current.has(id) && send(reopenMsg(id))) opened.current.add(id);
           },
+          id,
         );
         return;
       }
@@ -1287,6 +1456,7 @@ export function useCockpit(): Cockpit {
         // resposta"). Keyless → só notifica, sem mexer no estado de nenhum run.
         const key = (msg.sessionKey && migratedTo.current[msg.sessionKey]) || msg.sessionKey;
         if (key) {
+          if (inFlight.current.has(key) || runMsg.current[key]) recordGameEvent({ type: 'turn_error', key: `${key}:${msg.message}` });
           inFlight.current.delete(key);
           stopping.current.delete(key);
           reconcileTools(key);
@@ -1313,6 +1483,7 @@ export function useCockpit(): Cockpit {
               focusSession(key);
               setSessions((prev) => prev.map((s) => ({ ...s, active: s.id === key })));
             },
+            key,
           );
         } else {
           notifyTurnError(sessionsRef.current.find((s) => s.id === activeRef.current)?.title ?? '', msg.message);
@@ -1335,8 +1506,15 @@ export function useCockpit(): Cockpit {
     }
     if (heartbeat.current) { clearInterval(heartbeat.current); heartbeat.current = null; }
     setConn((c) => ({ ...c, ws: 'reconnecting', sse: 'reconnecting' }));
+    recordConnEvent('dial', { relay: SUPABASE_ENABLED, box: !!boxStore.get().pref });
     let ws: WebSocket;
-    try { ws = new WebSocket(wsUrlWithToken(tokenRef.current)); } catch { scheduleRetry(); return; }
+    const dialRelay = () => {
+      const box = boxStore.get().pref ?? undefined;
+      return new SealedSocket(box ? withBox(wsBase(), box) : wsBase(), tokenRef.current, { box, main: true }) as unknown as WebSocket;
+    };
+    // Relay mode: the socket only opens once a sealed channel to this account's
+    // pinned agent exists (T5); the loopback backend has no relay in between.
+    try { ws = SUPABASE_ENABLED ? dialRelay() : new WebSocket(wsUrlWithToken(tokenRef.current)); } catch { scheduleRetry(); return; }
     wsRef.current = ws;
 
     // Guarda de geração: só o socket ATUAL (wsRef.current) reage. Um evento tardio
@@ -1344,6 +1522,7 @@ export function useCockpit(): Cockpit {
     const isCurrent = () => wsRef.current === ws;
     ws.onopen = () => {
       if (!isCurrent()) return;
+      recordConnEvent('open');
       retryDelay.current = 1500; // reconectou — zera o backoff
       setAuthRequired(false); // token válido (ou gate desligado)
       // Pedidos de thumb que morreram com o socket anterior podem re-pedir.
@@ -1351,7 +1530,7 @@ export function useCockpit(): Cockpit {
       thumbPending.current.clear();
       setConn({ ws: 'connected', sse: 'connected' });
       onGraphReconnect();
-      onOrchestratorReconnect();
+      onCanvasReconnect();
       reconcile();
       // Watchdog de socket meio-aberto (o "chat para e só volta com F5"): no desktop,
       // aba visível, um socket que morre sem FIN (relay/NAT/idle-timeout) NÃO dispara
@@ -1382,12 +1561,35 @@ export function useCockpit(): Cockpit {
     };
     ws.onclose = (ev) => {
       if (!isCurrent()) return;
+      recordClose(ev.code, ev.reason);
+      // The retry schedule owns reconnection from here. A heartbeat left running
+      // redialed on its own ~40s later, even after a 4401 had put up the token gate.
+      if (heartbeat.current) { clearInterval(heartbeat.current); heartbeat.current = null; }
       setConn({ ws: 'down', sse: 'down' });
+      // 4400 = the saved box id is not valid for this account: forget it (the key={box} remount redials unbound).
+      if (ev.code === 4400 && SUPABASE_ENABLED) boxStore.dropPref();
       failAllBenchPending();
+      failAllPrsPending();
       endHandoff();
-      // 4401 = servidor exige token e o nosso falta/está errado. NÃO re-tenta em
-      // loop: mostra o login. Qualquer outro código = queda de rede → backoff.
-      if (ev.code === 4401) { setAuthRequired(true); return; }
+      // 4401 = the identity was refused. Loopback: wrong/missing token, show the
+      // token gate and stop. Relay: see onAuthClose — refresh and retry slowly.
+      // Any other code = network drop → backoff.
+      if (ev.code === 4401) {
+        setAuthRequired(true);
+        if (onAuthClose(SUPABASE_ENABLED) === 'refresh-and-retry') {
+          const now = Date.now();
+          authBackoffUntil.current = now + RELAY_AUTH_RETRY_MS;
+          rejectedToken.current = tokenRef.current;
+          if (shouldRefreshSession(lastRelayRefresh.current, now)) {
+            lastRelayRefresh.current = now;
+            void supabase?.auth.refreshSession().catch(() => {});
+          }
+          if (retry.current) clearTimeout(retry.current);
+          retry.current = setTimeout(() => { retry.current = null; authBackoffUntil.current = 0; connectRef.current?.(); }, RELAY_AUTH_RETRY_MS);
+        }
+        return;
+      }
+      if (ev.code === TOKEN_EXPIRED_CLOSE) window.dispatchEvent(new Event(TOKEN_EXPIRED_EVENT));
       // 1009 = frame grande demais (ex: anexo que estourou o maxPayload de um hop).
       // O socket caía e reconectava sem explicação (parecia queda de rede em loop).
       // Mostra erro claro e reconecta pra restaurar (o frame ofensor não é reenviado).
@@ -1405,7 +1607,7 @@ export function useCockpit(): Cockpit {
     };
     ws.onerror = () => { if (isCurrent()) { try { ws.close(); } catch { /* noop */ } } };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [send, onServer, reattach, onGraphReconnect, onOrchestratorReconnect]);
+  }, [send, onServer, reattach, onGraphReconnect, onCanvasReconnect]);
   connectRef.current = connect;
 
   const scheduleRetry = useCallback(() => {
@@ -1415,8 +1617,8 @@ export function useCockpit(): Cockpit {
     // usage, cada um varrendo o diretório de sessões e o SQLite síncrono).
     const delay = retryDelay.current;
     retryDelay.current = Math.min(delay * 2, 30_000);
-    retry.current = setTimeout(() => { retry.current = null; connect(); }, delay);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // connectRef, not the first render's connect: this callback is created once.
+    retry.current = setTimeout(() => { retry.current = null; connectRef.current(); }, delay);
   }, []);
 
   // Re-lê o estado durável no (re)connect: sem isto um blip de socket (aba
@@ -1425,21 +1627,28 @@ export function useCockpit(): Cockpit {
   // que o CLI só manda durante um run) sem depender de eventos perdidos.
   const reconcile = useCallback(() => {
     send({ t: 'list' });
+    const roster = rosterMsg();
+    if (roster) send(roster);
     send({ t: 'list-archived' });
     send({ t: 'sync' });       // reemite o estado durável fresco (busy/rate/plan/models)
     send({ t: 'queue-get' });  // fila estacionada do servidor (drena com quota liberada)
     onUsageList();
     onSkillList();  // popula o seletor de skills do composer
-    onPointsGet();  // ledger de pontos: atualiza ao vivo mesmo fora da rota
     // Re-abre a sessão ativa SEMPRE (não só se nunca abriu): um turno que terminou
     // enquanto o WS esteve fechado perdeu os deltas finais + o 'done' — sem re-puxar
     // o history a resposta ficava congelada no meio da frase pra sempre ("o agente
     // parou de me responder"). mergeHistory deduplica, então o re-open é barato e
     // idempotente; respeita a visão completa pra não reverter pro resumido.
     const act = activeRef.current;
+    // Every other cached thread may be stale too: writes made while the socket was
+    // down (another device, deckctl, the terminal) sent session-touched frames
+    // this tab never got, and `opened` kept the next activation from fetching.
+    // Clearing it makes the next visit to each session re-fetch (mergeHistory
+    // keeps a live bubble, so a background run's stream isn't dropped).
+    for (const k of [...opened.current]) if (k !== act) opened.current.delete(k);
     if (act && !act.startsWith('new-') && send(reopenMsg(act))) opened.current.add(act);
     reattach();
-  }, [send, reattach, reopenMsg, onUsageList, onSkillList, onPointsGet]);
+  }, [send, reattach, reopenMsg, onUsageList, onSkillList]);
 
   // Reconexão proativa (visibilidade/rede): não espera o backoff. Socket morto em
   // silêncio (mobile) reabre na hora; socket vivo só reconcilia o estado durável.
@@ -1447,12 +1656,29 @@ export function useCockpit(): Cockpit {
   // socket meio-aberto ainda diz OPEN, o reconcile() sai por ele sem erro nem
   // resposta, e o watchdog só derrubava ~30s depois. Um socket de verdade recebe
   // stats a cada 2s — 5s mudo já é morto.
-  const reconnectNow = useCallback(() => {
+  // `force` (the "Reconectar agora" button): always a fresh socket, no backoff and
+  // no 4401 wait. Redialing with a token the relay already refused was a silent
+  // no-op (same 4401 at once), so that case refreshes the session first.
+  const reconnectNow = useCallback((opts?: { force?: boolean }) => {
     retryDelay.current = 1500;
+    const force = opts?.force === true;
     const ws = wsRef.current;
     const alive = ws && ws.readyState === ws.OPEN && Date.now() - lastRecvAt.current <= 5_000;
-    if (alive) { reconcile(); return; }
+    if (alive && !force) { reconcile(); return; }
     if (retry.current) { clearTimeout(retry.current); retry.current = null; }
+    if (force) {
+      recordConnEvent('manual_reconnect', { authBackoff: authBackoffUntil.current > Date.now() });
+      authBackoffUntil.current = 0;
+      if (SUPABASE_ENABLED && supabase && tokenRef.current && rejectedToken.current === tokenRef.current) {
+        setConn((c) => ({ ...c, ws: 'reconnecting', sse: 'reconnecting' }));
+        lastRelayRefresh.current = Date.now();
+        // A new token reaches submitToken (onAuthStateChange), which dials itself.
+        void supabase.auth.refreshSession().catch(() => {}).finally(() => {
+          if (rejectedToken.current === tokenRef.current) connectRef.current();
+        });
+        return;
+      }
+    }
     connect();
   }, [connect, reconcile]);
 
@@ -1463,12 +1689,13 @@ export function useCockpit(): Cockpit {
   // established") e o TOKEN_REFRESHED periódico reconectaria sem necessidade.
   const submitToken = useCallback((token: string) => {
     const t = token.trim();
-    if (t === tokenRef.current && wsRef.current) return;
+    if (tokenUnchangedAndLive(t, tokenRef.current, wsRef.current?.readyState)) return;
     tokenRef.current = t;
     savePref('auth.token', t);
     setAuthRequired(false);
     retryDelay.current = 1500;
-    if (retry.current) { clearTimeout(retry.current); retry.current = null; }
+    const backingOff = !dialOnTokenChange(t, rejectedToken.current, authBackoffUntil.current, Date.now());
+    if (retry.current && !backingOff) { clearTimeout(retry.current); retry.current = null; }
     // Derruba o socket anterior NEUTRALIZANDO o onclose antes — senão o close
     // dispara scheduleRetry e reabre uma conexão com a credencial recém-trocada
     // (no sign-out, vazia), gerando churn de reconnect-rejeitado.
@@ -1480,7 +1707,16 @@ export function useCockpit(): Cockpit {
     }
     // Sign-out no modo relay (token vazio): fica desconectado, não rediscar — o
     // relay rejeitaria sem credencial e o gate de login assume.
-    if (SUPABASE_ENABLED && !t) { setConn({ ws: 'down', sse: 'down' }); return; }
+    if (SUPABASE_ENABLED && !t) {
+      // Signed out: a pending 4401 retry must not dial without credentials.
+      if (retry.current) { clearTimeout(retry.current); retry.current = null; }
+      authBackoffUntil.current = 0;
+      setConn({ ws: 'down', sse: 'down' });
+      return;
+    }
+    // During a 4401 backoff the pending retry dials with the rejected token.
+    if (backingOff) return;
+    authBackoffUntil.current = 0;
     connect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connect]);
@@ -1505,8 +1741,33 @@ export function useCockpit(): Cockpit {
     // Sessão real (não rascunho local) vira a última ativa — sobrevive ao F5.
     if (id && !id.startsWith('new-')) savePref('activeId', id);
     setSessions((prev) => prev.map((s) => ({ ...s, active: s.id === id })));
-    if (id && !id.startsWith('new-') && !opened.current.has(id) && send({ t: 'open', sessionId: id })) opened.current.add(id);
-  }, [send, focusSession]);
+    if (id && !id.startsWith('new-') && !opened.current.has(id) && send(reopenMsg(id))) opened.current.add(id);
+  }, [send, focusSession, reopenMsg]);
+
+  // A bot has one thread. Before its first turn there is no session yet, so it
+  // gets a fixed `new-bot-<id>` draft key that migrateKey carries over to the real
+  // sessionId exactly like any new chat; the server binds that id to the bot.
+  const onOpenBot = useCallback((botId: string, sessionId: string | undefined, title: string) => {
+    const draft = botDraftKey(botId);
+    // The server binds the session on the turn's first frame, but the draft only
+    // migrates at `done`: switching to the sessionId mid-turn would drop the live bubble.
+    const draftLive = !migratedTo.current[draft] && (threadsRef.current[draft]?.length ?? 0) > 0;
+    const target = migratedTo.current[draft] ?? (draftLive ? draft : sessionId ?? draft);
+    if (target === draft) {
+      if (!(draft in threadsRef.current)) { ownNew.current.add(draft); setThreads((prev) => ({ ...prev, [draft]: [] })); }
+      setSessions((prev) => prev.some((x) => x.id === draft)
+        ? prev.map((x) => ({ ...x, active: x.id === draft }))
+        : [{ id: draft, title, relative: 'agora', snippet: 'Sem mensagens ainda', mtime: Date.now(), hasTerminal: false, active: true }, ...prev.map((x) => ({ ...x, active: false }))]);
+      focusSession(draft);
+      return;
+    }
+    // A long-lived bot thread can fall off the recent-sessions window; without a
+    // row the chat panel has no session to render.
+    setSessions((prev) => prev.some((x) => x.id === target)
+      ? prev
+      : [{ id: target, title, relative: '', snippet: '', mtime: 0, hasTerminal: false, active: false }, ...prev]);
+    setActiveId(target);
+  }, [focusSession, setActiveId]);
 
   // Congela na sessão o modelo com que o turno REALMENTE roda. Sem isto, uma
   // conversa que herdou o default (sem override próprio) segue derivando o rótulo
@@ -1517,7 +1778,7 @@ export function useCockpit(): Cockpit {
   // recusaria o argv (validModel) com o pin ainda gravado. Normaliza na leitura —
   // é o único ponto por onde todo envio passa.
   const pinSessionModel = useCallback((key: string): string => {
-    const chosen = stripLongContext(modelBySessionRef.current[key] ?? defaultModelRef.current);
+    const chosen = stripLongContext(resolveSessionModel(modelBySessionRef.current[key], threadsRef.current[key], defaultModelRef.current));
     if (modelBySessionRef.current[key] !== chosen) {
       modelBySessionRef.current = { ...modelBySessionRef.current, [key]: chosen };
       setModelBySession(modelBySessionRef.current);
@@ -1544,8 +1805,9 @@ export function useCockpit(): Cockpit {
   // auto=true marca envio de automação (flush da fila do cliente): o servidor
   // estaciona autos enquanto a sessão aguarda resposta de AskUserQuestion.
   const onSend = useCallback((text: string, modeOverride?: PermMode, auto?: boolean, allowWorkflow?: boolean): boolean => {
-    const key = activeRef.current;
-    if (!key) return false;
+    // A fresh install has no session at all: the composer is on screen, so the
+    // first message opens one instead of vanishing with the cleared composer.
+    const key = activeRef.current || onNew();
     // WS fechado: send() descartaria em silêncio DEPOIS do trabalho otimista —
     // bolha na tela, composer limpo e o servidor nunca recebeu nada. Guard antes
     // de qualquer mutação: avisa e devolve o texto pro composer.
@@ -1559,6 +1821,7 @@ export function useCockpit(): Cockpit {
     // Turno em voo: NÃO bloqueia mais. O servidor tria o prompt (esperar/responder/
     // prioridade/juntar) — ver routeSend. A bolha do usuário entra otimista e o
     // 'started' do próximo turno (ou da prioridade) cria o bubble do assistente.
+    if (!auto) recordGameEvent({ type: 'message_sent' });
     const busy = inFlight.current.has(key);
     if (!busy) inFlight.current.add(key);
     stopping.current.delete(key); // novo prompt nesta sessão cancela o latch de stop
@@ -1590,7 +1853,7 @@ export function useCockpit(): Cockpit {
     setDrafts((d) => ({ ...d, [key]: '' }));
     send(buildSendWire(key, resumeId.current[key], wire, msgId, modeOverride, auto, allowWorkflow));
     return true;
-  }, [send, updateThread, buildSendWire, noteSent]);
+  }, [send, updateThread, buildSendWire, noteSent, onNew]);
   const onApproveWorkflow = useCallback((text: string) => onSend(text, undefined, undefined, true), [onSend]);
   // Fecha a ponte usada pelo handoff-result (declarado acima do onSend).
   sendPromptRef.current = onSend;
@@ -1643,6 +1906,7 @@ export function useCockpit(): Cockpit {
   const queueMove = useCallback((sessionKey: string, id: string, dir: -1 | 1) => { send({ t: 'queue-move', sessionKey, id, dir }); }, [send]);
   const queueClear = useCallback((sessionKey: string) => { send({ t: 'queue-clear', sessionKey }); }, [send]);
   const queueSetPaused = useCallback((v: boolean) => { send({ t: 'queue-set-paused', paused: v }); }, [send]);
+  const queueRetarget = useCallback((sessionKey: string, model: string) => { send({ t: 'queue-retarget', sessionKey, model }); }, [send]);
   const queueRetry = useCallback((sessionKey: string, id: string) => { send({ t: 'queue-retry', sessionKey, id }); }, [send]);
   const queueRunBg = useCallback((sessionKey: string, id: string, model?: string) => { send({ t: 'queue-run-bg', sessionKey, id, model }); }, [send]);
   const queueRunNow = useCallback((sessionKey: string, id: string) => { send({ t: 'queue-run-now', sessionKey, id }); }, [send]);
@@ -1655,12 +1919,19 @@ export function useCockpit(): Cockpit {
     setResumeOffers((o) => clearOffer(o, sessionKey));
   }, [send]);
 
+  // Chunks por lote de envio: fica sob os 60 frames/s do limitador global.
+  const UPLOAD_BATCH = 40;
   const onUpload = useCallback((file: File) => {
     const key = activeRef.current;
     if (!key) return;
     // Mesmo arquivo chegando repetido (FileList duplicado do iOS, re-disparo de
     // paste/change, caminhos concorrentes) só sobe uma vez dentro da janela.
     if (!isFreshUpload(recentUploadSigs.current, fileSig(file), Date.now())) return;
+    if (file.size > MAX_UPLOAD_BYTES) {
+      const mb = (n: number) => `${Math.round(n / 1_000_000)}MB`;
+      updateThread(key, (prev) => [...prev, { id: newId('e'), role: 'assistant', blocks: [{ type: 'text', md: `⚠️ "${file.name}" tem ${mb(file.size)} — o limite de anexo é ${mb(MAX_UPLOAD_BYTES)}.` }], error: true, notice: true }]);
+      return;
+    }
     const clientId = newId('up');
     uploadOrigin.current.set(clientId, key);
     // Chip otimista na hora (com spinner) — antes só aparecia DEPOIS do ack do
@@ -1682,13 +1953,13 @@ export function useCockpit(): Cockpit {
       setAtts(attachmentsRef.current.filter((a) => a.clientId !== clientId));
       updateThread(key, (prev) => [...prev, { id: newId('e'), role: 'assistant', blocks: [{ type: 'text', md: msg }], error: true, notice: true }]);
     };
-    // Watchdog: o chip NUNCA fica "carregando" pra sempre. Se em 75s ainda estiver
-    // uploading (fetch pendurado, sem ack do backend, relay dropou), some + erro.
+    // Watchdog: o chip NUNCA fica "carregando" pra sempre. Se no prazo (75s, mais
+    // pra arquivo grande) ainda estiver uploading (sem ack, relay dropou), some + erro.
     setTimeout(() => {
       if (!done && attachmentsRef.current.some((a) => a.clientId === clientId && a.uploading)) {
         fail(`⚠️ Upload de "${file.name}" demorou demais — tente de novo.`);
       }
-    }, 75_000);
+    }, uploadWatchdogMs(file.size));
     // Upload em CHUNKS via WS: fatia o base64 em pedaços pequenos (cada frame bem
     // abaixo do cap do relay), o backend remonta e sobe pro S3 server-side. Evita o
     // upload direto browser→edge fn (travava por CORS/Cloudflare) e o cap de frame.
@@ -1704,9 +1975,22 @@ export function useCockpit(): Cockpit {
       const b64 = res.includes(',') ? res.slice(res.indexOf(',') + 1) : res;
       const CHUNK = 700_000; // ~700KB de base64 por frame (folga sob o cap do relay)
       const total = Math.max(1, Math.ceil(b64.length / CHUNK));
-      for (let seq = 0; seq < total; seq++) {
-        send({ t: 'upload-chunk', uploadId: clientId, sessionKey: key, name: file.name, seq, total, dataB64: b64.slice(seq * CHUNK, (seq + 1) * CHUNK), clientId });
-      }
+      // Lotes espaçados: o limitador global do servidor (server/ws/guard.ts) aceita
+      // rajada de 120 frames e 60/s; um .glb de 100MB são ~190 chunks e, numa rajada
+      // só, o fim do arquivo era descartado e o chip girava até o watchdog.
+      const sendBatch = (from: number) => {
+        if (done || removedUploads.current.has(clientId)) return;
+        if (wsRef.current?.readyState !== WebSocket.OPEN) {
+          fail(`⚠️ Conexão caiu no meio do upload de "${file.name}" — anexe de novo.`);
+          return;
+        }
+        const to = Math.min(total, from + UPLOAD_BATCH);
+        for (let seq = from; seq < to; seq++) {
+          send({ t: 'upload-chunk', uploadId: clientId, sessionKey: key, name: file.name, seq, total, dataB64: b64.slice(seq * CHUNK, (seq + 1) * CHUNK), clientId });
+        }
+        if (to < total) setTimeout(() => sendBatch(to), 1000);
+      };
+      sendBatch(0);
     };
     reader.onerror = reader.onabort = () => fail(`⚠️ Falha ao ler o arquivo "${file.name}" — tente anexar de novo.`);
     reader.readAsDataURL(file);
@@ -1784,6 +2068,11 @@ export function useCockpit(): Cockpit {
   }, [send]);
 
   const onRefreshModels = useCallback(() => send({ t: 'refresh-models' }), [send]);
+  const onClaudeLoginStart = useCallback(() => { setClaudeLogin({ state: 'waiting-url', optimistic: true }); send({ t: 'claude-login-start' }); }, [send]);
+  const onClaudeLoginCode = useCallback((code: string) => send({ t: 'claude-login-code', code }), [send]);
+  const onClaudeAccountGet = useCallback(() => send({ t: 'claude-account-get' }), [send]);
+  const onClaudeLogout = useCallback(() => send({ t: 'claude-logout' }), [send]);
+  const onClaudeLoginCancel = useCallback(() => { setClaudeLogin({ state: 'idle' }); send({ t: 'claude-login-cancel' }); }, [send]);
   // Abrir o painel de uso pede um número fresco na hora: o poll é de 5min e sem
   // isto abrir o popover mostrava o valor da última leitura sem dizer que era velho.
   const onRefreshPlanUsage = useCallback((force = false) => send(force ? { t: 'plan-usage-get', force: true } : { t: 'plan-usage-get' }), [send]);
@@ -1865,18 +2154,18 @@ export function useCockpit(): Cockpit {
   // a ativa, cai pra próxima (abrindo o history dela).
   // Remoção local do sidebar (some na hora, escolhe fallback ativo, limpa estado
   // por sessão). Compartilhada por arquivar e excluir — só muda a msg ao backend.
-  const dropFromSidebar = useCallback((id: string) => {
+  const dropFromSidebar = useCallback((id: string, keepDraft = false) => {
     setSessions((prev) => {
       const next = prev.filter((s) => s.id !== id);
       if (activeRef.current !== id) return next;
       const fb = next[0]?.id ?? '';
       focusSession(fb);
-      if (fb && !fb.startsWith('new-') && !opened.current.has(fb) && send({ t: 'open', sessionId: fb })) opened.current.add(fb);
+      if (fb && !fb.startsWith('new-') && !opened.current.has(fb) && send(reopenMsg(fb))) opened.current.add(fb);
       return next.map((s) => ({ ...s, active: s.id === fb }));
     });
     setThreads((prev) => { const n = { ...prev }; delete n[id]; return n; });
     setPhases((prev) => { const n = { ...prev }; delete n[id]; return n; });
-    setDrafts((prev) => { const n = { ...prev }; delete n[id]; return n; });
+    if (!keepDraft) setDrafts((prev) => { const n = { ...prev }; delete n[id]; return n; });
     setUsage((prev) => { const n = { ...prev }; delete n[id]; return n; });
     setTurnStats((prev) => { if (!(id in prev)) return prev; const n = { ...prev }; delete n[id]; return n; });
     setInterrupted((prev) => { if (!(id in prev)) return prev; const n = { ...prev }; delete n[id]; return n; });
@@ -1898,8 +2187,10 @@ export function useCockpit(): Cockpit {
   }, [send, focusSession]);
 
   const onClose = useCallback((id: string) => {
-    if (id && !id.startsWith('new-')) send({ t: 'hide', sessionId: id });
-    dropFromSidebar(id);
+    const real = !!id && !id.startsWith('new-');
+    if (real) send({ t: 'hide', sessionId: id });
+    // Archive is undoable: the unsent draft must still be there on Desfazer.
+    dropFromSidebar(id, real);
   }, [send, dropFromSidebar]);
 
   // Excluir: some do cockpit por completo (nem em Arquivadas). O .jsonl no disco
@@ -1939,6 +2230,11 @@ export function useCockpit(): Cockpit {
   // Volta do histórico completo pro resumido (só o caminho ativo, capado em
   // historyLimit). É o inverso de onOpenFull — sem isto o botão "ver tudo" era
   // mão-única (carregava tudo e não dava pra recolher).
+  // Reads a thread into memory without switching the active chat (Agent Base shows a waiting session's real question).
+  const onLoadThread = useCallback((id: string) => {
+    if (id && !id.startsWith('new-')) send({ t: 'open', sessionId: id });
+  }, [send]);
+
   const onOpenSummary = useCallback((id: string) => {
     if (!id || id.startsWith('new-')) return;
     viewMode.current[id] = 'chain';
@@ -1947,6 +2243,7 @@ export function useCockpit(): Cockpit {
 
   const messages = threads[activeId] || [];
   const phase = phases[activeId] || 'idle';
+  const settled = !!settledKeys[activeId];
   // Sessões com run vivo (pra dot pulsante no sidebar) — útil em run noturno
   // multi-sessão: ver de relance quem ainda trabalha sem abrir cada uma.
   // `phases` gets a new object on every streamed token, but the SET of
@@ -1964,6 +2261,12 @@ export function useCockpit(): Cockpit {
     runningRef.current = next;
     return next;
   }, [phases]);
+  // Display only: this process can't stream or stop those turns, so they stay
+  // out of `running` (which drives phases, eviction and the stall watchdog).
+  const runningAnywhere = useMemo(
+    () => (liveElsewhere.length ? new Set([...running, ...liveElsewhere]) : running),
+    [running, liveElsewhere],
+  );
   // Canvas: a one-line composer inside a terminal window reaches a session that
   // may not even be the open chat tab, so it can't reuse onSend's
   // activeRef.current. ALWAYS the normal 'send' path (via buildSendWire, so
@@ -2107,7 +2410,7 @@ export function useCockpit(): Cockpit {
     setSeen((prev) => {
       if (prev[activeId] === s.mtime) return prev;
       const next = { ...prev, [activeId]: s.mtime };
-      savePref('seen', next);
+      saveSeen(seenBox, next);
       return next;
     });
   }, [activeId, sessions]);
@@ -2117,9 +2420,10 @@ export function useCockpit(): Cockpit {
     [sessions, seen, activeId, running]
   );
   const draft = drafts[activeId] || '';
-  // Modelo efetivo da sessão ativa: override próprio, ou o default (semente) se
-  // esta conversa nunca trocou de versão.
-  const model = modelBySession[activeId] ?? defaultModel;
+  // Modelo efetivo da sessão ativa: override próprio, senão o do último turno
+  // dela, senão o default (semente) — o seletor nunca mostra um modelo que o
+  // próximo envio não usaria.
+  const model = resolveSessionModel(modelBySession[activeId], messages, defaultModel);
   const contextTokens = usage[activeId] || 0;
   const contextModel = usageModel[activeId] ?? null;
   // Recalculado a cada render: o cache esfria com o RELÓGIO, não com um evento —
@@ -2137,18 +2441,36 @@ export function useCockpit(): Cockpit {
   const lastTurn = turnStats[activeId];
   const lastEnd = interrupted[activeId];
   const setDraft = useCallback((v: string) => setDrafts((d) => ({ ...d, [activeRef.current]: v })), []);
-  const dismissFollowups = useCallback(() => {
-    const key = activeRef.current;
-    setFollowups((f) => { if (!(key in f)) return f; const n = { ...f }; delete n[key]; return n; });
-  }, []);
 
   // Drafts não-enviados sobrevivem a reload. Só persiste sessões reais (uuid) e
   // não-vazias — keys `new-xxx` são efêmeras e não casam após reload.
+  // Debounced: every keystroke re-serialized every draft (a quoted document can be
+  // hundreds of KB) into localStorage. pagehide and unmount flush the last one.
+  // Only a tab whose drafts changed writes: an idle tab closing after another
+  // tab saved would otherwise overwrite that tab's drafts with its old snapshot.
+  // Mobile may kill a backgrounded tab without pagehide, so hiding flushes too.
+  const draftsRef = useRef(drafts);
+  draftsRef.current = drafts;
+  const draftsSaved = useRef(drafts);
+  const saveDrafts = useCallback(() => {
+    if (draftsRef.current === draftsSaved.current) return;
+    draftsSaved.current = draftsRef.current;
+    savePref('drafts', persistableDrafts(draftsRef.current));
+  }, []);
   useEffect(() => {
-    const keep: Record<string, string> = {};
-    for (const [k, v] of Object.entries(drafts)) if (v && !k.startsWith('new-')) keep[k] = v;
-    savePref('drafts', keep);
-  }, [drafts]);
+    const t = setTimeout(saveDrafts, DRAFTS_SAVE_MS);
+    return () => clearTimeout(t);
+  }, [drafts, saveDrafts]);
+  useEffect(() => {
+    const onHidden = () => { if (document.visibilityState === 'hidden') saveDrafts(); };
+    window.addEventListener('pagehide', saveDrafts);
+    document.addEventListener('visibilitychange', onHidden);
+    return () => {
+      window.removeEventListener('pagehide', saveDrafts);
+      document.removeEventListener('visibilitychange', onHidden);
+      saveDrafts();
+    };
+  }, [saveDrafts]);
 
   // Override de modelo por sessão — mesma regra dos drafts: sessões `new-xxx` são
   // efêmeras e não casam depois de um reload.
@@ -2162,5 +2484,5 @@ export function useCockpit(): Cockpit {
 
   const attachmentsView = useMemo(() => markDuplicates(attachments, sentHashes[activeId]), [attachments, sentHashes, activeId]);
 
-  return { ...notesApi, ...dropsApi, ...cronsApi, ...pointsApi, ...contextsApi, ...skillsApi, ...graphsApi, ...canvasApi, ...adminApi, ...harnessApi, sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], followups: followups[activeId], dismissFollowups, running, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, planBlockedUntil, planReadAt, planNextReadAt, stats, archived, contextTokens, contextModel, usageModel, sendCost, liveTurnTokens, turnStartedAt, bgAgents: activeBgAgents, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, interrupted, searchResults, onSearch, marathon, onToggleMarathon, attachments: attachmentsView, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, onRefreshPlanUsage, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onSendTo, canvasSendError, dismissCanvasSendError, onLaunchFork, canvasForkRuns, pendingSessionIds, onApproveWorkflow, onEditUser: editUser, onStop, onNew, onHandoff, onLaunchAgent, handoffBusy, onFunnel, funnelBusy, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onLoadOlder, onOpenSummary, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce, resumeOffer: resumeOffers[activeId] ?? null, resumeRun };
+  return { ...dropsApi, ...vaultApi, ...cronsApi, ...teamApi, ...botFilesApi, botComputers: botComputerApi.botComputers, onBotComputerGet: botComputerApi.onBotComputerGet, grokUsage: grokUsageApi.grokUsage, onRefreshGrokUsage: grokUsageApi.onRefreshGrokUsage, ...pointsApi, ...contextsApi, ...memoriesApi, ...skillsApi, ...graphsApi, ...canvasApi, planner: plannerApi, ...adminApi, mcps: mcpsApi.mcps, mcpsBusy: mcpsApi.mcpsBusy, onMcpsGet: mcpsApi.onMcpsGet, agents: agentsApi.agents, claudeImport: claudeImportApi, connections: connectionsApi.connections, connectionsLoaded: connectionsApi.loaded, onConnectionsGet: connectionsApi.refresh, probeResult: probeApi.probeResult, probeBusy: probeApi.probeBusy, onProviderProbe: probeApi.onProviderProbe, onProviderProbeReset: probeApi.onProviderProbeReset, sessions, loading, activeId, setActiveId, messages, threads, onLoadThread, phase, settled, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], allSessionTodos: sessionTodos, allBgAgents: bgAgents, running, runningAnywhere, stalled, updated, seen, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, planBlockedUntil, planReadAt, planNextReadAt, stats, capacity, archived, contextTokens, contextModel, usageModel, sendCost, liveTurnTokens, turnStartedAt, bgAgents: activeBgAgents, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, interrupted, searchResults, onSearch, marathon, onToggleMarathon, attachments: attachmentsView, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, claudeLogin, claudeAccount, onClaudeAccountGet, onClaudeLogout, onClaudeLoginStart, onClaudeLoginCode, onClaudeLoginCancel, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, onRefreshPlanUsage, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onSendTo, canvasSendError, dismissCanvasSendError, onLaunchFork, canvasForkRuns, pendingSessionIds, onApproveWorkflow, onEditUser: editUser, onStop, onNew, onNewWithDraft, onHandoff, onLaunchAgent, handoffBusy, onFunnel, funnelBusy, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onLoadOlder, onOpenSummary, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueReleaseAt, queueSetPaused, queueRetry, queueRetarget, queueRunBg, queueRunNow, queueForce, resumeOffer: resumeOffers[activeId] ?? null, resumeRun, onOpenBot };
 }

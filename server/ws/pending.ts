@@ -1,5 +1,6 @@
 import type { WebSocket } from 'ws';
 import { sameParams, type RunParams } from './threads';
+import { MAX_PROMPT_BYTES } from '../../shared/limits';
 
 // Fila de prompts triados como 'wait'/'merge' enquanto o turno da sessão rodava.
 // Drenada (sequencialmente) no onClose do turno atual — um turno por vez, mantendo
@@ -45,6 +46,9 @@ export function sameTurnParams(a: QueuedSend, b: QueuedSend): boolean {
   return a.merge === b.merge && sameParams(a, b);
 }
 
+// Room for the "Complemento do pedido anterior" frame added below.
+const MERGE_FRAME_BYTES = 64;
+
 // Tira o próximo lote da fila e devolve o prompt já enquadrado. `first` carrega os
 // params do turno; merge enquadra como complemento explícito.
 export function takePendingBatch(sessionKey: string): { first: QueuedSend; text: string } | null {
@@ -52,7 +56,16 @@ export function takePendingBatch(sessionKey: string): { first: QueuedSend; text:
   if (!arr || arr.length === 0) return null;
   const first = arr.shift()!;
   const batch = [first];
-  while (arr.length && sameTurnParams(first, arr[0])) batch.push(arr.shift()!);
+  // Stop merging before the joined prompt would pass the prompt cap: two 60 KB
+  // pastes merged into one 120 KB turn were rejected by startRun and BOTH lost.
+  // What doesn't fit stays queued as the next batch.
+  let bytes = Buffer.byteLength(first.prompt, 'utf8');
+  while (arr.length && sameTurnParams(first, arr[0])) {
+    const add = Buffer.byteLength(arr[0].prompt, 'utf8') + 2;
+    if (bytes + add > MAX_PROMPT_BYTES - MERGE_FRAME_BYTES) break;
+    bytes += add;
+    batch.push(arr.shift()!);
+  }
   if (arr.length === 0) pending.delete(sessionKey);
   const joined = batch.map((b) => b.prompt).join('\n\n');
   return { first, text: first.merge ? `Complemento do pedido anterior:\n\n${joined}` : joined };

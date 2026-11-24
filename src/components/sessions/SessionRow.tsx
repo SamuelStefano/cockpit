@@ -1,33 +1,22 @@
 import type { Session } from '../../data/types';
-import { Highlight } from './Highlight';
 import { SessionRowActions } from './SessionRowActions';
-import { SessionRowBadges } from './SessionRowBadges';
 import { useSessionRow } from './useSessionRow';
 import { useRunClock } from './useRunClock';
 import { InlineEdit } from './InlineEdit';
 import { useLongPress } from './useLongPress';
-import { ctxWarn, isIdle } from './row-meta';
 import { rowStatus, STATUS_DOT } from './row-status';
-import { fmtStamp } from '../../../shared/format';
+import { displayTitle } from './display-title';
+import { fmtRunElapsed } from './row-meta';
 
 export interface SessionRowProps {
   s: Session;
   active: boolean;
-  highlight?: string;
-  ctx?: number;
-  ctxModel?: string | null;
-  cost?: number;
   running?: boolean;
   stalled?: boolean;
   updated?: boolean;
   runStart?: number;
   pinned?: boolean;
-  tags?: string[];
-  showDesc?: boolean;
   onTogglePin?: (id: string) => void;
-  onAddTag?: (id: string, tag: string) => void;
-  onRemoveTag?: (id: string, tag: string) => void;
-  onFilterTag?: (tag: string) => void;
   onSelect: (id: string) => void;
   marathon?: boolean;
   onToggleMarathon?: (id: string, on: boolean) => void;
@@ -38,108 +27,66 @@ export interface SessionRowProps {
   onStop?: (id: string) => void;
   waitingDismissed?: boolean;
   onDismissWaiting?: (id: string) => void;
-  // Título se confunde com o de outra sessão da lista — ver [[ambiguous]].
-  ambiguous?: boolean;
 }
 
-export function SessionRow({ s, active, highlight, ctx, ctxModel, cost, running, stalled, updated, runStart, pinned, tags = [], showDesc, marathon, onToggleMarathon, onTogglePin, onAddTag, onRemoveTag, onFilterTag, onSelect, onRename, onDescribe, onClose, onDelete, onStop, waitingDismissed, onDismissWaiting, ambiguous }: SessionRowProps) {
-  const { editing, setEditing, draft, setDraft, descEditing, setDescEditing, descDraft, setDescDraft, tagging, setTagging, tagDraft, setTagDraft, rowRef, commit, commitDesc, commitTag } = useSessionRow({ s, onAddTag, onRename, onDescribe });
+// One conversation: one line of plain text; a dot while working, waiting, or finished with unseen output.
+export function SessionRow({ s, active, running, stalled, updated, runStart, pinned, marathon, onToggleMarathon, onTogglePin, onSelect, onRename, onDescribe, onClose, onDelete, onStop, waitingDismissed, onDismissWaiting }: SessionRowProps) {
+  const { editing, setEditing, draft, setDraft, setDescEditing, setDescDraft, rowRef, commit } = useSessionRow({ s, onRename, onDescribe });
   const { open: actionsOpen, setOpen: setActionsOpen, consumeTap, handlers } = useLongPress(() => {});
   const now = useRunClock(!!running);
-  const warn = ctxWarn(ctx, ctxModel);
   const status = rowStatus({ running, stalled, waiting: s.waiting, runStart, relative: s.relative, now });
-  // Um sinal só por card: o estado (verde/âmbar/violeta) ou, sem estado, o
-  // laranja de "tem output novo". Nunca os dois — era o que enchia a lista de pontos.
-  const dot = status ? STATUS_DOT[status.tone] : !running && updated ? 'bg-orange-400' : null;
+  const meta = running && runStart ? fmtRunElapsed(Math.max(0, now - runStart)) : s.relative;
+  const finished = !status && !!updated && !active;
+  const dot = status ? STATUS_DOT[status.tone] : finished ? 'bg-orange-500 shadow-[0_0_6px_rgba(249,115,22,0.8)]' : null;
 
-  // No dedo, o toque longo que abre o menu começava a selecionar o título (iOS
-  // ainda sobe o callout de copiar): select-none no card, select-text nos campos
-  // de edição.
   return (
     <div
       ref={rowRef}
-      role="button"
-      tabIndex={0}
-      aria-pressed={active}
       onClick={() => { if (consumeTap()) return; onSelect(s.id); }}
       {...handlers}
-      onKeyDown={(e) => {
-        if (e.target !== e.currentTarget) return; // tecla foi pra um botão/input interno
-        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(s.id); }
-      }}
-      className={`group relative cursor-pointer rounded-xl border px-3.5 py-2 transition-all duration-150 outline-hidden focus-visible:ring-2 focus-visible:ring-orange-500/40 pointer-coarse:select-none pointer-coarse:[-webkit-touch-callout:none] lg:py-3
-        ${active
-          ? 'glow-active border-orange-500/40 bg-linear-to-r from-orange-500/9 to-orange-500/3'
-          : 'border-transparent hover:border-neutral-800 hover:bg-neutral-900/80'}`}
+      className={`row-in ${finished ? 'row-wiggle' : ''} group relative flex h-11 cursor-pointer items-center gap-1 rounded-xl px-3 transition-colors duration-150 outline-hidden has-[[data-row-select]:focus-visible]:ring-2 has-[[data-row-select]:focus-visible]:ring-orange-500/40 pointer-coarse:select-none pointer-coarse:[-webkit-touch-callout:none]
+        ${active ? 'bg-orange-500/12 shadow-[inset_0_0_0_1px_rgba(249,115,22,0.3)]' : 'hover:bg-neutral-800/40'}`}
     >
-      {active && <span className="absolute left-0 top-3 bottom-3 w-[3px] rounded-r-full bg-linear-to-b from-orange-400 to-orange-600" />}
-      <div className="mb-1 flex items-start justify-between gap-1">
-        {editing ? (
-          <InlineEdit
-            value={draft} onChange={setDraft} onCommit={commit}
-            onCancel={() => { setDraft(s.title); setEditing(false); }}
-            label="Editar título da sessão"
-            className="w-full select-text rounded-sm border border-orange-500/50 bg-neutral-950 px-1.5 py-0.5 text-[12.5px] font-medium text-neutral-100 outline-hidden ring-2 ring-orange-500/20"
-          />
-        ) : (
-          <span
-            className={`flex min-w-0 flex-1 items-start gap-1.5 text-left text-[13.5px] font-medium leading-snug tracking-[-0.01em] ${active ? 'text-neutral-50' : 'text-neutral-300 group-hover:text-neutral-200'}`}
-          >
-            {dot && <span className={`mt-[6px] h-1.5 w-1.5 shrink-0 rounded-full ${dot}`} title={status?.title ?? 'Novo output desde a última vez que você abriu'} />}
-            {/* Título em até 2 linhas no desktop: um título longo mostra bem mais
-                antes de reticenciar. No celular, 2 linhas × 99 sessões viram uma
-                lista de 5 itens por tela — ali vale mais ver mais sessões. */}
-            <span className={`line-clamp-1 lg:line-clamp-2 ${!running && updated && !active ? 'text-neutral-100' : ''}`}><Highlight text={s.title} term={highlight} /></span>
-          </span>
-        )}
-        {/* Só o menu acompanha o título: relógio, estrela e etiqueta desceram pro
-            rodapé do card pra devolver largura ao nome da sessão. */}
-        {!editing && (
-          <SessionRowActions
-            pinned={!!pinned}
-            running={!!running}
-            canStop={!!onStop}
-            canDescribe={!!onDescribe}
-            marathon={!!marathon}
-            canDismissWaiting={!!s.waiting && !waitingDismissed}
-            onDismissWaiting={onDismissWaiting ? () => onDismissWaiting(s.id) : undefined}
-            onToggleMarathon={onToggleMarathon ? () => onToggleMarathon(s.id, !marathon) : undefined}
-            open={actionsOpen}
-            onOpenChange={setActionsOpen}
-            onTogglePin={onTogglePin ? () => onTogglePin(s.id) : undefined}
-            onRename={() => { setDraft(s.title); setEditing(true); }}
-            onDescribe={() => { setDescDraft(s.summary || ''); setDescEditing(true); }}
-            onStop={onStop ? () => onStop(s.id) : undefined}
-            onArchive={() => onClose(s.id)}
-            onDelete={() => (onDelete ?? onClose)(s.id)}
-          />
-        )}
-      </div>
-      {!editing && (descEditing ? (
+      {editing ? (
         <InlineEdit
-          multiline rows={2}
-          value={descDraft} onChange={setDescDraft} onCommit={commitDesc}
-          onCancel={() => { setDescDraft(s.summary || ''); setDescEditing(false); }}
-          placeholder="Descrição da sessão…"
-          label="Editar descrição da sessão"
-          className="mt-0.5 w-full select-text resize-none rounded-sm border border-orange-500/50 bg-neutral-950 px-1.5 py-1 text-[11.5px] leading-snug text-neutral-200 outline-hidden ring-2 ring-orange-500/20"
+          value={draft} onChange={setDraft} onCommit={commit}
+          onCancel={() => { setDraft(s.title); setEditing(false); }}
+          label="Editar título da sessão"
+          className="w-full select-text rounded-sm border border-orange-500/50 bg-neutral-950 px-1.5 py-0.5 text-[14px] text-neutral-100 outline-hidden ring-2 ring-orange-500/20"
         />
-      ) : showDesc || ambiguous ? (
-        // Com o toggle de descrição desligado, a linha ambígua ainda mostra o
-        // desempate: o título sozinho não diz qual das duas sessões é esta.
-        <p className="line-clamp-2 text-[12px] leading-snug text-neutral-500"><Highlight text={s.summary || s.snippet} term={highlight} /></p>
-      ) : null)}
-      {/* Faixa única de meta: quando/estado, badges e etiquetas fluem juntos numa
-          linha (com wrap) — antes cada badge abria a própria linha e o card crescia torto. */}
+      ) : (
+        <button
+          type="button"
+          data-row-select=""
+          aria-current={active ? 'true' : undefined}
+          className={`flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-left text-[14px] leading-tight outline-hidden ${active ? 'font-semibold text-orange-50' : updated ? 'font-medium text-neutral-100' : 'text-neutral-300 group-hover:text-neutral-100'}`}
+        >
+          {dot && <span className={`h-2 w-2 shrink-0 rounded-full ${dot} ${running ? 'run-dot' : ''}`} title={status?.title ?? 'Terminou — resposta nova desde a última vez que você abriu'} />}
+          {/* Fade instead of an ellipsis: the box spans the row, so only a title that reaches the edge fades. */}
+          <span className="min-w-0 flex-1 overflow-hidden whitespace-nowrap [mask-image:linear-gradient(to_right,black_82%,transparent)]" title={s.title}>{displayTitle(s.title)}</span>
+        </button>
+      )}
+      {!editing && meta && (
+        <span className="shrink-0 text-[12px] tabular-nums text-neutral-500 sm:pointer-fine:group-hover:hidden">{meta}</span>
+      )}
       {!editing && (
-        <SessionRowBadges
-          id={s.id} relative={s.relative} stamp={ambiguous ? fmtStamp(s.mtime) : undefined}
-          status={status}
-          pinned={!!pinned} marathon={!!marathon} canTag={!!onAddTag}
-          cost={cost} warn={warn} hasTerminal={s.hasTerminal} idle={isIdle(s.mtime, !!running, now)}
-          tags={tags} tagging={tagging} tagDraft={tagDraft}
-          setTagDraft={setTagDraft} setTagging={setTagging} commitTag={commitTag}
-          onRemoveTag={onRemoveTag} onFilterTag={onFilterTag}
+        <SessionRowActions
+          pinned={!!pinned}
+          running={!!running}
+          canStop={!!onStop}
+          canDescribe={!!onDescribe}
+          marathon={!!marathon}
+          canDismissWaiting={!!s.waiting && !waitingDismissed}
+          onDismissWaiting={onDismissWaiting ? () => onDismissWaiting(s.id) : undefined}
+          onToggleMarathon={onToggleMarathon ? () => onToggleMarathon(s.id, !marathon) : undefined}
+          open={actionsOpen}
+          onOpenChange={setActionsOpen}
+          onTogglePin={onTogglePin ? () => onTogglePin(s.id) : undefined}
+          onRename={() => { setDraft(s.title); setEditing(true); }}
+          onDescribe={() => { setDescDraft(s.summary || ''); setDescEditing(true); }}
+          onStop={onStop ? () => onStop(s.id) : undefined}
+          onArchive={() => onClose(s.id)}
+          onDelete={() => (onDelete ?? onClose)(s.id)}
         />
       )}
     </div>

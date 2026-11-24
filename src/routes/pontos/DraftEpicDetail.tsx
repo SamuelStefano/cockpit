@@ -43,7 +43,7 @@ export function DraftEpicDetail({ draft, pointValue, op, ask }: Props) {
         facts={`${fmtPts(e.cap.points)} pt · ${draft.tasks.length} tasks · ${n} ${n === 1 ? 'delivery' : 'deliveries'}`}
         meter={<CapMeter valueCents={e.cap.valueCents} capCents={e.cap.capCents} over={e.cap.over} />}
         actions={<DraftEpicActions e={e} onAddDelivery={() => op({ op: 'add-delivery', epicId: draft.id })} />}
-        notice={e.cap.over && <OverCapNotice overCents={e.cap.overCents} capCents={e.cap.capCents} canSplit={e.canAutoSplit} onSplit={e.autoSplit} />}
+        notice={e.cap.over && <OverCapNotice overCents={e.cap.overCents} capCents={e.cap.capCents} canSplit={e.canAutoSplit} onSplit={e.autoSplit} moving={e.splitPreview} />}
       />
       <div className="flex flex-col gap-2.5">
         {draft.deliveries.map((dl) => (

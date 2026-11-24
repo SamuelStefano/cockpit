@@ -7,7 +7,7 @@ import { useMcpApp } from './useMcpApp';
 // inclui allow-same-origin: origem opaca é o que impede o app de ler o
 // localStorage do Deck (sessão Supabase) e de falar com nossa API como usuário.
 export function McpAppFrame({ tool }: { tool: ToolCall }) {
-  const { ref, srcDoc, height } = useMcpApp(tool);
+  const { ref, sandbox, height } = useMcpApp(tool);
   const [open, setOpen] = useState(true);
   if (!tool.app) return null;
 
@@ -16,7 +16,7 @@ export function McpAppFrame({ tool }: { tool: ToolCall }) {
       <div className="overflow-hidden rounded-md border border-neutral-800 bg-[#0c0c0c]">
         <div className="flex items-center gap-1.5 border-b border-neutral-800 px-2.5 py-1.5">
           <Icon name="sparkles" size={12} className="shrink-0 text-orange-400" />
-          <span className="truncate font-mono text-[11px] text-neutral-500">{tool.app.uri}</span>
+          <span className="truncate font-mono text-[12px] text-neutral-500">{tool.app.uri}</span>
           <button
             onClick={() => setOpen((o) => !o)}
             title={open ? 'Ocultar o app' : 'Mostrar o app'}
@@ -31,8 +31,9 @@ export function McpAppFrame({ tool }: { tool: ToolCall }) {
           <iframe
             ref={ref}
             title={`MCP App ${tool.app.uri}`}
-            sandbox="allow-scripts"
-            srcDoc={srcDoc}
+            key={sandbox.frameKey}
+            sandbox={sandbox.sandbox}
+            src={sandbox.src}
             className="block w-full border-0"
             style={{ height }}
           />

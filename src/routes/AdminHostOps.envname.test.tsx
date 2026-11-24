@@ -18,4 +18,16 @@ describe('AdminHostOps env name', () => {
     expect(onEnvSet).not.toHaveBeenCalled();
     expect(value.value).toBe('s3cret');
   });
+
+  it('keeps name and secret when the send did not go out', () => {
+    const onEnvSet = vi.fn(() => false);
+    const props = { health: null, onEnvSet, onEnvUnset: vi.fn(), onMcpAdd: vi.fn(), onMcpRemove: vi.fn(), onCliInstall: vi.fn(), adminOp: null } as unknown as Parameters<typeof AdminHostOps>[0];
+    const { getByLabelText } = render(<AdminHostOps {...props} />);
+    fireEvent.change(getByLabelText('Nome do token de ambiente'), { target: { value: 'MY_TOKEN' } });
+    const value = getByLabelText('Valor do token de ambiente') as HTMLInputElement;
+    fireEvent.change(value, { target: { value: 's3cret' } });
+    fireEvent.keyDown(value, { key: 'Enter' });
+    expect(onEnvSet).toHaveBeenCalledWith('MY_TOKEN', 's3cret');
+    expect(value.value).toBe('s3cret');
+  });
 });

@@ -1,9 +1,11 @@
+import { IS_WINDOWS } from './platform';
 import { spawn as ptySpawn, type IPty } from 'node-pty';
 import { spawn } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { dirname, isAbsolute, join, normalize, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CONFIG } from './config';
+import { botsRoot } from './engine/restricted-profile';
 
 // Terminais reais via node-pty, cada um ancorado num tmux `new-session -A`
 // (attach-or-create) — a sessão sobrevive a restart do backend e a múltiplos
@@ -54,6 +56,9 @@ interface Term {
   data: Set<(d: string) => void>;
   exit: Set<() => void>;
   idleSince: number | null; // last listener left at; null while someone watches
+  spawnedAt: number;
+  settleTimer: ReturnType<typeof setTimeout> | null;
+  settled: boolean; // the post-output redraw already ran
 }
 
 const terms = new Map<string, Term>();
@@ -66,6 +71,12 @@ function sessionName(id: string): string {
   return `${PREFIX}${id}`;
 }
 
+// `-t name` also matches a session that merely STARTS with name (and then a glob):
+// with `cockpit-cv-fix` gone, `kill-session -t cockpit-cv-fix` killed
+// `cockpit-cv-fix-2`. `=` makes tmux match the exact name only.
+export const exactSession = (id: string) => `=${sessionName(id)}`;
+const exactPane = (id: string) => `=${sessionName(id)}:`;
+
 const SESSION_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const TAIL_SCRIPT = join(dirname(fileURLToPath(import.meta.url)), '..', 'scripts', 'session-tail.py');
 
@@ -73,14 +84,26 @@ const TAIL_SCRIPT = join(dirname(fileURLToPath(import.meta.url)), '..', 'scripts
 // a login shell on ctrl-c so the same pane can `claude --resume` it. The command
 // is built here from a validated uuid and fixed paths only — the client never
 // sends a command string, so this adds no injection surface to term-open.
-export function tmuxArgs(id: string, watch?: string): string[] | null {
-  const base = ['new-session', '-A', '-s', sessionName(id), '-c', CONFIG.workdir];
+export function tmuxArgs(id: string, watch?: string, cwd?: string): string[] | null {
+  const base = ['new-session', '-A', '-s', sessionName(id), '-c', cwd ?? CONFIG.workdir];
   if (watch === undefined) return base;
   if (!SESSION_UUID_RE.test(watch)) return null;
   const jsonl = join(CONFIG.projectsDir, `${watch}.jsonl`);
   // `trap : INT` keeps the wrapper alive through a ctrl-c that lands before the
   // follower installs its own handler; `:` (not '') so python still gets SIGINT.
   return [...base, `bash -c 'trap : INT; python3 "${TAIL_SCRIPT}" "${jsonl}"; exec bash -l'`];
+}
+
+// The only cwd a terminal may get besides the Deck's own workdir: a directory
+// under botsRoot(). Built by the server from a bot id, never sent as a path by
+// the browser, and still checked here so a future caller cannot widen it.
+// `-c` is one argv item (no shell), so the check is about WHERE, not quoting.
+export function safeTermCwd(path: unknown, root = botsRoot()): string | null {
+  if (typeof path !== 'string' || !path || path.includes('\0') || !isAbsolute(path)) return null;
+  if (path.split(/[\\/]/).some((seg) => seg === '..')) return null;
+  const clean = normalize(path);
+  const base = normalize(root).replace(/[\\/]+$/, '');
+  return clean.startsWith(base + sep) ? clean : null;
 }
 
 export function parseTermSessions(stdout: string, prefix = PREFIX): string[] {
@@ -95,6 +118,7 @@ export function parseTermSessions(stdout: string, prefix = PREFIX): string[] {
 // Sessões tmux persistentes do cockpit (sobrevivem a restart): permite reanexar
 // a qualquer uma de outro device — as "branches" de terminal da VPS.
 export function listTerms(): Promise<string[]> {
+  if (IS_WINDOWS) return Promise.resolve([...terms.keys()]);
   return new Promise((resolve) => {
     const p = spawn('tmux', ['ls', '-F', '#{session_name}'], { stdio: ['ignore', 'pipe', 'ignore'] });
     let out = '';
@@ -102,6 +126,48 @@ export function listTerms(): Promise<string[]> {
     p.on('close', () => resolve(parseTermSessions(out)));
     p.on('error', () => resolve([]));
   });
+}
+
+// A kept-alive PTY still has the size of whoever opened it last (the xterm default
+// 80x24 before its first fit, or another device), and tmux sizes its client from
+// that. Reattaching must carry the new client's size; when it is unchanged the
+// replayed snapshot may still hold a stale cursor, so a one-row wobble makes tmux
+// redraw the whole screen (SIGWINCH).
+export function syncPtySize(pty: Pick<IPty, 'cols' | 'rows' | 'resize'>, cols: number, rows: number): void {
+  if (pty.cols !== cols || pty.rows !== rows) { pty.resize(cols, rows); return; }
+  if (rows <= 1) return;
+  pty.resize(cols, rows - 1);
+  setTimeout(() => { try { pty.resize(cols, rows); } catch { /* pty exited meanwhile */ } }, 0);
+}
+
+export const FIRST_REDRAW_MS = 300;
+export const SETTLE_REDRAW_MS = 400;
+export const SETTLE_WINDOW_MS = 8_000;
+
+// tmux only repaints what changed. On a slow first login the prompt lands after the
+// fixed redraw above, possibly while the browser is still fitting/resetting its xterm,
+// and tmux never repaints that line. Redraw once more when the first burst of output
+// goes quiet, so the prompt is always on screen.
+function armSettleRedraw(id: string, term: Term): void {
+  if (term.settled || Date.now() - term.spawnedAt > SETTLE_WINDOW_MS) return;
+  if (term.settleTimer) clearTimeout(term.settleTimer);
+  term.settleTimer = setTimeout(() => {
+    term.settleTimer = null;
+    term.settled = true;
+    if (terms.get(id) !== term) return;
+    try { syncPtySize(term.pty, term.pty.cols, term.pty.rows); } catch { /* pty exited meanwhile */ }
+  }, SETTLE_REDRAW_MS);
+  term.settleTimer.unref();
+}
+
+// The first prompt can be painted before tmux has the client's size settled, leaving
+// the screen blank with the cursor mid-line until a keystroke forces a repaint.
+// A one-row wobble on a brand-new pty makes tmux redraw the whole screen once.
+function scheduleFirstRedraw(id: string, term: Term): void {
+  setTimeout(() => {
+    if (terms.get(id) !== term) return;
+    try { syncPtySize(term.pty, term.pty.cols, term.pty.rows); } catch { /* pty exited meanwhile */ }
+  }, FIRST_REDRAW_MS).unref();
 }
 
 export function openTerm(
@@ -112,26 +178,32 @@ export function openTerm(
   onExit: () => void,
   onReplay: (d: string) => void,
   watch?: string,
+  cwd?: string,
 ): boolean {
   if (!NAME_RE.test(id)) return false;
-  const args = tmuxArgs(id, watch);
+  if (cwd !== undefined && !safeTermCwd(cwd)) return false;
+  // No tmux on Windows: the terminal is a ConPTY shell that lives as long as the
+  // agent, and the watch pane (bash + python follower) does not exist there.
+  if (IS_WINDOWS && watch !== undefined) return false;
+  const args = IS_WINDOWS ? ['-NoLogo'] : tmuxArgs(id, watch, cwd);
   if (!args) return false;
 
   let t = terms.get(id);
+  const reused = !!t;
   if (!t) {
     // Teto conta só terminais ANEXADOS (com listeners). PTYs detached ficam no mapa
     // pro replay no reattach, mas não devem travar a criação de novos — 50 detached
     // bloqueavam abrir qualquer terminal (#16). reattach a um detached não conta aqui.
     const attached = [...terms.values()].filter((x) => x.data.size > 0).length;
     if (attached >= MAX_TERMS) return false; // cliente recebe term-exit
-    const p = ptySpawn('tmux', args, {
+    const p = ptySpawn(IS_WINDOWS ? 'powershell.exe' : 'tmux', args, {
       name: 'xterm-256color',
       cols: clampDim(cols, 80),
       rows: clampDim(rows, 24),
-      cwd: process.env.HOME,
+      cwd: cwd ?? process.env.HOME,
       env: { ...process.env, TERM: 'xterm-256color' } as Record<string, string>,
     });
-    const term: Term = { pty: p, buffer: '', data: new Set(), exit: new Set(), idleSince: null };
+    const term: Term = { pty: p, buffer: '', data: new Set(), exit: new Set(), idleSince: null, spawnedAt: Date.now(), settleTimer: null, settled: false };
     p.onData((d) => {
       // Trim with slack, not on every chunk: once the scrollback was full, each
       // chunk sliced (copied) the whole 200 KB buffer — tens of MB/s of copying on
@@ -139,14 +211,17 @@ export function openTerm(
       term.buffer += d;
       if (term.buffer.length > MAX_BUFFER * TRIM_SLACK) term.buffer = trimBuffer(term.buffer);
       for (const l of term.data) l(d);
+      armSettleRedraw(id, term);
     });
     p.onExit(() => {
+      if (term.settleTimer) clearTimeout(term.settleTimer);
       for (const l of term.exit) l();
       // closeTerm + a quick reopen can put a NEW entry under this id before the
       // old pty reports its exit; only drop the entry that actually died.
       if (terms.get(id) === term) terms.delete(id);
     });
     terms.set(id, t = term);
+    scheduleFirstRedraw(id, term);
   }
 
   t.data.add(onData);
@@ -157,6 +232,9 @@ export function openTerm(
   // reset() antes de repintar, então reattach/reconnect não DUPLICA a tela.
   // Emitido após registrar onData, então a ordem replay -> live é preservada.
   if (t.buffer) onReplay(trimBuffer(t.buffer));
+  // After the replay on purpose: the client resets its screen on term-replay, so a
+  // repaint emitted before it would be wiped. The tmux redraw lands async, after.
+  if (reused) syncPtySize(t.pty, clampDim(cols, 80), clampDim(rows, 24));
   return true;
 }
 
@@ -207,12 +285,31 @@ export function idleWatchers(entries: { id: string; idleSince: number | null }[]
 
 function panePid(id: string): Promise<number | null> {
   return new Promise((resolve) => {
-    const p = spawn('tmux', ['display-message', '-p', '-t', sessionName(id), '#{pane_pid}'], { stdio: ['ignore', 'pipe', 'ignore'] });
+    const p = spawn('tmux', ['display-message', '-p', '-t', exactPane(id), '#{pane_pid}'], { stdio: ['ignore', 'pipe', 'ignore'] });
     let out = '';
     p.stdout.on('data', (d) => { out += d; });
     p.on('close', (code) => { const pid = Number(out.trim()); resolve(code === 0 && Number.isInteger(pid) && pid > 0 ? pid : null); });
     p.on('error', () => resolve(null));
   });
+}
+
+// tmux clients on the session. Each PTY a backend holds is one client, and the
+// index (:7777) and the relay agent each keep their own `terms` map, so a pane
+// with no PTY here can still be on screen through the other process (or SSH).
+function attachedClients(id: string): Promise<number> {
+  return new Promise((resolve) => {
+    const p = spawn('tmux', ['display-message', '-p', '-t', exactPane(id), '#{session_attached}'], { stdio: ['ignore', 'pipe', 'ignore'] });
+    let out = '';
+    p.stdout.on('data', (d) => { out += d; });
+    // Unknown counts as watched: reaping is only an optimisation.
+    p.on('close', (code) => { const n = Number(out.trim()); resolve(code === 0 && out.trim() !== '' && Number.isInteger(n) ? n : Infinity); });
+    p.on('error', () => resolve(Infinity));
+  });
+}
+
+// Someone other than this process's own PTY is attached.
+export async function watchedElsewhere(id: string): Promise<boolean> {
+  return (await attachedClients(id)) > (terms.has(id) ? 1 : 0);
 }
 
 // A watch pane that is neither following nor running anything is a bare shell:
@@ -223,6 +320,7 @@ function panePid(id: string): Promise<number | null> {
 export async function prepareWatch(id: string, watch: string): Promise<void> {
   if (!NAME_RE.test(id) || !SESSION_UUID_RE.test(watch)) return;
   if (terms.get(id)?.data.size) return;
+  if (await watchedElsewhere(id)) return;
   const pid = await panePid(id);
   if (pid === null || (await stillFollowing(id, watch))) return;
   const kids = await readFile(`/proc/${pid}/task/${pid}/children`, 'utf8').catch(() => 'unknown');
@@ -237,7 +335,7 @@ export async function prepareWatch(id: string, watch: string): Promise<void> {
 // can't tell: it reports "bash" in both states.
 function stillFollowing(id: string, watch?: string): Promise<boolean> {
   return new Promise((resolve) => {
-    const p = spawn('tmux', ['display-message', '-p', '-t', sessionName(id), '#{pane_pid}'], { stdio: ['ignore', 'pipe', 'ignore'] });
+    const p = spawn('tmux', ['display-message', '-p', '-t', exactPane(id), '#{pane_pid}'], { stdio: ['ignore', 'pipe', 'ignore'] });
     let out = '';
     p.stdout.on('data', (d) => { out += d; });
     p.on('close', () => {
@@ -268,6 +366,7 @@ async function sweepWatchers(): Promise<void> {
   const tracked = [...terms].map(([id, t]) => ({ id, idleSince: t.idleSince }));
   for (const id of idleWatchers([...tracked, ...orphans], now)) {
     if (!(await stillFollowing(id))) continue;
+    if (await watchedElsewhere(id)) continue;
     // A client may have reattached while we were asking tmux.
     const t = terms.get(id);
     if (t && t.idleSince === null) continue;
@@ -289,6 +388,37 @@ export async function resumeTerm(id: string, watch: string): Promise<boolean> {
   t.pty.write('\x03');
   setTimeout(() => { if (terms.get(id) === t) t.pty.write(`claude --resume ${watch}\r`); }, RESUME_DELAY_MS);
   return true;
+}
+
+// Text that leaves the PTY to be painted OUTSIDE xterm (the bot's Computer
+// preview): escape sequences and the remaining C0/C1 bytes go, tab and newline
+// stay. A pane can hold anything a program printed, including sequences that
+// would restyle or retitle the page's own terminal-looking block.
+// eslint-disable-next-line no-control-regex
+const ESC_SEQ_RE = /\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)?|\x1b[P^_][^\x1b]*(?:\x1b\\)?|\x1b[@-Z\\-_]|\x9b[0-?]*[ -/]*[@-~]/g;
+// eslint-disable-next-line no-control-regex
+const CTRL_RE = /[\x00-\x08\x0b-\x1f\x7f-\x9f]/g;
+export const stripControl = (s: string) => s.replace(ESC_SEQ_RE, '').replace(CTRL_RE, '');
+
+// Last lines of a pane, plain text. Empty when the session does not exist.
+export function capturePane(id: string, lines = 12): Promise<{ alive: boolean; lines: string[] }> {
+  if (!NAME_RE.test(id)) return Promise.resolve({ alive: false, lines: [] });
+  if (IS_WINDOWS) {
+    const t = terms.get(id);
+    return Promise.resolve({ alive: !!t, lines: t ? stripControl(t.buffer).split(/\r?\n/).map((l) => l.trimEnd()).filter(Boolean).slice(-lines) : [] });
+  }
+  return new Promise((resolve) => {
+    const p = spawn('tmux', ['capture-pane', '-p', '-J', '-t', exactPane(id), '-S', `-${Math.max(lines * 4, 40)}`], { stdio: ['ignore', 'pipe', 'ignore'] });
+    let out = '';
+    p.stdout.on('data', (d) => { if (out.length < 64_000) out += d; });
+    p.on('close', (code) => {
+      if (code !== 0) { resolve({ alive: false, lines: [] }); return; }
+      const all = stripControl(out).split('\n').map((l) => l.replace(/\s+$/, ''));
+      while (all.length && !all[all.length - 1]) all.pop();
+      resolve({ alive: true, lines: all.slice(-lines) });
+    });
+    p.on('error', () => resolve({ alive: false, lines: [] }));
+  });
 }
 
 let reaper: NodeJS.Timeout | null = null;
@@ -320,5 +450,6 @@ export function closeTerm(id: string) {
   if (!NAME_RE.test(id)) return;
   const t = terms.get(id);
   if (t) { try { t.pty.kill(); } catch { /* noop */ } terms.delete(id); }
-  try { spawn('tmux', ['kill-session', '-t', sessionName(id)], { stdio: 'ignore' }); } catch { /* noop */ }
+  if (IS_WINDOWS) return;
+  try { spawn('tmux', ['kill-session', '-t', exactSession(id)], { stdio: 'ignore' }); } catch { /* noop */ }
 }

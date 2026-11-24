@@ -1,11 +1,8 @@
 import { mkdirSync, openSync, closeSync, statSync, fstatSync, rmSync } from 'node:fs';
+import { setTimeout as sleep } from 'node:timers/promises';
 import { dirname } from 'node:path';
 import { recordIncident } from './incidents';
-
-// Dono do lock que morreu no meio (deploy, OOM) não pode travar o arquivo pra sempre.
-const LOCK_STALE_MS = 5_000;
-const SPINS = 100;
-const SPIN_MS = 5;
+import { LOCK_STALE_MS, SPINS, SPIN_MS, withFileLockSync } from '../../shared/file-lock';
 
 // Exclusão mútua entre PROCESSOS pra um ciclo ler-modificar-escrever num arquivo de
 // estado do ~/.cockpit. O Deck roda em dois processos que mexem nos mesmos arquivos
@@ -18,37 +15,46 @@ const SPIN_MS = 5;
 // esta função é o tipo de coisa que diverge (foi assim que parked.ts ficou com lock
 // e os outros dois sem).
 export function withFileLock<T>(target: string, fn: () => T): T {
+  return withFileLockSync(target, fn, (lockPath) =>
+    recordIncident({ kind: 'file-lock-timeout', sessionKey: '-', detail: `lock preso ha >${SPINS * SPIN_MS}ms em ${lockPath}` }));
+}
+
+// Same lock file and rules as withFileLock, for a read-modify-write that awaits
+// (fs/promises). The sync version cannot hold across an await: it would release
+// the lock the moment `fn` returned its promise. Waits with timers instead of
+// Atomics.wait, so it never blocks the event loop.
+export const ASYNC_WAIT_MS = LOCK_STALE_MS + 1_000;
+
+export async function withFileLockAsync<T>(target: string, fn: () => Promise<T>): Promise<T> {
   const lockPath = `${target}.lock`;
   mkdirSync(dirname(target), { recursive: true });
-  const sleeper = new Int32Array(new SharedArrayBuffer(4));
   let fd: number | undefined;
-  for (let i = 0; i < SPINS && fd === undefined; i++) {
+  // Waiting costs nothing here (timers, not Atomics.wait), so wait past the stale
+  // threshold instead of the sync version's ~500 ms: a holder stalled for 0.5–5 s
+  // (big JSON parse, GC, swap on this box) used to be written over unlocked —
+  // the lost update #776 exists to prevent. By the deadline a dead holder's lock
+  // has been reclaimed.
+  const deadline = Date.now() + ASYNC_WAIT_MS;
+  while (fd === undefined && Date.now() < deadline) {
     try {
       fd = openSync(lockPath, 'wx');
     } catch {
       try {
         if (Date.now() - statSync(lockPath).mtimeMs > LOCK_STALE_MS) rmSync(lockPath, { force: true });
-      } catch { /* outro processo liberou entre o stat e o rm */ }
-      Atomics.wait(sleeper, 0, 0, SPIN_MS);
+      } catch { /* released between stat and rm */ }
+      await sleep(SPIN_MS);
     }
   }
-  // Sem o lock depois de ~500ms, segue mesmo assim: perder a corrida é raro, não
-  // executar a operação seria perder o dado com certeza. Mas segue REGISTRADO — é a
-  // única janela em que ainda dá pra perder uma escrita, e ela não pode voltar a ser
-  // silenciosa como era o bug original.
-  if (fd === undefined) recordIncident({ kind: 'file-lock-timeout', sessionKey: '-', detail: `lock preso ha >${SPINS * SPIN_MS}ms em ${lockPath}` });
-  // Identidade do lock que EU criei. Se outro processo tiver me declarado morto e
-  // recriado o arquivo, o inode muda — e apagar às cegas no finally derrubaria o
-  // lock DELE, deixando um terceiro entrar enquanto ele escreve.
+  if (fd === undefined) recordIncident({ kind: 'file-lock-timeout', sessionKey: '-', detail: `lock preso ha >${ASYNC_WAIT_MS}ms em ${lockPath}` });
   const ino = fd === undefined ? undefined : fstatSync(fd).ino;
   try {
-    return fn();
+    return await fn();
   } finally {
     if (fd !== undefined) {
       closeSync(fd);
       try {
         if (statSync(lockPath).ino === ino) rmSync(lockPath, { force: true });
-      } catch { /* já removido por reclaim de outro processo */ }
+      } catch { /* already reclaimed */ }
     }
   }
 }
