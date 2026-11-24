@@ -2,26 +2,59 @@
 <tileset version="1.10" tiledversion="1.11.2" name="tiles-interior" tilewidth="32" tileheight="32" tilecount="448" columns="16">
  <image source="tiles-interior.png" width="512" height="896"/>
  <tile id="0" type="floor_wood_h">
+  <properties>
+   <property name="surface" value="floor"/>
+  </properties>
  </tile>
  <tile id="1" type="floor_wood_v">
+  <properties>
+   <property name="surface" value="floor"/>
+  </properties>
  </tile>
  <tile id="2" type="floor_wood_light">
+  <properties>
+   <property name="surface" value="floor"/>
+  </properties>
  </tile>
  <tile id="3" type="floor_checker_bw">
+  <properties>
+   <property name="surface" value="floor"/>
+  </properties>
  </tile>
  <tile id="4" type="floor_checker_warm">
+  <properties>
+   <property name="surface" value="floor"/>
+  </properties>
  </tile>
  <tile id="5" type="carpet_red">
+  <properties>
+   <property name="surface" value="floor"/>
+  </properties>
  </tile>
  <tile id="6" type="carpet_blue">
+  <properties>
+   <property name="surface" value="floor"/>
+  </properties>
  </tile>
  <tile id="7" type="carpet_green">
+  <properties>
+   <property name="surface" value="floor"/>
+  </properties>
  </tile>
  <tile id="8" type="carpet_navy">
+  <properties>
+   <property name="surface" value="floor"/>
+  </properties>
  </tile>
  <tile id="9" type="carpet_pink">
+  <properties>
+   <property name="surface" value="floor"/>
+  </properties>
  </tile>
  <tile id="10" type="carpet_mustard">
+  <properties>
+   <property name="surface" value="floor"/>
+  </properties>
  </tile>
  <tile id="16" type="wall_cream_l">
   <properties>

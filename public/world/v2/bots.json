@@ -10,7 +10,7 @@
   },
   "sheet": {
     "w": 256,
-    "h": 1536,
+    "h": 1728,
     "columns": 8
   },
   "directions": [
@@ -20,10 +20,10 @@
     "right"
   ],
   "shirt_ramp": [
-    "#156a4e",
-    "#23a067",
-    "#3fd17f",
-    "#a8f0b8"
+    "#35511a",
+    "#477a2d",
+    "#62a353",
+    "#75cc71"
   ],
   "animations": {
     "idle": {
@@ -113,6 +113,17 @@
       },
       "frames": 2,
       "fps": 2
+    },
+    "run": {
+      "row": 32,
+      "rows": {
+        "left": 32,
+        "down": 33,
+        "up": 34,
+        "right": 35
+      },
+      "frames": 6,
+      "fps": 12
     }
   },
   "fx": {

@@ -2,76 +2,166 @@
 <tileset version="1.10" tiledversion="1.11.2" name="tiles-exterior" tilewidth="32" tileheight="32" tilecount="720" columns="16">
  <image source="tiles-exterior.png" width="512" height="1440"/>
  <tile id="0" type="grass_0">
+  <properties>
+   <property name="surface" value="grass"/>
+  </properties>
  </tile>
  <tile id="1" type="grass_1">
+  <properties>
+   <property name="surface" value="grass"/>
+  </properties>
  </tile>
  <tile id="2" type="grass_2">
+  <properties>
+   <property name="surface" value="grass"/>
+  </properties>
  </tile>
  <tile id="3" type="grass_3">
+  <properties>
+   <property name="surface" value="grass"/>
+  </properties>
  </tile>
  <tile id="4" type="dirt">
+  <properties>
+   <property name="surface" value="dirt"/>
+  </properties>
  </tile>
  <tile id="5" type="street_cobble">
+  <properties>
+   <property name="surface" value="paved"/>
+  </properties>
  </tile>
  <tile id="6" type="road">
+  <properties>
+   <property name="surface" value="dirt"/>
+  </properties>
  </tile>
  <tile id="7" type="road_lane_h">
+  <properties>
+   <property name="surface" value="dirt"/>
+  </properties>
  </tile>
  <tile id="8" type="road_lane_v">
+  <properties>
+   <property name="surface" value="dirt"/>
+  </properties>
  </tile>
  <tile id="9" type="crosswalk_h">
+  <properties>
+   <property name="surface" value="paved"/>
+  </properties>
  </tile>
  <tile id="10" type="crosswalk_v">
+  <properties>
+   <property name="surface" value="paved"/>
+  </properties>
  </tile>
  <tile id="11" type="sidewalk">
+  <properties>
+   <property name="surface" value="paved"/>
+  </properties>
  </tile>
  <tile id="12" type="sidewalk_curb_n">
+  <properties>
+   <property name="surface" value="paved"/>
+  </properties>
  </tile>
  <tile id="13" type="sidewalk_curb_s">
+  <properties>
+   <property name="surface" value="paved"/>
+  </properties>
  </tile>
  <tile id="14" type="sidewalk_curb_e">
+  <properties>
+   <property name="surface" value="paved"/>
+  </properties>
  </tile>
  <tile id="15" type="sidewalk_curb_w">
+  <properties>
+   <property name="surface" value="paved"/>
+  </properties>
  </tile>
  <tile id="16" type="sidewalk_curb_ne">
+  <properties>
+   <property name="surface" value="paved"/>
+  </properties>
  </tile>
  <tile id="17" type="sidewalk_curb_nw">
+  <properties>
+   <property name="surface" value="paved"/>
+  </properties>
  </tile>
  <tile id="18" type="sidewalk_curb_se">
+  <properties>
+   <property name="surface" value="paved"/>
+  </properties>
  </tile>
  <tile id="19" type="sidewalk_curb_sw">
+  <properties>
+   <property name="surface" value="paved"/>
+  </properties>
  </tile>
  <tile id="20" type="plaza_checker">
+  <properties>
+   <property name="surface" value="paved"/>
+  </properties>
  </tile>
  <tile id="21" type="plaza_pavers">
+  <properties>
+   <property name="surface" value="paved"/>
+  </properties>
  </tile>
  <tile id="22" type="plaza_pavers_cracked">
+  <properties>
+   <property name="surface" value="paved"/>
+  </properties>
  </tile>
  <tile id="23" type="plaza_terracotta">
+  <properties>
+   <property name="surface" value="paved"/>
+  </properties>
  </tile>
  <tile id="24" type="sand">
+  <properties>
+   <property name="surface" value="sand"/>
+  </properties>
  </tile>
  <tile id="25" type="dock_planks_h">
+  <properties>
+   <property name="surface" value="wood"/>
+  </properties>
  </tile>
  <tile id="26" type="dock_planks_v">
+  <properties>
+   <property name="surface" value="wood"/>
+  </properties>
  </tile>
  <tile id="27" type="rock_ground">
+  <properties>
+   <property name="surface" value="paved"/>
+  </properties>
  </tile>
  <tile id="28" type="cliff_top">
+  <properties>
+   <property name="surface" value="paved"/>
+  </properties>
  </tile>
  <tile id="29" type="cliff_face">
   <properties>
    <property name="block" type="bool" value="true"/>
+   <property name="surface" value="paved"/>
   </properties>
  </tile>
  <tile id="30" type="cliff_face_alt">
   <properties>
    <property name="block" type="bool" value="true"/>
+   <property name="surface" value="paved"/>
   </properties>
  </tile>
  <tile id="31" type="cliff_base">
   <properties>
    <property name="block" type="bool" value="true"/>
+   <property name="surface" value="paved"/>
   </properties>
  </tile>
  <tile id="32" type="water">
@@ -80,6 +170,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="0"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="water"/>
   </properties>
   <animation>
    <frame tileid="32" duration="250"/>
@@ -94,6 +185,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="1"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="water"/>
   </properties>
  </tile>
  <tile id="34" type="water">
@@ -102,6 +194,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="2"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="water"/>
   </properties>
  </tile>
  <tile id="35" type="water">
@@ -110,109 +203,255 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="3"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="water"/>
   </properties>
  </tile>
  <tile id="48" type="auto_grass_path">
+  <properties>
+   <property name="surface" value="grass"/>
+  </properties>
  </tile>
  <tile id="49" type="auto_grass_path">
+  <properties>
+   <property name="surface" value="grass"/>
+  </properties>
  </tile>
  <tile id="50" type="auto_grass_path">
+  <properties>
+   <property name="surface" value="grass"/>
+  </properties>
  </tile>
  <tile id="51" type="auto_grass_path">
+  <properties>
+   <property name="surface" value="grass"/>
+  </properties>
  </tile>
  <tile id="52" type="auto_grass_plaza">
+  <properties>
+   <property name="surface" value="paved"/>
+  </properties>
  </tile>
  <tile id="53" type="auto_grass_plaza">
+  <properties>
+   <property name="surface" value="paved"/>
+  </properties>
  </tile>
  <tile id="54" type="auto_grass_plaza">
+  <properties>
+   <property name="surface" value="paved"/>
+  </properties>
  </tile>
  <tile id="55" type="auto_grass_plaza">
+  <properties>
+   <property name="surface" value="paved"/>
+  </properties>
  </tile>
  <tile id="56" type="auto_grass_sand">
+  <properties>
+   <property name="surface" value="grass"/>
+  </properties>
  </tile>
  <tile id="57" type="auto_grass_sand">
+  <properties>
+   <property name="surface" value="grass"/>
+  </properties>
  </tile>
  <tile id="58" type="auto_grass_sand">
+  <properties>
+   <property name="surface" value="grass"/>
+  </properties>
  </tile>
  <tile id="59" type="auto_grass_sand">
+  <properties>
+   <property name="surface" value="grass"/>
+  </properties>
  </tile>
  <tile id="64" type="auto_grass_path">
+  <properties>
+   <property name="surface" value="grass"/>
+  </properties>
  </tile>
  <tile id="65" type="auto_grass_path">
+  <properties>
+   <property name="surface" value="grass"/>
+  </properties>
  </tile>
  <tile id="66" type="auto_grass_path">
+  <properties>
+   <property name="surface" value="grass"/>
+  </properties>
  </tile>
  <tile id="67" type="auto_grass_path">
+  <properties>
+   <property name="surface" value="grass"/>
+  </properties>
  </tile>
  <tile id="68" type="auto_grass_plaza">
+  <properties>
+   <property name="surface" value="paved"/>
+  </properties>
  </tile>
  <tile id="69" type="auto_grass_plaza">
+  <properties>
+   <property name="surface" value="paved"/>
+  </properties>
  </tile>
  <tile id="70" type="auto_grass_plaza">
+  <properties>
+   <property name="surface" value="paved"/>
+  </properties>
  </tile>
  <tile id="71" type="auto_grass_plaza">
+  <properties>
+   <property name="surface" value="paved"/>
+  </properties>
  </tile>
  <tile id="72" type="auto_grass_sand">
+  <properties>
+   <property name="surface" value="grass"/>
+  </properties>
  </tile>
  <tile id="73" type="auto_grass_sand">
+  <properties>
+   <property name="surface" value="grass"/>
+  </properties>
  </tile>
  <tile id="74" type="auto_grass_sand">
+  <properties>
+   <property name="surface" value="grass"/>
+  </properties>
  </tile>
  <tile id="75" type="auto_grass_sand">
+  <properties>
+   <property name="surface" value="grass"/>
+  </properties>
  </tile>
  <tile id="80" type="auto_grass_path">
+  <properties>
+   <property name="surface" value="grass"/>
+  </properties>
  </tile>
  <tile id="81" type="auto_grass_path">
+  <properties>
+   <property name="surface" value="grass"/>
+  </properties>
  </tile>
  <tile id="82" type="auto_grass_path">
+  <properties>
+   <property name="surface" value="grass"/>
+  </properties>
  </tile>
  <tile id="83" type="auto_grass_path">
+  <properties>
+   <property name="surface" value="grass"/>
+  </properties>
  </tile>
  <tile id="84" type="auto_grass_plaza">
+  <properties>
+   <property name="surface" value="paved"/>
+  </properties>
  </tile>
  <tile id="85" type="auto_grass_plaza">
+  <properties>
+   <property name="surface" value="paved"/>
+  </properties>
  </tile>
  <tile id="86" type="auto_grass_plaza">
+  <properties>
+   <property name="surface" value="paved"/>
+  </properties>
  </tile>
  <tile id="87" type="auto_grass_plaza">
+  <properties>
+   <property name="surface" value="paved"/>
+  </properties>
  </tile>
  <tile id="88" type="auto_grass_sand">
+  <properties>
+   <property name="surface" value="grass"/>
+  </properties>
  </tile>
  <tile id="89" type="auto_grass_sand">
+  <properties>
+   <property name="surface" value="grass"/>
+  </properties>
  </tile>
  <tile id="90" type="auto_grass_sand">
+  <properties>
+   <property name="surface" value="grass"/>
+  </properties>
  </tile>
  <tile id="91" type="auto_grass_sand">
+  <properties>
+   <property name="surface" value="grass"/>
+  </properties>
  </tile>
  <tile id="96" type="auto_grass_path">
+  <properties>
+   <property name="surface" value="grass"/>
+  </properties>
  </tile>
  <tile id="97" type="auto_grass_path">
+  <properties>
+   <property name="surface" value="grass"/>
+  </properties>
  </tile>
  <tile id="98" type="auto_grass_path">
+  <properties>
+   <property name="surface" value="grass"/>
+  </properties>
  </tile>
  <tile id="99" type="auto_grass_path">
+  <properties>
+   <property name="surface" value="grass"/>
+  </properties>
  </tile>
  <tile id="100" type="auto_grass_plaza">
+  <properties>
+   <property name="surface" value="paved"/>
+  </properties>
  </tile>
  <tile id="101" type="auto_grass_plaza">
+  <properties>
+   <property name="surface" value="paved"/>
+  </properties>
  </tile>
  <tile id="102" type="auto_grass_plaza">
+  <properties>
+   <property name="surface" value="paved"/>
+  </properties>
  </tile>
  <tile id="103" type="auto_grass_plaza">
+  <properties>
+   <property name="surface" value="paved"/>
+  </properties>
  </tile>
  <tile id="104" type="auto_grass_sand">
+  <properties>
+   <property name="surface" value="grass"/>
+  </properties>
  </tile>
  <tile id="105" type="auto_grass_sand">
+  <properties>
+   <property name="surface" value="grass"/>
+  </properties>
  </tile>
  <tile id="106" type="auto_grass_sand">
+  <properties>
+   <property name="surface" value="grass"/>
+  </properties>
  </tile>
  <tile id="107" type="auto_grass_sand">
+  <properties>
+   <property name="surface" value="grass"/>
+  </properties>
  </tile>
  <tile id="112" type="auto_sand_water">
   <properties>
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="0"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
   <animation>
    <frame tileid="112" duration="250"/>
@@ -226,6 +465,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="0"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
   <animation>
    <frame tileid="113" duration="250"/>
@@ -239,6 +479,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="0"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
   <animation>
    <frame tileid="114" duration="250"/>
@@ -252,6 +493,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="0"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
   <animation>
    <frame tileid="115" duration="250"/>
@@ -265,6 +507,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="1"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
  </tile>
  <tile id="117" type="auto_sand_water">
@@ -272,6 +515,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="1"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
  </tile>
  <tile id="118" type="auto_sand_water">
@@ -279,6 +523,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="1"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
  </tile>
  <tile id="119" type="auto_sand_water">
@@ -286,6 +531,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="1"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
  </tile>
  <tile id="120" type="auto_sand_water">
@@ -293,6 +539,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="2"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
  </tile>
  <tile id="121" type="auto_sand_water">
@@ -300,6 +547,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="2"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
  </tile>
  <tile id="122" type="auto_sand_water">
@@ -307,6 +555,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="2"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
  </tile>
  <tile id="123" type="auto_sand_water">
@@ -314,6 +563,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="2"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
  </tile>
  <tile id="124" type="auto_sand_water">
@@ -321,6 +571,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="3"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
  </tile>
  <tile id="125" type="auto_sand_water">
@@ -328,6 +579,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="3"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
  </tile>
  <tile id="126" type="auto_sand_water">
@@ -335,6 +587,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="3"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
  </tile>
  <tile id="127" type="auto_sand_water">
@@ -342,6 +595,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="3"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
  </tile>
  <tile id="128" type="auto_sand_water">
@@ -349,6 +603,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="0"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
   <animation>
    <frame tileid="128" duration="250"/>
@@ -362,6 +617,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="0"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
   <animation>
    <frame tileid="129" duration="250"/>
@@ -375,6 +631,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="0"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
   <animation>
    <frame tileid="130" duration="250"/>
@@ -389,6 +646,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="0"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
   <animation>
    <frame tileid="131" duration="250"/>
@@ -402,6 +660,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="1"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
  </tile>
  <tile id="133" type="auto_sand_water">
@@ -409,6 +668,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="1"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
  </tile>
  <tile id="134" type="auto_sand_water">
@@ -416,6 +676,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="1"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
  </tile>
  <tile id="135" type="auto_sand_water">
@@ -424,6 +685,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="1"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
  </tile>
  <tile id="136" type="auto_sand_water">
@@ -431,6 +693,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="2"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
  </tile>
  <tile id="137" type="auto_sand_water">
@@ -438,6 +701,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="2"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
  </tile>
  <tile id="138" type="auto_sand_water">
@@ -445,6 +709,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="2"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
  </tile>
  <tile id="139" type="auto_sand_water">
@@ -453,6 +718,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="2"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
  </tile>
  <tile id="140" type="auto_sand_water">
@@ -460,6 +726,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="3"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
  </tile>
  <tile id="141" type="auto_sand_water">
@@ -467,6 +734,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="3"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
  </tile>
  <tile id="142" type="auto_sand_water">
@@ -474,6 +742,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="3"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
  </tile>
  <tile id="143" type="auto_sand_water">
@@ -482,6 +751,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="3"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
  </tile>
  <tile id="144" type="auto_sand_water">
@@ -489,6 +759,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="0"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
   <animation>
    <frame tileid="144" duration="250"/>
@@ -502,6 +773,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="0"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
   <animation>
    <frame tileid="145" duration="250"/>
@@ -515,6 +787,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="0"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
   <animation>
    <frame tileid="146" duration="250"/>
@@ -529,6 +802,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="0"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
   <animation>
    <frame tileid="147" duration="250"/>
@@ -542,6 +816,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="1"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
  </tile>
  <tile id="149" type="auto_sand_water">
@@ -549,6 +824,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="1"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
  </tile>
  <tile id="150" type="auto_sand_water">
@@ -556,6 +832,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="1"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
  </tile>
  <tile id="151" type="auto_sand_water">
@@ -564,6 +841,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="1"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
  </tile>
  <tile id="152" type="auto_sand_water">
@@ -571,6 +849,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="2"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
  </tile>
  <tile id="153" type="auto_sand_water">
@@ -578,6 +857,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="2"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
  </tile>
  <tile id="154" type="auto_sand_water">
@@ -585,6 +865,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="2"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
  </tile>
  <tile id="155" type="auto_sand_water">
@@ -593,6 +874,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="2"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
  </tile>
  <tile id="156" type="auto_sand_water">
@@ -600,6 +882,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="3"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
  </tile>
  <tile id="157" type="auto_sand_water">
@@ -607,6 +890,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="3"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
  </tile>
  <tile id="158" type="auto_sand_water">
@@ -614,6 +898,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="3"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
  </tile>
  <tile id="159" type="auto_sand_water">
@@ -622,6 +907,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="3"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
  </tile>
  <tile id="160" type="auto_sand_water">
@@ -629,6 +915,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="0"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
   <animation>
    <frame tileid="160" duration="250"/>
@@ -643,6 +930,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="0"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
   <animation>
    <frame tileid="161" duration="250"/>
@@ -657,6 +945,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="0"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
   <animation>
    <frame tileid="162" duration="250"/>
@@ -671,6 +960,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="0"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
   <animation>
    <frame tileid="163" duration="250"/>
@@ -684,6 +974,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="1"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
  </tile>
  <tile id="165" type="auto_sand_water">
@@ -692,6 +983,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="1"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
  </tile>
  <tile id="166" type="auto_sand_water">
@@ -700,6 +992,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="1"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
  </tile>
  <tile id="167" type="auto_sand_water">
@@ -708,6 +1001,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="1"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
  </tile>
  <tile id="168" type="auto_sand_water">
@@ -715,6 +1009,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="2"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
  </tile>
  <tile id="169" type="auto_sand_water">
@@ -723,6 +1018,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="2"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
  </tile>
  <tile id="170" type="auto_sand_water">
@@ -731,6 +1027,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="2"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
  </tile>
  <tile id="171" type="auto_sand_water">
@@ -739,6 +1036,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="2"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
  </tile>
  <tile id="172" type="auto_sand_water">
@@ -746,6 +1044,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="3"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
  </tile>
  <tile id="173" type="auto_sand_water">
@@ -754,6 +1053,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="3"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
  </tile>
  <tile id="174" type="auto_sand_water">
@@ -762,6 +1062,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="3"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
  </tile>
  <tile id="175" type="auto_sand_water">
@@ -770,6 +1071,7 @@
    <property name="fps" type="int" value="4"/>
    <property name="frame" type="int" value="3"/>
    <property name="frames" type="int" value="4"/>
+   <property name="surface" value="sand"/>
   </properties>
  </tile>
  <tile id="176" type="tree_round_canopy">
@@ -1966,22 +2268,34 @@
  <tile id="378" type="dock_edge_s">
   <properties>
    <property name="block" type="bool" value="true"/>
+   <property name="surface" value="wood"/>
   </properties>
  </tile>
  <tile id="379" type="dock_edge_w">
+  <properties>
+   <property name="surface" value="wood"/>
+  </properties>
  </tile>
  <tile id="380" type="dock_edge_e">
+  <properties>
+   <property name="surface" value="wood"/>
+  </properties>
  </tile>
  <tile id="381" type="dock_bollard">
   <properties>
    <property name="block" type="bool" value="true"/>
+   <property name="surface" value="wood"/>
   </properties>
  </tile>
  <tile id="382" type="dock_ladder">
+  <properties>
+   <property name="surface" value="wood"/>
+  </properties>
  </tile>
  <tile id="383" type="dock_rope_coil">
   <properties>
    <property name="block" type="bool" value="true"/>
+   <property name="surface" value="wood"/>
   </properties>
  </tile>
  <tile id="384" type="boat_row">

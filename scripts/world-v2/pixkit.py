@@ -33,6 +33,25 @@ PALETTE = {
 }
 assert len(PALETTE) <= 48 and len(set(PALETTE.values())) == len(PALETTE)
 
+# ground surface by item name; mirrors SURFACE_RULES in src/routes/equipe/world/world-run.ts
+SURFACE_RULES = (
+    (("grass", "auto_grass_path", "auto_grass_sand"), "grass"),
+    (("dirt", "road"), "dirt"),
+    (("sand", "auto_sand_water"), "sand"),
+    (("dock_",), "wood"),
+    (("plaza", "auto_grass_plaza", "street", "crosswalk", "sidewalk", "rock_ground", "cliff"), "paved"),
+    (("floor", "carpet"), "floor"),
+    (("water",), "water"),
+)
+
+
+def surface_of(name):
+    for prefixes, kind in SURFACE_RULES:
+        if name.startswith(prefixes):
+            return kind
+    return None
+
+
 # overlay colours: every translucent pixel must use one of these RGB values
 OVERLAY_COLOURS = {"shadow": "ol0", "glow": "y2", "light": "wh", "screen": "a3", "alert": "r1", "warm": "y0"}
 
@@ -451,6 +470,9 @@ class Atlas:
                     self.tiles[tid] = im.crop((i * T, j * T, (i + 1) * T, (j + 1) * T))
                     self.cls[tid] = name
                     pr = dict(props or {})
+                    surf = surface_of(name)
+                    if surf:
+                        pr["surface"] = surf
                     if tile_props:
                         pr.update(tile_props(i, j) or {})
                     animated = n > 1 and any(grids[k][j][i] != grids[0][j][i] for k in range(1, n))
