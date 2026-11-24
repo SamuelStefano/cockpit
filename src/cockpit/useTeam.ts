@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import type { ClientMsg, ServerMsg, TeamBot, TeamBotInput, TeamPendingQuestion } from '../../shared/protocol';
 import type { MeetingInput, TeamMeeting } from '../../shared/team-meeting';
+import type { ExecutorState, HeavyJob, JobInput } from '../../shared/heavy-job';
 import type { TeamState } from '../../shared/team-state';
 import { mergeTeamMessages, type TeamMessage } from '../../shared/team-messages';
 
@@ -21,6 +22,11 @@ export interface Team {
   meetings: TeamMeeting[];
   onMeetingsGet: () => void;
   onMeetingStart: (input: MeetingInput) => void;
+  executor: ExecutorState;
+  heavyJobs: HeavyJob[];
+  onHeavyGet: () => void;
+  onHeavyRun: (input: JobInput) => void;
+  onHeavyCancel: (id: string) => void;
   onTeamGet: () => void;
   onTeamSave: (bot: TeamBotInput) => void;
   onTeamDelete: (id: string) => void;
@@ -32,6 +38,8 @@ export interface Team {
   onMsg: (msg: ServerMsg) => boolean;
 }
 
+const NO_EXECUTOR: ExecutorState = { configured: false, label: '', online: null };
+
 export function useTeam(send: (m: ClientMsg) => boolean): Team {
   const [bots, setBots] = useState<TeamBot[]>([]);
   const [teamLoaded, setTeamLoaded] = useState(false);
@@ -41,6 +49,8 @@ export function useTeam(send: (m: ClientMsg) => boolean): Team {
   const [agentBuild, setAgentBuild] = useState<AgentBuildResult | null>(null);
   const [pendingQuestions, setPendingQuestions] = useState<TeamPendingQuestion[]>([]);
   const [meetings, setMeetings] = useState<TeamMeeting[]>([]);
+  const [executor, setExecutor] = useState<ExecutorState>(NO_EXECUTOR);
+  const [heavyJobs, setHeavyJobs] = useState<HeavyJob[]>([]);
 
   const onMsg = useCallback((msg: ServerMsg) => {
     switch (msg.t) {
@@ -69,6 +79,10 @@ export function useTeam(send: (m: ClientMsg) => boolean): Team {
       case 'team-meeting':
         setMeetings((prev) => [msg.item, ...prev.filter((m) => m.id !== msg.item.id)].sort((a, b) => b.createdAt - a.createdAt));
         return true;
+      case 'heavy':
+        setExecutor(msg.executor);
+        setHeavyJobs(msg.jobs);
+        return true;
       case 'team-pending':
         setPendingQuestions(msg.items);
         return true;
@@ -86,6 +100,11 @@ export function useTeam(send: (m: ClientMsg) => boolean): Team {
     onTeamStateGet: useCallback(() => { send({ t: 'team-state-get' }); }, [send]),
     pendingQuestions,
     meetings,
+    executor,
+    heavyJobs,
+    onHeavyGet: useCallback(() => { send({ t: 'heavy-get' }); }, [send]),
+    onHeavyRun: useCallback((input: JobInput) => { send({ t: 'heavy-run', ...input }); }, [send]),
+    onHeavyCancel: useCallback((id: string) => { send({ t: 'heavy-cancel', id }); }, [send]),
     onMeetingsGet: useCallback(() => { send({ t: 'team-meetings-get' }); }, [send]),
     onMeetingStart: useCallback((input: MeetingInput) => { send({ t: 'team-meeting-start', ...input }); }, [send]),
     agentBuild,

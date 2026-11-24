@@ -15,6 +15,7 @@ import type { ByoKeyView } from './byo-providers';
 import type { AgentView, AgentPreset, AgentStatus, AgentCustomField } from './agents';
 import type { TeamMessage } from './team-messages';
 import type { TeamMeeting } from './team-meeting';
+import type { ExecutorState, HeavyJob } from './heavy-job';
 import type { TeamState } from './team-state';
 import type { TalkChunkPayload, TalkPayload } from './team-talk';
 import type { PrDetail, PrDiff, PrsSnapshot, SessionPrs } from './prs';
@@ -887,6 +888,9 @@ export type ClientMsg =
   | { t: 'team-rotate'; botId: string }
   | { t: 'team-meeting-start'; question: string; participantIds: string[]; moderatorId: string }
   | { t: 'team-meetings-get' }
+  | { t: 'heavy-run'; repo: string; branch: string; dir?: string; command: string; requestedBy?: string }
+  | { t: 'heavy-cancel'; id: string }
+  | { t: 'heavy-get' }
   | { t: 'team-state-get'; followUpHours?: number }
   | { t: 'team-talk-get'; botId: string; recording?: boolean }
   | { t: 'team-talk-send'; botId: string; text: string; msgId: string; recording?: boolean }
@@ -1114,6 +1118,7 @@ export type ServerMsg =
   | { t: 'team-talk'; talk: TalkPayload }
   | { t: 'team-talk-chunk'; botId: string; msgId?: string; chunk: TalkChunkPayload }
   | { t: 'team-meeting'; item: TeamMeeting }
+  | { t: 'heavy'; executor: ExecutorState; jobs: HeavyJob[] }
   | { t: 'team-pending'; items: TeamPendingQuestion[] }
   | { t: 'team-files'; botId: string; items: BotFile[]; error?: string }
   | { t: 'team-file'; botId: string; path: string; mime?: string; size?: number; dataB64?: string; error?: string }

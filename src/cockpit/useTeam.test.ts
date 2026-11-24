@@ -99,4 +99,15 @@ describe('useTeam messages and pause', () => {
     act(() => { result.current.onMeetingsGet(); result.current.onMeetingStart({ question: 'q', participantIds: ['a', 'b'], moderatorId: 'a' }); });
     expect(sent).toEqual([{ t: 'team-meetings-get' }, { t: 'team-meeting-start', question: 'q', participantIds: ['a', 'b'], moderatorId: 'a' }]);
   });
+
+  it('keeps the executor state and jobs from the heavy frame and sends its frames', () => {
+    const { result, sent } = mount();
+    expect(result.current.executor).toEqual({ configured: false, label: '', online: null });
+    const jobs = [{ id: 'h1', repo: 'r', branch: 'b', command: 'c', requestedBy: 'human', status: 'queued' as const, tail: '', createdAt: 1 }];
+    act(() => { expect(result.current.onMsg({ t: 'heavy', executor: { configured: true, label: 'PC', online: false }, jobs })).toBe(true); });
+    expect(result.current.executor).toMatchObject({ label: 'PC', online: false });
+    expect(result.current.heavyJobs).toEqual(jobs);
+    act(() => { result.current.onHeavyGet(); result.current.onHeavyRun({ repo: 'r', branch: 'b', command: 'c' }); result.current.onHeavyCancel('h1'); });
+    expect(sent).toEqual([{ t: 'heavy-get' }, { t: 'heavy-run', repo: 'r', branch: 'b', command: 'c' }, { t: 'heavy-cancel', id: 'h1' }]);
+  });
 });

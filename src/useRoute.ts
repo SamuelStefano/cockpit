@@ -45,6 +45,7 @@ const AGENTS = '/agentes/';
 export const AGENT_NEW = 'novo';
 export const AGENT_STORE = 'loja';
 export const AGENT_MEETINGS = 'reunioes';
+export const AGENT_EXECUTOR = 'executor';
 // The menu entry for the Store: current() reads it back as route '/agentes' + agentId AGENT_STORE.
 export const STORE_ROUTE: Route = '/agentes/loja';
 // The menu route to highlight: the Store is a page under /agentes, so it needs its own key.
