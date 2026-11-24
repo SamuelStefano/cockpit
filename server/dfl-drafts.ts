@@ -3,6 +3,7 @@ import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { applyDraftOp, sanitizeDrafts, type DflDraft, type DraftOp } from '../shared/dfl-drafts';
+import { withFileLockAsync } from './ws/file-lock';
 
 // Staged DFL epics ("Rascunhos para o DFL"). Whole-state JSON instead of the
 // ledger's JSONL: a draft is edited freely until dispatched, there is no history
@@ -38,11 +39,13 @@ async function writeDrafts(drafts: DflDraft[]): Promise<void> {
 let chain: Promise<unknown> = Promise.resolve();
 
 export function mutateDrafts(op: DraftOp): Promise<DflDraft[]> {
-  const run = chain.then(async () => {
+  // The chain orders this process; the file lock orders it against the other
+  // backend and the deck-drafts CLI, which write the same file.
+  const run = chain.then(() => withFileLockAsync(draftsFile(), async () => {
     const next = applyDraftOp(await readDrafts(), op, { now: Date.now(), newId: newDraftId });
     await writeDrafts(next);
     return next;
-  });
+  }));
   chain = run.catch(() => {});
   return run;
 }

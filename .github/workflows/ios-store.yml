@@ -1,0 +1,151 @@
+name: ios-store
+
+# App Store Connect listing and EAS build of apps/ios (the Deck iOS shell).
+# apps/ios/store/metadata.json is the single source of the listing; apps/ios/scripts/asc-store.mjs
+# does the App Store Connect calls.
+#
+# This repo is PUBLIC. Rules that follow from that:
+# - workflow_dispatch only, main only. No pull_request or push trigger, so no fork code ever runs here.
+# - ubuntu-latest only. Never a self-hosted runner on a public repo.
+# - Every secret is an ENVIRONMENT secret of `ios-release`, which must have a required reviewer and
+#   a deployment branch policy of `main`. Nothing is in the repo or in a log.
+# - The key file is written with umask 077 only in the step that needs it, secrets are set on the
+#   steps that call the API only, and an always() step removes the file.
+#
+# Actions:
+#   status        read-only report from App Store Connect.
+#   push-dry-run  GETs only; prints the writes `push` would make.
+#   push          writes the listing (version, localizations, categories, age rating, review detail,
+#                 screenshots) and attaches build_number when given. Idempotent.
+#   build         EAS build, profile production-bundle (the bundled web build, App Store distribution),
+#                 queued with --no-wait.
+#   submit        sends the app to App Review. Refused unless `approval_ref` names the written OK of the
+#                 account owner AND `confirm` equals the bundle id AND the status checklist is empty.
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: status = read-only. push-dry-run = GETs only. push = write the listing. build = EAS build. submit = send to App Review (needs approval_ref).
+        type: choice
+        options: [status, push-dry-run, push, build, submit]
+        default: status
+      version:
+        description: App version string (push, push-dry-run). Example 0.1.0
+        type: string
+        default: ''
+      build_number:
+        description: Build number to attach (push). Empty = leave the attached build as it is.
+        type: string
+        default: ''
+      confirm:
+        description: submit only. Must equal the bundle id (com.tainanfidelis.deck).
+        type: string
+        default: ''
+      profile:
+        description: build only. production = live site (TestFlight only). production-bundle = web inside the app (App Store).
+        type: choice
+        options: [production, production-bundle]
+        default: production
+      approval_ref:
+        description: submit only. Link to the written OK of the App Store Connect account owner (issue, PR or message URL).
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-store
+  cancel-in-progress: false
+
+jobs:
+  store:
+    name: ${{ inputs.action }}
+    runs-on: ubuntu-latest
+    if: ${{ github.ref == 'refs/heads/main' }}
+    environment: ios-release
+    timeout-minutes: 120
+    defaults:
+      run:
+        working-directory: apps/ios
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Check the inputs
+        env:
+          ACTION: ${{ inputs.action }}
+          VERSION: ${{ inputs.version }}
+          BUILD_NUMBER: ${{ inputs.build_number }}
+          APPROVAL_REF: ${{ inputs.approval_ref }}
+        run: |
+          case "${ACTION}" in
+            push|push-dry-run)
+              printf '%s' "${VERSION}" | grep -Eq '^[0-9]+(\.[0-9]+){1,2}$' || { echo "::error::version must look like 0.1.0"; exit 1; }
+              ;;
+            submit)
+              printf '%s' "${APPROVAL_REF}" | grep -Eq '^https://' || { echo "::error::submit needs approval_ref: an https link to the written OK of the account owner"; exit 1; }
+              ;;
+          esac
+          if [ -n "${BUILD_NUMBER}" ]; then
+            printf '%s' "${BUILD_NUMBER}" | grep -Eq '^[0-9]+$' || { echo "::error::build_number must be an integer"; exit 1; }
+          fi
+
+      - name: Self-test of the store kit (no network, no key)
+        run: node --test scripts/asc-store.test.mjs
+
+      - name: Write the App Store Connect key
+        env:
+          ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
+        run: |
+          umask 077
+          mkdir -p .secrets
+          printf '%s\n' "$ASC_API_KEY_P8" > .secrets/asc-api-key.p8
+
+      - name: Run the App Store Connect action
+        if: ${{ inputs.action != 'build' }}
+        env:
+          ACTION: ${{ inputs.action }}
+          VERSION: ${{ inputs.version }}
+          BUILD_NUMBER: ${{ inputs.build_number }}
+          CONFIRM: ${{ inputs.confirm }}
+          ASC_APP_ID: ${{ secrets.ASC_APP_ID }}
+          ASC_API_KEY_PATH: ${{ github.workspace }}/apps/ios/.secrets/asc-api-key.p8
+          ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+          ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
+          ASC_REVIEW_CONTACT_FIRST_NAME: ${{ secrets.ASC_REVIEW_CONTACT_FIRST_NAME }}
+          ASC_REVIEW_CONTACT_LAST_NAME: ${{ secrets.ASC_REVIEW_CONTACT_LAST_NAME }}
+          ASC_REVIEW_CONTACT_EMAIL: ${{ secrets.ASC_REVIEW_CONTACT_EMAIL }}
+          ASC_REVIEW_CONTACT_PHONE: ${{ secrets.ASC_REVIEW_CONTACT_PHONE }}
+          ASC_REVIEW_DEMO_USER: ${{ secrets.ASC_REVIEW_DEMO_USER }}
+          ASC_REVIEW_DEMO_PASSWORD: ${{ secrets.ASC_REVIEW_DEMO_PASSWORD }}
+        run: |
+          set -o pipefail
+          args=()
+          if [ -n "${BUILD_NUMBER}" ]; then args+=(--build-number "${BUILD_NUMBER}"); fi
+          case "${ACTION}" in
+            status) node scripts/asc-store.mjs status ;;
+            push-dry-run) node scripts/asc-store.mjs push --version "${VERSION}" --dry-run "${args[@]}" ;;
+            push) node scripts/asc-store.mjs push --version "${VERSION}" "${args[@]}" ;;
+            submit) node scripts/asc-store.mjs submit --confirm "${CONFIRM}" ;;
+            *) echo "::error::unknown action ${ACTION}"; exit 1 ;;
+          esac
+
+      - name: Install the shell (build only)
+        if: ${{ inputs.action == 'build' }}
+        run: npm ci --ignore-scripts
+
+      - name: Queue the EAS build (build only)
+        if: ${{ inputs.action == 'build' }}
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          PROFILE: ${{ inputs.profile }}
+        # Waits for the build so the submit to TestFlight runs with the key file still on disk.
+        run: npx --yes eas-cli@24.10.0 build --platform ios --profile "$PROFILE" --non-interactive --wait --auto-submit-with-profile=production
+
+      - name: Remove the key
+        if: always()
+        run: rm -f .secrets/asc-api-key.p8

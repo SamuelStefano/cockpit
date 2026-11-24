@@ -125,3 +125,101 @@ describe('useChatInput — arrow keys delivered as raw text', () => {
     expect(setValue).toHaveBeenLastCalledWith('ola mundo');
   });
 });
+
+describe('useChatInput — send while dictating', () => {
+  it('stops the recognizer before clearing the composer', () => {
+    const recs: { stop: () => void; stopped: boolean; start: () => void; onresult: unknown }[] = [];
+    class FakeRec {
+      stopped = false; onresult: unknown = null; onend = null; onerror = null;
+      constructor() { recs.push(this); }
+      start() {}
+      stop() { this.stopped = true; }
+    }
+    (window as unknown as { SpeechRecognition?: unknown }).SpeechRecognition = FakeRec;
+    try {
+      const { result, setText } = setup('');
+      act(() => result.current.mic.start());
+      setText('ship it');
+      act(() => result.current.submit());
+      expect(result.current.mic.listening).toBe(false);
+      expect(recs[0].stopped).toBe(true);
+      expect(recs[0].onresult).toBeNull();
+    } finally {
+      delete (window as unknown as { SpeechRecognition?: unknown }).SpeechRecognition;
+    }
+  });
+});
+
+describe('useChatInput — slash command followed by text', () => {
+  function setupWith(value: string, disabled = false) {
+    const props = { onSend: vi.fn(), onQueue: vi.fn(), setMode: vi.fn(), onNew: vi.fn(), setValue: vi.fn() };
+    const hook = renderHook(() => useChatInput({
+      disabled, onStop: vi.fn(), value, setModel: vi.fn(), slashCommands: [], hasAtt: false,
+      onUpload: vi.fn(), focusSignal: 0, history: [], ...props,
+    }));
+    return { ...hook, ...props };
+  }
+
+  it('switches mode and sends the text in that mode', () => {
+    const { result, onSend, setMode, setValue } = setupWith('/plan refactor the auth hook');
+    act(() => result.current.submit());
+    expect(setMode).toHaveBeenCalledWith('plan');
+    expect(onSend).toHaveBeenCalledWith('refactor the auth hook', 'plan');
+    expect(setValue).toHaveBeenLastCalledWith('');
+  });
+
+  it('queues the text when a turn is running', () => {
+    const { result, onSend, onQueue } = setupWith('/execute run the tests', true);
+    act(() => result.current.submit());
+    expect(onQueue).toHaveBeenCalledWith('run the tests');
+    expect(onSend).not.toHaveBeenCalled();
+  });
+
+  it('opens a new session and leaves the text in the composer', () => {
+    const { result, onNew, setValue } = setupWith('/new fix login');
+    act(() => result.current.submit());
+    expect(onNew).toHaveBeenCalled();
+    expect(setValue).toHaveBeenLastCalledWith('fix login');
+  });
+});
+
+describe('useChatInput — IME composition', () => {
+  function imeKey(key: string, composing: boolean, keyCode = 0, timeStamp = 1000) {
+    const prevented = { value: false };
+    const e = {
+      key, keyCode, timeStamp, shiftKey: false,
+      nativeEvent: { isComposing: composing },
+      preventDefault: () => { prevented.value = true; },
+    } as unknown as React.KeyboardEvent;
+    return { e, prevented };
+  }
+
+  it('does not submit on the Safari Enter that confirms a candidate (keyCode 229)', () => {
+    const { result } = setup('日本');
+    act(() => result.current.onCompositionEnd({ timeStamp: 995 } as React.CompositionEvent));
+    const { e, prevented } = imeKey('Enter', false, 229);
+    act(() => result.current.onKey(e));
+    expect(prevented.value).toBe(false);
+  });
+
+  it('sends an Enter reported as keyCode 229 outside a composition (IBus, Android keyboards)', () => {
+    const { result } = setup('olá');
+    const { e, prevented } = imeKey('Enter', false, 229);
+    act(() => result.current.onKey(e));
+    expect(prevented.value).toBe(true);
+  });
+
+  it('sends a later Enter after a composition ended long before', () => {
+    const { result } = setup('não');
+    act(() => result.current.onCompositionEnd({ timeStamp: 100 } as React.CompositionEvent));
+    const { e, prevented } = imeKey('Enter', false, 229, 5000);
+    act(() => result.current.onKey(e));
+    expect(prevented.value).toBe(true);
+  });
+
+  it('leaves ArrowUp to the IME while composing', () => {
+    const { result, setValue } = setup('');
+    act(() => result.current.onKey(imeKey('ArrowUp', true).e));
+    expect(setValue).not.toHaveBeenCalled();
+  });
+});

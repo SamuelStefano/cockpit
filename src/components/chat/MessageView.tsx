@@ -1,17 +1,20 @@
-import { memo } from 'react';
+import { memo, type ReactNode } from 'react';
 import { Icon } from '../primitives';
-import { ClaudeAvatar } from '../ClaudeAvatar';
+import { Bit } from '../bit/Bit';
+import type { BitState } from '../bit/bit-state';
 import type { TurnBubbleStats } from '../../../shared/protocol';
 import { messageToText } from '../../lib/export';
 import { usePersisted } from '../../lib/persist';
 import { SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT } from '../../lib/prefs';
 import { hasVisibleAssistantContent } from './visible-blocks';
 import { AssistantBlocks } from './AssistantBlocks';
-import { ThinkingDots, LiveStatsLine, type LiveTurn } from './Thinking';
+import type { LiveTurn } from './Thinking';
+import { LiveLine } from './LiveLine';
 import { QuoteButton, CopyMessageButton, RegenerateButton, SpeakButton, MemorizeButton } from './MessageActions';
+import { MessageActionsHost } from './MessageActionsHost';
 import { UserMessageRow } from './UserMessageRow';
 import { CompactDivider } from './CompactDivider';
-import { ToolGroupCard } from './ToolGroupCard';
+import { ActivityRow } from './ActivityRow';
 import { NarrationGroupCard } from './NarrationGroupCard';
 import type { ShownMessage } from './shown';
 import { fmtTokens, fmtDuration, fmtClock } from './message-format';
@@ -21,6 +24,9 @@ export { Thinking } from './Thinking';
 
 interface MessageRowProps {
   msg: ShownMessage;
+  avatar?: ReactNode;
+  // Only the live turn's bubble gets a state; older bubbles keep a frozen Bit.
+  bit?: BitState;
   caretOnLast: boolean;
   modelLabel?: string;
   showModelLabel?: boolean;
@@ -43,7 +49,7 @@ interface MessageRowProps {
 // memo: cada delta de streaming troca só a referência da ÚLTIMA mensagem
 // (patchRunMsg usa .map preservando as demais) — sem isto a thread inteira
 // re-renderiza a cada chunk.
-export const MessageRow = memo(function MessageRow({ msg, caretOnLast, modelLabel, showModelLabel = true, thinking, live, onEditUser, onQuote, onMemorize, answerable, onAnswer, reviewable, onApproveWorkflow, onRegenerate, onOpenAttachment, attThumbs, onAttThumb }: MessageRowProps) {
+export const MessageRow = memo(function MessageRow({ msg, avatar, bit, caretOnLast, modelLabel, showModelLabel = true, thinking, live, onEditUser, onQuote, onMemorize, answerable, onAnswer, reviewable, onApproveWorkflow, onRegenerate, onOpenAttachment, attThumbs, onAttThumb }: MessageRowProps) {
   const [showTools] = usePersisted<boolean>(SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT);
   if (msg.role === 'user') {
     return <UserMessageRow msg={msg} onEditUser={onEditUser} onQuote={onQuote} onOpenAttachment={onOpenAttachment} attThumbs={attThumbs} onAttThumb={onAttThumb} />;
@@ -57,8 +63,8 @@ export const MessageRow = memo(function MessageRow({ msg, caretOnLast, modelLabe
   if (msg.digest) {
     return (
       <div data-mid={msg.id} className="fade-up">
-        <ToolGroupCard tools={msg.digest} />
-        {thinking && <ThinkingDots live={live} />}
+        <ActivityRow tools={msg.digest} />
+        {thinking && <LiveLine live={live} bit={bit} />}
       </div>
     );
   }
@@ -68,7 +74,7 @@ export const MessageRow = memo(function MessageRow({ msg, caretOnLast, modelLabe
     return (
       <div data-mid={msg.id} className="fade-up">
         <NarrationGroupCard notes={msg.narration} />
-        {thinking && <ThinkingDots live={live} />}
+        {thinking && <LiveLine live={live} bit={bit} />}
       </div>
     );
   }
@@ -82,23 +88,25 @@ export const MessageRow = memo(function MessageRow({ msg, caretOnLast, modelLabe
     // data-mid em toda linha (não só nas do usuário): é a âncora que o
     // "carregar antigas" usa pra reposicionar o scroll. Uma resposta longa pode
     // ocupar a viewport inteira — sem âncora ali, a leitura saltava.
-    <div data-mid={msg.id} className="fade-up group/msg flex gap-2.5">
-      <div className="mt-0.5" title={showModelLabel ? undefined : modelLabel}>
-        <ClaudeAvatar size={28} />
-      </div>
-      <div className="min-w-0 flex-1 pt-0.5">
-        {showModelLabel && <span className="mb-0.5 block max-w-[260px] truncate px-0.5 font-mono text-[11px] font-medium tracking-tight text-orange-300/90">{modelLabel || 'Claude'}</span>}
+    <div data-mid={msg.id} data-role="assistant" className="fade-up group/msg flex flex-col gap-2">
+      {showModelLabel && (
+        <div className="flex min-w-0 items-center gap-2 text-[13px] font-medium text-neutral-300">
+          {avatar ?? <Bit state={bit ?? 'idle'} still={!bit} size={24} />}
+          <span className="max-w-[260px] truncate">{modelLabel || 'Claude'}</span>
+        </div>
+      )}
+      <MessageActionsHost className="min-w-0 flex-1" spec={{ text: hasText ? messageToText(msg.blocks) : '', speak: true, onRegenerate, onQuote, onMemorize }}>
         {msg.quick && (
-          <div className="mb-1 inline-flex items-center gap-1 rounded-full bg-sky-500/15 px-2 py-0.5 text-[10px] font-medium text-sky-300">
+          <div className="mb-1 inline-flex items-center gap-1 rounded-full bg-sky-500/15 px-2 py-0.5 text-[12px] font-medium text-sky-300">
             <Icon name="zap" size={10} /> resposta rápida (paralela)
           </div>
         )}
         <AssistantBlocks blocks={msg.blocks} caretOnLast={caretOnLast} answerable={answerable} onAnswer={onAnswer} reviewable={reviewable} onApproveWorkflow={onApproveWorkflow} />
-        {thinking && <ThinkingDots live={live} />}
+        {thinking && <LiveLine live={live} bit={bit} avatar={avatar} bare={showModelLabel} />}
         {!caretOnLast && !thinking && msg.stats?.durationMs ? <ThoughtFor ms={msg.stats.durationMs} /> : null}
         {hasText && !caretOnLast && (
-          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
-            <div className="flex flex-wrap items-center gap-x-2 opacity-100 transition group-hover/msg:opacity-100 sm:pointer-fine:opacity-0 sm:focus-within:opacity-100 sm:group-hover/msg:opacity-100">
+          <div className="-ml-1.5 mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 opacity-100 transition max-[719px]:hidden pointer-coarse:hidden sm:pointer-fine:opacity-0 sm:focus-within:opacity-100 sm:group-hover/msg:opacity-100">
+            <div className="flex flex-wrap items-center gap-x-2">
               <CopyMessageButton blocks={msg.blocks} />
               <SpeakButton blocks={msg.blocks} />
               {onRegenerate && <RegenerateButton onClick={onRegenerate} />}
@@ -106,10 +114,11 @@ export const MessageRow = memo(function MessageRow({ msg, caretOnLast, modelLabe
               {onMemorize && <MemorizeButton onClick={() => onMemorize(messageToText(msg.blocks))} />}
             </div>
             {msg.stats && <TurnStatsLine stats={msg.stats} />}
-            {msg.ts && <time className="whitespace-nowrap text-[10px] tabular-nums text-neutral-600">{fmtClock(msg.ts)}</time>}
+            {msg.ts && <time className="whitespace-nowrap text-[12px] tabular-nums text-neutral-600">{fmtClock(msg.ts)}</time>}
           </div>
         )}
-      </div>
+        {hasText && !caretOnLast && msg.ts && <time className="hidden text-[11px] tabular-nums text-neutral-600 max-[719px]:block pointer-coarse:block">{fmtClock(msg.ts)}</time>}
+      </MessageActionsHost>
     </div>
   );
 });
@@ -132,7 +141,7 @@ function TurnStatsLine({ stats }: { stats: TurnBubbleStats }) {
     ? ` — ${fmtTokens(stats.inputTokens)} in · ${fmtTokens(stats.outputTokens)} out`
     : '';
   return (
-    <span className="whitespace-nowrap text-[10px] tabular-nums text-neutral-600" title={`Gasto do turno: total faturável incl. cache · custo${inOut}`}>
+    <span className="whitespace-nowrap text-[12px] tabular-nums text-neutral-600" title={`Gasto do turno: total faturável incl. cache · custo${inOut}`}>
       {parts.join(' · ')}
     </span>
   );
@@ -144,8 +153,8 @@ function TurnStatsLine({ stats }: { stats: TurnBubbleStats }) {
 // Fonte: stats.durationMs = duration_ms do result do CLI (relógio do turno).
 function ThoughtFor({ ms }: { ms: number }) {
   return (
-    <div className="mt-1 flex items-center gap-1.5 text-[11px] text-neutral-500" title="Tempo total deste turno (relógio do CLI)">
-      <span className="text-orange-400/70" aria-hidden>✻</span>
+    <div className="mt-1 flex items-center gap-1.5 text-[12px] text-neutral-500" title="Tempo total deste turno (relógio do CLI)">
+      <Icon name="clock" size={11} className="text-orange-400/70" />
       <span className="tabular-nums">Pensou por {fmtDuration(ms)}</span>
     </div>
   );

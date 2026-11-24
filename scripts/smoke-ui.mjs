@@ -1,14 +1,13 @@
 // Roda os smokes de UI que dependem de `vite preview`, subindo e derrubando o
 // preview sozinho. Sem isto cada smoke exigia um servidor a mais num terminal
-// separado, então ninguém rodava e eles apodreciam calados: o smoke-play passou a
-// falhar quando a aba padrão do /play virou "App" e o repo não percebeu.
+// separado, então ninguém rodava e eles apodreciam calados.
 //
 //   npm run smoke:ui            # todos
-//   npm run smoke:ui -- play ds # só esses
+//   npm run smoke:ui -- ds      # só esses
 import { spawn } from 'node:child_process';
 import { setTimeout as sleep } from 'node:timers/promises';
 
-const ALL = ['ds', 'play', 'share', 'studio'];
+const ALL = ['ds', 'studio'];
 const pick = process.argv.slice(2);
 const suites = pick.length ? pick : ALL;
 

@@ -46,11 +46,6 @@ export function Internals() {
           hora (esse se pausa sozinho depois de rodar). Cada disparo vira a sessão <Pill>cron-&lt;id&gt;</Pill>.
           Pausável, com "rodar agora". O agendador roda no backend; persistido em <Pill>~/.cockpit/crons.json</Pill>.
         </InfoCard>
-        <InfoCard icon="pencil" iconClass="text-orange-400" size={13} title="Notas viram contexto">
-          A aba <Pill>Notas</Pill> é um rascunho livre salvo automaticamente — joga ideias soltas, links, trechos.
-          Quando acumular, o botão <b>Analisar com IA</b> manda tudo pro chat pra destilar num contexto/memória
-          estruturado, que aparece na aba Contextos.
-        </InfoCard>
         <InfoCard icon="command" iconClass="text-orange-400" size={13} title="MCP só quando você liga">
           Por padrão o chat roda <Pill>sem MCP</Pill> — os servidores MCP carregam dezenas de definições de
           ferramenta por mensagem (tokens à toa em conversa comum). No compositor há um seletor <b>MCP</b>:

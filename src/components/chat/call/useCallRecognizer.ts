@@ -1,0 +1,114 @@
+import { useEffect, useRef } from 'react';
+import { SPEECH_LANG } from '../speech';
+import { isFatalSpeechError, speechErrorMessage } from '../speech-errors';
+import { normalizeDictation } from '../speech-normalize';
+import { speechCtor, type SpeechRecognition } from '../useSpeechInput';
+import { scribeSupported, startScribe, type ScribeSession } from './scribe-capture';
+
+const MAX_FAST_FAILS = 3;
+const FAST_FAIL_MS = 800;
+
+export interface Heard {
+  text: string;
+  isFinal: boolean;
+  // 0 when the engine does not report one (interim results usually don't).
+  confidence: number;
+}
+
+interface Args {
+  active: boolean;
+  onHeard: (heard: Heard) => void;
+  onFatal: (message: string) => void;
+}
+
+// Continuous recognition that survives the engine ending on every pause. Reports the
+// text heard since the last reset(): reset() moves a cursor past the results already
+// handled (echo or sent utterance), so the engine never has to be restarted for it.
+export function useCallRecognizer({ active, onHeard, onFatal }: Args) {
+  const baseRef = useRef(0);
+  const lengthRef = useRef(0);
+  const heardRef = useRef(onHeard);
+  const fatalRef = useRef(onFatal);
+  const resetRef = useRef<(() => void) | null>(null);
+  heardRef.current = onHeard;
+  fatalRef.current = onFatal;
+
+  useEffect(() => {
+    if (!active) return;
+    const Ctor = speechCtor();
+    let alive = true;
+    let scribe: ScribeSession | null = null;
+    let rec: SpeechRecognition | null = null;
+    let fastFails = 0;
+    let lastError: string | null = null;
+
+    const begin = () => {
+      if (!alive || !Ctor) return;
+      const next = new Ctor();
+      rec = next;
+      next.lang = SPEECH_LANG;
+      next.continuous = true;
+      next.interimResults = true;
+      baseRef.current = 0;
+      lengthRef.current = 0;
+      const startedAt = Date.now();
+      let gotResult = false;
+      next.onresult = (e) => {
+        gotResult = true;
+        fastFails = 0;
+        lengthRef.current = e.results.length;
+        let text = '';
+        for (let i = baseRef.current; i < e.results.length; i++) text += e.results[i][0].transcript;
+        const last = e.results[e.results.length - 1];
+        heardRef.current({ text: normalizeDictation(text.trim()), isFinal: last?.isFinal === true, confidence: last?.[0]?.confidence ?? 0 });
+      };
+      next.onerror = (e) => { lastError = e?.error ?? 'unknown'; };
+      next.onend = () => {
+        if (!alive) return;
+        const err = lastError;
+        lastError = null;
+        if (err && isFatalSpeechError(err)) { alive = false; fatalRef.current(speechErrorMessage(err)); return; }
+        if (Date.now() - startedAt < FAST_FAIL_MS && !gotResult && ++fastFails >= MAX_FAST_FAILS) {
+          alive = false;
+          fatalRef.current(speechErrorMessage(err ?? 'no-speech'));
+          return;
+        }
+        begin();
+      };
+      try {
+        next.start();
+      } catch {
+        next.onend?.();
+      }
+    };
+
+    // Web Speech never captures in an iOS home-screen app and is flaky on Android, so
+    // the server engine comes first and the browser one only covers a box without a key.
+    if (scribeSupported()) {
+      scribe = startScribe({
+        onHeard: (heard) => heardRef.current(heard),
+        onFatal: (message) => fatalRef.current(message),
+        onUnavailable: () => {
+          scribe = null;
+          if (!alive) return;
+          if (Ctor) begin();
+          else fatalRef.current('Voz indisponível: configure a chave de voz nesta máquina.');
+        },
+      });
+      resetRef.current = () => scribe?.reset();
+    } else {
+      begin();
+    }
+    return () => {
+      alive = false;
+      resetRef.current = null;
+      scribe?.stop();
+      if (!rec) return;
+      rec.onresult = null; rec.onend = null; rec.onerror = null;
+      try { rec.abort ? rec.abort() : rec.stop(); } catch { /* already stopped */ }
+    };
+  }, [active]);
+
+  const reset = () => { resetRef.current?.(); baseRef.current = lengthRef.current; };
+  return { reset };
+}

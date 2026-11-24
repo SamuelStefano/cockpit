@@ -1,19 +1,21 @@
-import { Icon, tokens } from '../primitives';
+import { Icon, Tooltip, tokens } from '../primitives';
 
-// Aviso de cota do DESKTOP, num slot da StatusBar. Era `absolute bottom-3 right-3
-// z-30` sobre o painel: com o teclado aberto no celular o viewport encolhe e a
-// pílula caía exatamente sobre a última mensagem. No mobile o aviso agora vive na
-// UsageBar do header, que já está sempre à vista.
+// Desktop quota warning: only the reset time, in a corner of the chat footer. The usage number
+// itself stays in the header ring, so the two never disagree; on mobile the ring carries it all.
 export function QuotaBanner({ onClose, reset }: { onClose: () => void; reset: string }) {
   return (
-    <span className="flex shrink-0 items-center gap-1.5 rounded-sm border border-yellow-500/25 bg-yellow-500/10 px-1.5 py-0.5 text-yellow-200/80">
-      <Icon name="zap" size={11} className="shrink-0 text-yellow-400/80" />
-      <span className="truncate font-mono text-[10px]">uso próximo do limite · reseta {reset}</span>
+    <span role="status" className="group flex h-6 shrink-0 items-center gap-1.5 whitespace-nowrap pl-1.5 text-[12px] text-neutral-500">
+      <Tooltip label="Uso do plano perto do limite" side="top">
+        <span className="flex items-center gap-1.5">
+          <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+          <span>Limite reseta em <span className="tabular-nums text-neutral-400">{reset}</span></span>
+        </span>
+      </Tooltip>
       <button
         onClick={onClose}
         title="Dispensar"
         aria-label="Dispensar aviso de uso"
-        className={`shrink-0 rounded-sm p-0.5 text-yellow-200/50 transition hover:bg-yellow-500/10 hover:text-yellow-200 ${tokens.touchTarget}`}
+        className={`shrink-0 rounded-sm p-0.5 text-neutral-600 opacity-0 transition hover:bg-neutral-800 hover:text-neutral-200 focus-visible:opacity-100 group-hover:opacity-100 ${tokens.touchTarget}`}
       >
         <Icon name="x" size={11} />
       </button>

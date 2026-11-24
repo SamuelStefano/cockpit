@@ -9,7 +9,7 @@ afterEach(() => { cleanup(); vi.useRealTimers(); });
 const node = { id: 'n1', title: 'worker', ref: 'r1' } as unknown as CanvasNode;
 const noop = () => {};
 const base = {
-  node, session: true, orchestrator: false, running: true, waiting: false, resuming: false, alert: null as never, pct: null,
+  node, session: true, running: true, waiting: false, resuming: false, alert: null as never, pct: null,
   onPointerDown: noop, onMaximize: noop, onCollapse: noop, onResume: noop, onOpenChat: noop,
 };
 

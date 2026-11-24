@@ -6,8 +6,8 @@ import { Dot, Chip, Inv } from './adminPrimitives';
 export function AdminInventory({ health }: { health: AdminHealth }) {
   return (
     <>
-      <div className="mb-5 rounded-xl border border-neutral-800 bg-neutral-900/40 p-4 hairline">
-        <h2 className="mb-3 text-[12px] font-semibold uppercase tracking-wide text-neutral-400">Vínculos</h2>
+      <div className="mb-5 rounded-xl border border-neutral-800 bg-neutral-900/40 p-4 hairline max-lg:mb-0 max-lg:rounded-none max-lg:border-0 max-lg:border-t max-lg:bg-transparent max-lg:px-0 max-lg:py-4 max-lg:shadow-none">
+        <h2 className="mb-3 text-[13px] font-semibold uppercase tracking-wide text-neutral-400">Vínculos</h2>
         <ul className="space-y-2 text-[13px]">
           <li className="flex items-center justify-between">
             <span className="flex items-center gap-2 text-neutral-300"><Dot on={health.claudeAuth} /> Conta Claude (CLI)</span>
@@ -20,7 +20,7 @@ export function AdminInventory({ health }: { health: AdminHealth }) {
             </span>
           </li>
           <li className="flex items-center justify-between">
-            <span className="flex items-center gap-2 text-neutral-300"><Dot on={health.mcpServers.length > 0} /> Servidores MCP</span>
+            <span className="flex shrink-0 items-center gap-2 whitespace-nowrap text-neutral-300"><Dot on={health.mcpServers.length > 0} /> Servidores MCP</span>
             {/* No mobile a lista inteira truncava ("dfl-payment…") — mostra só a contagem; a lista completa já está no card "Servidores MCP" abaixo. */}
             <span className="pl-3 text-right text-neutral-500">
               <span className="sm:hidden">{health.mcpServers.length || 'nenhum'}</span>
@@ -34,7 +34,9 @@ export function AdminInventory({ health }: { health: AdminHealth }) {
         </ul>
       </div>
 
-      <div className="mb-5 grid gap-3 sm:grid-cols-2">
+      {/* grid-cols-1 = minmax(0,1fr): an implicit column grew to the widest chip
+          and pushed every card past the viewport on a phone. */}
+      <div className="mb-5 grid grid-cols-1 gap-3 max-lg:mb-0 max-lg:gap-0 sm:grid-cols-2">
         <Inv icon="terminal" title="CLIs no PATH" count={health.clis.filter((c) => c.present).length}>
           {health.clis.map((c) => <Chip key={c.name} label={c.name} on={c.present} />)}
         </Inv>

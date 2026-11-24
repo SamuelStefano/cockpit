@@ -26,7 +26,7 @@ export function hasUpdate(mine: string | null, served: BuildManifest | null): bo
 // (que é exatamente o bug que este endpoint existe pra matar).
 export async function fetchBuild(signal?: AbortSignal): Promise<BuildManifest | null> {
   try {
-    const res = await fetch(`${location.origin}/api/build`, { cache: 'no-store', credentials: 'omit', signal });
+    const res = await fetch(`${location.origin}/build.json`, { cache: 'no-store', credentials: 'omit', signal });
     if (!res.ok) return null;
     const body = (await res.json()) as BuildManifest;
     return typeof body?.entry === 'string' || body?.entry === null ? body : null;

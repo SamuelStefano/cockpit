@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { AreaId, CanvasFlow, CanvasNode, OrchestratorInfo } from '../../../shared/canvas';
+import type { AreaId, CanvasFlow, CanvasNode } from '../../../shared/canvas';
 import { hasPref, usePersisted } from '../../lib/persist';
 import {
   buildChainTree, estimateAreaHeight, hasLiveSession, layoutChainTree, type ChainPos,
@@ -36,7 +36,7 @@ function elbowPath(px: number, py: number, cx: number, cy: number): string {
   return `M ${px} ${py} L ${px} ${midY} L ${cx} ${midY} L ${cx} ${cy}`;
 }
 
-export function useCanvasChain(nodes: CanvasNode[], flows: CanvasFlow[], running: Set<string>, orchestrator: OrchestratorInfo | undefined) {
+export function useCanvasChain(nodes: CanvasNode[], flows: CanvasFlow[], running: Set<string>) {
   const narrow = useNarrowViewport();
   // Only the area-level collapse persists (spec: "areas collapsed state
   // persisted in localStorage") — a session-level collapse is per-visit,
@@ -56,7 +56,7 @@ export function useCanvasChain(nodes: CanvasNode[], flows: CanvasFlow[], running
     });
   }, []);
 
-  const tree = useMemo(() => buildChainTree(nodes, flows, running, orchestrator), [nodes, flows, running, orchestrator]);
+  const tree = useMemo(() => buildChainTree(nodes, flows, running), [nodes, flows, running]);
 
   // Point 4's default, applied ONCE: a device that never touched this pref
   // (hasPref false — an empty persisted list is indistinguishable from "user

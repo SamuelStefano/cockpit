@@ -1,7 +1,7 @@
 import { stat } from 'node:fs/promises';
 import type { Message } from '../../shared/protocol';
 import type { SessionPeek } from '../../shared/canvas';
-import { readRecords, recTs, sessionPath, type Rec } from './records';
+import { readPeekRecords, recTs, sessionPath, type Rec } from './records';
 
 export const PEEK_TAIL_CHARS = 600;
 const MAX_LINKS = 12;
@@ -70,9 +70,17 @@ export async function peekSession(sessionId: string): Promise<SessionPeek | null
     const key = `${st.mtimeMs}:${st.size}`;
     const hit = peekCache.get(sessionId);
     if (hit?.key === key) return hit.peek;
-    const peek = readRecords(path).then((scan) => peekFromRecords(scan.msgs, scan.markers), () => null);
+    const entry: PeekEntry = { key, peek: Promise.resolve(null) };
+    // A failed read (EMFILE, ENOMEM on a huge transcript) must not stick: cached
+    // under the same mtime+size, an idle session's drawer stayed empty until the
+    // file changed. Drop it (if still ours) so the next open retries.
+    entry.peek = readPeekRecords(path).then((scan) => peekFromRecords(scan.msgs, scan.markers), () => {
+      if (peekCache.get(sessionId) === entry) peekCache.delete(sessionId);
+      return null;
+    });
+    const peek = entry.peek;
     peekCache.delete(sessionId);
-    peekCache.set(sessionId, { key, peek });
+    peekCache.set(sessionId, entry);
     if (peekCache.size > PEEK_CACHE_MAX) peekCache.delete(peekCache.keys().next().value as string);
     return await peek;
   } catch {

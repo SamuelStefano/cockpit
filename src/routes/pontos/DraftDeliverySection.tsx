@@ -36,11 +36,11 @@ export function DraftDeliverySection({ draft, delivery, pointValue, selected, on
       <div className="flex min-h-9 flex-wrap items-center gap-x-2.5 gap-y-1 border-b border-neutral-800/70 bg-neutral-900/50 px-2.5 py-1">
         <Checkbox checked={!!ids.length && picked === ids.length} indeterminate={picked > 0 && picked < ids.length} disabled={!ids.length}
           onChange={(on) => onSetMany(ids, on)} label={`Selecionar todas de ${delivery.title}`} />
-        <span className="font-mono text-[10px] lowercase tracking-wide text-neutral-600">delivery</span>
+        <span className="font-mono text-[12px] lowercase tracking-wide text-neutral-600">delivery</span>
         <InlineEdit label="título da delivery" hint={false} value={delivery.title}
           onSave={(title) => onOp({ op: 'rename-delivery', epicId, deliveryId: delivery.id, title })}
-          className="min-w-0 truncate text-[12.5px] font-medium text-neutral-100" inputClassName="w-72 max-w-full text-[12.5px]" />
-        <span className="font-mono text-[11px] tabular-nums text-neutral-500">
+          className="min-w-0 truncate text-[13px] font-medium text-neutral-100" inputClassName="w-72 max-w-full text-[13px]" />
+        <span className="font-mono text-[12px] tabular-nums text-neutral-500">
           {tasks.length} {tasks.length === 1 ? 'task' : 'tasks'} · {fmtPts(pts)} pt · {brlShort(centsFromPoints(pts, pointValue))}
         </span>
         {tasks.length > 0 && pending === 0 && <Badge tone="orange">enviada</Badge>}
@@ -58,7 +58,7 @@ export function DraftDeliverySection({ draft, delivery, pointValue, selected, on
         </span>
       </div>
       <ul className="divide-y divide-neutral-800/50">
-        {tasks.length === 0 && <li className="px-3 py-2.5 text-[11.5px] text-neutral-600">Vazia. Arraste tasks pra cá ou selecione e use “mover”.</li>}
+        {tasks.length === 0 && <li className="px-3 py-2.5 text-[12px] text-neutral-600">Vazia. Arraste tasks pra cá ou selecione e use “mover”.</li>}
         {tasks.map((t) => <DraftTaskRow key={t.id} epicId={epicId} task={t} selected={selected.has(t.id)} onToggle={onToggle} onOp={onOp} />)}
       </ul>
       <div className="border-t border-neutral-800/50">

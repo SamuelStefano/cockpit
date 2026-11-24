@@ -1,15 +1,16 @@
+import { detachedGroup, killGroup, platformEnv } from '../platform';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { cliPath } from './cli-path';
+import { claudeBin, cliPath } from './cli-path';
+import { leanOneShotArgs } from './lean-args';
 import type { TriageVerdict, TriageAction } from '../../shared/protocol';
 
-// Os one-shots (triagem + sugestões) rodam `claude -p`, que PERSISTE um JSONL de
+// Os one-shots (triagem) rodam `claude -p`, que PERSISTE um JSONL de
 // sessão no projects-dir do cwd. Rodando no CONFIG.workdir, esses arquivos caíam na
-// MESMA pasta que o Deck lista → cada one-shot virava um "chat fantasma" na sidebar
-// (e o suggest roda a cada fim de turno = enxurrada). Isolando o cwd num dir
-// dedicado, o slug do projects-dir muda e o Deck nunca lista essas sessões efêmeras.
+// MESMA pasta que o Deck lista → cada one-shot virava um "chat fantasma" na sidebar.
+// Isolando o cwd num dir dedicado, o slug do projects-dir muda e o Deck nunca lista essas sessões efêmeras.
 const ONESHOT_CWD = join(homedir(), '.cockpit', 'oneshot');
 try { mkdirSync(ONESHOT_CWD, { recursive: true }); } catch { /* melhor esforço */ }
 
@@ -35,7 +36,7 @@ function untrack(key: string, c: ChildProcess) {
   const s = sideChildren.get(key); if (s) { s.delete(c); if (!s.size) sideChildren.delete(key); }
 }
 function killSet(s: Set<ChildProcess>) {
-  for (const c of s) { try { if (c.pid) process.kill(-c.pid, 'SIGKILL'); } catch { /* já morto */ } }
+  for (const c of s) { killGroup(c); }
 }
 
 // Mata one-shots em voo no shutdown (não deixa claude órfão como na storm de :7777).
@@ -51,17 +52,16 @@ export function killSideRunsFor(sessionKey: string): void {
 }
 
 function miniEnv(): NodeJS.ProcessEnv {
-  return { PATH: cliPath(), HOME: process.env.HOME, LANG: process.env.LANG ?? 'en_US.UTF-8', TERM: 'dumb' };
+  return { ...platformEnv(), PATH: cliPath(), HOME: process.env.HOME, LANG: process.env.LANG ?? 'en_US.UTF-8', TERM: 'dumb' };
 }
 
 // Executa `claude -p` haiku plan-mode e devolve o campo .result (texto). '' em erro/timeout.
-// Exportado: também alimenta os geradores baratos fora da triagem (ex: suggest.ts).
-export function oneShot(prompt: string, timeoutMs: number, cap = 65536, key = '_'): Promise<string> {
+function oneShot(prompt: string, timeoutMs: number, cap = 65536, key = '_', extra: string[] = []): Promise<string> {
   return new Promise((resolve) => {
-    const args = ['-p', prompt, '--model', 'haiku', '--effort', 'low', '--permission-mode', 'plan', '--strict-mcp-config', '--output-format', 'json'];
+    const args = ['-p', prompt, '--model', 'haiku', '--effort', 'low', '--permission-mode', 'plan', '--strict-mcp-config', '--output-format', 'json', ...extra];
     let child: ChildProcess;
     try {
-      child = spawn('claude', args, { cwd: ONESHOT_CWD, env: miniEnv(), shell: false, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+      child = spawn(claudeBin(), args, { cwd: ONESHOT_CWD, env: miniEnv(), shell: false, detached: detachedGroup, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
     } catch { resolve(''); return; }
     track(key, child);
     let out = '';
@@ -72,7 +72,7 @@ export function oneShot(prompt: string, timeoutMs: number, cap = 65536, key = '_
       done = true;
       clearTimeout(timer);
       untrack(key, child);
-      try { if (child.pid) process.kill(-child.pid, 'SIGKILL'); } catch { /* já morto */ }
+      killGroup(child);
       resolve(v);
     };
     const timer = setTimeout(() => finish(''), timeoutMs);
@@ -85,6 +85,18 @@ export function oneShot(prompt: string, timeoutMs: number, cap = 65536, key = '_
     });
   });
 }
+
+export const TRIAGE_SYSTEM_PROMPT = 'Você classifica prompts e responde só o JSON pedido.';
+
+// The classifier only reads the three quoted strings in its prompt and answers JSON.
+export function classifyArgs(on?: boolean): string[] {
+  return leanOneShotArgs(TRIAGE_SYSTEM_PROMPT, on);
+}
+
+// The quick answer keeps the default system prompt, tools and the user's settings
+// (it may search the web, and it speaks in the user's configured style); it only
+// stops leaving a ghost transcript in ONESHOT_CWD.
+export const QUICK_ANSWER_ARGS: readonly string[] = ['--no-session-persistence'];
 
 export function parseVerdict(raw: string): TriageVerdict {
   const fallback: TriageVerdict = { action: 'wait', reason: 'triagem indisponível — enfileirado' };
@@ -116,10 +128,31 @@ export async function classify(currentPrompt: string, currentWork: string, newPr
     'Na dúvida use wait. priority SÓ se claramente urgente — interromper custa o turno em andamento.',
     'Responda SÓ com JSON, sem texto fora: {"action":"wait|answer|priority|merge","reason":"<=8 palavras"}',
   ].join('\n');
-  return parseVerdict(await oneShot(p, 8000, 8192, sessionKey));
+  return parseVerdict(await oneShot(p, 8000, 8192, sessionKey, classifyArgs()));
 }
 
 export async function quickAnswer(newPrompt: string, sessionKey = '_'): Promise<string> {
   const p = 'Responda de forma curta e direta. A pessoa fez esta pergunta enquanto outra tarefa roda em paralelo, então seja conciso:\n\n' + newPrompt;
-  return (await oneShot(p, 60000, 262144, sessionKey)).trim();
+  return (await oneShot(p, 60000, 262144, sessionKey, [...QUICK_ANSWER_ARGS])).trim();
+}
+
+const BUILDER_TIMEOUT_MS = 90_000;
+const BUILDER_CAP = 262144;
+
+// The agent builder is a text-only conversation: lean args are forced on whatever
+// CONFIG.leanOneShots says, so the model never gets tools while it reads a stranger's template text.
+export async function agentBuilderTurn(system: string, prompt: string, sessionKey = '_'): Promise<string> {
+  const args = ['--model', 'sonnet', ...leanOneShotArgs(system, true)];
+  return (await oneShot(prompt, BUILDER_TIMEOUT_MS, BUILDER_CAP, sessionKey, args)).trim();
+}
+
+export const MEETING_TIMEOUT_MS = 180_000;
+const MEETING_CAP = 262144;
+
+// A meeting turn is text only: lean args are forced on whatever CONFIG.leanOneShots
+// says (no tools, no skills, no user settings, no transcript), and the bot's own
+// identity is the whole system prompt. A bot without a model speaks as sonnet.
+export async function meetingTurn(system: string, prompt: string, model: string | undefined, sessionKey = '_'): Promise<string> {
+  const args = ['--model', model || 'sonnet', ...leanOneShotArgs(system, true)];
+  return (await oneShot(prompt, MEETING_TIMEOUT_MS, MEETING_CAP, sessionKey, args)).trim();
 }
