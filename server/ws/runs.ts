@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { endLive } from '../agent-live';
 import { emitTurnClosed } from '../canvas/turn-hooks';
 import type { WebSocket } from 'ws';
 import type { Cron, ResumeOfferReason } from '../../shared/protocol';
@@ -973,6 +974,7 @@ export function startRun(o: StartRunOptions): 'pane' | 'rejected' | 'parked' | u
       // (re-send que matou o anterior), o onClose do antigo NÃO deve mandar um
       // 'done' prematuro nem apagar a entrada do novo run.
       if (threads.get(sessionKey) !== thread) return;
+      endLive(thread.params.botId);
       // ANTES de qualquer dreno: o próximo item veria o semáforo ocupado por um
       // turno que já fechou e cairia em cold-busy à toa.
       if (holdsCold) releaseCold(sessionKey);
@@ -1120,6 +1122,7 @@ export function startRun(o: StartRunOptions): 'pane' | 'rejected' | 'parked' | u
   }));
   if ('error' in started) {
     if (threads.get(sessionKey) === thread) { threads.delete(sessionKey); scheduleTeamStatePush(); }
+    endLive(thread.params.botId);
     if (holdsCold) releaseCold(sessionKey);
     if (!epochHolds.has(sessionKey)) clearStopEpoch(sessionKey);
     if (thread.parked) requeueParked(thread.parkedFrom ?? sessionKey, thread.parked);

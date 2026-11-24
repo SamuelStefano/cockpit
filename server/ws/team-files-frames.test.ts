@@ -55,4 +55,16 @@ describe('sendBotComputer preview policy', () => {
     const payload = sent.fn.mock.calls[0][1] as { computer: { preview: string[] } };
     expect(payload.computer.preview).toEqual([]);
   });
+
+  it('student gets step/tool but never the diff, command or terminal of the live view', async () => {
+    computer.fn.mockResolvedValue({ ...pane, live: { at: 1, status: 'running', step: 'Testing', stepIndex: 1, stepTotal: 2, tool: 'Edit', command: 'x', file: { path: 'a', diff: 'd', truncated: false }, terminal: ['t'] } });
+    await sendBotComputer(ws, 'capo1', 'student');
+    const live = (sent.fn.mock.calls[0][1] as any).computer.live;
+    expect(live).toEqual({ at: 1, status: 'running', step: 'Testing', stepIndex: 1, stepTotal: 2, tool: 'Edit' });
+  });
+
+  it('unknown bot gets nothing', async () => {
+    await sendBotComputer(ws, 'other1', 'admin');
+    expect(computer.fn).not.toHaveBeenCalled();
+  });
 });
