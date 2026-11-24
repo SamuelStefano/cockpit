@@ -33,8 +33,27 @@ PALETTE = {
 }
 assert len(PALETTE) <= 48 and len(set(PALETTE.values())) == len(PALETTE)
 
+# ground surface by item name; mirrors SURFACE_RULES in src/routes/equipe/world/world-run.ts
+SURFACE_RULES = (
+    (("grass", "auto_grass_path", "auto_grass_sand"), "grass"),
+    (("dirt", "road"), "dirt"),
+    (("sand", "auto_sand_water"), "sand"),
+    (("dock_",), "wood"),
+    (("plaza", "auto_grass_plaza", "street", "crosswalk", "sidewalk", "rock_ground", "cliff"), "paved"),
+    (("floor", "carpet"), "floor"),
+    (("water",), "water"),
+)
+
+
+def surface_of(name):
+    for prefixes, kind in SURFACE_RULES:
+        if name.startswith(prefixes):
+            return kind
+    return None
+
+
 # overlay colours: every translucent pixel must use one of these RGB values
-OVERLAY_COLOURS = {"shadow": "ol0", "glow": "y2", "light": "wh", "screen": "a3", "alert": "r1"}
+OVERLAY_COLOURS = {"shadow": "ol0", "glow": "y2", "light": "wh", "screen": "a3", "alert": "r1", "warm": "y0"}
 
 
 def rgb(name):
@@ -301,7 +320,7 @@ GLYPHS = {
     "I": ["111", "010", "010", "010", "111"], "K": ["101", "101", "110", "101", "101"],
     "L": ["100", "100", "100", "100", "111"], "M": ["101", "111", "111", "101", "101"],
     "N": ["110", "101", "101", "101", "101"], "O": ["010", "101", "101", "101", "010"],
-    "P": ["110", "101", "110", "100", "100"], "R": ["110", "101", "110", "101", "101"],
+    "P": ["110", "101", "110", "100", "100"], "Q": ["010", "101", "101", "110", "011"], "R": ["110", "101", "110", "101", "101"],
     "S": ["011", "100", "010", "001", "110"], "T": ["111", "010", "010", "010", "010"],
     "U": ["101", "101", "101", "101", "111"], "V": ["101", "101", "101", "101", "010"],
     "W": ["101", "101", "111", "111", "101"], "Y": ["101", "101", "010", "010", "010"],
@@ -451,6 +470,9 @@ class Atlas:
                     self.tiles[tid] = im.crop((i * T, j * T, (i + 1) * T, (j + 1) * T))
                     self.cls[tid] = name
                     pr = dict(props or {})
+                    surf = surface_of(name)
+                    if surf:
+                        pr["surface"] = surf
                     if tile_props:
                         pr.update(tile_props(i, j) or {})
                     animated = n > 1 and any(grids[k][j][i] != grids[0][j][i] for k in range(1, n))

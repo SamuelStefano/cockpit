@@ -27,8 +27,9 @@ PALETTE.update({"c0": "#7d62b8", "c1": "#c3b1ec"})
 assert len(set(PALETTE.values())) == len(PALETTE)
 
 DIRS = ["left", "down", "up", "right"]
-ANIMS = ["idle", "walk", "sit", "type", "talk", "celebrate", "carry", "sleep"]
-FPS = {"idle": 4, "walk": 10, "sit": 2, "type": 8, "talk": 6, "celebrate": 10, "carry": 10, "sleep": 2}
+# "run" is appended last so the rows of the older animations never move
+ANIMS = ["idle", "walk", "sit", "type", "talk", "celebrate", "carry", "sleep", "run"]
+FPS = {"idle": 4, "walk": 10, "sit": 2, "type": 8, "talk": 6, "celebrate": 10, "carry": 10, "sleep": 2, "run": 12}
 COLS = 8
 
 SHIRT = ["g0", "g1", "g2", "g3"]
@@ -145,7 +146,7 @@ HELD_ORDER = ("brush", "magnifier", "megaphone", "calculator", "clipboard", "not
 def pose(**kw):
     base = dict(dy=0, sq=0, head_dy=0, head_dx=0, look=0, eyes="open", mouth="smile",
                 arm_l=("side", 0), arm_r=("side", 0), legs=("stand", 0), prop=True,
-                seat=0, crate=False, side_arms=None, prop_side=None, open_hand=False)
+                seat=0, crate=False, side_arms=None, prop_side=None, open_hand=False, lean=0)
     base.update(kw)
     return base
 
@@ -181,7 +182,19 @@ def anim_poses():
                        crate=True) for k, (dy, sq) in enumerate(seq)]
     s = dict(seat=1, look=1, eyes="closed", mouth="sleep", prop=False, arm_l=("lap", 1), arm_r=("lap", 1))
     A["sleep"] = [pose(head_dy=1, head_dx=1, **s), pose(head_dy=1, head_dx=1, sq=1, **s)]
+    # run: contact (low, widest stride) -> pass (legs gathered) -> flight (airborne), then the other leg leads.
+    # The body leans forward the whole cycle and the bent arms pump opposite to the legs.
+    run = [(1, -1), (0, 0), (-2, 1), (1, 1), (0, 0), (-2, -1)]
+    A["run"] = [pose(dy=dy, legs=("run", k), lean=2, arm_l=("pump", a), arm_r=("pump", -a),
+                     mouth="open" if dy < 0 else "smile") for k, (dy, a) in enumerate(run)]
     return A
+
+
+def run_feet(k):
+    """(near, far) feet as (stride, lift); stride > 0 = ahead of the body, lift = px above the ground"""
+    half = [((1.7, 0), (-1.7, 2)), ((-0.3, 0), (1.0, 2)), ((-1.7, 1), (1.5, 2))]
+    a, b = half[k % 3]
+    return (a, b) if k < 3 else (b, a)
 
 
 def walk_feet(k):
@@ -385,6 +398,10 @@ def build_bot(spec, d, P, swap=False):
     widen = 1 if sq > 0 else (-1 if sq < 0 else 0)
     side = d == "left"
     legs, lk = P["legs"]
+    lean = P["lean"]
+    if lean and not side:   # front/back views: the lean reads as the head dropping over the chest
+        head_cy += 1
+    lean_t = 1 if (lean and side) else 0   # side view: chest 1 px forward, head `lean` px forward
 
     # ---- legs + shoes
     if seat:
@@ -407,6 +424,10 @@ def build_bot(spec, d, P, swap=False):
     else:
         if legs == "walk":
             fl, fr = walk_feet(lk)
+        elif legs == "run":
+            fl, fr = run_feet(lk)
+            if swap:   # mirrored row: the near leg is the other leg, keeps arms and legs opposed
+                fl, fr = fr, fl
         elif legs == "tuck":
             fl, fr = (0, 3), (0, 3)
         elif legs == "jump":
@@ -427,7 +448,7 @@ def build_bot(spec, d, P, swap=False):
                                   1.5 + (0.1 if s > 0 else 0), light=False))
         else:
             for (stride, lift), far in ((fr, True), (fl, False)):
-                fx = 16 - stride * 3 + (-1 if crouch and not far else (1 if crouch else 0))
+                fx = int(round(16 - stride * 3)) + (-1 if crouch and not far else (1 if crouch else 0))
                 fb = foot_base - lift
                 z = 0.6 if far else 1.6
                 hipx = 16.5
@@ -446,13 +467,15 @@ def build_bot(spec, d, P, swap=False):
     if d in ("down", "up"):
         tx0, tx1 = 10 - widen, 21 + widen
     else:
-        tx0, tx1 = 12 - widen, 20 + widen
+        tx0, tx1 = 12 - widen - lean_t, 20 + widen - lean_t
     torso = m_rrect(W, H, tx0, torso_top, tx1, hip, 2) & ~m_rect(W, H, 0, hip, W, H)
     pants = m_rrect(W, H, tx0 + 1, hip - 2, tx1 - 1, hip + 1, 1)
     parts.append(Part("pants", pants, pants_r, 2.8, light=False))
     hcx = (16.0 if d != "left" else 15.5)
     hdx = P["head_dx"]
     hcx += hdx if d == "down" else (-hdx if d == "left" else -hdx)
+    if side:
+        hcx -= lean
     cxi = int(round(hcx - 0.01))  # integer anchor for overlays
 
     if "blazer" in acc:
@@ -492,10 +515,15 @@ def build_bot(spec, d, P, swap=False):
     sh_y = torso_top + 1.5
     hand_pts = {}
 
-    def arm(name, shoulder, hand, z, sleeve=True, band=False, open_hand=False, sleeve_t=0.45):
-        parts.append(Part(name + "_arm", m_capsule(W, H, shoulder, hand, 1.45), skin, z, light=False, band=0))
+    def arm(name, shoulder, hand, z, sleeve=True, band=False, open_hand=False, sleeve_t=0.45, elbow=None):
+        am = m_capsule(W, H, shoulder, hand, 1.45)
+        if elbow is not None:   # bent arm: the sleeve covers the upper arm down to the elbow
+            am = m_capsule(W, H, shoulder, elbow, 1.45) | m_capsule(W, H, elbow, hand, 1.45)
+        parts.append(Part(name + "_arm", am, skin, z, light=False, band=0))
         sx = shoulder[0] + (hand[0] - shoulder[0]) * sleeve_t
         sy = shoulder[1] + (hand[1] - shoulder[1]) * sleeve_t
+        if elbow is not None:
+            sx, sy = elbow
         if sleeve:
             if "blazer" in acc:
                 parts.append(Part(name + "_sleeve", m_capsule(W, H, shoulder, (sx, sy), 1.75), RAMP["dark"], z + 0.01,
@@ -524,6 +552,9 @@ def build_bot(spec, d, P, swap=False):
             return (hx, sh_y + 6)
         if kind == "swing":
             return (hx, sh_y + 6 + k)
+        if kind == "pump":   # k=1 fist raised in front of the chest, k=-1 elbow out and hand back
+            return {1: (sidex - sgn * 0.5, sh_y + 2), 0: (sidex + sgn * 1.5, sh_y + 4),
+                    -1: (sidex + sgn * 2.5, sh_y + 5.5)}[k]
         if kind == "out":
             return (sidex + sgn * 3.5, sh_y + 4.5)
         if kind == "low":
@@ -548,7 +579,7 @@ def build_bot(spec, d, P, swap=False):
         # down: screen-left = character's right arm; up: screen-left = character's left arm
         kl, kr = (P["arm_r"], P["arm_l"]) if d == "down" else (P["arm_l"], P["arm_r"])
         for nm, (kind, k), sx, sgn in (("L", kl, lsx, -1), ("R", kr, rsx, 1)):
-            if kind == "swing" and d == "up":
+            if kind in ("swing", "pump") and d == "up":
                 k = -k
             hp = arm_target(kind, k, sx, sgn)
             zz = 4
@@ -559,7 +590,7 @@ def build_bot(spec, d, P, swap=False):
                 open_hand=P["open_hand"] and kind == "up")
         prop_hand = "L" if d == "down" else "R"
     else:
-        shx = 16.5
+        shx = 16.5 - lean_t
         if P["side_arms"]:
             near, far = P["side_arms"]
             prop_hand = "F" if P["prop_side"] == "far" else "N"
@@ -568,8 +599,13 @@ def build_bot(spec, d, P, swap=False):
             prop_hand = "N" if swap else "F"
         for nm, (kind, k) in (("F", far), ("N", near)):
             z = 2.5 if nm == "F" else 4
+            elbow = None
             if kind == "swing":
                 hp = (shx - k * 3.0 * (1 if nm == "N" else -1), sh_y + 5.5)
+            elif kind == "pump":   # k=1 fist driven forward and up, k=-1 elbow back, 0 = passing the hip
+                elbow, hp = {1: ((shx - 2.5, sh_y + 4), (shx - 6, sh_y + 1.5)),
+                             0: ((shx + 0.5, sh_y + 4), (shx - 2, sh_y + 5)),
+                             -1: ((shx + 3, sh_y + 3), (shx + 5.5, sh_y + 5.5))}[k]
             elif kind == "side":
                 hp = (shx - 0.5, sh_y + 6)
             elif kind == "up":  # straight up along the side of the body
@@ -590,14 +626,16 @@ def build_bot(spec, d, P, swap=False):
             else:
                 hp = (shx, sh_y + 6)
             if nm == "F":
-                if held and prop_hand == "F" and kind in ("side", "swing", "out", "low"):
+                if held and prop_hand == "F" and kind in ("side", "swing", "out", "low", "pump"):
                     hp = (shx - 5, sh_y + 4.5)   # far hand holds the prop in front of the body
+                    elbow = None
                 elif kind not in ("up",):
                     hp = (hp[0] + 1, hp[1])
             is_left_arm = (nm == "N") != swap if not P["side_arms"] else (nm == "N") != swap
             arm(nm, (shx + (1.5 if kind == "up" else 0), sh_y), hp, z,
                 band=armband if (armband and is_left_arm) else False,
-                open_hand=P["open_hand"] and kind == "up", sleeve_t=0.12 if kind == "up" else 0.45)
+                open_hand=P["open_hand"] and kind == "up", sleeve_t=0.12 if kind == "up" else 0.45,
+                elbow=elbow)
 
     # ---- head + hair
     head = m_ellipse(W, H, hcx, head_cy, 10.6, 9.2)
@@ -1240,8 +1278,8 @@ def tint_ramp(hexcol):
 def tinted(img, hexcol):
     a = np.array(img)
     tr = tint_ramp(hexcol)
-    for c, t in zip(SHIRT, tr):
-        sel = np.all(a[..., :3] == rgb(c), axis=-1) & (a[..., 3] == 255)
+    for c, t in zip(SHIRT_VILA, tr):
+        sel = np.all(a[..., :3] == c, axis=-1) & (a[..., 3] == 255)
         a[sel, :3] = t
     return Image.fromarray(a, "RGBA")
 
@@ -1356,20 +1394,102 @@ def contact(spec, rows, path):
             d.rectangle((0, y, W, y + FH * S + 2), fill=(226, 216, 196))
         d.text((6, y + FH * S // 2 - 7), "%s / %s" % (an, dn), fill=rgb("ol0"), font=f)
         for fi, (fimg, _) in enumerate(fr):
-            big = fimg.resize((FW * S, FH * S), Image.NEAREST)
+            big = to_vila48(fimg, spec["id"]).resize((FW * S, FH * S), Image.NEAREST)
             im.paste(big, (lab_w + fi * (FW * S + 3), y + 1), big)
     im.save(path)
 
 
-def check_palette(img):
+# Paleta Vila 48 'agua' ramp neighbours: the Deck avatar shirt is baked blue so it reads on grass, dirt and stone
+DECK_SHIRT = {"g0": "#2d6e7a", "g1": "#538aa3", "g2": "#71a2cc", "g3": "#92baf4"}
+
+
+def hexrgb(h):
+    return tuple(int(h[i:i + 2], 16) for i in (1, 3, 5))
+
+
+def bake_deck_shirt(sheet, mask):
+    a = np.array(sheet.convert("RGBA"))
+    on = np.array(mask.convert("L")) > 0
+    for src, dst in DECK_SHIRT.items():
+        hit = on & np.all(a[..., :3] == rgb(src), axis=-1)
+        a[hit, :3] = hexrgb(dst)
+    return Image.fromarray(a, "RGBA")
+
+
+# Paleta Vila 48 (lina/vila/ui-kit/paleta-48.json): 8 ramps x 6 tones, dark -> light
+VILA48 = {
+    "verde": ["#1f280f", "#35511a", "#477a2d", "#62a353", "#75cc71", "#92f49c"],
+    "folha": ["#28230f", "#514d1a", "#747a2d", "#91a353", "#aacc71", "#c2f492"],
+    "terra": ["#280f0f", "#51221a", "#7a432d", "#a37653", "#cca671", "#f4da92"],
+    "telha": ["#280f17", "#511a24", "#7a2d30", "#a35c53", "#f97316", "#f4ba92"],
+    "pele": ["#4c2226", "#6f3b38", "#915f53", "#b48871", "#d7b494", "#f5e6c8"],
+    "agua": ["#0f2825", "#1a5051", "#2d6e7a", "#538aa3", "#71a2cc", "#92baf4"],
+    "lilas": ["#0f1028", "#1f1a51", "#3f2d7a", "#7253a3", "#a271cc", "#d592f4"],
+    "pedra": ["#1e1a2b", "#424a50", "#656d78", "#898fa0", "#afb3c7", "#d8d7ef"],
+}
+
+# Every drawing colour the bots use -> one Paleta Vila 48 tone ("ramp-index"). Targets are the CIEDE2000
+# nearest tone, moved to a free neighbour where the nearest would merge two tones of the same ramp or
+# break its dark -> light order. The shirt base g0..g3 owns verde-2..5 alone (the foliage greens go to
+# folha), so a recolour by colour equality still hits only the shirt. Known merges, never inside one part:
+# p0/m0 (near-black cool), s3/t4/y2 (cream), w3/t2/y0/h3 (caramel), s2/r2 (peach), s0/t0, s1/t1, w2/h2,
+# k0/c0, k1/c1. The palette has one saturated warm (telha-4): it is the red base r1, since the nearest
+# tone (telha-3) made a red beret melt into chestnut hair, and amber y0 gives it up to stay a hair tone.
+VILA48_REMAP = {
+    "ol0": "pedra-0", "ol1": "telha-1",
+    "s0": "pele-2", "s1": "pele-3", "s2": "telha-5", "s3": "pele-5",
+    "h0": "pele-0", "h1": "pele-1", "h2": "terra-3", "h3": "terra-4",
+    "g0": "verde-1", "g1": "verde-2", "g2": "verde-3", "g3": "verde-4",
+    "p0": "lilas-1", "p1": "lilas-2", "p2": "lilas-3",
+    "w0": "terra-1", "w1": "terra-2", "w2": "terra-3", "w3": "terra-4",
+    "t0": "pele-2", "t1": "pele-3", "t2": "terra-4", "t3": "pele-4", "t4": "pele-5",
+    "q0": "verde-1", "q1": "folha-2", "q2": "folha-3", "q3": "folha-4", "q4": "folha-5", "q5": "folha-5",
+    "a0": "agua-1", "a1": "agua-3", "a2": "agua-4", "a3": "agua-5",
+    "y0": "terra-4", "y1": "terra-5", "y2": "pele-5",
+    "r0": "telha-2", "r1": "telha-3", "r2": "telha-5",
+    "wh": "pedra-5",
+    "m0": "lilas-1", "m1": "pedra-1", "m2": "pedra-2",
+    "k0": "lilas-4", "k1": "lilas-5",
+    "c0": "lilas-4", "c1": "lilas-5",
+}
+assert set(VILA48_REMAP) == set(PALETTE)
+# amber y0 on the Deck sheet is only the cap: it stays the orange that identifies the avatar
+VILA48_BOT_REMAP = {"deck": {"y0": "telha-4"}, "hinata": {"p0": "lilas-0", "p1": "lilas-1", "p2": "lilas-2"}}
+
+
+def vila(tone):
+    ramp, i = tone.split("-")
+    return VILA48[ramp][int(i)]
+
+
+VILA48_RGB = {hexrgb(h) for ramp in VILA48.values() for h in ramp}
+VILA_OUTLINE = hexrgb(vila(VILA48_REMAP["ol0"]))
+VILA_LUT = {rgb(n): hexrgb(vila(t)) for n, t in VILA48_REMAP.items()}
+assert not set(VILA_LUT) & VILA48_RGB and {hexrgb(h) for h in DECK_SHIRT.values()} <= VILA48_RGB
+SHIRT_VILA = [VILA_LUT[rgb(c)] for c in SHIRT]
+
+
+def to_vila48(img, bot=None):
+    """recolour a finished frame or sheet: PALETTE -> Paleta Vila 48; colours already in Vila 48 are kept"""
     a = np.array(img.convert("RGBA"))
-    op = a[..., 3] == 255
-    pal = np.array([rgb(n) for n in PALETTE])
-    px = a[op][:, :3]
-    ok = np.zeros(len(px), bool)
-    for c in pal:
-        ok |= np.all(px == c, axis=1)
-    return int((~ok).sum())
+    src = a.copy()
+    seen = a[..., 3] > 0
+    lut = {**VILA_LUT, **{rgb(n): hexrgb(vila(t)) for n, t in VILA48_BOT_REMAP.get(bot, {}).items()}}
+    for old, new in lut.items():
+        a[seen & np.all(src[..., :3] == old, axis=-1), :3] = new
+    a[seen & (a[..., 3] < 255), :3] = VILA_OUTLINE
+    return Image.fromarray(a, "RGBA")
+
+
+def check_palette(img):
+    """pixels outside the contract: opaque = Paleta Vila 48 only, translucent = the Vila outline only"""
+    a = np.array(img.convert("RGBA"))
+    px, n = np.unique(a[a[..., 3] > 0], axis=0, return_counts=True)
+    bad = 0
+    for (r, g, b, al), k in zip(px.tolist(), n.tolist()):
+        if ((r, g, b) != VILA_OUTLINE) if al < 255 else ((r, g, b) not in VILA48_RGB):
+            bad += k
+    return bad
 
 
 def main():
@@ -1386,6 +1506,9 @@ def main():
         if only and spec["id"] not in only:
             continue
         sheet, mask, meta, rows = bot_sheet(spec)
+        if spec["id"] == "deck":
+            sheet = bake_deck_shirt(sheet, mask)
+        sheet = to_vila48(sheet, spec["id"])
         sheet.save(os.path.join(out, "bots", spec["id"] + ".png"), optimize=True)
         mask.save(os.path.join(out, "bots", spec["id"] + "-shirt.png"), optimize=True)
         contact(spec, rows, os.path.join(prev, "contact-%s.png" % spec["id"]))
@@ -1401,9 +1524,9 @@ def main():
         meta = {
             "frame": {"w": FW, "h": FH, "origin": [16, GROUND],
                       "note": "origin = bottom-centre; feet on row 46, row 47 empty"},
-            "sheet": {"w": COLS * FW, "h": 32 * FH, "columns": COLS},
+            "sheet": {"w": COLS * FW, "h": len(ANIMS) * len(DIRS) * FH, "columns": COLS},
             "directions": DIRS,
-            "shirt_ramp": [PALETTE[c] for c in SHIRT],
+            "shirt_ramp": ["#%02x%02x%02x" % c for c in SHIRT_VILA],
             "animations": {an: {"row": v["row"], "rows": v["rows"], "frames": v["frames"], "fps": v["fps"]}
                            for an, v in anim_meta.items()},
             "fx": {"zzz": {"image": "fx-zzz.png", "frame": {"w": 16, "h": 16}, "frames": 3, "fps": 3,
@@ -1416,7 +1539,7 @@ def main():
         gif_fixed(sheets, os.path.join(prev, "vila-bots-sleep-sit-celebrate.gif"), ["nami", "anderson", "iris", "vegeta"])
         gif_walk(sheets, os.path.join(prev, "vila-bots-walk-all.gif"))
         gif_all(sheets, os.path.join(prev, "vila-bots-new4.gif"), ["malu", "naruto", "sasuke", "hinata"])
-    print("bots:", len(sheets), "palette colours:", len(PALETTE), "off-palette opaque px:", bad,
+    print("bots:", len(sheets), "palette colours:", len(VILA48_RGB), "off-palette px:", bad,
           "strays removed:", STRAYS[0])
 
 

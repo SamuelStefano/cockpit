@@ -80,3 +80,24 @@ describe('bot keys', () => {
     expect(validateBotInput({ ...ok, id: newBotId() }).ok).toBe(true);
   });
 });
+
+describe('bot homeSeat', () => {
+  it('keeps an integer 0..63 and drops anything else', () => {
+    expect(validateBotInput({ ...ok, homeSeat: 0 })).toMatchObject({ ok: true, bot: { homeSeat: 0 } });
+    expect(validateBotInput({ ...ok, homeSeat: 63 })).toMatchObject({ ok: true, bot: { homeSeat: 63 } });
+    for (const bad of [-1, 64, 1.5, '2', null, NaN]) {
+      const r = validateBotInput({ ...ok, homeSeat: bad });
+      expect(r.ok && 'homeSeat' in r.bot).toBe(false);
+    }
+  });
+});
+
+describe('bot home', () => {
+  it('keeps a valid building id and drops anything else', () => {
+    expect(validateBotInput({ ...ok, home: 'corte-radar' })).toMatchObject({ ok: true, bot: { home: 'corte-radar' } });
+    for (const bad of ['Deck', 'a b', '', 'x'.repeat(41), 5, null]) {
+      const r = validateBotInput({ ...ok, home: bad });
+      expect(r.ok && 'home' in r.bot).toBe(false);
+    }
+  });
+});

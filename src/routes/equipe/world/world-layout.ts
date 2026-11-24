@@ -20,37 +20,50 @@ export function roomEdgeTiles(h: HouseDef, blocked: (x: number, y: number) => bo
   return out.sort((a, b) => a.edge - b.edge || a.p.y - b.p.y || a.p.x - b.p.x).map((o) => o.p);
 }
 
-// Seats are given out in the order of the bots, per building. When a project house is
-// full the bot goes to the shared Escritório, then to the plaza.
+// Seats are given out in the order of the bots, per building. A bot whose building has no
+// free desk stands on a free tile inside the same building; only a building with no free
+// tile at all sends it to the plaza.
 export function assignSpots(npcs: NpcView[]): Map<string, Spot> {
   const out = new Map<string, Spot>();
-  const used = new Map<string, number>();
-  const take = (b: HouseDef): Spot | null => {
-    const i = used.get(b.id) ?? 0;
+  const used = new Map<string, Set<number>>();
+  // The preferred desk when it exists and is free, else the lowest free one.
+  const take = (b: HouseDef, want?: number): Spot | null => {
+    let taken = used.get(b.id);
+    if (!taken) { taken = new Set(); used.set(b.id, taken); }
+    let i = want !== undefined && want < b.seats.length && !taken.has(want) ? want : -1;
+    if (i < 0) { i = 0; while (taken.has(i)) i++; }
     const seat = b.seats[i];
     if (!seat) return null;
-    used.set(b.id, i + 1);
+    taken.add(i);
     const t = seatTile(b, seat);
     return { station: b.id, tile: t, face: seat.face, seated: true };
   };
   const plaza: NpcView[] = [];
-  let edgeTiles: Point[] | null = null;
-  let edgeUsed = 0;
-  const edgeSpot = (): Spot | null => {
-    edgeTiles ??= roomEdgeTiles(buildingById('sala'));
-    const tile = edgeTiles[edgeUsed];
+  const edges = new Map<string, { tiles: Point[]; used: number }>();
+  const edgeSpot = (b: HouseDef): Spot | null => {
+    let e = edges.get(b.id);
+    if (!e) { e = { tiles: roomEdgeTiles(b), used: 0 }; edges.set(b.id, e); }
+    const tile = e.tiles[e.used];
     if (!tile) return null;
-    edgeUsed++;
-    return { station: 'sala', tile, face: 'down', seated: false };
+    e.used++;
+    return { station: b.id, tile, face: 'down', seated: false };
   };
   const ordered = [...npcs.filter((n) => n.moderator && n.meeting), ...npcs.filter((n) => !(n.moderator && n.meeting))];
+  // Bots with a preferred desk claim it first, so a bot without one never takes it.
+  const stations = new Map(ordered.map((n) => [n.id, stationOf(n)]));
   for (const n of ordered) {
-    const st = stationOf(n);
+    const st = stations.get(n.id)!;
+    if (st === 'plaza' || st !== n.home || n.homeSeat === undefined) continue;
+    const spot = take(buildingById(st), n.homeSeat);
+    if (spot) out.set(n.id, spot);
+  }
+  for (const n of ordered) {
+    if (out.has(n.id)) continue;
+    const st = stations.get(n.id)!;
     if (st === 'plaza') { plaza.push(n); continue; }
-    const spot = take(buildingById(st)) ?? (st !== 'sala' && st !== 'escritorio' ? take(buildingById('escritorio')) : null);
-    if (spot) { out.set(n.id, spot); continue; }
-    const edge = st === 'sala' ? edgeSpot() : null;
-    if (edge) out.set(n.id, edge);
+    const b = buildingById(st);
+    const spot = take(b) ?? edgeSpot(b);
+    if (spot) out.set(n.id, spot);
     else plaza.push(n);
   }
   const slots = plazaSlots(plaza.length);

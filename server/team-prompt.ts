@@ -54,7 +54,7 @@ export function buildBotIdentity(bot: TeamBot, team: TeamBot[], memories?: Memor
 export function findTurnBot(team: TeamBot[], sessionKey: string, sessionId?: string): TeamBot | undefined {
   const id = botIdFromKey(sessionKey);
   if (id) return team.find((b) => b.id === id);
-  if (sessionId) return team.find((b) => b.sessionId === sessionId);
+  if (sessionId) return team.find((b) => b.sessionId === sessionId) ?? team.find((b) => b.previousSessionIds?.includes(sessionId));
   return undefined;
 }
 
@@ -96,7 +96,7 @@ export function botTurnParams(team: TeamBot[], sessionKey: string, sessionId?: s
   const rotated = !!bot.rotatedAt && !bot.sessionId;
   return {
     botId: bot.id,
-    resumeId: rotated ? undefined : bot.sessionId ?? sessionId,
+    resumeId: rotated ? undefined : bot.sessionId ?? (sessionId && bot.previousSessionIds?.includes(sessionId) ? undefined : sessionId),
     appendSystemPrompt: buildBotIdentity(bot, team, memories) + (rotated ? handoffPromptBlock(bot.id) : ''),
     profile: bot.profile === 'full' ? 'full' : 'restricted',
     ...(bot.model ? { model: bot.model } : {}),
