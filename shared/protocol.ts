@@ -896,6 +896,7 @@ export type ClientMsg =
   | { t: 'team-talk-send'; botId: string; text: string; msgId: string; recording?: boolean }
   | { t: 'team-files-get'; botId: string }
   | { t: 'team-file-get'; botId: string; path: string }
+  | { t: 'session-file-get'; sessionId: string; path: string }
   | { t: 'team-computer-get'; botId: string }
   | { t: 'skill-list' }
   | { t: 'versions-list'; kind: VersionKind; id: string }
@@ -1122,6 +1123,7 @@ export type ServerMsg =
   | { t: 'team-pending'; items: TeamPendingQuestion[] }
   | { t: 'team-files'; botId: string; items: BotFile[]; error?: string }
   | { t: 'team-file'; botId: string; path: string; mime?: string; size?: number; dataB64?: string; error?: string }
+  | { t: 'session-file'; sessionId: string; path: string; mime?: string; size?: number; dataB64?: string; truncated?: boolean; error?: string }
   | { t: 'team-computer'; botId: string; computer?: BotComputer; error?: string }
   | { t: 'context'; id: string; title: string; body: string }
   | { t: 'models'; models: ModelInfo[] }

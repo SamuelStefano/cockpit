@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { ChatPanel } from '../components/Chat';
+import { ChatWithFilePanel } from '../components/chat/file-panel/ChatWithFilePanel';
 import type { ChatPanelProps } from '../components/chat/chat-panel-props';
 import { TerminalsPanel, type TerminalsPanelProps } from '../components/Terminals';
 import { takeTerminalRequest, TERMINAL_TOGGLE_EVENT } from '../lib/terminal-request';
@@ -25,7 +26,9 @@ export function DesktopLayout({ chatProps, termProps, center, hideTerminals = fa
       <div className="flex min-w-0 flex-1">
         {center ?? (
           <div className="min-w-0 flex-1">
-            <ChatPanel key={chatProps.session?.id ?? 'none'} {...chatProps} onTerminal={() => setTerminalOpen((o) => !o)} terminalOpen={open} />
+            <ChatWithFilePanel sessionId={chatProps.session?.id} files={chatProps.sessionFiles} isMobile={false}>
+              <ChatPanel key={chatProps.session?.id ?? 'none'} {...chatProps} onTerminal={() => setTerminalOpen((o) => !o)} terminalOpen={open} />
+            </ChatWithFilePanel>
           </div>
         )}
       </div>

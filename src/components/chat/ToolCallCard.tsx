@@ -9,6 +9,10 @@ import { CopyTextButton } from './MessageActions';
 import { permissionDeniedTool } from './permission-deny';
 import { useCoarse } from '../primitives/useCoarse';
 import { fmtToolDuration } from './message-format';
+import { FilePathLink } from '../primitives/markdown/file-path-context';
+import { toolPath } from '../primitives/markdown/looks-like-path';
+
+const FILE_TOOLS = new Set(['read', 'edit', 'write', 'multiedit', 'notebookedit']);
 
 interface ToolCallCardProps {
   tool: ToolCall;
@@ -55,6 +59,8 @@ export function ToolCallCard({ tool }: ToolCallCardProps) {
   const kind = (tool.name || tool.label || '').toLowerCase();
   const isShell = kind === 'bash' || kind === 'shell' || kind === 'sh';
   const isAgent = kind === 'task' || kind === 'agent';
+  // Only the file tools carry a path there; Grep/Glob carry a pattern.
+  const filePath = FILE_TOOLS.has(kind) ? toolPath(tool.command) : null;
   const headIcon = isShell ? 'terminal'
     : kind === 'read' ? 'file'
     : kind === 'edit' || kind === 'write' || kind === 'multiedit' || kind === 'notebookedit' ? 'pencil'
@@ -95,7 +101,9 @@ export function ToolCallCard({ tool }: ToolCallCardProps) {
             {isShell
               ? <span className="select-none font-mono text-[12px] leading-relaxed text-orange-500/70">$</span>
               : <Icon name={cmdIcon} size={12} className="mt-1 shrink-0 text-neutral-500" />}
-            <code className="scroll-thin max-h-52 min-w-0 flex-1 overflow-auto whitespace-pre font-mono text-[12px] leading-relaxed text-neutral-300">{tool.command}</code>
+            <code className="scroll-thin max-h-52 min-w-0 flex-1 overflow-auto whitespace-pre font-mono text-[12px] leading-relaxed text-neutral-300">
+              {filePath ? <FilePathLink path={filePath} exact>{tool.command}</FilePathLink> : tool.command}
+            </code>
             {isShell && (
               <button
                 onClick={() => setShowShellCmd(false)}

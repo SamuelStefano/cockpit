@@ -4,7 +4,7 @@ import type { BotFile, ClientMsg, ServerMsg } from '../../shared/protocol';
 export type BotFileData =
   | { status: 'loading' }
   | { status: 'error'; error: string }
-  | { status: 'ok'; mime: string; size: number; url: string; text?: string };
+  | { status: 'ok'; mime: string; size: number; url: string; text?: string; truncated?: boolean };
 
 export interface BotFiles {
   botFiles: Record<string, BotFile[]>;
@@ -19,7 +19,7 @@ export const botFileKey = (botId: string, path: string) => `${botId}:${path}`;
 // Image previews can be up to 10MB each: keep the most recent few only.
 const MAX_CACHED = 24;
 
-function decode(dataB64: string, mime: string, size: number): BotFileData {
+export function decode(dataB64: string, mime: string, size: number): BotFileData {
   const url = `data:${mime};base64,${dataB64}`;
   if (!mime.startsWith('text/') && mime !== 'application/json') return { status: 'ok', mime, size, url };
   const bytes = Uint8Array.from(atob(dataB64), (c) => c.charCodeAt(0));
