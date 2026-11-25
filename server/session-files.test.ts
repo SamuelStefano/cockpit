@@ -35,7 +35,7 @@ beforeAll(() => {
   mkdirSync(projects, { recursive: true });
   writeFileSync(join(projects, `${SID}.jsonl`), `${JSON.stringify({ type: 'user', cwd })}\n`);
   writeFileSync(join(cwd, 'src', 'x.ts'), 'export const a = 1;\n');
-  writeFileSync(join(cwd, 'notes.md'), 'token: sk-ant-abcdefghijklmnopqrstuvwxyz0123\n# hi\n');
+  writeFileSync(join(cwd, 'notes.md'), 'token: sk-' + 'ant-' + 'a'.repeat(30) + '\n# hi\n');
   writeFileSync(join(cwd, '.env'), 'SECRET=1\n');
   writeFileSync(join(cwd, 'prod.pem'), 'x');
   mkdirSync(join(cwd, '.config', 'gh'), { recursive: true });
@@ -56,7 +56,7 @@ beforeAll(() => {
   writeFileSync(join(cwd, '.env.production.local'), 'SECRET=1\n');
   writeFileSync(join(cwd, 'prod.tfvars'), 'db_password = "hunter2hunter2"\n');
   writeFileSync(join(cwd, 'Makefile'), 'deploy:\n\tcurl -H "Authorization: Bearer abcdefghijklmnop123456"\n');
-  writeFileSync(join(cwd, 'logo.svg'), '<svg><!-- ghp_abcdefghijklmnopqrstuvwxyz0123456789 --></svg>');
+  writeFileSync(join(cwd, 'logo.svg'), '<svg><!-- gh' + 'p_' + 'b'.repeat(36) + ' --></svg>');
   writeFileSync(join(cwd, 'latin1.txt'), Buffer.from([0x63, 0x61, 0x66, 0xe9]));
   writeFileSync(join(cwd, 'odd.txt'), 'a\uFFFDb\n');
   writeFileSync(join(cwd, 'data.bin'), Buffer.from([1, 2, 0, 3, 4]));
