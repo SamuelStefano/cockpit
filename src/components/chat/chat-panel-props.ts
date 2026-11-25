@@ -10,6 +10,7 @@ import type { TimedExtra } from './interleave';
 import type { AgentsApi } from '../../cockpit/useAgents';
 import type { LinkState } from '../bit/turn-bit-state';
 import type { CallApi } from './call/useCall';
+import type { SessionFilesApi } from './file-panel/useChatFilePanel';
 
 // A Equipe bot's thread: the assistant speaks as the bot, the empty thread has no
 // generic suggestions, and delivered team prompts give way to the traffic rows.
@@ -35,6 +36,8 @@ export interface ChatPanelProps {
   // Owned above the panel: the panel remounts when a new chat's key migrates to
   // its real id, right when the reply is due to be spoken.
   call: CallApi;
+  // Read-only file panel for paths in the chat; absent = paths stay plain text.
+  sessionFiles?: SessionFilesApi;
   // Live line under the thread while a turn runs (Equipe's rotating bot status).
   turnStatus?: ReactNode;
   // Header chip for the team (stack + sheet) when the rail does not fit.

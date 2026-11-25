@@ -1,5 +1,7 @@
 import { useState, useRef, type ReactNode } from 'react';
 import { MobileDrawer } from './MobileDrawer';
+import { ChatWithFilePanel } from './chat/file-panel/ChatWithFilePanel';
+import { ChatWithFilePanel } from './chat/file-panel/ChatWithFilePanel';
 import { ChatPanel } from './Chat';
 import type { ChatPanelProps } from './chat/chat-panel-props';
 import { TerminalsPanel, type TerminalsPanelProps } from './Terminals';
@@ -78,7 +80,11 @@ export function MobileLayout({ chatProps, termProps, drawer, setDrawer, termShee
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
       <div className="min-h-0 flex-1">
-        {center ?? <ChatPanel key={chatProps.session?.id ?? 'none'} {...chatProps} onMenu={() => setDrawer(true)} onTerminal={() => setTermSheet(true)} terminalRunning={!!runningTerm} />}
+        {center ?? (
+          <ChatWithFilePanel sessionId={chatProps.session?.id} files={chatProps.sessionFiles} isMobile>
+            <ChatPanel key={chatProps.session?.id ?? 'none'} {...chatProps} onMenu={() => setDrawer(true)} onTerminal={() => setTermSheet(true)} terminalRunning={!!runningTerm} />
+          </ChatWithFilePanel>
+        )}
       </div>
 
       {drawer && (

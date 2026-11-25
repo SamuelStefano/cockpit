@@ -9,6 +9,8 @@ import { CopyTextButton } from './MessageActions';
 import { permissionDeniedTool } from './permission-deny';
 import { useCoarse } from '../primitives/useCoarse';
 import { fmtToolDuration } from './message-format';
+import { FilePathLink } from '../primitives/markdown/file-path-context';
+import { toolPath } from './file-panel/looks-like-path';
 
 interface ToolCallCardProps {
   tool: ToolCall;
@@ -95,7 +97,9 @@ export function ToolCallCard({ tool }: ToolCallCardProps) {
             {isShell
               ? <span className="select-none font-mono text-[12px] leading-relaxed text-orange-500/70">$</span>
               : <Icon name={cmdIcon} size={12} className="mt-1 shrink-0 text-neutral-500" />}
-            <code className="scroll-thin max-h-52 min-w-0 flex-1 overflow-auto whitespace-pre font-mono text-[12px] leading-relaxed text-neutral-300">{tool.command}</code>
+            <code className="scroll-thin max-h-52 min-w-0 flex-1 overflow-auto whitespace-pre font-mono text-[12px] leading-relaxed text-neutral-300">
+              {!isShell && !isAgent && toolPath(tool.command) ? <FilePathLink path={toolPath(tool.command)!}>{tool.command}</FilePathLink> : tool.command}
+            </code>
             {isShell && (
               <button
                 onClick={() => setShowShellCmd(false)}

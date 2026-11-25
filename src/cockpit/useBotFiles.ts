@@ -17,9 +17,9 @@ export interface BotFiles {
 export const botFileKey = (botId: string, path: string) => `${botId}:${path}`;
 
 // Image previews can be up to 10MB each: keep the most recent few only.
-const MAX_CACHED = 24;
+export const MAX_CACHED = 24;
 
-function decode(dataB64: string, mime: string, size: number): BotFileData {
+export function decode(dataB64: string, mime: string, size: number): BotFileData {
   const url = `data:${mime};base64,${dataB64}`;
   if (!mime.startsWith('text/') && mime !== 'application/json') return { status: 'ok', mime, size, url };
   const bytes = Uint8Array.from(atob(dataB64), (c) => c.charCodeAt(0));
