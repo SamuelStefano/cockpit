@@ -11,6 +11,7 @@ const { base, cwd, outside, projects } = vi.hoisted(() => {
   return { base, cwd: join(base, 'proj') as string, outside: join(base, 'outside') as string, projects: join(base, 'projects') as string };
 });
 const SID = '11111111-2222-3333-4444-555555555555';
+const SID_NO_CWD = '11111111-2222-3333-4444-666666666666';
 
 vi.mock('./config', () => ({ CONFIG: { projectsDir: projects, workdir: cwd } }));
 
@@ -31,6 +32,13 @@ beforeAll(() => {
   writeFileSync(join(cwd, 'notes.md'), 'token: sk-ant-abcdefghijklmnopqrstuvwxyz0123\n# hi\n');
   writeFileSync(join(cwd, '.env'), 'SECRET=1\n');
   writeFileSync(join(cwd, 'prod.pem'), 'x');
+  mkdirSync(join(cwd, '.config', 'gh'), { recursive: true });
+  writeFileSync(join(cwd, '.config', 'gh', 'hosts.yml'), 'oauth_token: x\n');
+  mkdirSync(join(cwd, '.github', 'workflows'), { recursive: true });
+  writeFileSync(join(cwd, '.github', 'workflows', 'ci.yml'), 'on: push\n');
+  writeFileSync(join(cwd, '.git-credentials'), 'https://u:p@github.com\n');
+  writeFileSync(join(cwd, '.gitignore'), 'node_modules\n');
+  writeFileSync(join(projects, `${SID_NO_CWD}.jsonl`), `${JSON.stringify({ type: 'user' })}\n`);
   writeFileSync(join(outside, 'secret.txt'), 'nope');
   symlinkSync(outside, join(cwd, 'link'));
   symlinkSync(join(cwd, '.env'), join(cwd, 'env-alias.txt'));
@@ -72,6 +80,17 @@ describe('readSessionFile', () => {
     expect(await readSessionFile(SID, 'env-alias.txt')).toEqual({ error: 'arquivo sensível' });
   });
 
+  it('denies hidden directories ($HOME cwd: ~/.config, ~/.dfl-mcp...) but keeps .github and plain dotfiles', async () => {
+    expect(await readSessionFile(SID, '.config/gh/hosts.yml')).toEqual({ error: 'arquivo sensível' });
+    expect(await readSessionFile(SID, '.git-credentials')).toEqual({ error: 'arquivo sensível' });
+    expect(text(await readSessionFile(SID, '.github/workflows/ci.yml'))).toContain('on: push');
+    expect(text(await readSessionFile(SID, '.gitignore'))).toContain('node_modules');
+  });
+
+  it('serves nothing when the session has no cwd (no fallback to the Deck workdir)', async () => {
+    expect(await readSessionFile(SID_NO_CWD, 'src/x.ts')).toEqual({ error: 'sessão não encontrada' });
+  });
+
   it('denies a session the caller cannot resolve', async () => {
     expect(await readSessionFile('../../etc', 'src/x.ts')).toEqual({ error: 'sessão não encontrada' });
     expect(await readSessionFile('99999999-2222-3333-4444-555555555555', 'src/x.ts')).toEqual({ error: 'sessão não encontrada' });
@@ -86,9 +105,8 @@ describe('readSessionFile', () => {
 });
 
 describe('session-file-get authz', () => {
-  it('has the same reach as reading the session (open)', () => {
-    for (const role of ['admin', 'student'] as const) {
-      expect(authorize(role, 'session-file-get')).toBe(authorize(role, 'open'));
-    }
+  it('is admin-only in v1: a student session could otherwise reach the owner\'s disk', () => {
+    expect(authorize('admin', 'session-file-get')).toBe(true);
+    expect(authorize('student', 'session-file-get')).toBe(false);
   });
 });

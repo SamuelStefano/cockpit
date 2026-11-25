@@ -11,13 +11,18 @@ const HEAD_BYTES = 64 * 1024;
 // Extensions the bot-file mime table does not know but that are plain text.
 const TEXT_EXT = new Set(['.css', '.scss', '.sh', '.bash', '.zsh', '.rs', '.go', '.java', '.rb', '.php', '.c', '.h', '.cpp', '.hpp', '.cs', '.sql', '.toml', '.ini', '.xml', '.mjs', '.cjs', '.jsx', '.vue', '.svelte', '.lock', '.log', '.conf', '.mdx']);
 
-// The CLI's own state and the Deck's: never served, even when the session cwd is $HOME.
-const DENIED_SEGMENTS = new Set(['.claude', '.cockpit']);
+// Hidden directories hold CLI state, tokens and credentials (~/.claude, ~/.config/gh,
+// ~/.dfl-mcp, ~/.aws...) and the cwd is often $HOME: deny every hidden directory
+// except the few that are plain project files.
+const ALLOWED_HIDDEN_DIRS = new Set(['.github', '.vscode', '.devcontainer', '.husky', '.storybook']);
 
 export function isDeniedSessionPath(path: string): boolean {
   if (isSensitivePath(path)) return true;
-  const segs = path.replace(/\\/g, '/').split('/');
-  return segs.some((s) => DENIED_SEGMENTS.has(s) || s === '.claude.json');
+  const segs = path.replace(/\\/g, '/').split('/').filter(Boolean);
+  const dirs = segs.slice(0, -1);
+  const file = segs[segs.length - 1] ?? '';
+  if (dirs.some((s) => s.startsWith('.') && !ALLOWED_HIDDEN_DIRS.has(s))) return true;
+  return file === '.claude.json' || /^\.(npmrc|pypirc|git-credentials|netrc|pgpass|bash_history|zsh_history)$/.test(file);
 }
 
 function sessionMime(path: string): string {
@@ -25,8 +30,8 @@ function sessionMime(path: string): string {
   return m === 'application/octet-stream' && TEXT_EXT.has(extname(path).toLowerCase()) ? 'text/plain' : m;
 }
 
-// The JSONL's first record that carries a cwd is where the CLI ran. Falls back
-// to the Deck workdir; a cwd that is not a directory is ignored.
+// The JSONL's first record that carries a cwd is where the CLI ran. No fallback:
+// a session without a readable cwd serves no files.
 export async function sessionCwd(sessionId: string): Promise<string | null> {
   if (!SESSION_ID.test(sessionId)) return null;
   const file = join(CONFIG.projectsDir, `${sessionId}.jsonl`);
@@ -44,7 +49,7 @@ export async function sessionCwd(sessionId: string): Promise<string | null> {
       } catch { /* try the next record */ }
     }
   } finally { await fh.close(); }
-  return CONFIG.workdir;
+  return null;
 }
 
 export type SessionFileRead = { mime: string; size: number; dataB64: string } | { error: string };
