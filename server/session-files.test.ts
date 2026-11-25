@@ -57,6 +57,8 @@ beforeAll(() => {
   writeFileSync(join(cwd, 'prod.tfvars'), 'db_password = "hunter2hunter2"\n');
   writeFileSync(join(cwd, 'Makefile'), 'deploy:\n\tcurl -H "Authorization: Bearer abcdefghijklmnop123456"\n');
   writeFileSync(join(cwd, 'logo.svg'), '<svg><!-- ghp_abcdefghijklmnopqrstuvwxyz0123456789 --></svg>');
+  writeFileSync(join(cwd, 'latin1.txt'), Buffer.from([0x63, 0x61, 0x66, 0xe9]));
+  writeFileSync(join(cwd, 'odd.txt'), 'a\uFFFDb\n');
   writeFileSync(join(cwd, 'data.bin'), Buffer.from([1, 2, 0, 3, 4]));
   writeFileSync(join(cwd, 'doc.pdf'), Buffer.from([0x25, 0x50, 0x44, 0x46, 0, 1, 2]));
   writeFileSync(join(cwd, 'big.log'), 'line of log text\n'.repeat(60_000));
@@ -127,6 +129,8 @@ describe('readSessionFile', () => {
   });
 
   it('does not ship bytes that have no preview', async () => {
+    expect(await readSessionFile(SID, 'latin1.txt')).toEqual({ error: 'sem prévia pra este tipo de arquivo' });
+    expect(text(await readSessionFile(SID, 'odd.txt'))).toBe('a\uFFFDb\n');
     expect(await readSessionFile(SID, 'data.bin')).toEqual({ error: 'sem prévia pra este tipo de arquivo' });
     expect(await readSessionFile(SID, 'doc.pdf')).toEqual({ error: 'sem prévia pra este tipo de arquivo' });
   });

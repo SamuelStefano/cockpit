@@ -1,3 +1,4 @@
+import { isUtf8 } from 'node:buffer';
 import { constants, createReadStream } from 'node:fs';
 import { open, realpath, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
@@ -173,7 +174,8 @@ async function readContained(root: string, target: string): Promise<SessionFileR
     if (data.includes(0)) return { error: 'sem prévia pra este tipo de arquivo' };
     const truncated = st.size > MAX_SESSION_TEXT_BYTES;
     let text = data.subarray(0, Math.min(got, MAX_SESSION_TEXT_BYTES)).toString('utf8');
-    if (text.includes('�') && !truncated) return { error: 'sem prévia pra este tipo de arquivo' };
+    // Strict decode, not a search for U+FFFD: a text file may contain that character.
+    if (!truncated && !isUtf8(data)) return { error: 'sem prévia pra este tipo de arquivo' };
     if (truncated) text = text.slice(0, Math.max(text.lastIndexOf('\n') + 1, 1));
     const red = Buffer.from(redactSecrets(text), 'utf8');
     const mime = image || known === 'text/markdown' || known === 'application/json' || known.startsWith('text/') ? known : 'text/plain';
@@ -189,5 +191,3 @@ async function sameFileInside(root: string, real: string, st: { dev: number; ino
     return now.dev === st.dev && now.ino === st.ino;
   } catch { return false; }
 }
-
-export const _resetSessionCwdCache = () => cwdCache.clear();
