@@ -39,6 +39,7 @@ import { refuseReady, sendVillage, sendVillagePlan, setVillageConfig } from './v
 import { sendTeamState } from './team-state-frames';
 import { sendTalk, sendTalkMessage } from './team-talk';
 import { clearBotQuestion, sendTeamPending } from './team-pending-frames';
+import { sendSessionFile } from './session-file-frames';
 import { sendBotComputer, sendBotFile, sendBotFiles } from './team-files-frames';
 import { validateBotInput } from '../../shared/team';
 import { builderPrompt, builderSystemPrompt } from '../../shared/agent-builder';
@@ -1010,6 +1011,10 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role, ctx: Ha
     }
     case 'team-file-get': {
       await sendBotFile(ws, msg.botId, msg.path);
+      return;
+    }
+    case 'session-file-get': {
+      await sendSessionFile(ws, msg.sessionId, msg.path);
       return;
     }
     case 'team-computer-get': {

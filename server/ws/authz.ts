@@ -17,6 +17,8 @@ import { isRootOnly } from '../../shared/root-frames';
 // contenção real é um processo/HOME por conta (server/auth.ts), não esta lista.
 const STUDENT_ALLOWED: ReadonlySet<ClientMsg['t']> = new Set([
   'send', 'stop', 'ping', 'list', 'sync', 'open', 'open-full', 'search',
+  // Read-only file of the session's own cwd; same reach as 'open' (server/session-files.ts).
+  'session-file-get',
   'ctx-list', 'ctx-open', 'skill-list', 'skill-open', 'usage-list', 'upload-chunk', 'att-open',
   'refresh-models', 'plan-usage-get', 'grok-usage-get',
   // Read-only report about the box, and one cheap prompt through the same path as 'send'.
