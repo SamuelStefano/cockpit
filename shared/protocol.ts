@@ -1123,7 +1123,7 @@ export type ServerMsg =
   | { t: 'team-pending'; items: TeamPendingQuestion[] }
   | { t: 'team-files'; botId: string; items: BotFile[]; error?: string }
   | { t: 'team-file'; botId: string; path: string; mime?: string; size?: number; dataB64?: string; error?: string }
-  | { t: 'session-file'; sessionId: string; path: string; mime?: string; size?: number; dataB64?: string; error?: string }
+  | { t: 'session-file'; sessionId: string; path: string; mime?: string; size?: number; dataB64?: string; truncated?: boolean; error?: string }
   | { t: 'team-computer'; botId: string; computer?: BotComputer; error?: string }
   | { t: 'context'; id: string; title: string; body: string }
   | { t: 'models'; models: ModelInfo[] }

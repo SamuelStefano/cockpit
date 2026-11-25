@@ -12,6 +12,8 @@ const HEAVY: ReadonlySet<ClientMsg['t']> = new Set([
   'session-handoff', 'sessions-funnel', 'queue-run-bg', 'queue-run-now',
   'agent-test', 'agent-probe-draft', 'provider-probe', 'agent-add-custom', 'box-health-get', 'box-smoke-test', 'agent-build', 'tts', 'stt-token',
   'prs-get', 'prs-detail-get', 'prs-merge', 'prs-diff-get', 'prs-session-get',
+  // Reads up to 10MB off the disk and ships it base64.
+  'session-file-get',
 ]);
 
 export interface Bucket { tokens: number; last: number }
