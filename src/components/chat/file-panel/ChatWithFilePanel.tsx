@@ -17,7 +17,7 @@ export function ChatWithFilePanel({ sessionId, files, isMobile, children }: Chat
     <FilePathContext.Provider value={p.opener}>
       <div className="flex h-full min-h-0 min-w-0">
         <div className="h-full min-w-0 flex-1">{children}</div>
-        {p.path && <ChatFilePanel path={p.path} data={p.data} onClose={p.close} fullScreen={isMobile} />}
+        {p.file && <ChatFilePanel path={p.file.path} line={p.file.line} openKey={`${p.file.path}#${p.file.seq}`} data={p.data} onClose={p.close} fullScreen={isMobile} />}
       </div>
     </FilePathContext.Provider>
   );
