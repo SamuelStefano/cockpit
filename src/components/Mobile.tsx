@@ -1,7 +1,6 @@
 import { useState, useRef, type ReactNode } from 'react';
 import { MobileDrawer } from './MobileDrawer';
 import { ChatWithFilePanel } from './chat/file-panel/ChatWithFilePanel';
-import { ChatWithFilePanel } from './chat/file-panel/ChatWithFilePanel';
 import { ChatPanel } from './Chat';
 import type { ChatPanelProps } from './chat/chat-panel-props';
 import { TerminalsPanel, type TerminalsPanelProps } from './Terminals';

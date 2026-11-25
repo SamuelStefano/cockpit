@@ -34,7 +34,7 @@ import { useVault, type Vault } from './cockpit/useVault';
 import { useCrons, type Crons } from './cockpit/useCrons';
 import { useTeam, type Team } from './cockpit/useTeam';
 import { useBotFiles, type BotFiles } from './cockpit/useBotFiles';
-import { useSessionFiles } from './cockpit/useSessionFiles';
+import { useSessionFiles, type SessionFiles } from './cockpit/useSessionFiles';
 import { useBotComputer, type BotComputers } from './cockpit/useBotComputer';
 import { useGrokUsage, type GrokUsage } from './cockpit/useGrokUsage';
 import { botDraftKey } from '../shared/team';
@@ -103,7 +103,7 @@ const CANVAS_SEND_PENDING_MS = 20_000;
 // A superfície pública dos domínios-folha é a dos próprios hooks, menos os canais
 // internos: `onMsg` (dispatch), `onGraphReconnect`
 // (gancho do socket).
-type LeafApis = Omit<Drops & Vault & Crons & Team & BotFiles & BotComputers & GrokUsage & Points & Contexts & Memories & Skills & Graphs & CanvasApi & Admin, 'onMsg' | 'onGraphReconnect' | 'onCanvasReconnect'>;
+type LeafApis = Omit<Drops & Vault & Crons & Team & BotFiles & Pick<SessionFiles, 'sessionFileData' | 'onSessionFileGet'> & BotComputers & GrokUsage & Points & Contexts & Memories & Skills & Graphs & CanvasApi & Admin, 'onMsg' | 'onGraphReconnect' | 'onCanvasReconnect'>;
 
 export interface Cockpit extends LeafApis {
   planner: PlannerApi;
