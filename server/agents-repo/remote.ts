@@ -12,6 +12,8 @@ const SYNC_MS = 10 * 60_000;
 // A push that keeps failing (revoked access, GitHub down) backs off to the sync cadence.
 export const retryDelay = (failures: number): number => Math.min(RETRY_MS * 2 ** Math.max(0, failures - 1), SYNC_MS);
 const REMOTE_TIMEOUT_MS = 60_000;
+const FETCH_DEPTH = 50;
+export const MAX_REPO_KB = 50 * 1024;
 
 type Bots = Pick<TeamBot, 'id' | 'name'>[];
 let pending = false;
@@ -96,10 +98,40 @@ async function keepOurs(pre: string): Promise<boolean> {
   } catch { return false; }
 }
 
+export interface ListDeps { tokens?: () => Promise<GithubToken[]>; fetchImpl?: typeof fetch }
+
+// GitHub reports `size` in KB. Null = could not be read.
+export async function repoSizeKb(repo: string, deps: ListDeps = {}): Promise<number | null> {
+  const { tokens = fetchGithubTokens, fetchImpl = fetch } = deps;
+  const all = await tokens().catch(() => []);
+  const owner = repo.split('/')[0].toLowerCase();
+  const t = all.find((x) => x.account_login.toLowerCase() === owner) ?? (all.length === 1 ? all[0] : undefined);
+  if (!t) return null;
+  try {
+    const res = await fetchImpl(`https://api.github.com/repos/${repo}`, { headers: { authorization: `Bearer ${t.token}`, accept: 'application/vnd.github+json' }, signal: AbortSignal.timeout(10_000) });
+    if (!res.ok) return null;
+    const size = ((await res.json()) as { size?: unknown }).size;
+    return typeof size === 'number' && size >= 0 ? size : null;
+  } catch { return null; }
+}
+
+let sizeProbe: (repo: string) => Promise<number | null> = repoSizeKb;
+export function setRepoSizeProbe(fn: (repo: string) => Promise<number | null>): void { sizeProbe = fn; }
+
+// The box disk is small: nothing is fetched from a repo whose size is unknown or over the cap.
+export async function sizeRefusal(repo: string): Promise<string | undefined> {
+  const kb = await sizeProbe(repo).catch(() => null);
+  if (kb === null) return 'não foi possível conferir o tamanho do repositório no GitHub';
+  return kb > MAX_REPO_KB ? `Repositório grande demais para sincronizar (${Math.ceil(kb / 1024)} MB, limite 50 MB)` : undefined;
+}
+
 export type SyncResult = { conflicts: WsConflict[] } | { error: string };
 
 async function syncUnlocked(bots: Bots): Promise<SyncResult> {
-  if (!(await configuredRepo())) return { conflicts: [] };
+  const repo = await configuredRepo();
+  if (!repo) return { conflicts: [] };
+  const refused = await sizeRefusal(repo);
+  if (refused) return { error: refused };
   await ensureRepo();
   // A merge cut short by a killed git would block every later commit.
   await git(['merge', '--abort']).catch(() => '');
@@ -108,7 +140,10 @@ async function syncUnlocked(bots: Bots): Promise<SyncResult> {
   if (heads === null) { pending = true; return { error: 'GitHub indisponível; as versões ficam locais até a próxima sincronização' }; }
   const conflicts: WsConflict[] = [];
   if (heads.trim()) {
-    try { await remoteGit(['fetch', '-q', '--no-tags', 'origin', 'refs/heads/main:refs/remotes/origin/main']); } catch { pending = true; return { error: 'não foi possível buscar o GitHub' }; }
+    // Shallow only on the first fetch: a depth on a later one would graft away the
+    // local commits already pushed and cut the Versões list short.
+    const first = !(await blob('refs/remotes/origin/main'));
+    try { await remoteGit(['fetch', '-q', '--no-tags', ...(first ? [`--depth=${FETCH_DEPTH}`] : []), 'origin', 'refs/heads/main:refs/remotes/origin/main']); } catch { pending = true; return { error: 'não foi possível buscar o GitHub' }; }
     const pre = await blob('HEAD');
     const base = pre ? (await git(['merge-base', 'HEAD', 'origin/main']).catch(() => '')).trim() : '';
     const remoteChanged = base ? await names(['diff', '--name-only', base, 'origin/main']) : await names(['ls-tree', '-r', '--name-only', 'origin/main']);
@@ -157,6 +192,8 @@ export async function connectRepo(repo: unknown, bots: Bots, opts: ConnectOpts =
     const allowed = await (opts.listRepos ?? listInstallationRepos)().catch(() => []);
     if (!allowed.some((r) => r.toLowerCase() === repo.toLowerCase())) return { error: 'o app do GitHub não tem acesso a esse repositório' };
   }
+  const refused = await sizeRefusal(repo);
+  if (refused) return { error: refused };
   const url = opts.url ?? githubUrl(repo);
   const set = await locked(async () => {
     await ensureRepo();
@@ -169,8 +206,6 @@ export async function connectRepo(repo: unknown, bots: Bots, opts: ConnectOpts =
   startSyncTimer(async () => bots);
   return syncAll(bots);
 }
-
-export interface ListDeps { tokens?: () => Promise<GithubToken[]>; fetchImpl?: typeof fetch }
 
 // Installation tokens cannot create a repo under a user account, so the user
 // picks one the installation was granted (e.g. a `deck-agents` they created).

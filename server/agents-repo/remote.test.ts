@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { writeBotFile } from '../team-files';
 import { botDiff, botLog, recordSave } from './history';
-import { connectRepo, listInstallationRepos, pushQueued, remoteCopyPath, repoStatus, retryDelay, syncAll, validRepoName } from './remote';
+import { connectRepo, listInstallationRepos, pushQueued, remoteCopyPath, repoStatus, repoSizeKb, retryDelay, setRepoSizeProbe, syncAll, validRepoName } from './remote';
 
 let tmp: string; let bare: string; let bots: string;
 const team = [{ id: 'atlas1', name: 'Atlas' }];
@@ -29,6 +29,31 @@ describe('agents repo remote', () => {
     mkdirSync(ws('atlas1'), { recursive: true });
     bare = join(tmp, 'remote.git');
     execFileSync('git', ['init', '-q', '--bare', '-b', 'main', bare]);
+    setRepoSizeProbe(async () => 120);
+  });
+
+  it('refuses to connect or sync a repo over 50 MB, or one whose size is unknown', async () => {
+    const tokens = async () => [{ account_login: 'demo', token: 't0k', expires_at: '' }];
+    const seen: string[] = [];
+    const fetchImpl = (async (u: string) => { seen.push(u); return new Response(JSON.stringify({ size: 61 * 1024 })); }) as unknown as typeof fetch;
+    expect(await repoSizeKb('demo/deck-agents', { tokens, fetchImpl })).toBe(61 * 1024);
+    expect(seen).toEqual(['https://api.github.com/repos/demo/deck-agents']);
+    expect(await repoSizeKb('demo/deck-agents', { tokens: async () => [], fetchImpl })).toBeNull();
+    setRepoSizeProbe(async () => 61 * 1024);
+    const big = { error: 'Repositório grande demais para sincronizar (61 MB, limite 50 MB)' };
+    expect(await connectRepo('demo/deck-agents', team, { url: bare })).toEqual(big);
+    expect(await repoStatus()).not.toHaveProperty('repo');
+    setRepoSizeProbe(async () => 120);
+    await connectRepo('demo/deck-agents', team, { url: bare });
+    remoteCommit('atlas1/notes/r.md', 'remoto');
+    setRepoSizeProbe(async () => 61 * 1024);
+    expect(await syncAll(team)).toEqual(big);
+    setRepoSizeProbe(async () => null);
+    expect(await syncAll(team)).toHaveProperty('error');
+    expect(existsSync(join(ws('atlas1'), 'notes/r.md'))).toBe(false);
+    setRepoSizeProbe(async () => 120);
+    expect(await syncAll(team)).toEqual({ conflicts: [] });
+    expect(readFileSync(join(ws('atlas1'), 'notes/r.md'), 'utf8')).toBe('remoto');
   });
 
   it('validates repo names', () => {
@@ -129,6 +154,20 @@ describe('agents repo remote', () => {
     expect(await syncAll(team)).not.toHaveProperty('error');
     expect(readFileSync(join(ws('atlas1'), 'CLAUDE.md'), 'utf8')).toBe('# v2');
     expect(g(bare, 'show', 'main:atlas1/CLAUDE.md')).toBe('# v2');
+  });
+
+  it('fetches an existing repo shallow and never truncates the local history later', async () => {
+    const seed = join(tmp, 'seed');
+    execFileSync('git', ['clone', '-q', `file://${bare}`, seed], { env: { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null' } });
+    for (let i = 0; i < 60; i++) g(seed, 'commit', '-q', '--allow-empty', '-m', `old ${i}`);
+    g(seed, 'push', '-q', 'origin', 'HEAD:main');
+    await connectRepo('demo/deck-agents', team, { url: `file://${bare}` });
+    expect(readFileSync(join(process.env.DECK_AGENT_DIR!, 'agents-repo/.git/shallow'), 'utf8').trim()).toMatch(/^[0-9a-f]{40}$/);
+    for (let i = 0; i < 55; i++) { await writeBotFile('atlas1', 'CLAUDE.md', `v${i}`); await recordSave('atlas1', 'Atlas', 'CLAUDE.md'); }
+    await pushQueued();
+    remoteCommit('atlas1/notes/r.md', 'remoto');
+    expect(await syncAll(team)).toEqual({ conflicts: [] });
+    expect(await botLog('atlas1')).toHaveLength(56);
   });
 
   it('queues the push when the remote is offline', async () => {
