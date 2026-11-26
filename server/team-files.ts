@@ -53,6 +53,10 @@ export function unsafeRelPath(rel: unknown): boolean {
   return rel.split(/[\\/]/).some((seg) => seg === '..');
 }
 
+// Same match as writes: the CLI's state and config (`.claude/…`, `.env`, `.git/…`,
+// `.mcp.json`) are never served, only the two editable settings files.
+const dotPathRefused = (path: string): boolean => !isBotSettingsPath(path) && path.split(/[\\/]/).some((s) => s.startsWith('.'));
+
 export type BotFileRead = { path: string; mime: string; size: number; mtime: number; dataB64: string } | { error: string };
 
 export async function readBotFile(botId: string, rel: unknown): Promise<BotFileRead> {
@@ -60,10 +64,13 @@ export async function readBotFile(botId: string, rel: unknown): Promise<BotFileR
   if (!ws) return { error: 'bot inválido' };
   if (unsafeRelPath(rel)) return { error: 'caminho inválido' };
   const path = (rel as string).replace(/^(\.\/)+/, '');
+  if (dotPathRefused(path)) return { error: 'caminho inválido' };
   try {
     const root = await realpath(ws);
     const real = await realpath(resolve(root, path));
     if (!real.startsWith(root + sep)) return { error: 'caminho inválido' };
+    // Checked again after realpath: a plain-named symlink must not reach a dotfile.
+    if (dotPathRefused(real.slice(root.length + 1).split(sep).join('/'))) return { error: 'caminho inválido' };
     const st = await stat(real);
     if (!st.isFile()) return { error: 'não é um arquivo' };
     if (st.size > MAX_BOT_FILE_BYTES) return { error: 'arquivo passa de 10MB' };

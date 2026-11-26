@@ -27,6 +27,18 @@ describe('bot files', () => {
     expect(Array.isArray(r) && r.map((f) => f.path)).toEqual(['mock/tela.png', 'old.md']);
   });
 
+  it('refuses to read any dot path but the two settings files', async () => {
+    const w = ws('capo1');
+    mkdirSync(join(w, '.claude')); mkdirSync(join(w, '.git')); mkdirSync(join(w, 'sub/.claude'), { recursive: true });
+    for (const f of ['.claude/credentials.json', '.claude/settings.json', '.claude/settings.local.json', '.env', '.git/config', '.mcp.json', 'sub/.claude/settings.json']) writeFileSync(join(w, f), '{}');
+    symlinkSync(join(w, '.env'), join(w, 'plain.txt'));
+    for (const p of ['.claude/credentials.json', '.env', '.git/config', '.mcp.json', '.hidden', 'sub/.claude/settings.json', './.env', '.claude/./credentials.json', 'mock/../.env', 'plain.txt', '.claude\\credentials.json']) {
+      expect(await readBotFile('capo1', p)).toEqual({ error: 'caminho inválido' });
+    }
+    expect(await readBotFile('capo1', '.claude/settings.json')).toMatchObject({ path: '.claude/settings.json', mime: 'application/json' });
+    expect(await readBotFile('capo1', './.claude/settings.local.json')).toMatchObject({ path: '.claude/settings.local.json' });
+  });
+
   it('reads a file inside the workspace with its mime', async () => {
     const r = await readBotFile('capo1', './mock/tela.png');
     expect(r).toMatchObject({ path: 'mock/tela.png', mime: 'image/png', size: 3 });
