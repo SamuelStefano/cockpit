@@ -14,7 +14,7 @@ export function useRoleLanding({ route, capsKnown, role, nav, landOnTeam = false
     if (!capsKnown) return;
     if (landOnTeam && !landed.current) {
       landed.current = true;
-      if (role !== 'student' && (route === '/' || route.startsWith('/c/'))) { nav(TEAM_HOME); return; }
+      if (role !== 'student' && route === '/') { nav(TEAM_HOME); return; }
     }
     const to = roleRedirect(role, route);
     if (to) nav(to);
