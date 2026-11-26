@@ -457,7 +457,8 @@ export interface RosterBox {
 }
 
 export interface WsCommit { hash: string; message: string; at: number; source: 'deck' | 'github' }
-export interface WsDiffFile { path: string; old: string; new: string }
+// `tooBig`: the bodies were left out of the frame; restore still works server-side.
+export interface WsDiffFile { path: string; old: string; new: string; tooBig?: boolean }
 export interface WsConflict { botId: string; path: string }
 // `repo` absent = local history only ("Só local").
 export interface WsRepoStatus { repo?: string; head?: string; at?: number; pending?: boolean }

@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { writeBotFile } from '../team-files';
-import { botLog, recordSave } from './history';
-import { connectRepo, listInstallationRepos, pushQueued, remoteCopyPath, repoStatus, syncAll, validRepoName } from './remote';
+import { botDiff, botLog, recordSave } from './history';
+import { connectRepo, listInstallationRepos, pushQueued, remoteCopyPath, repoStatus, retryDelay, syncAll, validRepoName } from './remote';
 
 let tmp: string; let bare: string; let bots: string;
 const team = [{ id: 'atlas1', name: 'Atlas' }];
@@ -79,12 +79,65 @@ describe('agents repo remote', () => {
     expect(existsSync(join(ws('atlas1'), 'claude-settings.remote.json'))).toBe(true);
   });
 
+  it('never follows a symlink committed in the repo', async () => {
+    const victim = join(tmp, 'victim.txt');
+    writeFileSync(victim, 'safe');
+    await connectRepo('demo/deck-agents', team, { url: bare });
+    const work = join(tmp, 'evil');
+    execFileSync('git', ['clone', '-q', bare, work], { env: { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null' } });
+    mkdirSync(join(work, 'atlas1/notes'), { recursive: true });
+    symlinkSync(victim, join(work, 'atlas1/notes/x.md'));
+    symlinkSync(tmp, join(work, 'atlas1/skills'));
+    g(work, 'add', '-A'); g(work, 'commit', '-qm', 'links'); g(work, 'push', '-q', 'origin', 'HEAD:main');
+    await syncAll(team);
+    expect(existsSync(join(ws('atlas1'), 'notes/x.md'))).toBe(false);
+    await writeBotFile('atlas1', 'notes/x.md', 'pwned');
+    await recordSave('atlas1', 'Atlas', 'notes/x.md');
+    await writeBotFile('atlas1', 'skills/victim.txt', 'pwned');
+    await recordSave('atlas1', 'Atlas', 'skills/victim.txt');
+    expect(readFileSync(victim, 'utf8')).toBe('safe');
+  });
+
+  it('pulls a file with a non-ASCII name', async () => {
+    await connectRepo('demo/deck-agents', team, { url: bare });
+    remoteCommit('atlas1/notes/anotações.md', 'oi');
+    expect(await syncAll(team)).toEqual({ conflicts: [] });
+    expect(readFileSync(join(ws('atlas1'), 'notes/anotações.md'), 'utf8')).toBe('oi');
+    const [c] = await botLog('atlas1');
+    expect(await botDiff('atlas1', c.hash)).toMatchObject({ files: [{ path: 'notes/anotações.md', new: 'oi' }] });
+  });
+
+  it('diffs the merge commit of a sync and reports no conflict without a copy', async () => {
+    await writeBotFile('atlas1', 'CLAUDE.md', '# v1');
+    await recordSave('atlas1', 'Atlas', 'CLAUDE.md');
+    await connectRepo('demo/deck-agents', team, { url: bare });
+    remoteCommit('atlas1/notes/big.md', 'x'.repeat(300 * 1024));
+    remoteCommit('atlas1/notes/r.md', 'remoto');
+    await writeBotFile('atlas1', 'notes/l.md', 'local');
+    expect(await syncAll(team)).toEqual({ conflicts: [] });
+    for (const c of await botLog('atlas1')) expect(await botDiff('atlas1', c.hash)).not.toHaveProperty('error');
+  });
+
+  it('survives a file deleted in the repo and edited in the Deck', async () => {
+    await writeBotFile('atlas1', 'CLAUDE.md', '# v1');
+    await recordSave('atlas1', 'Atlas', 'CLAUDE.md');
+    await connectRepo('demo/deck-agents', team, { url: bare });
+    const work = join(tmp, 'del');
+    execFileSync('git', ['clone', '-q', bare, work], { env: { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null' } });
+    g(work, 'rm', '-q', 'atlas1/CLAUDE.md'); g(work, 'commit', '-qm', 'rm'); g(work, 'push', '-q', 'origin', 'HEAD:main');
+    await writeBotFile('atlas1', 'CLAUDE.md', '# v2');
+    expect(await syncAll(team)).not.toHaveProperty('error');
+    expect(readFileSync(join(ws('atlas1'), 'CLAUDE.md'), 'utf8')).toBe('# v2');
+    expect(g(bare, 'show', 'main:atlas1/CLAUDE.md')).toBe('# v2');
+  });
+
   it('queues the push when the remote is offline', async () => {
     await connectRepo('demo/deck-agents', team, { url: join(tmp, 'missing.git') });
     await writeBotFile('atlas1', 'CLAUDE.md', '# v1');
     await recordSave('atlas1', 'Atlas', 'CLAUDE.md');
     expect(await pushQueued()).toBe(false);
     expect(await repoStatus()).toMatchObject({ pending: true });
+    expect([1, 2, 3, 9].map(retryDelay)).toEqual([60_000, 120_000, 240_000, 600_000]);
   });
 
   it('lists installation repos server-side with deck-agents first', async () => {

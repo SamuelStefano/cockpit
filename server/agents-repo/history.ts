@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, extname, join } from 'node:path';
 import type { WsCommit, WsDiffFile } from '../../shared/protocol';
 import { listBotFiles, MAX_BOT_WRITE_BYTES, readBotFile, unsafeRelPath, writeBotFile, WRITABLE_EXT } from '../team-files';
@@ -10,6 +10,7 @@ export const HASH_RE = /^[0-9a-f]{7,40}$/;
 const MAX_LOG = 100;
 const MAX_DIFF_FILES = 20;
 const MAX_PATCH = 200 * 1024;
+const MAX_DIFF_BYTES = 1024 * 1024;
 
 // Conflict copies (`x.remote.md`) live only in the bot workspace, never in history.
 export const isVersioned = (path: string): boolean => WRITABLE_EXT.has(extname(path).toLowerCase()) && !/\.remote\.[^/]+$/.test(path);
@@ -30,16 +31,32 @@ async function mirrorFile(botId: string, rel: string): Promise<void> {
   if (!isVersioned(rel)) return;
   const r = await readBotFile(botId, rel);
   if ('error' in r || r.size > MAX_BOT_WRITE_BYTES) return;
-  const dest = join(repoDir(), botId, r.path);
-  await mkdir(dirname(dest), { recursive: true });
-  await writeFile(dest, Buffer.from(r.dataB64, 'base64'));
+  const dest = await cloneDest(botId, r.path);
+  await writeFile(dest, Buffer.from(r.dataB64, 'base64'), { flag: 'wx' });
+}
+
+// The clone's tree also comes from the remote: a symlink or a file sitting where a
+// folder should be is replaced, never followed, so a write cannot leave the clone.
+async function cloneDest(botId: string, rel: string): Promise<string> {
+  let dir = repoDir();
+  const segs = [botId, ...rel.split('/')];
+  for (const seg of segs.slice(0, -1)) {
+    dir = join(dir, seg);
+    const st = await lstat(dir).catch(() => null);
+    if (st && !st.isDirectory()) await rm(dir, { force: true });
+    if (!st || !st.isDirectory()) await mkdir(dir);
+  }
+  const dest = join(dir, segs[segs.length - 1]);
+  await rm(dest, { recursive: true, force: true });
+  return dest;
 }
 
 async function commitBot(botId: string, message: string): Promise<boolean> {
   await git(['add', '-A', '--', `${botId}/`]);
   const staged = await git(['diff', '--cached', '--name-only', '--', `${botId}/`]);
   if (!staged.trim()) return false;
-  await git(['commit', '-q', '-m', message.replace(/[\r\n]+/g, ' ').slice(0, 200), '--', `${botId}/`]);
+  // No pathspec: a partial commit refuses a folder that replaced a symlink entry.
+  await git(['commit', '-q', '-m', message.replace(/[\r\n]+/g, ' ').slice(0, 200)]);
   return true;
 }
 
@@ -82,6 +99,7 @@ export function botLog(botId: string): Promise<WsCommit[]> {
 }
 
 const show = (spec: string) => git(['show', spec]).catch(() => '');
+const blobSize = async (spec: string) => Number((await git(['cat-file', '-s', spec]).catch(() => '0')).trim()) || 0;
 
 export type DiffResult = { files: WsDiffFile[]; patch: string } | { error: string };
 
@@ -89,13 +107,20 @@ export function botDiff(botId: string, hash: unknown): Promise<DiffResult> {
   if (!validBot(botId)) return Promise.resolve({ error: 'bot inválido' });
   if (typeof hash !== 'string' || !HASH_RE.test(hash)) return Promise.resolve({ error: 'versão inválida' });
   return locked(async () => {
-    const names = await git(['diff-tree', '--no-commit-id', '-r', '--root', '--name-only', hash, '--', `${botId}/`]).catch(() => null);
+    const names = await git(['diff-tree', '--no-commit-id', '-r', '--root', '--diff-merges=first-parent', '--name-only', hash, '--', `${botId}/`]).catch(() => null);
     if (names === null) return { error: 'versão não encontrada' };
     const paths = names.split('\n').filter(Boolean).slice(0, MAX_DIFF_FILES);
     if (!paths.length) return { error: 'versão não encontrada' };
     const files: WsDiffFile[] = [];
-    for (const p of paths) files.push({ path: p.slice(botId.length + 1), old: await show(`${hash}^:${p}`), new: await show(`${hash}:${p}`) });
-    const patch = (await git(['show', '--format=', '--no-color', '--no-ext-diff', hash, '--', `${botId}/`]).catch(() => '')).slice(0, MAX_PATCH);
+    let budget = MAX_DIFF_BYTES;
+    for (const p of paths) {
+      const path = p.slice(botId.length + 1);
+      const bytes = (await blobSize(`${hash}^:${p}`)) + (await blobSize(`${hash}:${p}`));
+      if (bytes > budget) { files.push({ path, old: '', new: '', tooBig: true }); continue; }
+      budget -= bytes;
+      files.push({ path, old: await show(`${hash}^:${p}`), new: await show(`${hash}:${p}`) });
+    }
+    const patch = (await git(['show', '--format=', '--no-color', '--no-ext-diff', '--diff-merges=first-parent', hash, '--', `${botId}/`]).catch(() => '')).slice(0, MAX_PATCH);
     return { files, patch };
   });
 }

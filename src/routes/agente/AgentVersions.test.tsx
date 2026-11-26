@@ -35,4 +35,14 @@ describe('AgentVersions', () => {
     expect(r.queryByText('Restaurar')).toBeNull();
     expect(a.onWsSync).not.toHaveBeenCalled();
   });
+
+  it('shows a connect error with no history yet and never renders an oversized diff', () => {
+    const empty = render(<AgentVersions botId="atlas1" api={api({ wsLogs: { atlas1: [] }, wsError: 'falha ao sincronizar' })} connected isAdmin />);
+    expect(empty.getByText('Nenhuma versão ainda')).toBeTruthy();
+    expect(empty.getByRole('alert').textContent).toBe('falha ao sincronizar');
+    cleanup();
+    const big = render(<AgentVersions botId="atlas1" api={api({ wsDiffs: { [`atlas1:${h1}`]: { status: 'ok', files: [{ path: 'big.md', old: '', new: '', tooBig: true }] } } })} connected isAdmin />);
+    expect(big.getByText('Arquivo grande demais para mostrar aqui.')).toBeTruthy();
+    expect(big.getByLabelText('Commits').className).toContain('overflow-y-auto');
+  });
 });

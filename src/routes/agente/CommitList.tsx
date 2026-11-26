@@ -6,7 +6,7 @@ interface CommitListProps { commits: WsCommit[]; selected: string | null; onSele
 
 export function CommitList({ commits, selected, onSelect, now }: CommitListProps) {
   return (
-    <ul className="flex flex-col gap-1" aria-label="Commits">
+    <ul className="flex max-h-56 flex-col gap-1 overflow-y-auto lg:max-h-[70vh]" aria-label="Commits">
       {commits.map((c) => (
         <li key={c.hash}>
           <button type="button" onClick={() => onSelect(c.hash)} aria-current={c.hash === selected}

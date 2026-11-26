@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { writeBotFile } from '../team-files';
@@ -77,5 +77,27 @@ describe('agents repo history', () => {
     expect(existsSync(join(repoDir(), 'atlas1', 'img.png'))).toBe(false);
     expect(existsSync(join(repoDir(), 'atlas1', 'CLAUDE.remote.md'))).toBe(false);
     expect(isVersioned('.claude/settings.json')).toBe(true);
+  });
+  it('never ships a huge file body in a diff', async () => {
+    await save('atlas1', 'CLAUDE.md', '# v1');
+    mkdirSync(join(repoDir(), 'atlas1'), { recursive: true });
+    writeFileSync(join(repoDir(), 'atlas1', 'big.md'), 'x'.repeat(2 * 1024 * 1024));
+    await git(['add', '-A']); await git(['commit', '-qm', 'big']);
+    const d = await botDiff('atlas1', (await botLog('atlas1'))[0].hash);
+    expect(d).toMatchObject({ files: [{ path: 'big.md', old: '', new: '', tooBig: true }] });
+  });
+
+  it('recovers from a stale index.lock left by a killed git', async () => {
+    await save('atlas1', 'CLAUDE.md', '# v1');
+    const lock = join(repoDir(), '.git', 'index.lock');
+    writeFileSync(lock, '');
+    utimesSync(lock, new Date(Date.now() - 120_000), new Date(Date.now() - 120_000));
+    expect(await save('atlas1', 'CLAUDE.md', '# v2')).toBe(true);
+    expect(await botLog('atlas1')).toHaveLength(2);
+  });
+
+  it('keeps every one of many concurrent saves', async () => {
+    await Promise.all(Array.from({ length: 12 }, (_, i) => save('atlas1', `n${i}.md`, `n${i}`)));
+    expect(await botLog('atlas1')).toHaveLength(12);
   });
 });

@@ -9,10 +9,13 @@ import { ensureRepo, headStatus, isVersioned, mirrorBotUnlocked, onCommitted } f
 export const REPO_RE = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const RETRY_MS = 60_000;
 const SYNC_MS = 10 * 60_000;
+// A push that keeps failing (revoked access, GitHub down) backs off to the sync cadence.
+export const retryDelay = (failures: number): number => Math.min(RETRY_MS * 2 ** Math.max(0, failures - 1), SYNC_MS);
 const REMOTE_TIMEOUT_MS = 60_000;
 
 type Bots = Pick<TeamBot, 'id' | 'name'>[];
 let pending = false;
+let failures = 0;
 let retry: NodeJS.Timeout | undefined;
 let lastConflicts: WsConflict[] = [];
 
@@ -39,10 +42,12 @@ async function pushUnlocked(): Promise<boolean> {
   try {
     await remoteGit(['push', '-q', 'origin', 'HEAD:refs/heads/main']);
     pending = false;
+    failures = 0;
     return true;
   } catch {
     pending = true;
-    if (!retry) { retry = setTimeout(() => { retry = undefined; void pushQueued(); }, RETRY_MS); retry.unref(); }
+    failures += 1;
+    if (!retry) { retry = setTimeout(() => { retry = undefined; void pushQueued(); }, retryDelay(failures)); retry.unref(); }
     return false;
   }
 }
@@ -76,11 +81,28 @@ function splitPath(p: string, bots: Bots): { bot: Bots[number]; rel: string } | 
   return bot && !unsafeRelPath(rel) && isVersioned(rel) ? { bot, rel } : null;
 }
 
+// Only a regular file is ever copied into a workspace: a symlink or submodule entry
+// in the remote tree would otherwise land as text naming a path outside it.
+const regularBlob = async (rev: string, p: string): Promise<boolean> => /^100(644|755) blob /.test(await git(['ls-tree', rev, '--', p]).catch(() => ''));
+
+// `-X ours` leaves modify/delete and file/folder clashes unmerged: the Deck side wins those too.
+async function keepOurs(pre: string): Promise<boolean> {
+  const unmerged = await names(['diff', '--name-only', '--diff-filter=U']);
+  if (!unmerged.length) return false;
+  try {
+    for (const p of unmerged) await git((await blob(`${pre}:${p}`)) ? ['checkout', pre, '--', p] : ['rm', '-q', '-f', '--', p]);
+    await git(['commit', '-q', '--no-edit']);
+    return true;
+  } catch { return false; }
+}
+
 export type SyncResult = { conflicts: WsConflict[] } | { error: string };
 
 async function syncUnlocked(bots: Bots): Promise<SyncResult> {
   if (!(await configuredRepo())) return { conflicts: [] };
   await ensureRepo();
+  // A merge cut short by a killed git would block every later commit.
+  await git(['merge', '--abort']).catch(() => '');
   for (const b of bots) await mirrorBotUnlocked(b.id, b.name).catch(() => false);
   const heads = await remoteGit(['ls-remote', '--heads', 'origin', 'main']).catch(() => null);
   if (heads === null) { pending = true; return { error: 'GitHub indisponível; as versões ficam locais até a próxima sincronização' }; }
@@ -98,23 +120,25 @@ async function syncUnlocked(bots: Bots): Promise<SyncResult> {
       try {
         await git(['merge', '-q', '--no-edit', '--allow-unrelated-histories', '-X', 'ours', '-m', 'Deck: sincronizar com o GitHub', 'origin/main']);
       } catch {
-        await git(['merge', '--abort']).catch(() => '');
-        return { error: 'não foi possível juntar as versões do GitHub' };
+        if (!(await keepOurs(pre))) {
+          await git(['merge', '--abort']).catch(() => '');
+          return { error: 'não foi possível juntar as versões do GitHub' };
+        }
       }
       for (const p of both) await git(['checkout', pre, '--', p]).catch(() => '');
       if (both.length && (await names(['diff', '--cached', '--name-only'])).length) await git(['commit', '-q', '-m', 'Deck: manter a versão do Deck nos conflitos']);
     }
     for (const p of remoteChanged) {
       const hit = splitPath(p, bots);
-      if (!hit) continue;
+      if (!hit || !(await regularBlob('origin/main', p))) continue;
       const remote = await git(['show', `origin/main:${p}`]).catch(() => null);
       if (remote === null) continue;
       const conflict = both.includes(p);
       // Settings from the repo may only add deny/ask rules; anything wider waits for the admin as a copy.
       const w = conflict ? { error: 'conflito' } : await writeBotFile(hit.bot.id, hit.rel, remote, undefined, { admin: !isBotSettingsPath(hit.rel) });
       if (!('error' in w)) continue;
-      await writeBotFile(hit.bot.id, remoteCopyPath(hit.rel), remote, undefined, { admin: true });
-      conflicts.push({ botId: hit.bot.id, path: hit.rel });
+      const copy = await writeBotFile(hit.bot.id, remoteCopyPath(hit.rel), remote, undefined, { admin: true });
+      if (!('error' in copy)) conflicts.push({ botId: hit.bot.id, path: hit.rel });
     }
   }
   await pushUnlocked();

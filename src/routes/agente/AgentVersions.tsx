@@ -13,6 +13,7 @@ export function AgentVersions({ botId, api, connected, isAdmin }: AgentVersionsP
   return (
     <div className="flex flex-col gap-4">
       <WsRepoBar botId={botId} api={api} isAdmin={isAdmin} now={now} />
+      {api.wsError && <p role="alert" className="text-[13px] text-red-300">{api.wsError}</p>}
       {!v.commits ? <SkeletonCards /> : !v.commits.length ? (
         <EmptyState size="sm" icon="clock" title="Nenhuma versão ainda" description="Salvou um arquivo do workspace, vira commit aqui." />
       ) : (
@@ -26,10 +27,9 @@ export function AgentVersions({ botId, api, connected, isAdmin }: AgentVersionsP
                   <code className="truncate text-[12px] text-neutral-300">{f.path}</code>
                   {isAdmin && <Button size="xs" variant="outline" onClick={() => v.restore(f.path)} disabled={!connected}>Restaurar</Button>}
                 </header>
-                <DiffView diff={f} />
+                {f.tooBig ? <p className="px-3 py-2 text-[12px] text-neutral-500">Arquivo grande demais para mostrar aqui.</p> : <DiffView diff={f} />}
               </section>
             ))}
-            {api.wsError && <p role="alert" className="text-[13px] text-red-300">{api.wsError}</p>}
           </div>
         </div>
       )}
