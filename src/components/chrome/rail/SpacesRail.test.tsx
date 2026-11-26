@@ -103,6 +103,15 @@ describe('SpacesRail', () => {
     expect(p.onSelectChat).toHaveBeenCalledWith('s1');
   });
 
+  it('keeps expand and new chat above the scrolling list, however many agents there are', () => {
+    setup({ collapsed: true, onNewAgent: vi.fn(), views: Array.from({ length: 20 }, (_, i) => view(`b${i}`)) });
+    const names = screen.getAllByRole('button').map((b) => b.getAttribute('aria-label'));
+    expect(names.slice(0, 4)).toEqual(['Ir pro chat', 'Expandir barra lateral', 'Nova conversa', 'Todas as conversas']);
+    const list = screen.getByRole('button', { name: 'Todas as conversas' }).closest('.overflow-y-auto')!;
+    expect(list).toBeTruthy();
+    for (const name of ['Expandir barra lateral', 'Nova conversa']) expect(list.contains(screen.getByRole('button', { name }))).toBe(false);
+  });
+
   it('hides the collapsed-only controls while the side is open', () => {
     setup();
     expect(screen.queryByRole('button', { name: 'Expandir barra lateral' })).toBeNull();
