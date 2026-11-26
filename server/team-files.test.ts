@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, symlinkSync, truncateSync, utimesSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, symlinkSync, truncateSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { listBotFiles, readBotFile, unsafeRelPath, writeBotFile, MAX_BOT_FILE_BYTES, MAX_BOT_WRITE_BYTES } from './team-files';
@@ -25,6 +25,18 @@ describe('bot files', () => {
     symlinkSync(join(root, 'outside.txt'), join(ws('capo1'), 'link.txt'));
     const r = await listBotFiles('capo1');
     expect(Array.isArray(r) && r.map((f) => f.path)).toEqual(['mock/tela.png', 'old.md']);
+  });
+
+  it('refuses to read any dot path but the two settings files', async () => {
+    const w = ws('capo1');
+    mkdirSync(join(w, '.claude')); mkdirSync(join(w, '.git')); mkdirSync(join(w, 'sub/.claude'), { recursive: true });
+    for (const f of ['.claude/credentials.json', '.claude/settings.json', '.claude/settings.local.json', '.env', '.git/config', '.mcp.json', 'sub/.claude/settings.json']) writeFileSync(join(w, f), '{}');
+    symlinkSync(join(w, '.env'), join(w, 'plain.txt'));
+    for (const p of ['.claude/credentials.json', '.env', '.git/config', '.mcp.json', '.hidden', 'sub/.claude/settings.json', './.env', '.claude/./credentials.json', 'mock/../.env', 'plain.txt', '.claude\\credentials.json']) {
+      expect(await readBotFile('capo1', p)).toEqual({ error: 'caminho inválido' });
+    }
+    expect(await readBotFile('capo1', '.claude/settings.json')).toMatchObject({ path: '.claude/settings.json', mime: 'application/json' });
+    expect(await readBotFile('capo1', './.claude/settings.local.json')).toMatchObject({ path: '.claude/settings.local.json' });
   });
 
   it('reads a file inside the workspace with its mime', async () => {
@@ -73,7 +85,7 @@ describe('writeBotFile', () => {
   });
 
   it('refuses .., absolute paths, NUL and dot segments', async () => {
-    for (const p of ['../outside.md', 'a/../../outside.md', '/etc/x.md', 'a\0b.md', '', '.claude/settings.json', 'a//b.md']) {
+    for (const p of ['../outside.md', 'a/../../outside.md', '/etc/x.md', 'a\0b.md', '', 'a//b.md']) {
       expect(await writeBotFile('capo1', p, 'x')).toEqual({ error: 'caminho inválido' });
     }
     expect(readFileSync(join(root, 'outside.md'), 'utf8')).toBe('fora');
@@ -117,8 +129,68 @@ describe('writeBotFile', () => {
     expect(await listBotFiles('capo1')).toEqual(expect.arrayContaining([expect.objectContaining({ path: 'a/b/c/d/f.md' })]));
   });
 
+  it('writes the two settings files, validating JSON', async () => {
+    expect(await writeBotFile('capo1', '.claude/settings.json', '{nope')).toEqual({ error: 'json inválido' });
+    expect(await writeBotFile('capo1', '.claude/settings.json', '[]')).toEqual({ error: 'json inválido' });
+    expect(await writeBotFile('capo1', '.claude/settings.json', '{"permissions":{"allow":["Read"]}}')).toMatchObject({ path: '.claude/settings.json' });
+    expect(await writeBotFile('capo1', '.claude/settings.local.json', '{}')).toMatchObject({ path: '.claude/settings.local.json' });
+    expect(readFileSync(join(ws('capo1'), '.claude/settings.json'), 'utf8')).toBe('{"permissions":{"allow":["Read"]}}');
+    expect(readdirSync(join(ws('capo1'), '.claude')).sort()).toEqual(['settings.json', 'settings.local.json']);
+    expect((await listBotFiles('capo1') as { path: string }[]).map((f) => f.path).sort()).toEqual(['.claude/settings.json', '.claude/settings.local.json']);
+  });
+
+  it('keeps conflict and symlink guards on settings', async () => {
+    const first = await writeBotFile('capo1', '.claude/settings.json', '{}') as { mtime: number };
+    expect(await writeBotFile('capo1', '.claude/settings.json', '{}', 5000)).toEqual({ error: 'conflito' });
+    expect(await writeBotFile('capo1', '.claude/settings.json', '{"a":1}', first.mtime)).toMatchObject({ path: '.claude/settings.json' });
+  });
+
+  it('a non-admin may only tighten: deny/ask rules, nothing that widens the restricted profile', async () => {
+    const student = { admin: false };
+    const denied = { error: 'só regras deny/ask são editáveis' };
+    for (const body of [
+      '{"hooks":{}}', '{"env":{"A":"1"}}', '{"permissions":{},"hooks":{}}',
+      '{"permissions":{"defaultMode":"bypassPermissions"}}', '{"permissions":{"defaultMode":"dontAsk"}}',
+      '{"permissions":{"allow":["Read(//**)"]}}', '{"permissions":{"allow":[]}}',
+      '{"permissions":{"additionalDirectories":["/"]}}', '{"permissions":{"deny":["Bash"],"allow":["Write(//**)"]}}',
+      '{"__proto__":{"allow":["Read"]}}', '{"permissions":{"__proto__":{"allow":["Read"]}}}',
+    ]) expect(await writeBotFile('capo1', '.claude/settings.json', body, undefined, student)).toEqual(denied);
+    for (const body of ['{"permissions":{"deny":"Bash"}}', '{"permissions":{"deny":[{"x":1}]}}', '{"permissions":[]}', '{"permissions":null}']) {
+      expect(await writeBotFile('capo1', '.claude/settings.local.json', body, undefined, student)).toEqual({ error: 'json inválido' });
+    }
+    expect(existsSync(join(ws('capo1'), '.claude/settings.json'))).toBe(false);
+    expect(await writeBotFile('capo1', '.claude/settings.json', '{"permissions":{"deny":["WebFetch"],"ask":["Write"]}}', undefined, student)).toMatchObject({ path: '.claude/settings.json' });
+    expect(await writeBotFile('capo1', '.claude/settings.json', '{}', undefined, student)).toMatchObject({ path: '.claude/settings.json' });
+  });
+
+  it('a non-admin cannot replace settings an admin wrote', async () => {
+    const adminBody = '{"hooks":{},"permissions":{"allow":["Read"]}}';
+    await writeBotFile('capo1', '.claude/settings.json', adminBody);
+    expect(await writeBotFile('capo1', '.claude/settings.json', '{}', undefined, { admin: false })).toEqual({ error: 'só o admin edita este arquivo' });
+    expect(readFileSync(join(ws('capo1'), '.claude/settings.json'), 'utf8')).toBe(adminBody);
+    expect(await writeBotFile('capo1', '.claude/settings.json', '{}')).toMatchObject({ path: '.claude/settings.json' });
+  });
+
+  it('lists nothing under .claude but the two settings files', async () => {
+    await writeBotFile('capo1', '.claude/settings.json', '{}');
+    mkdirSync(join(ws('capo1'), '.claude/skills/x'), { recursive: true });
+    writeFileSync(join(ws('capo1'), '.claude/skills/x/SKILL.md'), 's');
+    writeFileSync(join(ws('capo1'), '.claude/credentials.json'), '{}');
+    writeFileSync(join(ws('capo1'), '.claude/.hidden.json'), '{}');
+    mkdirSync(join(ws('capo1'), 'sub/.claude'), { recursive: true });
+    writeFileSync(join(ws('capo1'), 'sub/.claude/settings.json'), '{}');
+    writeFileSync(join(ws('capo1'), '.mcp.json'), '{}');
+    expect((await listBotFiles('capo1') as { path: string }[]).map((f) => f.path).filter((p) => p.includes('.claude') || p.includes('.mcp'))).toEqual(['.claude/settings.json']);
+  });
+
+  it('checks the size before parsing settings JSON', async () => {
+    const huge = `{"a":"${'x'.repeat(300 * 1024)}"}`;
+    expect(await writeBotFile('capo1', '.claude/settings.json', huge)).toEqual({ error: 'arquivo passa de 256KB' });
+    expect(await writeBotFile('capo1', '.claude/settings.json', '['.repeat(200000))).toEqual({ error: 'json inválido' });
+  });
+
   it('refuses dot segments at any depth and odd extensions', async () => {
-    for (const p of ['x/.claude/settings.json', 'x/.mcp.json', '.CLAUDE.md', 'x/..md']) expect(await writeBotFile('capo1', p, 'x')).toEqual({ error: 'caminho inválido' });
+    for (const p of ['x/.claude/settings.json', '.claude/Settings.json', '.claude/other.json', '.claude/settings.json/x', 'x/.mcp.json', '.CLAUDE.md', 'x/..md']) expect(await writeBotFile('capo1', p, 'x')).toEqual({ error: 'caminho inválido' });
     for (const p of ['a.md.', 'a.md ', 'a.md.sh']) expect(await writeBotFile('capo1', p, 'x')).toEqual({ error: 'tipo de arquivo não editável' });
     expect(await writeBotFile('capo1', 'a.md/', 'x')).toEqual({ error: 'caminho inválido' });
     expect(await writeBotFile('capo1', 'UP.MD', 'x')).toMatchObject({ path: 'UP.MD' });

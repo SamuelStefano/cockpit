@@ -41,6 +41,17 @@ describe('restrictedTurn', () => {
     }
     expect(RESTRICTED_DENY).toContain('Bash');
   });
+  it('denies the bot writing its own .claude/** and .mcp.json, in every mode', () => {
+    const w = '//srv/bots/abcd1/workspace';
+    for (const mode of ['auto', 'plan', 'acceptEdits']) {
+      const r = turn({ botId: 'abcd1', mode });
+      for (const tool of ['Edit', 'MultiEdit', 'Write']) {
+        for (const g of [`${w}/.claude/**`, `${w}/**/.claude/**`, `${w}/.mcp.json`, `${w}/**/.mcp.json`]) expect(r.deny).toContain(`${tool}(${g})`);
+      }
+      for (const t of ['Bash', 'NotebookEdit']) expect(r.deny).toContain(t);
+      expect(r.deny.every((d) => !/\s/.test(d))).toBe(true);
+    }
+  });
   it('limits the built-in tool set and turns on the CLI restricted mode', () => {
     const r = turn({ botId: 'abcd1' });
     expect(r.args[0]).toBe('--restricted');

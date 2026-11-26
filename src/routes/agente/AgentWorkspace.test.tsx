@@ -116,4 +116,33 @@ describe('AgentWorkspace', () => {
     back.rerender(<AgentWorkspace botId="capo1" api={a} connected canEdit />);
     expect((back.getByLabelText('Editar antigo.md') as HTMLTextAreaElement).value).toBe('rascunho');
   });
+
+  it('seeds a missing settings.json with {} and saves it as a new file', () => {
+    const put = vi.fn(() => true);
+    const r = render(<AgentWorkspace botId="capo1" api={api({ onBotFilePut: put, botFileSaves: {} })} connected canEdit />);
+    fireEvent.click(r.getByRole('button', { name: 'Criar settings.json' }));
+    expect((r.getByLabelText('Editar .claude/settings.json') as HTMLTextAreaElement).value).toBe('{}');
+    expect(r.getByText('Permissões do agente: mudanças valem no próximo turno.')).toBeTruthy();
+    fireEvent.click(r.getByRole('button', { name: 'Salvar' }));
+    expect(put).toHaveBeenCalledWith('capo1', '.claude/settings.json', '{}', 0);
+  });
+
+  it('lists settings.json under .claude and blocks Salvar on invalid JSON', () => {
+    const put = vi.fn(() => true);
+    const a = api({
+      botFiles: { capo1: [{ path: '.claude/settings.json', size: 2, mtime: now }] },
+      botFileData: { 'capo1:.claude/settings.json': { status: 'ok', mime: 'application/json', size: 2, url: '', text: '{}', mtime: 7 } },
+      onBotFilePut: put, botFileSaves: {},
+    });
+    const r = render(<AgentWorkspace botId="capo1" api={a} connected canEdit />);
+    expect(r.getByLabelText('.claude').textContent).toContain('settings.json');
+    expect(r.queryByRole('button', { name: 'Criar settings.json' })).toBeNull();
+    fireEvent.click(r.getByText('settings.json'));
+    fireEvent.click(r.getByRole('button', { name: 'Editar' }));
+    fireEvent.change(r.getByLabelText('Editar .claude/settings.json'), { target: { value: '{\n  "a": 1,\n  oops\n}' } });
+    expect(r.getByRole('alert').textContent).toBe('JSON inválido na linha 3');
+    expect((r.getByRole('button', { name: 'Salvar' }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(r.getByLabelText('Editar .claude/settings.json'), { target: { value: '{"a":1}' } });
+    expect((r.getByRole('button', { name: 'Salvar' }) as HTMLButtonElement).disabled).toBe(false);
+  });
 });

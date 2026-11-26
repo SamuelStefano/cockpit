@@ -1014,7 +1014,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role, ctx: Ha
       return;
     }
     case 'team-file-put': {
-      await saveBotFile(ws, msg.botId, msg.path, msg.text, msg.baseMtime);
+      await saveBotFile(ws, msg.botId, msg.path, msg.text, msg.baseMtime, role ?? 'student');
       return;
     }
     case 'session-file-get': {

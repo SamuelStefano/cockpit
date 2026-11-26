@@ -8,7 +8,7 @@ vi.mock('./broadcast', () => ({ send: sent.fn }));
 vi.mock('../team', () => ({ getTeam: async () => [{ id: 'capo1' }] }));
 vi.mock('../team-computer', () => ({ botComputer: computer.fn }));
 
-import { ownBotId, sendBotComputer } from './team-files-frames';
+import { ownBotId, saveBotFile, sendBotComputer } from './team-files-frames';
 
 const pane = {
   cwd: '~/bots/capo1/workspace',
@@ -66,5 +66,15 @@ describe('sendBotComputer preview policy', () => {
   it('unknown bot gets nothing', async () => {
     await sendBotComputer(ws, 'other1', 'admin');
     expect(computer.fn).not.toHaveBeenCalled();
+  });
+});
+
+describe('saveBotFile scoping', () => {
+  const ws = { readyState: 1, OPEN: 1 } as unknown as WebSocket;
+  beforeEach(() => vi.clearAllMocks());
+
+  it('a student cannot write a bot outside the team', async () => {
+    await saveBotFile(ws, 'other1', '.claude/settings.json', '{}', undefined, 'student');
+    expect(sent.fn).toHaveBeenCalledWith(ws, expect.objectContaining({ t: 'team-file-saved', ok: false, error: 'bot não encontrado' }));
   });
 });
