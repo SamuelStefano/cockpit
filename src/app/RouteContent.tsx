@@ -7,7 +7,7 @@ import { RouteFallback } from './RouteFallback';
 import { ChunkErrorBoundary } from './ChunkErrorBoundary';
 import {
   Pontos,
-  Graph, Canvas, DesignSystem, Onboarding, EquipePage, EquipeHome, Agente, Base, Arcade, Prs,
+  Graph, Canvas, DesignSystem, Onboarding, EquipePage, EquipeHome, Agente, Base, Arcade, Prs, Explorar,
 } from './lazyRoutes';
 import type { ChatPanelProps } from '../components/chat/chat-panel-props';
 import type { TerminalsPanelProps } from '../components/Terminals';
@@ -79,6 +79,7 @@ export function RouteContent({ route, agentRoute, isMobile, isAdmin, capsKnown, 
       );
     }
     if (route === '/arcade') return <Arcade />;
+    if (route === '/explorar' && isAdmin) return <Explorar role={isRoot ? 'root' : 'admin'} onOpen={navigateTo} />;
     if (route === '/prs' && isRoot) {
       return <Prs connected={connected} onOpenSession={onOpenSession} onSendTo={c.onSendTo} onLaunchAgent={c.onLaunchAgent} />;
     }
