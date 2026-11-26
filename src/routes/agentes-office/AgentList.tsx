@@ -11,13 +11,14 @@ interface AgentListProps {
   views: BotView[];
   onChat: (id: string) => void;
   onWorkspace: (id: string) => void;
+  onProfile: (id: string) => void;
   onNew?: () => void;
   executor?: ExecutorState;
   heavyJobs?: HeavyJob[];
   onOpenExecutor?: () => void;
 }
 
-export function AgentList({ views, onChat, onWorkspace, onNew, executor, heavyJobs, onOpenExecutor }: AgentListProps) {
+export function AgentList({ views, onChat, onWorkspace, onProfile, onNew, executor, heavyJobs, onOpenExecutor }: AgentListProps) {
   const [sector, setSector] = useState<SectorFilter>('all');
   const chips = useMemo(() => sectorChips(views), [views]);
   const active = chips.some((c) => c.id === sector) ? sector : 'all';
@@ -50,7 +51,7 @@ export function AgentList({ views, onChat, onWorkspace, onNew, executor, heavyJo
       )}
       <div role="list" className="rounded-2xl border border-(--border) bg-neutral-900/60">
         {rows.map(({ view, isLeader }) => (
-          <div key={view.bot.id} role="listitem"><AgentRow view={view} isLeader={isLeader} onChat={onChat} onWorkspace={onWorkspace} /></div>
+          <div key={view.bot.id} role="listitem"><AgentRow view={view} isLeader={isLeader} onChat={onChat} onWorkspace={onWorkspace} onProfile={onProfile} /></div>
         ))}
       </div>
     </div>

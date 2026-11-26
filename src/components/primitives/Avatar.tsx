@@ -3,7 +3,7 @@ import { initials } from '../avatar/initials';
 import { Icon } from './Icon';
 
 export type AvatarTone = 'orange' | 'blue' | 'pink' | 'green' | 'yellow' | 'purple' | 'cyan';
-export type AvatarStatus = 'ok' | 'warn' | 'err' | 'idle';
+export type AvatarStatus = 'ok' | 'warn' | 'err' | 'info' | 'idle';
 
 interface AvatarProps {
   name: string;
@@ -42,6 +42,7 @@ const statusBg: Record<AvatarStatus, string> = {
   ok: 'bg-(--ok)',
   warn: 'bg-(--warn)',
   err: 'bg-(--err)',
+  info: 'bg-(--info)',
   idle: 'bg-neutral-600',
 };
 

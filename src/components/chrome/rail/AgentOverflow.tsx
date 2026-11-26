@@ -30,7 +30,7 @@ export function AgentOverflow({ hidden, views, selectedId, onOpen }: AgentOverfl
             >
               <AgentAvatar view={v} size={26} />
               <span className="min-w-0 flex-1 truncate">{v.bot.name}</span>
-              <span className="shrink-0 text-[11px] text-(--text-muted)">{v.pending ? 'esperando você' : BOT_STATE_LABEL[v.state]}</span>
+              <span className="shrink-0 text-[11px] text-(--text-muted)">{v.pending ? 'esperando você' : v.unread && v.state === 'idle' ? 'mensagem nova' : BOT_STATE_LABEL[v.state]}</span>
             </button>
           ))}
         </section>

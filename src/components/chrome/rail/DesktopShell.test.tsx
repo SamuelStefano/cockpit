@@ -26,6 +26,8 @@ function setup(over: Partial<DesktopShellProps> = {}) {
   return { props, ...r };
 }
 
+const rotateButton = () => screen.queryAllByRole('button', { name: 'Nova conversa' }).find((b) => b.textContent === 'Nova conversa') as HTMLButtonElement;
+
 describe('DesktopShell', () => {
   it('shows every conversation by default with Nova and Gerenciar agentes', () => {
     const { props } = setup();
@@ -69,7 +71,7 @@ describe('DesktopShell', () => {
 
   it('starts the agent over only after confirming', () => {
     const { props } = setup({ activeAgentId: 'a' });
-    fireEvent.click(screen.getByRole('button', { name: 'Nova conversa' }));
+    fireEvent.click(rotateButton());
     expect(props.onRotateAgent).not.toHaveBeenCalled();
     expect(screen.getByText('Começar do zero? A conversa atual fica no histórico.')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Começar' }));
@@ -78,10 +80,10 @@ describe('DesktopShell', () => {
 
   it('disables the fresh start while the agent works and hides it without the action', () => {
     setup({ activeAgentId: 'a', agents: [view('a', { state: 'working' })] });
-    expect((screen.getByRole('button', { name: 'Nova conversa' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((rotateButton() as HTMLButtonElement).disabled).toBe(true);
     cleanup();
     setup({ activeAgentId: 'a', onRotateAgent: undefined });
-    expect(screen.queryByRole('button', { name: 'Nova conversa' })).toBeNull();
+    expect((rotateButton() ?? null)).toBeNull();
   });
 
   it('collapses only the side and keeps the rail', () => {
@@ -91,5 +93,30 @@ describe('DesktopShell', () => {
     expect(screen.getByRole('navigation', { name: 'Espaços' })).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Expandir barra lateral' }));
     expect(screen.getByRole('complementary', { name: 'Navegação principal' })).toBeTruthy();
+  });
+
+  it('starts a plain new chat from the agent space header', () => {
+    const { props } = setup({ activeAgentId: 'a' });
+    const icon = screen.getAllByRole('button', { name: 'Nova conversa' }).find((b) => b.textContent === '')!;
+    fireEvent.click(icon);
+    expect(props.onNew).toHaveBeenCalledOnce();
+    expect(props.onRotateAgent).not.toHaveBeenCalled();
+  });
+
+  it('shows the Equipe pending badge with the same count as the phone', () => {
+    setup({ agents: [view('a', { state: 'waiting' }), view('b')] });
+    expect(screen.getByRole('button', { name: /Equipe/ }).textContent).toContain('1');
+  });
+
+  it('mod+/ in an agent space switches to all conversations and focuses the search', async () => {
+    const { props } = setup({ activeAgentId: 'a' });
+    const focused = vi.fn();
+    window.addEventListener('deck:focus-session-search', focused);
+    fireEvent.keyDown(window, { key: '/', ctrlKey: true });
+    expect(screen.getByText('lista de conversas')).toBeTruthy();
+    await new Promise((r) => setTimeout(r, 10));
+    expect(focused).toHaveBeenCalledOnce();
+    expect(props.nav).not.toHaveBeenCalled();
+    window.removeEventListener('deck:focus-session-search', focused);
   });
 });

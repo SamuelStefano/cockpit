@@ -65,6 +65,8 @@ describe('AgentsHome', () => {
     render(<AgentsHome {...base} views={views} onProfile={onProfile} tab="escritorio" onTab={vi.fn()} />);
     fireEvent.click(screen.getByRole('button', { name: 'Workspace de a' }));
     expect(onProfile).toHaveBeenCalledWith('a', 'arquivos');
+    fireEvent.click(screen.getByRole('button', { name: 'Perfil de a' }));
+    expect(onProfile).toHaveBeenLastCalledWith('a', 'perfil');
     expect(screen.queryByRole('region', { name: 'Sem setor' })).toBeNull();
     fireEvent.click(screen.getByRole('radio', { name: 'Escritório' }));
     expect(screen.getByRole('region', { name: 'Sem setor' })).toBeTruthy();

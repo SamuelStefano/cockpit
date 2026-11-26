@@ -61,6 +61,7 @@ export function ChatHeader({ session, messages, isEmpty, contextTokens, contextM
   const [switchOpen, setSwitchOpen] = useState(false);
   const [kanbanOpen, setKanbanOpen] = useState(false);
   const [prsSignal, setPrsSignal] = useState(0);
+  const [prCount, setPrCount] = useState(0);
   const prDeps = useContext(ChatPrDepsContext);
   const title = agent?.name ?? (session ? session.title : restoring ? '' : 'Nova conversa');
 
@@ -85,7 +86,7 @@ export function ChatHeader({ session, messages, isEmpty, contextTokens, contextM
     !agent && { icon: 'squarePen', label: 'Nova conversa', onClick: onNew },
     phoneTeam?.kanban && { icon: 'layers', label: 'Kanban', onClick: () => setKanbanOpen(true), count: kanbanPending },
     phoneTeam?.onVila && { icon: 'globe', label: 'Vila', onClick: phoneTeam.onVila },
-    saved && prDeps && { icon: 'gitPullRequest', label: 'Pull requests', onClick: () => setPrsSignal((n) => n + 1) },
+    saved && prDeps && { icon: 'gitPullRequest', label: 'Pull requests', onClick: () => setPrsSignal((n) => n + 1), count: prCount },
   ].filter((i): i is PhoneItem => !!i);
   const phone = phoneMenu
     ? {
@@ -147,7 +148,7 @@ export function ChatHeader({ session, messages, isEmpty, contextTokens, contextM
         </div>
         {agent?.actions}
         {moreMenu}
-        {saved && prDeps && <ChatPrsButton sessionId={session.id} markers={prMarkers} openSignal={prsSignal} hideTrigger />}
+        {saved && prDeps && <ChatPrsButton sessionId={session.id} markers={prMarkers} openSignal={prsSignal} hideTrigger onCount={setPrCount} />}
         {phoneTeam?.kanban && <KanbanModal open={kanbanOpen} onClose={() => setKanbanOpen(false)} planner={phoneTeam.kanban.planner} bots={phoneTeam.kanban.bots} />}
         {switchOpen && agentSwitch && <AgentSwitchSheet {...agentSwitch} onClose={() => setSwitchOpen(false)} />}
         {usage && reading && <UsageSheet {...usage} open={usageOpen} onClose={() => setUsageOpen(false)} />}

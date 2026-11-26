@@ -61,7 +61,7 @@ export function AgentsHome({ tab, onTab, views, bots, skills, connected, canEdit
           <>
             <div className="flex justify-end"><Segmented items={VIEWS} value={view} onChange={setView} label="Visão dos agentes" /></div>
             {view === 'lista'
-              ? <AgentList views={views} onChat={onOpen} onWorkspace={(id) => onProfile(id, 'arquivos')} onNew={onNew} executor={executor} heavyJobs={heavyJobs} onOpenExecutor={() => onTab('executor')} />
+              ? <AgentList views={views} onChat={onOpen} onWorkspace={(id) => onProfile(id, 'arquivos')} onProfile={(id) => onProfile(id, 'perfil')} onNew={onNew} executor={executor} heavyJobs={heavyJobs} onOpenExecutor={() => onTab('executor')} />
               : <Office views={views} onOpen={onOpen} onNew={onNew} heading={false} executor={executor} heavyJobs={heavyJobs} onOpenExecutor={() => onTab('executor')} />}
           </>
         )}

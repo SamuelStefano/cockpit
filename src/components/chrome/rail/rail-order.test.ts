@@ -3,8 +3,8 @@ import type { BotView } from '../../../routes/equipe/team-view';
 import type { TeamBot } from '../../../../shared/protocol';
 import { canOpen, railAgents, railStatus, railTone, workRoute } from './rail-order';
 
-function view(id: string, over: Partial<BotView> = {}): BotView {
-  const bot = { id, name: id, label: '', instructions: '', mascot: { shape: 'blob', color: '#fff' }, profile: 'restricted', createdAt: 0, updatedAt: 0 } as unknown as TeamBot;
+function view(id: string, over: Partial<BotView> = {}, parentId?: string): BotView {
+  const bot = { id, name: id, parentId, label: '', instructions: '', mascot: { shape: 'blob', color: '#fff' }, profile: 'restricted', createdAt: 0, updatedAt: 0 } as unknown as TeamBot;
   return { bot, key: id, preview: '', unread: false, state: 'idle', ...over };
 }
 
@@ -29,6 +29,31 @@ describe('railAgents', () => {
   });
 });
 
+describe('railAgents hierarchy', () => {
+  const filler = (n: number) => Array.from({ length: n }, (_, i) => view(`f${i}`, { endedAt: 100 - i }));
+
+  it('seats the chief of a shown sub-agent, swapping out the last free seat', () => {
+    const views = [view('kid', { state: 'working' }, 'chief'), ...filler(7), view('chief', { endedAt: 0 })];
+    const ids = railAgents(views, null).shown.map((v) => v.bot.id);
+    expect(ids).toHaveLength(7);
+    expect(ids.indexOf('chief')).toBe(ids.indexOf('kid') - 1);
+    expect(ids).not.toContain('f5');
+  });
+
+  it('places a sub-agent right after its chief', () => {
+    const views = [view('a', { endedAt: 9 }), view('kid', { endedAt: 1 }, 'chief'), view('b', { endedAt: 8 }), view('chief', { endedAt: 5 })];
+    expect(railAgents(views, null).shown.map((v) => v.bot.id)).toEqual(['a', 'b', 'chief', 'kid']);
+  });
+
+  it('keeps the selected seat while seating the chief', () => {
+    const views = [view('kid', { state: 'working' }, 'chief'), ...filler(7), view('chief', { endedAt: 0 })];
+    const ids = railAgents(views, 'f6').shown.map((v) => v.bot.id);
+    expect(ids).toContain('f6');
+    expect(ids).toContain('chief');
+    expect(ids).toContain('kid');
+  });
+});
+
 describe('railStatus', () => {
   it('maps the bot state to the avatar dot', () => {
     expect(railStatus(view('a', { state: 'working' }))).toBe('ok');
@@ -36,6 +61,13 @@ describe('railStatus', () => {
     expect(railStatus(view('a', { state: 'waiting' }))).toBe('warn');
     expect(railStatus(view('a', { state: 'error' }))).toBe('err');
     expect(railStatus(view('a'))).toBeUndefined();
+  });
+
+  it('shows the unread mark only when nothing stronger applies', () => {
+    expect(railStatus(view('a', { unread: true }))).toBe('info');
+    expect(railStatus(view('a', { unread: true, state: 'working' }))).toBe('ok');
+    expect(railStatus(view('a', { unread: true, state: 'error' }))).toBe('err');
+    expect(railStatus(view('a', { unread: true, state: 'waiting' }))).toBe('warn');
   });
 });
 

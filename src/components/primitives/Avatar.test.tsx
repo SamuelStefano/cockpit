@@ -23,7 +23,7 @@ describe('Avatar', () => {
     expect(el.className).not.toContain('from-amber-300');
   });
 
-  it.each(['ok', 'warn', 'err', 'idle'] as const)('shows the %s status dot', (status) => {
+  it.each(['ok', 'warn', 'err', 'info', 'idle'] as const)('shows the %s status dot', (status) => {
     render(<Avatar name="Ana" tone="green" status={status} />);
     expect(screen.getByRole('img').querySelector(`[data-status="${status}"]`)).not.toBeNull();
   });
