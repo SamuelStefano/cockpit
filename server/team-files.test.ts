@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, symlinkSync, truncateSync, utimesSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, symlinkSync, truncateSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { listBotFiles, readBotFile, unsafeRelPath, writeBotFile, MAX_BOT_FILE_BYTES, MAX_BOT_WRITE_BYTES } from './team-files';
@@ -133,11 +133,48 @@ describe('writeBotFile', () => {
     expect(await writeBotFile('capo1', '.claude/settings.json', '{"a":1}', first.mtime)).toMatchObject({ path: '.claude/settings.json' });
   });
 
-  it('a non-admin may only change permission rules', async () => {
+  it('a non-admin may only tighten: deny/ask rules, nothing that widens the restricted profile', async () => {
     const student = { admin: false };
-    expect(await writeBotFile('capo1', '.claude/settings.json', '{"hooks":{}}', undefined, student)).toEqual({ error: 'só permissões são editáveis' });
-    expect(await writeBotFile('capo1', '.claude/settings.json', '{"permissions":{"defaultMode":"bypassPermissions"}}', undefined, student)).toEqual({ error: 'só permissões são editáveis' });
-    expect(await writeBotFile('capo1', '.claude/settings.json', '{"permissions":{"deny":["Bash"]}}', undefined, student)).toMatchObject({ path: '.claude/settings.json' });
+    const denied = { error: 'só regras deny/ask são editáveis' };
+    for (const body of [
+      '{"hooks":{}}', '{"env":{"A":"1"}}', '{"permissions":{},"hooks":{}}',
+      '{"permissions":{"defaultMode":"bypassPermissions"}}', '{"permissions":{"defaultMode":"dontAsk"}}',
+      '{"permissions":{"allow":["Read(//**)"]}}', '{"permissions":{"allow":[]}}',
+      '{"permissions":{"additionalDirectories":["/"]}}', '{"permissions":{"deny":["Bash"],"allow":["Write(//**)"]}}',
+      '{"__proto__":{"allow":["Read"]}}', '{"permissions":{"__proto__":{"allow":["Read"]}}}',
+    ]) expect(await writeBotFile('capo1', '.claude/settings.json', body, undefined, student)).toEqual(denied);
+    for (const body of ['{"permissions":{"deny":"Bash"}}', '{"permissions":{"deny":[{"x":1}]}}', '{"permissions":[]}', '{"permissions":null}']) {
+      expect(await writeBotFile('capo1', '.claude/settings.local.json', body, undefined, student)).toEqual({ error: 'json inválido' });
+    }
+    expect(existsSync(join(ws('capo1'), '.claude/settings.json'))).toBe(false);
+    expect(await writeBotFile('capo1', '.claude/settings.json', '{"permissions":{"deny":["WebFetch"],"ask":["Write"]}}', undefined, student)).toMatchObject({ path: '.claude/settings.json' });
+    expect(await writeBotFile('capo1', '.claude/settings.json', '{}', undefined, student)).toMatchObject({ path: '.claude/settings.json' });
+  });
+
+  it('a non-admin cannot replace settings an admin wrote', async () => {
+    const adminBody = '{"hooks":{},"permissions":{"allow":["Read"]}}';
+    await writeBotFile('capo1', '.claude/settings.json', adminBody);
+    expect(await writeBotFile('capo1', '.claude/settings.json', '{}', undefined, { admin: false })).toEqual({ error: 'só o admin edita este arquivo' });
+    expect(readFileSync(join(ws('capo1'), '.claude/settings.json'), 'utf8')).toBe(adminBody);
+    expect(await writeBotFile('capo1', '.claude/settings.json', '{}')).toMatchObject({ path: '.claude/settings.json' });
+  });
+
+  it('lists nothing under .claude but the two settings files', async () => {
+    await writeBotFile('capo1', '.claude/settings.json', '{}');
+    mkdirSync(join(ws('capo1'), '.claude/skills/x'), { recursive: true });
+    writeFileSync(join(ws('capo1'), '.claude/skills/x/SKILL.md'), 's');
+    writeFileSync(join(ws('capo1'), '.claude/credentials.json'), '{}');
+    writeFileSync(join(ws('capo1'), '.claude/.hidden.json'), '{}');
+    mkdirSync(join(ws('capo1'), 'sub/.claude'), { recursive: true });
+    writeFileSync(join(ws('capo1'), 'sub/.claude/settings.json'), '{}');
+    writeFileSync(join(ws('capo1'), '.mcp.json'), '{}');
+    expect((await listBotFiles('capo1') as { path: string }[]).map((f) => f.path).filter((p) => p.includes('.claude') || p.includes('.mcp'))).toEqual(['.claude/settings.json']);
+  });
+
+  it('checks the size before parsing settings JSON', async () => {
+    const huge = `{"a":"${'x'.repeat(300 * 1024)}"}`;
+    expect(await writeBotFile('capo1', '.claude/settings.json', huge)).toEqual({ error: 'arquivo passa de 256KB' });
+    expect(await writeBotFile('capo1', '.claude/settings.json', '['.repeat(200000))).toEqual({ error: 'json inválido' });
   });
 
   it('refuses dot segments at any depth and odd extensions', async () => {

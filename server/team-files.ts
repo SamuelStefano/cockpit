@@ -30,7 +30,9 @@ export async function listBotFiles(botId: string): Promise<BotFile[] | { error: 
     try { names = await readdir(dir); } catch { return; }
     for (const name of names) {
       if (out.length >= MAX_LIST) return;
-      if (name.startsWith('.') && !(depth === 0 && name === '.claude') && !(depth === 1 && rel === '.claude' && isBotSettingsPath(`${rel}/${name}`))) continue;
+      // Inside `.claude/` only the two settings files exist for the listing:
+      // skills, agents and the CLI's own state stay out, dot-named or not.
+      if (rel === '.claude' ? !isBotSettingsPath(`${rel}/${name}`) : name.startsWith('.') && !(depth === 0 && name === '.claude')) continue;
       const full = join(dir, name);
       const relPath = rel ? `${rel}/${name}` : name;
       const st = await lstat(full).catch(() => null);
@@ -81,7 +83,7 @@ export type BotFileWrite = { path: string; mtime: number } | { error: string };
 // Writes only text files the bot's own CLI never treats as config: dot segments
 // (`.git/…`, `.mcp.json`) are refused. The only dot paths allowed are the bot's
 // `.claude/settings.json` and `.claude/settings.local.json`, JSON-validated; for a
-// non-admin only permission rules may change (`admin: false`). The parent dir is realpath-checked, the target itself must
+// non-admin only deny/ask rules may be written (`admin: false`). The parent dir is realpath-checked, the target itself must
 // not be a symlink, and the bytes land through tmp + rename.
 // `baseMtime` is the mtime of the copy the editor started from; 0 means "new
 // file", so it conflicts with anything already there.
@@ -100,12 +102,14 @@ export async function writeBotFile(botId: string, rel: unknown, text: unknown, b
   if (segs.length - 1 > MAX_DEPTH) return { error: 'caminho inválido' };
   if (!WRITABLE_EXT.has(extname(path).toLowerCase())) return { error: 'tipo de arquivo não editável' };
   if (typeof text !== 'string' || text.includes('\0')) return { error: 'conteúdo inválido' };
+  // Size first: the JSON checks below must never parse an oversized frame.
+  if (text.length > MAX_BOT_WRITE_BYTES) return { error: 'arquivo passa de 256KB' };
+  const buf = Buffer.from(text, 'utf8');
+  if (buf.length > MAX_BOT_WRITE_BYTES) return { error: 'arquivo passa de 256KB' };
   if (settings) {
     if (!parseSettingsText(text).ok) return { error: 'json inválido' };
     if (!opts.admin) { const denied = settingsDeniedForStudent(text); if (denied) return { error: denied }; }
   }
-  const buf = Buffer.from(text, 'utf8');
-  if (buf.length > MAX_BOT_WRITE_BYTES) return { error: 'arquivo passa de 256KB' };
   let root: string;
   try { root = await realpath(ws); } catch { return { error: 'workspace não encontrado' }; }
   const target = resolve(root, path);
@@ -123,6 +127,8 @@ export async function writeBotFile(botId: string, rel: unknown, text: unknown, b
     const dest = join(realParent, basename(target));
     const cur = await lstat(dest).catch(() => null);
     if (cur && !cur.isFile()) return { error: 'caminho inválido' };
+    // A non-admin never replaces settings an admin wrote (hooks, env, allow rules).
+    if (settings && !opts.admin && cur && (cur.size > MAX_BOT_WRITE_BYTES || settingsDeniedForStudent(await readFile(dest, 'utf8')))) return { error: 'só o admin edita este arquivo' };
     if (typeof baseMtime === 'number' && cur && Math.abs(cur.mtimeMs - baseMtime) > 1) return { error: 'conflito' };
     const tmp = join(realParent, `.${basename(target)}.${process.pid}.${Date.now()}.tmp`);
     await writeFile(tmp, buf, { flag: 'wx', mode: 0o644 });

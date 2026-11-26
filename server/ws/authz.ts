@@ -50,7 +50,7 @@ const STUDENT_ALLOWED: ReadonlySet<ClientMsg['t']> = new Set([
   // workspace after realpath (ws/team-files-frames.ts, team-files.ts).
   'team-files-get', 'team-file-get',
   // Write: same scoping (ownBotId), plus writeBotFile limits a non-admin's
-  // .claude/settings.json to permission rules.
+  // .claude/settings.json to deny/ask rules (an allow rule would widen the restricted profile).
   'team-file-put',
   // Counts/cwd/state of that bot. Pane preview is emptied for student in
   // sendBotComputer; taking over is term-* (admin-only).
