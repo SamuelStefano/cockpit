@@ -13,7 +13,7 @@ function view(id: string, over: Partial<BotView> = {}, bot: Partial<TeamBot> = {
   return { bot: b, key: `s-${id}`, preview: '', unread: false, state: 'idle', ...over };
 }
 
-const session = (id: string, title: string) => ({ id, title, relative: 'há 2 h', snippet: '', mtime: 1 });
+const session = (id: string, title: string) => ({ id, title, relative: 'há 2 h', snippet: '', mtime: 1, hasTerminal: false, active: false });
 
 function setup(over: Partial<DesktopShellProps> = {}) {
   const props: DesktopShellProps = {

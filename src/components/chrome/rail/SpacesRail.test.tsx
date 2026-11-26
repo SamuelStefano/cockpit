@@ -93,7 +93,7 @@ describe('SpacesRail', () => {
   });
 
   it('carries expand, new chat and the running chats while the side is collapsed', () => {
-    const chat = { id: 's1', title: 'Rodando', relative: 'agora', snippet: '', mtime: 1 };
+    const chat = { id: 's1', title: 'Rodando', relative: 'agora', snippet: '', mtime: 1, hasTerminal: false, active: false };
     const p = setup({ collapsed: true, chatSessions: [chat], chatRunning: new Set(['s1']) });
     fireEvent.click(screen.getByRole('button', { name: 'Expandir barra lateral' }));
     expect(p.onExpand).toHaveBeenCalledOnce();
