@@ -55,7 +55,7 @@ export function useWorkspaceEditor(botId: string, api: BotFilesApi, open: OpenFi
     // refreshes on its own and would vouch for content the editor never saw.
     start: (path: string) => { setError(null); setDraft({ path, base: open.text ?? '', text: open.text ?? '', baseMtime: open.mtime }); },
     // 0 = "must not exist yet": a file the bot created meanwhile is a conflict.
-    startNew: (path: string) => { setError(null); setDraft({ path, base: '', text: '', baseMtime: 0 }); },
+    startNew: (path: string, text = '') => { setError(null); setDraft({ path, base: '', text, baseMtime: 0 }); },
     change: (text: string) => { if (draft) setDraft({ ...draft, text }); },
     cancel: () => { setDraft(null); setError(null); pending.current = null; },
     save: () => {

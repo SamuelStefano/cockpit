@@ -32,8 +32,8 @@ describe('authorize', () => {
     expect(authorize('student', 'team-file-get')).toBe(true);
   });
 
-  it('only admin writes a bot workspace file (team-file-put)', () => {
-    expect(authorize('student', 'team-file-put')).toBe(false);
+  it('admin and student write a bot workspace file (team-file-put)', () => {
+    expect(authorize('student', 'team-file-put')).toBe(true);
     expect(authorize('admin', 'team-file-put')).toBe(true);
   });
 

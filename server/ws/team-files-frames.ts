@@ -29,12 +29,13 @@ export async function sendBotFile(ws: WebSocket, botId: unknown, path: unknown):
   else send(ws, { t: 'team-file', botId: echo, path: p, mime: r.mime, size: r.size, mtime: r.mtime, dataB64: r.dataB64 });
 }
 
-// Admin-only (ws/authz.ts): the workspace guards live in writeBotFile.
-export async function saveBotFile(ws: WebSocket, botId: unknown, path: unknown, text: unknown, baseMtime: unknown): Promise<void> {
+// Any role, but only on a bot of this account's team (ownBotId, one team.json per
+// account); the workspace and settings guards live in writeBotFile.
+export async function saveBotFile(ws: WebSocket, botId: unknown, path: unknown, text: unknown, baseMtime: unknown, role: Role = 'student'): Promise<void> {
   const id = ownBotId(await getTeam(), botId);
   const echo = typeof botId === 'string' ? botId : '';
   const p = typeof path === 'string' ? path : '';
-  const r = id ? await writeBotFile(id, path, text, baseMtime) : { error: 'bot não encontrado' };
+  const r = id ? await writeBotFile(id, path, text, baseMtime, { admin: role === 'admin' }) : { error: 'bot não encontrado' };
   if ('error' in r) send(ws, { t: 'team-file-saved', botId: echo, path: p, ok: false, error: r.error });
   else send(ws, { t: 'team-file-saved', botId: echo, path: p, ok: true, mtime: r.mtime });
 }

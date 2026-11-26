@@ -3,7 +3,9 @@ import { FilePreviewBody } from '../equipe/FilePreviewBody';
 import type { BotFilesApi } from '../equipe/equipe-props';
 import { formatSize } from '../equipe/file-groups';
 import { useBotFilesTab } from '../equipe/useBotFilesTab';
+import { BOT_SETTINGS_PATHS, isBotSettingsPath } from '../../../shared/bot-settings';
 import { NewFileField } from './NewFileField';
+import { SettingsGroup } from './SettingsGroup';
 import { WorkspaceEditor } from './WorkspaceEditor';
 import { useWorkspaceEditor } from './useWorkspaceEditor';
 import { isEditablePath } from './workspace-edit';
@@ -18,12 +20,15 @@ export function AgentWorkspace({ botId, api, connected, canEdit = false }: Agent
   const editable = canEdit && ed.canEdit && connected;
   const exists = (path: string) => !!api.botFiles[botId]?.some((f) => f.path === path);
   const create = (path: string) => { if (!discard()) return; t.open(path); ed.startNew(path); };
+  const settings = (api.botFiles[botId] ?? []).filter((f) => isBotSettingsPath(f.path));
+  const createSettings = () => { if (!discard()) return; t.open(BOT_SETTINGS_PATHS[0]); ed.startNew(BOT_SETTINGS_PATHS[0], '{}'); };
   const newFile = editable && <NewFileField exists={exists} onCreate={create} />;
   if (!t.loaded) return <SkeletonCards />;
   if (!t.groups.length && !ed.draft) {
     return (
       <EmptyState size="sm" icon="file" title="Nenhum arquivo ainda" description="O que o bot salvar no espaço de trabalho dele aparece aqui.">
         {newFile}
+        <SettingsGroup files={settings} openPath={t.openPath} editable={editable} onPick={() => undefined} onCreate={createSettings} />
       </EmptyState>
     );
   }
@@ -36,7 +41,7 @@ export function AgentWorkspace({ botId, api, connected, canEdit = false }: Agent
           <Button variant="ghost" size="xs" icon="rotate" onClick={t.refresh} disabled={!connected}>Atualizar</Button>
           {newFile}
         </div>
-        {t.groups.map((g) => (
+        {t.groups.map((g) => ({ ...g, items: g.items.filter((f) => !isBotSettingsPath(f.path)) })).filter((g) => g.items.length > 0).map((g) => (
           <section key={g.label} aria-label={g.label} className="flex flex-col gap-0.5">
             <h3 className="flex min-h-7.5 items-center px-2.5 font-mono text-[12.5px] font-normal text-(--text-weak)">{g.label}</h3>
             {g.items.map((f) => {
@@ -51,6 +56,7 @@ export function AgentWorkspace({ botId, api, connected, canEdit = false }: Agent
             })}
           </section>
         ))}
+        <SettingsGroup files={settings} openPath={t.openPath} editable={editable} onPick={pick} onCreate={createSettings} />
       </nav>
       <section aria-label="Arquivo" className="min-w-0 overflow-hidden rounded-2xl border border-(--border) bg-neutral-900/60">
         {ed.draft ? (

@@ -1,6 +1,7 @@
 import { lstat, mkdir, readdir, readFile, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, extname, join, resolve, sep } from 'node:path';
 import type { BotFile } from '../shared/protocol';
+import { isBotSettingsPath, parseSettingsText, settingsDeniedForStudent } from '../shared/bot-settings';
 import { botWorkspace } from './engine/restricted-profile';
 
 export const MAX_BOT_FILE_BYTES = 10 * 1024 * 1024;
@@ -16,7 +17,8 @@ const MIME: Record<string, string> = {
 };
 export const mimeOf = (path: string) => MIME[extname(path).toLowerCase()] ?? 'application/octet-stream';
 
-// Dotfiles stay out of the listing: the CLI keeps its own state (`.claude/`) there.
+// Dotfiles stay out of the listing: the CLI keeps its own state there. The one
+// exception is the two settings files under `.claude/` the user may edit.
 // Symlinks are skipped, not followed: the listing must never describe a file
 // outside the workspace.
 export async function listBotFiles(botId: string): Promise<BotFile[] | { error: string }> {
@@ -28,7 +30,7 @@ export async function listBotFiles(botId: string): Promise<BotFile[] | { error: 
     try { names = await readdir(dir); } catch { return; }
     for (const name of names) {
       if (out.length >= MAX_LIST) return;
-      if (name.startsWith('.')) continue;
+      if (name.startsWith('.') && !(depth === 0 && name === '.claude') && !(depth === 1 && rel === '.claude' && isBotSettingsPath(`${rel}/${name}`))) continue;
       const full = join(dir, name);
       const relPath = rel ? `${rel}/${name}` : name;
       const st = await lstat(full).catch(() => null);
@@ -77,12 +79,13 @@ const WRITABLE_EXT = new Set(['.md', '.txt', '.json', '.yaml', '.yml']);
 export type BotFileWrite = { path: string; mtime: number } | { error: string };
 
 // Writes only text files the bot's own CLI never treats as config: dot segments
-// (`.claude/settings.json`, `.git/…`) are refused so a save cannot widen the
-// restricted profile. The parent dir is realpath-checked, the target itself must
+// (`.git/…`, `.mcp.json`) are refused. The only dot paths allowed are the bot's
+// `.claude/settings.json` and `.claude/settings.local.json`, JSON-validated; for a
+// non-admin only permission rules may change (`admin: false`). The parent dir is realpath-checked, the target itself must
 // not be a symlink, and the bytes land through tmp + rename.
 // `baseMtime` is the mtime of the copy the editor started from; 0 means "new
 // file", so it conflicts with anything already there.
-export async function writeBotFile(botId: string, rel: unknown, text: unknown, baseMtime?: unknown): Promise<BotFileWrite> {
+export async function writeBotFile(botId: string, rel: unknown, text: unknown, baseMtime?: unknown, opts: { admin?: boolean } = { admin: true }): Promise<BotFileWrite> {
   const ws = botWorkspace(botId);
   if (!ws) return { error: 'bot inválido' };
   if (unsafeRelPath(rel)) return { error: 'caminho inválido' };
@@ -91,11 +94,16 @@ export async function writeBotFile(botId: string, rel: unknown, text: unknown, b
   // odd file at the root while the folder loop below created its "parents".
   if (/[\\\x00-\x1f\x7f]/.test(path)) return { error: 'caminho inválido' };
   const segs = path.split('/');
-  if (segs.some((s) => !s || s.startsWith('.'))) return { error: 'caminho inválido' };
+  const settings = isBotSettingsPath(path);
+  if (!settings && segs.some((s) => !s || s.startsWith('.'))) return { error: 'caminho inválido' };
   // Deeper than the listing walks would be a file nobody can open again.
   if (segs.length - 1 > MAX_DEPTH) return { error: 'caminho inválido' };
   if (!WRITABLE_EXT.has(extname(path).toLowerCase())) return { error: 'tipo de arquivo não editável' };
   if (typeof text !== 'string' || text.includes('\0')) return { error: 'conteúdo inválido' };
+  if (settings) {
+    if (!parseSettingsText(text).ok) return { error: 'json inválido' };
+    if (!opts.admin) { const denied = settingsDeniedForStudent(text); if (denied) return { error: denied }; }
+  }
   const buf = Buffer.from(text, 'utf8');
   if (buf.length > MAX_BOT_WRITE_BYTES) return { error: 'arquivo passa de 256KB' };
   let root: string;

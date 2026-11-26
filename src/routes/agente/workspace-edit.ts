@@ -1,7 +1,9 @@
+import { isBotSettingsPath } from '../../../shared/bot-settings';
+
 const EDITABLE_EXT = /\.(md|txt|json|ya?ml)$/i;
 
 export const isEditablePath = (path: string): boolean =>
-  EDITABLE_EXT.test(path) && path.split('/').every((s) => s && !s.startsWith('.') && s !== '..');
+  isBotSettingsPath(path) || (EDITABLE_EXT.test(path) && path.split('/').every((s) => s && !s.startsWith('.') && s !== '..'));
 
 export function newFilePath(raw: string): string | null {
   const name = raw.trim().replace(/^\/+/, '');

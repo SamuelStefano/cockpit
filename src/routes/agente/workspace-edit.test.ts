@@ -7,7 +7,8 @@ describe('workspace-edit', () => {
     expect(isEditablePath('skills/x/SKILL.md')).toBe(true);
     expect(isEditablePath('settings.json')).toBe(true);
     expect(isEditablePath('mock/tela.png')).toBe(false);
-    expect(isEditablePath('.claude/settings.json')).toBe(false);
+    expect(isEditablePath('.claude/settings.json')).toBe(true);
+    expect(isEditablePath('.claude/other.json')).toBe(false);
     expect(isEditablePath('a/../b.md')).toBe(false);
   });
 
