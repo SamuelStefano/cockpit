@@ -58,4 +58,15 @@ describe('AgentsHome', () => {
     fireEvent.click(screen.getByRole('button', { name: 'PC online' }));
     expect(onTab).toHaveBeenCalledWith('executor');
   });
+
+  it('lists agents by default, opens the workspace tab, and keeps the Office view behind the toggle', () => {
+    const onProfile = vi.fn();
+    const views = [{ bot: { id: 'a', name: 'a', label: '', instructions: '', mascot: { shape: 'blob', color: '#3b82f6' }, profile: 'full', createdAt: 0, updatedAt: 0 }, key: 'a', preview: '', unread: false, state: 'idle' }] as never;
+    render(<AgentsHome {...base} views={views} onProfile={onProfile} tab="escritorio" onTab={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Workspace de a' }));
+    expect(onProfile).toHaveBeenCalledWith('a', 'arquivos');
+    expect(screen.queryByRole('region', { name: 'Sem setor' })).toBeNull();
+    fireEvent.click(screen.getByRole('radio', { name: 'Escritório' }));
+    expect(screen.getByRole('region', { name: 'Sem setor' })).toBeTruthy();
+  });
 });

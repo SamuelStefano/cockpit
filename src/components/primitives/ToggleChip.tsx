@@ -6,7 +6,7 @@ type ChipTone = 'accent' | 'danger';
 
 interface ToggleChipProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   on: boolean;
-  icon: IconName;
+  icon?: IconName;
   tone?: ChipTone;
   children?: ReactNode;
 }
@@ -32,7 +32,7 @@ export function ToggleChip({ on, icon, tone = 'accent', children, className = ''
         ${on ? onTone[tone] : 'border-(--border-strong) bg-neutral-950 text-(--text-weak) hover:text-(--text)'} ${className}`}
       {...rest}
     >
-      <Icon name={icon} size={12} />
+      {icon && <Icon name={icon} size={12} />}
       {children}
     </button>
   );
