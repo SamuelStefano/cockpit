@@ -79,7 +79,8 @@ interface AnimatedTile { tile: Phaser.Tilemaps.Tile; anim: TileAnim }
 type KeyName = 'W' | 'A' | 'S' | 'D' | 'UP' | 'DOWN' | 'LEFT' | 'RIGHT' | 'SHIFT';
 
 class WorldSceneV2 extends Phaser.Scene {
-  private readonly opts: WorldOptions;
+  private readonly opts: WorldOptions & { onError?: () => void };
+  private failed = false;
   private mode: CameraMode;
   private recording = false;
   private ready = false;
@@ -118,13 +119,27 @@ class WorldSceneV2 extends Phaser.Scene {
   private fpsFrames = 0;
   private fpsSince = 0;
 
-  constructor(opts: WorldOptions) {
+  constructor(opts: WorldOptions & { onError?: () => void }) {
     super('world-v2');
     this.opts = opts;
     this.mode = opts.mode;
   }
 
+  private fail(): void {
+    if (this.failed) return;
+    this.failed = true;
+    this.opts.onError?.();
+  }
+
+  private watchCritical(): void {
+    this.load.on('loaderror', (f: { key?: string }) => {
+      const k = f.key ?? '';
+      if (k === MAP_KEY || k === BOTS_KEY || k === PC_KEY || k.startsWith('v2-ts-')) this.fail();
+    });
+  }
+
   preload(): void {
+    this.watchCritical();
     this.load.tilemapTiledJSON(MAP_KEY, `${V2}world.tmj`);
     this.load.json(BOTS_KEY, `${V2}bots.json`);
     this.load.json(PC_KEY, `${V2}pc.json`);
@@ -160,13 +175,16 @@ class WorldSceneV2 extends Phaser.Scene {
     cam.roundPixels = true;
     const raw = (this.cache.tilemap.get(MAP_KEY) as { data?: V2Map } | undefined)?.data;
     const meta = this.cache.json.get(BOTS_KEY) as BotsMeta | undefined;
-    if (!raw || !meta) throw new Error('world v2: map or bots.json failed to load');
+    if (this.failed || !raw || !meta) { this.fail(); return; }
     this.raw = raw;
     this.meta = meta;
     for (const ts of raw.tilesets) if (ts.image) this.load.image(`v2-ts-${ts.name}`, `${V2}${ts.image}`);
     this.load.image(PC_KEY, `${V2}pc.png`);
     this.queueSheet(sheetFor(meta, AVATAR_SHEET, AVATAR_SHEET));
-    this.load.once('complete', () => this.build());
+    this.load.once('complete', () => {
+      if (this.failed) return;
+      try { this.build(); } catch { this.fail(); }
+    });
     this.load.start();
   }
 
@@ -192,7 +210,10 @@ class WorldSceneV2 extends Phaser.Scene {
     const seats = resolveSeats(this.layout, view.npcs);
     const live = new Set(view.npcs.map((n) => n.id));
     for (const [id, bot] of this.bots) if (!live.has(id)) this.removeBot(id, bot);
-    for (const v of view.npcs) this.upsertBot(v, seats.get(v.id)!);
+    for (const v of view.npcs) {
+      const seat = seats.get(v.id);
+      if (seat) this.upsertBot(v, seat);
+    }
     if (view.celebrate.length > 0 && view.celebrate !== this.lastCelebrate) for (const id of view.celebrate) this.celebrate(id);
     this.lastCelebrate = view.celebrate;
   }
@@ -730,7 +751,7 @@ class WorldSceneV2 extends Phaser.Scene {
   }
 }
 
-export function createWorldV2(opts: WorldOptions): WorldHandle {
+export function createWorldV2(opts: WorldOptions & { onError?: () => void }): WorldHandle {
   const scene = new WorldSceneV2(opts);
   const game = new Phaser.Game({
     type: Phaser.AUTO,
