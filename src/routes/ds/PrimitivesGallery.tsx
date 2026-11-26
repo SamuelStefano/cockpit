@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Avatar, Button, Badge, BrandMark, IconButton, Input, ListRow, Menu, MenuItem, MenuLabel, MenuSeparator, PageTitle, Popover, RiskBadge, SectionTitle, Sheet, Switch, ToggleChip, Tooltip, UsageRing, toast } from '../../components/primitives';
+import { tokens } from '../../components/primitives/tokens';
 import { Section } from './Section';
 import { Row } from './Row';
 
@@ -17,6 +18,19 @@ export function PrimitivesGallery() {
 
       <Section title="Avatar, Menu, Sheet, ListRow, SectionTitle, RiskBadge">
         <Row label="Avatar"><Avatar name="Samuel Stefano" /><Avatar name="Ana" size={40} /><Avatar name="" /></Row>
+        <Row label="Avatar tones">
+          {(['orange', 'blue', 'pink', 'green', 'yellow', 'purple', 'cyan'] as const).map((t) => <Avatar key={t} name={t} tone={t} size={36} />)}
+        </Row>
+        <Row label="Avatar status">
+          {(['ok', 'warn', 'err', 'idle'] as const).map((st) => <Avatar key={st} name={st} tone="blue" status={st} size={36} />)}
+        </Row>
+        <Row label="Token swatches">
+          {Object.entries(tokens.color).map(([k, v]) => (
+            <span key={k} className="flex flex-col items-center gap-1 text-[11px] text-neutral-500">
+              <span className="h-8 w-8 rounded-lg border border-neutral-700" style={{ background: v }} />{k}
+            </span>
+          ))}
+        </Row>
         <Row label="Sheet + Menu">
           <Sheet open={sheet} onClose={() => setSheet(false)} label="Ações" content={
             <Menu label="Ações">
@@ -101,6 +115,7 @@ export function PrimitivesGallery() {
           <Badge tone="red" dot>erro</Badge>
           <Badge tone="yellow">aviso</Badge>
           <Badge tone="purple">roxo</Badge>
+          <Badge tone="info">info</Badge>
         </Row>
         <Row label="clicável">
           <Badge tone="green" dot onClick={() => toast('foco no primeiro item')}>2 rodando</Badge>
