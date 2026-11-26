@@ -83,7 +83,7 @@ export async function readBotFile(botId: string, rel: unknown): Promise<BotFileR
 }
 
 export const MAX_BOT_WRITE_BYTES = 256 * 1024;
-const WRITABLE_EXT = new Set(['.md', '.txt', '.json', '.yaml', '.yml']);
+export const WRITABLE_EXT = new Set(['.md', '.txt', '.json', '.yaml', '.yml']);
 
 export type BotFileWrite = { path: string; mtime: number } | { error: string };
 
