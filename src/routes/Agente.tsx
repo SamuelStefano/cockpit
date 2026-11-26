@@ -14,6 +14,7 @@ import { AgentForm } from './agente/AgentForm';
 import { AgentHeader } from './agente/AgentHeader';
 import { AgentWorkspace } from './agente/AgentWorkspace';
 import { AgentVersions } from './agente/AgentVersions';
+import { WsRepoBar } from './agente/WsRepoBar';
 import type { AgentHistoryApi } from '../cockpit/useAgentHistory';
 
 export interface AgentePageApi extends CronApi, BotFilesApi, BotComputerApi, AgentHistoryApi {
@@ -50,8 +51,11 @@ function RoutinesTab({ botId, bots, api, connected, onChat }: { botId: string; b
 
 export function Agente({ agentId, tab, views, api, connected, isAdmin, isMobile, onTab, onList, onChat }: AgenteProps) {
   const [formKey, setFormKey] = useState(0);
-  const { onSkillList } = api;
+  const { onSkillList, onWsSync, onWsLogGet } = api;
   useEffect(() => { if (connected && agentId) onSkillList?.(); }, [connected, agentId, onSkillList]);
+  const wsRepo = api.wsStatus?.repo;
+  useEffect(() => { if (connected && agentId && agentId !== 'novo') onWsLogGet(agentId); }, [connected, agentId, onWsLogGet]);
+  useEffect(() => { if (connected && isAdmin && wsRepo && agentId !== 'novo') onWsSync(); }, [connected, isAdmin, wsRepo, agentId, onWsSync]);
   const shell = (children: React.ReactNode) => (
     <div className="scroll-thin min-h-0 flex-1 overflow-y-auto">
       <div className="mx-auto w-full max-w-240 px-4 pb-8 pt-6 max-lg:pt-2 sm:px-8">{children}</div>
@@ -92,6 +96,7 @@ export function Agente({ agentId, tab, views, api, connected, isAdmin, isMobile,
           <AgentForm key={`${bot.id}:${bot.updatedAt}:${formKey}:${isAdmin}`} bot={bot} bots={api.bots} models={api.models} skills={api.skills} locked={!isAdmin}
             agentBuild={api.agentBuild} onAgentBuild={api.onAgentBuild} onSave={api.onTeamSave} onSaved={() => toast('Agente salvo')} onCancel={() => setFormKey((k) => k + 1)}
             onDelete={(id) => { api.onTeamDelete(id); onList(); }} onSyncSource={api.onTeamSyncSource} />
+          <div className="mt-6 border-t border-neutral-800 pt-4"><WsRepoBar botId={bot.id} api={api} isAdmin={isAdmin} now={Date.now()} /></div>
         </div>
       )}
       {tab === 'rotinas' && <RoutinesTab botId={bot.id} bots={api.bots} api={api} connected={connected} onChat={onChat} />}

@@ -8,7 +8,7 @@ import { useAgentVersions } from './useAgentVersions';
 interface AgentVersionsProps { botId: string; api: AgentHistoryApi; connected: boolean; isAdmin: boolean }
 
 export function AgentVersions({ botId, api, connected, isAdmin }: AgentVersionsProps) {
-  const v = useAgentVersions(botId, api, connected, isAdmin);
+  const v = useAgentVersions(botId, api, connected);
   const now = Date.now();
   return (
     <div className="flex flex-col gap-4">

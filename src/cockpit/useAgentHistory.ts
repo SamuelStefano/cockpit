@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import type { ClientMsg, ServerMsg, WsCommit, WsConflict, WsDiffFile, WsRepoStatus } from '../../shared/protocol';
 
 export type WsDiffData = { status: 'loading' } | { status: 'error'; error: string } | { status: 'ok'; files: WsDiffFile[] };
@@ -27,6 +27,7 @@ export function useAgentHistory(send: (m: ClientMsg) => boolean): AgentHistoryAp
   const [wsConflicts, setConflicts] = useState<WsConflict[]>([]);
   const [wsRepos, setRepos] = useState<string[] | null>(null);
   const [wsError, setError] = useState<string | null>(null);
+  const shown = useRef(new Set<string>());
 
   const onMsg = useCallback((msg: ServerMsg) => {
     switch (msg.t) {
@@ -43,6 +44,7 @@ export function useAgentHistory(send: (m: ClientMsg) => boolean): AgentHistoryAp
         return true;
       case 'team-ws-status':
         setStatus(msg.status);
+        if (!msg.error) for (const botId of shown.current) send({ t: 'team-ws-log-get', botId });
         if (msg.conflicts) setConflicts(msg.conflicts);
         setError(msg.error ?? null);
         return true;
@@ -55,7 +57,7 @@ export function useAgentHistory(send: (m: ClientMsg) => boolean): AgentHistoryAp
     }
   }, [send]);
 
-  const onWsLogGet = useCallback((botId: string) => { send({ t: 'team-ws-log-get', botId }); }, [send]);
+  const onWsLogGet = useCallback((botId: string) => { shown.current.add(botId); send({ t: 'team-ws-log-get', botId }); }, [send]);
   const onWsDiffGet = useCallback((botId: string, hash: string) => {
     if (send({ t: 'team-ws-diff-get', botId, hash })) setDiffs((p) => ({ ...p, [wsDiffKey(botId, hash)]: { status: 'loading' } }));
   }, [send]);

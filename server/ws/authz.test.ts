@@ -113,7 +113,7 @@ describe('authorize', () => {
       'admin-cli-install', 'admin-cli-update', 'admin-deck-restart',
       'agent-add-custom', 'agent-probe-draft', 'provider-probe',
       'claude-import-scan', 'claude-import-apply',
-      'versions-restore',
+      'versions-restore', 'team-ws-repos-get', 'team-ws-connect',
       'vault-put', 'vault-list', 'vault-rm', 'prs-get', 'prs-detail-get', 'prs-diff-get', 'prs-session-get', 'prs-merge', 'claude-account-get', 'claude-logout',
     ] as const;
     expect([...ROOT_ONLY].sort()).toEqual([...owner].sort());
@@ -177,5 +177,16 @@ describe('village frames', () => {
       expect(authorize('admin', t)).toBe(true);
       expect(authorize('student', t)).toBe(false);
     }
+  });
+});
+
+describe('agents repo frames', () => {
+  it('students read history only; connect is root-only', () => {
+    expect(authorize('student', 'team-ws-log-get')).toBe(true);
+    expect(authorize('student', 'team-ws-diff-get')).toBe(true);
+    expect(authorize('student', 'team-ws-restore')).toBe(false);
+    expect(authorize('student', 'team-ws-sync')).toBe(false);
+    expect(authorize('admin', 'team-ws-connect', false)).toBe(false);
+    expect(authorize('admin', 'team-ws-repos-get', true)).toBe(true);
   });
 });

@@ -1,0 +1,100 @@
+import { describe, it, expect, beforeEach } from 'vitest';
+import { execFileSync } from 'node:child_process';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { writeBotFile } from '../team-files';
+import { botLog, recordSave } from './history';
+import { connectRepo, listInstallationRepos, pushQueued, remoteCopyPath, repoStatus, syncAll, validRepoName } from './remote';
+
+let tmp: string; let bare: string; let bots: string;
+const team = [{ id: 'atlas1', name: 'Atlas' }];
+const ws = (id: string) => join(bots, id, 'workspace');
+const g = (cwd: string, ...args: string[]) => execFileSync('git', ['-c', 'user.name=Dev', '-c', 'user.email=dev@x', '-C', cwd, ...args], { encoding: 'utf8', env: { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null' } });
+
+function remoteCommit(path: string, text: string) {
+  const work = join(tmp, `work-${Math.random().toString(36).slice(2)}`);
+  execFileSync('git', ['clone', '-q', bare, work], { env: { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null' } });
+  mkdirSync(join(work, path, '..'), { recursive: true });
+  writeFileSync(join(work, path), text);
+  g(work, 'add', '-A'); g(work, 'commit', '-qm', `edit ${path}`); g(work, 'push', '-q', 'origin', 'HEAD:main');
+}
+
+describe('agents repo remote', () => {
+  beforeEach(() => {
+    tmp = mkdtempSync(join(tmpdir(), 'agents-remote-'));
+    bots = join(tmp, 'bots');
+    process.env.COCKPIT_BOTS_DIR = bots;
+    process.env.DECK_AGENT_DIR = join(tmp, 'deck-agent');
+    mkdirSync(ws('atlas1'), { recursive: true });
+    bare = join(tmp, 'remote.git');
+    execFileSync('git', ['init', '-q', '--bare', '-b', 'main', bare]);
+  });
+
+  it('validates repo names', () => {
+    for (const ok of ['demo/deck-agents', 'a_b/c.d']) expect(validRepoName(ok)).toBe(true);
+    for (const bad of ['demo', 'demo/x/y', '../x', 'demo/..', 'a b/c', 'demo/x;rm', 'demo/x\n', '']) expect(validRepoName(bad)).toBe(false);
+  });
+
+  it('refuses a repo the installation cannot reach', async () => {
+    expect(await connectRepo('demo/other', team, { listRepos: async () => ['demo/deck-agents'] })).toEqual({ error: 'o app do GitHub não tem acesso a esse repositório' });
+    expect(await connectRepo('bad name/x', team)).toEqual({ error: 'repositório inválido' });
+  });
+
+  it('connects, pushes the local history and pushes each new commit', async () => {
+    await writeBotFile('atlas1', 'CLAUDE.md', '# v1');
+    await recordSave('atlas1', 'Atlas', 'CLAUDE.md');
+    expect(await repoStatus()).not.toHaveProperty('repo');
+    expect(await connectRepo('demo/deck-agents', team, { url: bare })).toEqual({ conflicts: [] });
+    expect(g(bare, 'log', '--format=%s', 'main')).toContain('Atlas: CLAUDE.md');
+    await writeBotFile('atlas1', 'notes/a.md', 'nota');
+    await recordSave('atlas1', 'Atlas', 'notes/a.md');
+    await pushQueued();
+    expect(g(bare, 'show', 'main:atlas1/notes/a.md')).toBe('nota');
+    expect(await repoStatus()).toMatchObject({ repo: 'demo/deck-agents', pending: false });
+  });
+
+  it('pulls a remote commit into the bot workspace and keeps the bot file on conflict', async () => {
+    await writeBotFile('atlas1', 'CLAUDE.md', '# v1');
+    await recordSave('atlas1', 'Atlas', 'CLAUDE.md');
+    await connectRepo('demo/deck-agents', team, { url: bare });
+    remoteCommit('atlas1/skills/review.md', 'do repo');
+    remoteCommit('atlas1/CLAUDE.md', '# remoto');
+    remoteCommit('pixel9/CLAUDE.md', 'bot de fora');
+    await writeBotFile('atlas1', 'CLAUDE.md', '# local');
+    expect(await syncAll(team)).toEqual({ conflicts: [{ botId: 'atlas1', path: 'CLAUDE.md' }] });
+    expect(readFileSync(join(ws('atlas1'), 'skills/review.md'), 'utf8')).toBe('do repo');
+    expect(readFileSync(join(ws('atlas1'), 'CLAUDE.md'), 'utf8')).toBe('# local');
+    expect(readFileSync(join(ws('atlas1'), 'CLAUDE.remote.md'), 'utf8')).toBe('# remoto');
+    expect(existsSync(join(bots, 'pixel9'))).toBe(false);
+    expect((await botLog('atlas1')).some((c) => c.source === 'github')).toBe(true);
+    expect(g(bare, 'show', 'main:atlas1/CLAUDE.md')).toBe('# local');
+  });
+
+  it('never widens bot settings from the repo', async () => {
+    await connectRepo('demo/deck-agents', team, { url: bare });
+    remoteCommit('atlas1/.claude/settings.json', JSON.stringify({ permissions: { allow: ['Bash'] } }));
+    expect(await syncAll(team)).toEqual({ conflicts: [{ botId: 'atlas1', path: '.claude/settings.json' }] });
+    expect(existsSync(join(ws('atlas1'), '.claude/settings.json'))).toBe(false);
+    expect(existsSync(join(ws('atlas1'), 'claude-settings.remote.json'))).toBe(true);
+  });
+
+  it('queues the push when the remote is offline', async () => {
+    await connectRepo('demo/deck-agents', team, { url: join(tmp, 'missing.git') });
+    await writeBotFile('atlas1', 'CLAUDE.md', '# v1');
+    await recordSave('atlas1', 'Atlas', 'CLAUDE.md');
+    expect(await pushQueued()).toBe(false);
+    expect(await repoStatus()).toMatchObject({ pending: true });
+  });
+
+  it('lists installation repos server-side with deck-agents first', async () => {
+    const seen: string[] = [];
+    const fetchImpl = (async (_u: string, init: RequestInit) => {
+      seen.push(String((init.headers as Record<string, string>).authorization));
+      return new Response(JSON.stringify({ repositories: [{ full_name: 'demo/web' }, { full_name: 'demo/deck-agents' }, { full_name: 'bad name' }] }));
+    }) as unknown as typeof fetch;
+    expect(await listInstallationRepos({ tokens: async () => [{ account_login: 'demo', token: 't0k', expires_at: '' }], fetchImpl })).toEqual(['demo/deck-agents', 'demo/web']);
+    expect(seen).toEqual(['Bearer t0k']);
+    expect(remoteCopyPath('.claude/settings.local.json')).toBe('claude-settings.local.remote.json');
+  });
+});

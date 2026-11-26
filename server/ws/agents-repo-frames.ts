@@ -1,8 +1,9 @@
 import type { WebSocket } from 'ws';
-import type { WsRepoStatus } from '../../shared/protocol';
+import type { WsConflict } from '../../shared/protocol';
 import type { Role } from '../auth';
 import { getTeam } from '../team';
-import { botDiff, botLog, headStatus, restoreFile } from '../agents-repo/history';
+import { botDiff, botLog, restoreFile } from '../agents-repo/history';
+import { connectRepo, currentConflicts, listInstallationRepos, repoStatus, startSyncTimer, syncAll } from '../agents-repo/remote';
 import { send } from './broadcast';
 import { ownBotId } from './team-files-frames';
 
@@ -13,14 +14,13 @@ async function ownBot(botId: unknown): Promise<{ id: string; name: string } | un
   return bot ? { id: bot.id, name: bot.name } : undefined;
 }
 
-export async function repoStatus(): Promise<WsRepoStatus> {
-  return headStatus().catch(() => ({}));
-}
+const teamBots = async () => (await getTeam()).map((b) => ({ id: b.id, name: b.name }));
 
 export async function sendWsLog(ws: WebSocket, botId: unknown): Promise<void> {
   const echo = typeof botId === 'string' ? botId : '';
   const bot = await ownBot(botId);
   const status = await repoStatus();
+  if (status.repo) startSyncTimer(teamBots);
   if (!bot) { send(ws, { t: 'team-ws-log', botId: echo, items: [], status, error: 'bot não encontrado' }); return; }
   const items = await botLog(bot.id).catch(() => []);
   send(ws, { t: 'team-ws-log', botId: echo, items, status });
@@ -44,4 +44,26 @@ export async function wsRestore(ws: WebSocket, botId: unknown, hash: unknown, pa
   if ('error' in r) { send(ws, { t: 'team-ws-restored', botId: echo, path: p, ok: false, error: r.error }); return; }
   send(ws, { t: 'team-ws-restored', botId: echo, path: p, ok: true });
   await sendWsLog(ws, bot!.id);
+}
+
+async function sendStatus(ws: WebSocket, r: { conflicts: WsConflict[] } | { error: string }): Promise<void> {
+  const status = await repoStatus();
+  if ('error' in r) send(ws, { t: 'team-ws-status', status, conflicts: currentConflicts(), error: r.error });
+  else send(ws, { t: 'team-ws-status', status, conflicts: r.conflicts });
+}
+
+export async function wsSync(ws: WebSocket, role: Role = 'student'): Promise<void> {
+  if (role !== 'admin') { send(ws, { t: 'team-ws-status', status: await repoStatus(), error: 'só o admin sincroniza' }); return; }
+  await sendStatus(ws, await syncAll(await teamBots()));
+}
+
+// Root-only (shared/root-frames.ts): the list comes from the App installation
+// tokens server-side; only repo names reach the client.
+export async function sendWsRepos(ws: WebSocket): Promise<void> {
+  const repos = await listInstallationRepos().catch(() => []);
+  send(ws, { t: 'team-ws-repos', repos, ...(repos.length ? {} : { error: 'o app do GitHub não tem acesso a nenhum repositório' }) });
+}
+
+export async function wsConnect(ws: WebSocket, repo: unknown): Promise<void> {
+  await sendStatus(ws, await connectRepo(repo, await teamBots()));
 }
