@@ -69,7 +69,7 @@ export function AgentSpaceSide({ view, chief, sessions, activeSessionId, running
         <button type="button" onClick={() => onWorkspace(bot.id)} className={`${row} text-[13px] text-(--text-body) hover:bg-neutral-800`}>
           <Icon name="file" size={15} />Arquivos do agente
         </button>
-        <button type="button" onClick={() => onProfile(bot.id)} className={`${row} text-[13px] text-(--text-body) hover:bg-neutral-800`}>
+        <button type="button" onClick={() => onProfile(bot.id)} aria-label="Perfil do agente" className={`${row} text-[13px] text-(--text-body) hover:bg-neutral-800`}>
           <Icon name="user" size={15} />Perfil
         </button>
       </div>
