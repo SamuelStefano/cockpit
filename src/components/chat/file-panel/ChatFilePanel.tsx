@@ -37,14 +37,14 @@ export function ChatFilePanel({ path, line, openKey, data, onClose, fullScreen }
     );
   }
   return (
-    <aside ref={ref} tabIndex={-1} onKeyDown={onKeyDown} role="complementary" aria-label={`Arquivo ${name}`} className="relative flex min-h-0 w-[min(560px,45%)] min-w-0 shrink-0 flex-col border-l border-neutral-800 bg-[var(--bg-deep)] outline-hidden">
-      <div className="flex items-center gap-1 border-b border-neutral-800 py-1.5 pl-3 pr-1.5">
-        <span className="min-w-0 flex-1 truncate font-mono text-[13px] text-neutral-200" title={path}>{name}</span>
-        <Button variant="ghost" size="sm" icon={copied ? 'check' : 'copy'} square aria-label="Copiar caminho" title="Copiar caminho" onClick={() => copy(path)} />
-        <Button variant="ghost" size="sm" icon="x" square aria-label="Fechar arquivo" title="Fechar (Esc)" onClick={onClose} />
+    <aside ref={ref} tabIndex={-1} onKeyDown={onKeyDown} role="complementary" aria-label={`Arquivo ${name}`} className="relative flex min-h-0 w-[min(500px,45%)] min-w-0 shrink-0 flex-col border-l border-(--border) bg-neutral-950 outline-hidden">
+      <div className="flex h-[52px] shrink-0 items-center gap-1 border-b border-(--border) pl-4 pr-3">
+        <span className="min-w-0 flex-1 truncate font-mono text-[13px] font-medium text-neutral-100" title={path}>{name}</span>
+        <Button variant="ghost" size="xs" icon={copied ? 'check' : 'copy'} square aria-label="Copiar caminho" title="Copiar caminho" onClick={() => copy(path)} />
+        <Button variant="ghost" size="xs" icon="x" square aria-label="Fechar arquivo" title="Fechar (Esc)" onClick={onClose} />
       </div>
       {body}
-      <div className="flex items-center gap-2 border-t border-neutral-800 px-3 py-1.5 text-[12px] text-neutral-500">
+      <div className="flex items-center gap-2 border-t border-(--border) px-4 py-2.5 text-[12px] text-(--text-muted)">
         <span className="shrink-0">Somente leitura</span>
         <span className="min-w-0 flex-1 truncate text-right font-mono text-neutral-600" title={path}>{path}</span>
         {data?.status === 'ok' && <span className="shrink-0">{formatSize(data.size)}</span>}

@@ -34,7 +34,7 @@ export function DesktopLayout({ chatProps, termProps, center, hideTerminals = fa
       </div>
 
       {open && (
-        <div className="relative w-[min(480px,40%)] min-w-0 shrink-0 border-l border-neutral-800">
+        <div className="relative w-[min(500px,40%)] min-w-0 shrink-0 border-l border-(--border) bg-neutral-950">
           <TerminalsPanel {...termProps} onCloseMobile={() => setTerminalOpen(false)} />
         </div>
       )}
