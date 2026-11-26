@@ -2,9 +2,9 @@ import { useState, useEffect, useCallback } from 'react';
 
 // Router minúsculo (sem dep): só troca a VIEW principal. useCockpit fica ACIMA
 // deste switch no App, então o WebSocket/terminais nunca desmontam ao navegar.
-export type Route = '/' | '/equipe' | '/equipe/memoria' | '/pontos' | '/equipe/rotinas' | '/equipe/mundo' | '/configuracoes' | '/configuracoes/uso' | '/configuracoes/pessoas' | '/configuracoes/maquina' | '/configuracoes/maquinas' | '/configuracoes/avancado' | '/configuracoes/skills' | '/configuracoes/conexoes' | '/configuracoes/docs' | '/graph' | '/canvas' | '/ds' | '/onboarding' | '/agentes' | '/agentes/loja' | '/base' | '/arcade' | '/prs';
+export type Route = '/' | '/equipe' | '/equipe/memoria' | '/pontos' | '/equipe/rotinas' | '/equipe/mundo' | '/configuracoes' | '/configuracoes/uso' | '/configuracoes/pessoas' | '/configuracoes/maquina' | '/configuracoes/maquinas' | '/configuracoes/avancado' | '/configuracoes/skills' | '/configuracoes/conexoes' | '/configuracoes/docs' | '/graph' | '/canvas' | '/ds' | '/onboarding' | '/agentes' | '/agentes/loja' | '/base' | '/arcade' | '/prs' | '/explorar';
 
-const ROUTES: Route[] = ['/', '/equipe', '/equipe/memoria', '/pontos', '/equipe/rotinas', '/equipe/mundo', '/configuracoes', '/configuracoes/uso', '/configuracoes/pessoas', '/configuracoes/maquina', '/configuracoes/maquinas', '/configuracoes/avancado', '/configuracoes/skills', '/configuracoes/conexoes', '/configuracoes/docs', '/graph', '/canvas', '/ds', '/onboarding', '/agentes', '/base', '/arcade', '/prs'];
+const ROUTES: Route[] = ['/', '/equipe', '/equipe/memoria', '/pontos', '/equipe/rotinas', '/equipe/mundo', '/configuracoes', '/configuracoes/uso', '/configuracoes/pessoas', '/configuracoes/maquina', '/configuracoes/maquinas', '/configuracoes/avancado', '/configuracoes/skills', '/configuracoes/conexoes', '/configuracoes/docs', '/graph', '/canvas', '/ds', '/onboarding', '/agentes', '/base', '/arcade', '/prs', '/explorar'];
 
 // Old URLs (bookmarks, deep links) keep working; the retired screens fall back to chat.
 const LEGACY: Record<string, string> = { '/notas': '/', '/play': '/', '/sala': '/', '/placar': '/', '/harness': '/', '/contextos': '/equipe/memoria', '/crons': '/equipe/rotinas', '/uso': '/configuracoes/uso' };
