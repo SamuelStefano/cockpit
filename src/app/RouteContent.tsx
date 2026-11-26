@@ -81,11 +81,11 @@ export function RouteContent({ route, agentRoute, isMobile, isAdmin, capsKnown, 
     if (route === '/arcade') return <Arcade />;
     if (route === '/explorar' && isAdmin) return <Explorar role={isRoot ? 'root' : 'admin'} onOpen={navigateTo} />;
     if (route === '/prs' && isRoot) {
-      return <Prs connected={connected} onOpenSession={onOpenSession} onSendTo={c.onSendTo} onLaunchAgent={c.onLaunchAgent} />;
+      return <Prs role="root" connected={connected} onOpenSession={onOpenSession} onSendTo={c.onSendTo} onLaunchAgent={c.onLaunchAgent} />;
     }
     if (route === '/pontos' && isRoot) {
       return (
-        <Pontos connected={connected} points={c.points} total={c.pointsTotal} loaded={c.pointsLoaded}
+        <Pontos role="root" connected={connected} points={c.points} total={c.pointsTotal} loaded={c.pointsLoaded}
           onPointsGet={c.onPointsGet} onPointsAdd={c.onPointsAdd} onPointsCorrect={c.onPointsCorrect}
           onPointsNote={c.onPointsNote} onPointsDelete={c.onPointsDelete}
           dflSnapshot={c.dflSnapshot} dflLoaded={c.dflLoaded} dflSyncing={c.dflSyncing}
@@ -114,7 +114,7 @@ export function RouteContent({ route, agentRoute, isMobile, isAdmin, capsKnown, 
     }
     if (route === '/canvas' && isAdmin) {
       return (
-        <Canvas connected={connected} graph={c.canvasGraph} board={c.canvasBoard} loading={c.canvasLoading}
+        <Canvas role={isRoot ? 'root' : 'admin'} connected={connected} graph={c.canvasGraph} board={c.canvasBoard} loading={c.canvasLoading}
           loadingSince={c.canvasLoadingSince} stale={c.canvasStale} sessions={c.sessions} running={c.running} runStart={c.runStart}
           onCanvasGet={c.onCanvasGet} onCanvasPos={c.onCanvasPos} onCanvasPosReset={c.onCanvasPosReset}
           onCanvasCardSave={c.onCanvasCardSave} onCanvasCardDelete={c.onCanvasCardDelete} onCanvasBudgetSave={c.onCanvasBudgetSave}
