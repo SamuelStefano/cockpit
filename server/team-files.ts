@@ -49,7 +49,7 @@ export function unsafeRelPath(rel: unknown): boolean {
   return rel.split(/[\\/]/).some((seg) => seg === '..');
 }
 
-export type BotFileRead = { path: string; mime: string; size: number; dataB64: string } | { error: string };
+export type BotFileRead = { path: string; mime: string; size: number; mtime: number; dataB64: string } | { error: string };
 
 export async function readBotFile(botId: string, rel: unknown): Promise<BotFileRead> {
   const ws = botWorkspace(botId);
@@ -65,7 +65,7 @@ export async function readBotFile(botId: string, rel: unknown): Promise<BotFileR
     if (st.size > MAX_BOT_FILE_BYTES) return { error: 'arquivo passa de 10MB' };
     const buf = await readFile(real);
     if (buf.length > MAX_BOT_FILE_BYTES) return { error: 'arquivo passa de 10MB' };
-    return { path, mime: mimeOf(real), size: buf.length, dataB64: buf.toString('base64') };
+    return { path, mime: mimeOf(real), size: buf.length, mtime: st.mtimeMs, dataB64: buf.toString('base64') };
   } catch {
     return { error: 'arquivo não encontrado' };
   }
@@ -80,13 +80,20 @@ export type BotFileWrite = { path: string; mtime: number } | { error: string };
 // (`.claude/settings.json`, `.git/…`) are refused so a save cannot widen the
 // restricted profile. The parent dir is realpath-checked, the target itself must
 // not be a symlink, and the bytes land through tmp + rename.
+// `baseMtime` is the mtime of the copy the editor started from; 0 means "new
+// file", so it conflicts with anything already there.
 export async function writeBotFile(botId: string, rel: unknown, text: unknown, baseMtime?: unknown): Promise<BotFileWrite> {
   const ws = botWorkspace(botId);
   if (!ws) return { error: 'bot inválido' };
   if (unsafeRelPath(rel)) return { error: 'caminho inválido' };
   const path = (rel as string).replace(/^(\.\/)+/, '');
-  const segs = path.split(/[\\/]/);
+  // A backslash or control char is a legal Linux file name: it would land as one
+  // odd file at the root while the folder loop below created its "parents".
+  if (/[\\\x00-\x1f\x7f]/.test(path)) return { error: 'caminho inválido' };
+  const segs = path.split('/');
   if (segs.some((s) => !s || s.startsWith('.'))) return { error: 'caminho inválido' };
+  // Deeper than the listing walks would be a file nobody can open again.
+  if (segs.length - 1 > MAX_DEPTH) return { error: 'caminho inválido' };
   if (!WRITABLE_EXT.has(extname(path).toLowerCase())) return { error: 'tipo de arquivo não editável' };
   if (typeof text !== 'string' || text.includes('\0')) return { error: 'conteúdo inválido' };
   const buf = Buffer.from(text, 'utf8');

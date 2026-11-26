@@ -26,7 +26,7 @@ export async function sendBotFile(ws: WebSocket, botId: unknown, path: unknown):
   const p = typeof path === 'string' ? path : '';
   const r = id ? await readBotFile(id, path) : { error: 'bot não encontrado' };
   if ('error' in r) send(ws, { t: 'team-file', botId: echo, path: p, error: r.error });
-  else send(ws, { t: 'team-file', botId: echo, path: p, mime: r.mime, size: r.size, dataB64: r.dataB64 });
+  else send(ws, { t: 'team-file', botId: echo, path: p, mime: r.mime, size: r.size, mtime: r.mtime, dataB64: r.dataB64 });
 }
 
 // Admin-only (ws/authz.ts): the workspace guards live in writeBotFile.

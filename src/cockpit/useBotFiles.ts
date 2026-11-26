@@ -4,7 +4,7 @@ import type { BotFile, ClientMsg, ServerMsg } from '../../shared/protocol';
 export type BotFileData =
   | { status: 'loading' }
   | { status: 'error'; error: string }
-  | { status: 'ok'; mime: string; size: number; url: string; text?: string; truncated?: boolean };
+  | { status: 'ok'; mime: string; size: number; url: string; text?: string; truncated?: boolean; mtime?: number };
 
 export type BotFileSave = { status: 'saving' } | { status: 'saved'; mtime?: number } | { status: 'error'; error: string };
 
@@ -53,7 +53,7 @@ export function useBotFiles(send: (m: ClientMsg) => boolean): BotFiles {
     if (msg.t === 'team-file') {
       const key = botFileKey(msg.botId, msg.path);
       if (msg.error || !msg.dataB64 || !msg.mime) put(key, { status: 'error', error: msg.error ?? 'arquivo indisponível' });
-      else put(key, decode(msg.dataB64, msg.mime, msg.size ?? 0));
+      else put(key, { ...decode(msg.dataB64, msg.mime, msg.size ?? 0), ...(msg.mtime !== undefined ? { mtime: msg.mtime } : {}) });
       return true;
     }
     if (msg.t === 'team-file-saved') {
@@ -61,7 +61,8 @@ export function useBotFiles(send: (m: ClientMsg) => boolean): BotFiles {
       setBotFileSaves((prev) => ({ ...prev, [key]: msg.ok ? { status: 'saved', mtime: msg.mtime } : { status: 'error', error: msg.error ?? 'não foi possível salvar' } }));
       if (msg.ok) {
         send({ t: 'team-files-get', botId: msg.botId });
-        if (send({ t: 'team-file-get', botId: msg.botId, path: msg.path })) asked.current.add(key);
+        // Loading until the re-read lands: the cached copy is the pre-save one.
+        if (send({ t: 'team-file-get', botId: msg.botId, path: msg.path })) { asked.current.add(key); put(key, { status: 'loading' }); }
       }
       return true;
     }

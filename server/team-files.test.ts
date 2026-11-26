@@ -108,4 +108,38 @@ describe('writeBotFile', () => {
     expect(readFileSync(join(ws('capo1'), 'CLAUDE.md'), 'utf8')).toBe('v1');
     expect(await writeBotFile('capo1', 'CLAUDE.md', 'v3', 5000)).toMatchObject({ path: 'CLAUDE.md' });
   });
+  it('refuses backslashes, control chars and paths deeper than the listing', async () => {
+    for (const p of ['a\\b.md', 'a\\.claude\\settings.json', 'a\nb.md', 'a/b/c/d/e/f.md']) {
+      expect(await writeBotFile('capo1', p, 'x')).toEqual({ error: 'caminho inválido' });
+    }
+    expect(readdirSync(ws('capo1'))).not.toContain('a');
+    expect(await writeBotFile('capo1', 'a/b/c/d/f.md', 'x')).toMatchObject({ path: 'a/b/c/d/f.md' });
+    expect(await listBotFiles('capo1')).toEqual(expect.arrayContaining([expect.objectContaining({ path: 'a/b/c/d/f.md' })]));
+  });
+
+  it('refuses dot segments at any depth and odd extensions', async () => {
+    for (const p of ['x/.claude/settings.json', 'x/.mcp.json', '.CLAUDE.md', 'x/..md']) expect(await writeBotFile('capo1', p, 'x')).toEqual({ error: 'caminho inválido' });
+    for (const p of ['a.md.', 'a.md ', 'a.md.sh']) expect(await writeBotFile('capo1', p, 'x')).toEqual({ error: 'tipo de arquivo não editável' });
+    expect(await writeBotFile('capo1', 'a.md/', 'x')).toEqual({ error: 'caminho inválido' });
+    expect(await writeBotFile('capo1', 'UP.MD', 'x')).toMatchObject({ path: 'UP.MD' });
+  });
+
+  it('counts the size in bytes, not characters', async () => {
+    expect(await writeBotFile('capo1', 'a.md', 'é'.repeat(MAX_BOT_WRITE_BYTES / 2 + 1))).toEqual({ error: 'arquivo passa de 256KB' });
+  });
+
+  it('a new file (baseMtime 0) never overwrites one that already exists', async () => {
+    writeFileSync(join(ws('capo1'), 'notas.md'), 'do bot');
+    expect(await writeBotFile('capo1', 'notas.md', 'do admin', 0)).toEqual({ error: 'conflito' });
+    expect(readFileSync(join(ws('capo1'), 'notas.md'), 'utf8')).toBe('do bot');
+    expect(await writeBotFile('capo1', 'nova.md', 'x', 0)).toMatchObject({ path: 'nova.md' });
+  });
+
+  it('a read carries the mtime a later save is checked against', async () => {
+    writeFileSync(join(ws('capo1'), 'r.md'), 'v1');
+    const read = await readBotFile('capo1', 'r.md');
+    if (!('mtime' in read)) throw new Error('no mtime');
+    utimesSync(join(ws('capo1'), 'r.md'), new Date(9000), new Date(9000));
+    expect(await writeBotFile('capo1', 'r.md', 'v2', read.mtime)).toEqual({ error: 'conflito' });
+  });
 });

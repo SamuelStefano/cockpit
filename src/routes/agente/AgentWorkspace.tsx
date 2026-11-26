@@ -13,10 +13,11 @@ interface AgentWorkspaceProps { botId: string; api: BotFilesApi; connected: bool
 export function AgentWorkspace({ botId, api, connected, canEdit = false }: AgentWorkspaceProps) {
   const t = useBotFilesTab(botId, api, connected);
   const openText = t.openData?.status === 'ok' ? t.openData.text : undefined;
-  const ed = useWorkspaceEditor(botId, api, openText);
+  const ed = useWorkspaceEditor(botId, api, { text: openText, mtime: t.openData?.status === 'ok' ? t.openData.mtime : undefined });
+  const discard = () => !ed.dirty || window.confirm('Descartar as alterações não salvas?');
   const editable = canEdit && ed.canEdit && connected;
   const exists = (path: string) => !!api.botFiles[botId]?.some((f) => f.path === path);
-  const create = (path: string) => { t.open(path); ed.startNew(path); };
+  const create = (path: string) => { if (!discard()) return; t.open(path); ed.startNew(path); };
   const newFile = editable && <NewFileField exists={exists} onCreate={create} />;
   if (!t.loaded) return <SkeletonCards />;
   if (!t.groups.length && !ed.draft) {
@@ -26,7 +27,7 @@ export function AgentWorkspace({ botId, api, connected, canEdit = false }: Agent
       </EmptyState>
     );
   }
-  const pick = (path: string) => { if (ed.dirty && !window.confirm('Descartar as alterações não salvas?')) return; ed.cancel(); t.open(path); };
+  const pick = (path: string) => { if (!discard()) return; ed.cancel(); t.open(path); };
   return (
     <div className="grid grid-cols-[260px_minmax(0,1fr)] gap-3.5 max-lg:grid-cols-1">
       <nav aria-label="Workspace" className="flex max-h-[70vh] flex-col gap-0.5 overflow-y-auto rounded-2xl border border-(--border) bg-neutral-900/60 p-2 scroll-thin">
@@ -54,7 +55,7 @@ export function AgentWorkspace({ botId, api, connected, canEdit = false }: Agent
       <section aria-label="Arquivo" className="min-w-0 overflow-hidden rounded-2xl border border-(--border) bg-neutral-900/60">
         {ed.draft ? (
           <WorkspaceEditor path={ed.draft.path} text={ed.draft.text} dirty={ed.dirty} saving={ed.saving} error={ed.error}
-            onChange={ed.change} onSave={ed.save} onCancel={ed.cancel} />
+            onChange={ed.change} onSave={ed.save} onCancel={() => { if (discard()) ed.cancel(); }} />
         ) : t.openPath ? (
           <>
             <div className="flex items-center gap-1 border-b border-(--border) px-3 py-2.5">
