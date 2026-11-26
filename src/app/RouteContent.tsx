@@ -74,7 +74,7 @@ export function RouteContent({ route, agentRoute, isMobile, isAdmin, capsKnown, 
     }
     if (route === '/equipe' && isAdmin) {
       return (
-        <EquipeHome state={c.teamState} bots={c.bots} connected={connected} onLoad={c.onTeamStateGet}
+        <EquipeHome role={isRoot ? 'root' : 'admin'} state={c.teamState} bots={c.bots} connected={connected} onLoad={c.onTeamStateGet}
           onOpenAgent={agent.open} onSendTo={c.onSendTo} />
       );
     }
