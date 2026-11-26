@@ -1,12 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { WebSocket } from 'ws';
+import { mkdirSync, mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 const sent = vi.hoisted(() => ({ fn: vi.fn() }));
 const computer = vi.hoisted(() => ({ fn: vi.fn() }));
+const history = vi.hoisted(() => ({ recordSave: vi.fn(async () => true) }));
 
 vi.mock('./broadcast', () => ({ send: sent.fn }));
 vi.mock('../team', () => ({ getTeam: async () => [{ id: 'capo1' }] }));
 vi.mock('../team-computer', () => ({ botComputer: computer.fn }));
+vi.mock('../agents-repo/history', () => history);
 
 import { ownBotId, saveBotFile, sendBotComputer } from './team-files-frames';
 
@@ -76,5 +81,14 @@ describe('saveBotFile scoping', () => {
   it('a student cannot write a bot outside the team', async () => {
     await saveBotFile(ws, 'other1', '.claude/settings.json', '{}', undefined, 'student');
     expect(sent.fn).toHaveBeenCalledWith(ws, expect.objectContaining({ t: 'team-file-saved', ok: false, error: 'bot não encontrado' }));
+    expect(history.recordSave).not.toHaveBeenCalled();
+  });
+
+  it('commits a successful save to the agents repo', async () => {
+    process.env.COCKPIT_BOTS_DIR = mkdtempSync(join(tmpdir(), 'bots-'));
+    mkdirSync(join(process.env.COCKPIT_BOTS_DIR, 'capo1', 'workspace'), { recursive: true });
+    await saveBotFile(ws, 'capo1', 'CLAUDE.md', '# oi', undefined, 'admin');
+    expect(sent.fn).toHaveBeenCalledWith(ws, expect.objectContaining({ t: 'team-file-saved', ok: true }));
+    expect(history.recordSave).toHaveBeenCalledWith('capo1', 'capo1', 'CLAUDE.md');
   });
 });

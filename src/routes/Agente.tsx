@@ -13,8 +13,10 @@ import { useRotinas } from './equipe/rotinas/useRotinas';
 import { AgentForm } from './agente/AgentForm';
 import { AgentHeader } from './agente/AgentHeader';
 import { AgentWorkspace } from './agente/AgentWorkspace';
+import { AgentVersions } from './agente/AgentVersions';
+import type { AgentHistoryApi } from '../cockpit/useAgentHistory';
 
-export interface AgentePageApi extends CronApi, BotFilesApi, BotComputerApi {
+export interface AgentePageApi extends CronApi, BotFilesApi, BotComputerApi, AgentHistoryApi {
   bots: TeamBot[];
   models: ModelInfo[];
   teamLoaded: boolean;
@@ -78,6 +80,7 @@ export function Agente({ agentId, tab, views, api, connected, isAdmin, isMobile,
     { id: 'perfil', label: 'Perfil' },
     { id: 'rotinas', label: 'Rotinas', count: api.crons.filter((c) => c.botId === bot.id).length },
     { id: 'arquivos', label: 'Arquivos', count: api.botFiles[bot.id]?.length },
+    { id: 'versoes', label: 'Versões' },
     { id: 'computador', label: 'Computador' },
   ];
   const body = (
@@ -93,6 +96,7 @@ export function Agente({ agentId, tab, views, api, connected, isAdmin, isMobile,
       )}
       {tab === 'rotinas' && <RoutinesTab botId={bot.id} bots={api.bots} api={api} connected={connected} onChat={onChat} />}
       {tab === 'arquivos' && <AgentWorkspace botId={bot.id} api={api} connected={connected} canEdit />}
+      {tab === 'versoes' && <AgentVersions botId={bot.id} api={api} connected={connected} isAdmin={isAdmin} />}
       {tab === 'computador' && <BotComputer bot={bot} state={state} />}
     </>
   );

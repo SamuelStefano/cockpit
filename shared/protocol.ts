@@ -456,6 +456,12 @@ export interface RosterBox {
   self: boolean;
 }
 
+export interface WsCommit { hash: string; message: string; at: number; source: 'deck' | 'github' }
+export interface WsDiffFile { path: string; old: string; new: string }
+export interface WsConflict { botId: string; path: string }
+// `repo` absent = local history only ("Só local").
+export interface WsRepoStatus { repo?: string; head?: string; at?: number; pending?: boolean }
+
 export interface TeamBot {
   id: string;
   name: string;
@@ -897,6 +903,12 @@ export type ClientMsg =
   | { t: 'team-files-get'; botId: string }
   | { t: 'team-file-get'; botId: string; path: string }
   | { t: 'team-file-put'; botId: string; path: string; text: string; baseMtime?: number }
+  | { t: 'team-ws-log-get'; botId: string }
+  | { t: 'team-ws-diff-get'; botId: string; hash: string }
+  | { t: 'team-ws-restore'; botId: string; hash: string; path: string }
+  | { t: 'team-ws-sync' }
+  | { t: 'team-ws-repos-get' }
+  | { t: 'team-ws-connect'; repo: string }
   | { t: 'session-file-get'; sessionId: string; path: string }
   | { t: 'team-computer-get'; botId: string }
   | { t: 'skill-list' }
@@ -1125,6 +1137,11 @@ export type ServerMsg =
   | { t: 'team-files'; botId: string; items: BotFile[]; error?: string }
   | { t: 'team-file'; botId: string; path: string; mime?: string; size?: number; mtime?: number; dataB64?: string; error?: string }
   | { t: 'team-file-saved'; botId: string; path: string; ok: boolean; mtime?: number; error?: string }
+  | { t: 'team-ws-log'; botId: string; items: WsCommit[]; status: WsRepoStatus; error?: string }
+  | { t: 'team-ws-diff'; botId: string; hash: string; files: WsDiffFile[]; patch: string; error?: string }
+  | { t: 'team-ws-restored'; botId: string; path: string; ok: boolean; error?: string }
+  | { t: 'team-ws-status'; status: WsRepoStatus; conflicts?: WsConflict[]; error?: string }
+  | { t: 'team-ws-repos'; repos: string[]; error?: string }
   | { t: 'session-file'; sessionId: string; path: string; mime?: string; size?: number; dataB64?: string; truncated?: boolean; error?: string }
   | { t: 'team-computer'; botId: string; computer?: BotComputer; error?: string }
   | { t: 'context'; id: string; title: string; body: string }

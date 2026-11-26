@@ -41,6 +41,7 @@ import { sendTalk, sendTalkMessage } from './team-talk';
 import { clearBotQuestion, sendTeamPending } from './team-pending-frames';
 import { sendSessionFile } from './session-file-frames';
 import { saveBotFile, sendBotComputer, sendBotFile, sendBotFiles } from './team-files-frames';
+import { sendWsDiff, sendWsLog, wsRestore } from './agents-repo-frames';
 import { validateBotInput } from '../../shared/team';
 import { builderPrompt, builderSystemPrompt } from '../../shared/agent-builder';
 import { queueReleaseAt } from './ctx-guard';
@@ -1015,6 +1016,18 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role, ctx: Ha
     }
     case 'team-file-put': {
       await saveBotFile(ws, msg.botId, msg.path, msg.text, msg.baseMtime, role ?? 'student');
+      return;
+    }
+    case 'team-ws-log-get': {
+      await sendWsLog(ws, msg.botId);
+      return;
+    }
+    case 'team-ws-diff-get': {
+      await sendWsDiff(ws, msg.botId, msg.hash);
+      return;
+    }
+    case 'team-ws-restore': {
+      await wsRestore(ws, msg.botId, msg.hash, msg.path, role ?? 'student');
       return;
     }
     case 'session-file-get': {

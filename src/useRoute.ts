@@ -38,8 +38,8 @@ function redirectLegacy(): void {
 // conversa, duas abas em chats diferentes. A VIEW continua sendo '/', então o id
 // só alimenta a sessão ativa — nada remonta ao trocar de chat.
 const CHAT = '/c/';
-export type AgentTab = 'perfil' | 'rotinas' | 'arquivos' | 'computador';
-const AGENT_TABS: readonly AgentTab[] = ['perfil', 'rotinas', 'arquivos', 'computador'];
+export type AgentTab = 'perfil' | 'rotinas' | 'arquivos' | 'versoes' | 'computador';
+const AGENT_TABS: readonly AgentTab[] = ['perfil', 'rotinas', 'arquivos', 'versoes', 'computador'];
 const AGENTS = '/agentes/';
 // Reserved agent ids: they are pages under /agentes, never a bot (real ids come from newBotId).
 export const AGENT_NEW = 'novo';
