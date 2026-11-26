@@ -9,7 +9,9 @@ import { Sidebar } from './components/chrome/sidebar/Sidebar';
 import { DesktopShell } from './components/chrome/rail/DesktopShell';
 import { MobileTopBar } from './components/chrome/sidebar/MobileTopBar';
 import { TopBarSlotContext } from './components/chrome/sidebar/TopBarSlot';
-import { MobileTabBar } from './components/chrome/sidebar/MobileTabBar';
+import { MobileBottomNav } from './components/chrome/sidebar/MobileBottomNav';
+import { MobileChatsHeader } from './components/chrome/sidebar/MobileChatsHeader';
+import { pendingRequests } from './components/chrome/sidebar/mobile-pending';
 import { MobileNavDrawer } from './components/chrome/sidebar/MobileNavDrawer';
 import { SessionsPanel } from './components/Sessions';
 import { QuotaBanner } from './components/chrome/QuotaBanner';
@@ -198,7 +200,7 @@ function CockpitBody() {
     setActiveSessionId(pick);
   }, [activeSessionId, sessions, archived, chatId, setActiveSessionId]);
 
-  useRoleLanding({ route, capsKnown: !!caps, role, nav, landOnTeam: entryLandsOnTeamHome });
+  useRoleLanding({ route, capsKnown: !!caps, role, nav, landOnTeam: entryLandsOnTeamHome && !isMobile });
 
   // Between a reload and the first session list there is no active session yet: without
   // this the chat flashed the empty "new chat" screen before jumping back to the open one.
@@ -239,7 +241,12 @@ function CockpitBody() {
   const sidebarProps = { ...sessionsProps, agents: agent.views, activeAgentId: agent.active?.bot.id ?? null, onOpenAgent: agent.open, onNewAgent: isAdmin ? agent.openNew : undefined };
   const quotaNotice = claudeQuota && quotaGate.warn && !quotaClosed && rate ? <QuotaBanner reset={relReset(rate.resetsAt)} onClose={() => setQuotaClosed(true)} /> : null;
   const bodyFooter = isMobile ? null : <BodyFooter end={quotaNotice} />;
-  const chatWithTeam = { ...chatProps, teamSlot: isAdmin ? <>{cockpit.planner && <KanbanButton planner={cockpit.planner} bots={cockpit.bots} />}<VilaButton route={route} isAdmin={isAdmin} onGo={nav} /></> : undefined, footer: bodyFooter };
+  const agentSwitch = useMemo(() => ({ views: agent.views, activeId: agent.active?.bot.id ?? null, onOpen: agent.open, onFree: handleNew }), [agent.views, agent.active, agent.open, handleNew]);
+  const phoneTeam = useMemo(
+    () => (isAdmin ? { kanban: cockpit.planner ? { planner: cockpit.planner, bots: cockpit.bots } : undefined, onVila: () => nav('/equipe/mundo') } : undefined),
+    [isAdmin, cockpit.planner, cockpit.bots, nav],
+  );
+  const chatWithTeam = { ...chatProps, teamSlot: isAdmin ? <>{cockpit.planner && <KanbanButton planner={cockpit.planner} bots={cockpit.bots} />}<VilaButton route={route} isAdmin={isAdmin} onGo={nav} /></> : undefined, agentSwitch, phoneTeam, footer: bodyFooter };
   const openPalette = () => { setDrawer(false); setPalette(true); };
   const openPaletteDesktop = useCallback(() => setPalette(true), [setPalette]);
   const userId = sbAuth.session?.user.id;
@@ -254,7 +261,12 @@ function CockpitBody() {
       route={menuRoute(route, agentId)} nav={(to) => { setDrawer(false); nav(to); }} role={role}
       onNew={handleNew} onPalette={openPalette}
       bitState={bitState} conn={conn.ws} account={account}
-      sessions={<SessionsPanel {...sidebarProps} embedded onCloseMobile={closeDrawer} />}
+      sessions={(
+        <div className="flex h-full flex-col">
+          <MobileChatsHeader views={agent.views} onOpenAgent={(id) => { closeDrawer(); agent.open(id); }} onTeam={role === 'student' ? undefined : () => { closeDrawer(); nav('/equipe'); }} />
+          <div className="min-h-0 flex-1"><SessionsPanel {...sidebarProps} embedded onCloseMobile={closeDrawer} /></div>
+        </div>
+      )}
       drawer={{ onClose: closeDrawer }}
     />
   ) : null;
@@ -351,8 +363,11 @@ function CockpitBody() {
             pages={settingsPages({ cockpit, connected: conn.ws === 'connected', isAdmin, isRoot, skillRoute: { id: skillId, open: navSkill }, onOpenAgentChat: (m) => { handleNew(); setModel(m); nav('/'); } })}
           />
           {!isMobile && !chatSurface && bodyFooter}
-          {isMobile && !keyboardOpen && (
-            <MobileTabBar role={role} route={viewRoute} onNavigate={nav} onConversations={() => setDrawer(true)} onMore={() => setDrawer(true)} />
+          {isMobile && !keyboardOpen && !chatSurface && (
+            <MobileBottomNav
+              role={role} route={viewRoute} pending={pendingRequests(agent.views)} conn={conn.ws} account={account}
+              onNavigate={nav} onConversations={() => setDrawer(true)} onSearch={() => setPalette(true)}
+            />
           )}
         </div>
       </div>

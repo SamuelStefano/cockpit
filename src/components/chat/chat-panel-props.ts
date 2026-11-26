@@ -11,6 +11,9 @@ import type { AgentsApi } from '../../cockpit/useAgents';
 import type { LinkState } from '../bit/turn-bit-state';
 import type { CallApi } from './call/useCall';
 import type { SessionFilesApi } from './file-panel/useChatFilePanel';
+import type { BotView } from '../../routes/equipe/team-view';
+import type { PlannerApi } from '../../planner/usePlanner';
+import type { TeamBot } from '../../../shared/protocol';
 
 // A Equipe bot's thread: the assistant speaks as the bot, the empty thread has no
 // generic suggestions, and delivered team prompts give way to the traffic rows.
@@ -24,6 +27,20 @@ export interface ChatBotDecor {
 }
 
 // What the one-line header shows for an agent's thread instead of the session title.
+// Phone header: what the "Trocar agente" sheet lists and does.
+export interface AgentSwitch {
+  views: BotView[];
+  activeId: string | null;
+  onOpen: (id: string) => void;
+  onFree: () => void;
+}
+
+// Phone header: the team shortcuts that live in the "…" menu instead of the bar.
+export interface PhoneTeam {
+  kanban?: { planner: PlannerApi; bots?: TeamBot[] };
+  onVila?: () => void;
+}
+
 export interface ChatAgentHeader {
   avatar: ReactNode;
   actions?: ReactNode;
@@ -42,6 +59,8 @@ export interface ChatPanelProps {
   turnStatus?: ReactNode;
   // Header chip for the team (stack + sheet) when the rail does not fit.
   teamSlot?: ReactNode;
+  agentSwitch?: AgentSwitch;
+  phoneTeam?: PhoneTeam;
   // Slim line under the composer (machine chip, quota reset): lives in the chat column so it
   // tracks the team rail instead of sliding under it.
   footer?: ReactNode;

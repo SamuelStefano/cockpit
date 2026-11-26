@@ -17,7 +17,7 @@ interface SheetProps {
   className?: string;
 }
 
-function BottomSheet({ onClose, label, content }: Pick<SheetProps, 'onClose' | 'label' | 'content'>) {
+export function BottomSheet({ onClose, label, content }: Pick<SheetProps, 'onClose' | 'label' | 'content'>) {
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
   useBackClose(true, onClose);
