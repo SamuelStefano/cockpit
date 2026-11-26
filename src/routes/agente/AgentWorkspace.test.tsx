@@ -3,8 +3,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render } from '@testing-library/react';
 import type { BotFilesApi } from '../equipe/equipe-props';
 import { AgentWorkspace } from './AgentWorkspace';
+import { draftStash } from './useWorkspaceEditor';
 
-afterEach(cleanup);
+afterEach(() => { cleanup(); draftStash.clear(); vi.restoreAllMocks(); });
 
 const now = Date.now();
 const api = (over: Partial<BotFilesApi> = {}): BotFilesApi => ({
@@ -37,5 +38,82 @@ describe('AgentWorkspace', () => {
   it('empty workspace says so', () => {
     const r = render(<AgentWorkspace botId="capo1" api={api({ botFiles: { capo1: [] } })} connected />);
     expect(r.getByText('Nenhum arquivo ainda')).toBeTruthy();
+  });
+
+  it('students see no edit controls', () => {
+    const a = api({ botFileData: { 'capo1:antigo.md': { status: 'ok', mime: 'text/markdown', size: 2, url: '', text: 'oi' } }, onBotFilePut: vi.fn(() => true) });
+    const r = render(<AgentWorkspace botId="capo1" api={a} connected />);
+    fireEvent.click(r.getByText('antigo.md'));
+    expect(r.queryByRole('button', { name: 'Editar' })).toBeNull();
+    expect(r.queryByRole('button', { name: 'Novo arquivo' })).toBeNull();
+  });
+
+  it('admin edits, marks dirty and saves with Ctrl+S and the mtime of the copy it read, not the listing one', () => {
+    const put = vi.fn(() => true);
+    const a = api({ botFileData: { 'capo1:antigo.md': { status: 'ok', mime: 'text/markdown', size: 2, url: '', text: 'oi', mtime: 1234 } }, onBotFilePut: put, botFileSaves: {} });
+    const r = render(<AgentWorkspace botId="capo1" api={a} connected canEdit />);
+    fireEvent.click(r.getByText('antigo.md'));
+    fireEvent.click(r.getByRole('button', { name: 'Editar' }));
+    const box = r.getByLabelText('Editar antigo.md');
+    fireEvent.change(box, { target: { value: 'oi de novo' } });
+    expect(r.getByLabelText('Alterações não salvas')).toBeTruthy();
+    fireEvent.keyDown(box, { key: 's', ctrlKey: true });
+    expect(put).toHaveBeenCalledWith('capo1', 'antigo.md', 'oi de novo', 1234);
+  });
+
+  it('shows the conflict copy when the server refuses', () => {
+    const put = vi.fn(() => true);
+    const base = { botFileData: { 'capo1:antigo.md': { status: 'ok' as const, mime: 'text/markdown', size: 2, url: '', text: 'oi' } }, onBotFilePut: put };
+    const r = render(<AgentWorkspace botId="capo1" api={api({ ...base, botFileSaves: {} })} connected canEdit />);
+    fireEvent.click(r.getByText('antigo.md'));
+    fireEvent.click(r.getByRole('button', { name: 'Editar' }));
+    fireEvent.change(r.getByLabelText('Editar antigo.md'), { target: { value: 'x' } });
+    fireEvent.click(r.getByRole('button', { name: 'Salvar' }));
+    r.rerender(<AgentWorkspace botId="capo1" api={api({ ...base, botFileSaves: { 'capo1:antigo.md': { status: 'saving' } } })} connected canEdit />);
+    r.rerender(<AgentWorkspace botId="capo1" api={api({ ...base, botFileSaves: { 'capo1:antigo.md': { status: 'error', error: 'conflito' } } })} connected canEdit />);
+    expect(r.getByRole('alert').textContent).toBe('O arquivo mudou desde que você abriu. Recarregue antes de salvar.');
+  });
+
+  it('creates a new .md file with base mtime 0 so it cannot overwrite', () => {
+    const put = vi.fn(() => true);
+    const r = render(<AgentWorkspace botId="capo1" api={api({ onBotFilePut: put, botFileSaves: {} })} connected canEdit />);
+    fireEvent.click(r.getByRole('button', { name: 'Novo arquivo' }));
+    fireEvent.change(r.getByLabelText('Nome do novo arquivo'), { target: { value: 'notas' } });
+    fireEvent.click(r.getByRole('button', { name: 'Criar' }));
+    fireEvent.change(r.getByLabelText('Editar notas.md'), { target: { value: '# notas' } });
+    fireEvent.click(r.getByRole('button', { name: 'Salvar' }));
+    expect(put).toHaveBeenCalledWith('capo1', 'notas.md', '# notas', 0);
+  });
+  const editing = () => {
+    const a = api({ botFileData: { 'capo1:antigo.md': { status: 'ok', mime: 'text/markdown', size: 2, url: '', text: 'oi', mtime: 1 } }, onBotFilePut: vi.fn(() => true), botFileSaves: {} });
+    const r = render(<AgentWorkspace botId="capo1" api={a} connected canEdit />);
+    fireEvent.click(r.getByText('antigo.md'));
+    fireEvent.click(r.getByRole('button', { name: 'Editar' }));
+    fireEvent.change(r.getByLabelText('Editar antigo.md'), { target: { value: 'rascunho' } });
+    return { a, r };
+  };
+
+  it('Cancelar asks before dropping unsaved edits', () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const { r } = editing();
+    fireEvent.click(r.getByRole('button', { name: 'Cancelar' }));
+    expect((r.getByLabelText('Editar antigo.md') as HTMLTextAreaElement).value).toBe('rascunho');
+    confirm.mockReturnValue(true);
+    fireEvent.click(r.getByRole('button', { name: 'Cancelar' }));
+    expect(r.queryByLabelText('Editar antigo.md')).toBeNull();
+  });
+
+  it('keeps the unsaved draft across a tab switch and warns on page unload', () => {
+    const { a, r } = editing();
+    const ev = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(ev);
+    expect(ev.defaultPrevented).toBe(true);
+    r.unmount();
+    const back = render(<AgentWorkspace botId="capo1" api={a} connected canEdit />);
+    expect((back.getByLabelText('Editar antigo.md') as HTMLTextAreaElement).value).toBe('rascunho');
+    back.rerender(<AgentWorkspace botId="lead1" api={{ ...a, botFiles: { ...a.botFiles, lead1: [] } }} connected canEdit />);
+    expect(back.queryByLabelText('Editar antigo.md')).toBeNull();
+    back.rerender(<AgentWorkspace botId="capo1" api={a} connected canEdit />);
+    expect((back.getByLabelText('Editar antigo.md') as HTMLTextAreaElement).value).toBe('rascunho');
   });
 });

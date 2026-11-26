@@ -40,7 +40,7 @@ import { sendTeamState } from './team-state-frames';
 import { sendTalk, sendTalkMessage } from './team-talk';
 import { clearBotQuestion, sendTeamPending } from './team-pending-frames';
 import { sendSessionFile } from './session-file-frames';
-import { sendBotComputer, sendBotFile, sendBotFiles } from './team-files-frames';
+import { saveBotFile, sendBotComputer, sendBotFile, sendBotFiles } from './team-files-frames';
 import { validateBotInput } from '../../shared/team';
 import { builderPrompt, builderSystemPrompt } from '../../shared/agent-builder';
 import { queueReleaseAt } from './ctx-guard';
@@ -1011,6 +1011,10 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role, ctx: Ha
     }
     case 'team-file-get': {
       await sendBotFile(ws, msg.botId, msg.path);
+      return;
+    }
+    case 'team-file-put': {
+      await saveBotFile(ws, msg.botId, msg.path, msg.text, msg.baseMtime);
       return;
     }
     case 'session-file-get': {
