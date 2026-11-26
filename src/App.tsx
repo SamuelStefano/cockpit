@@ -6,6 +6,7 @@ import { memorizePrompt } from './components/chat/memorize';
 import { KanbanButton } from './components/planner/KanbanButton';
 import { VilaButton } from './components/chrome/VilaButton';
 import { Sidebar } from './components/chrome/sidebar/Sidebar';
+import { DesktopShell } from './components/chrome/rail/DesktopShell';
 import { MobileTopBar } from './components/chrome/sidebar/MobileTopBar';
 import { TopBarSlotContext } from './components/chrome/sidebar/TopBarSlot';
 import { MobileTabBar } from './components/chrome/sidebar/MobileTabBar';
@@ -25,7 +26,6 @@ import { useGameSignals } from './game/useGameSignals';
 import { BoxHealthHost } from './components/health/BoxHealthHost';
 import { bitStateFor } from './components/bit/bit-state';
 import { useRememberLastSession } from './cockpit/box-open';
-import { RailChats } from './components/chrome/sidebar/RailChats';
 import { useJustDone } from './components/bit/useJustDone';
 import type { LinkState } from './components/bit/turn-bit-state';
 import { RouteContent } from './app/RouteContent';
@@ -241,7 +241,12 @@ function CockpitBody() {
   const bodyFooter = isMobile ? null : <BodyFooter end={quotaNotice} />;
   const chatWithTeam = { ...chatProps, teamSlot: isAdmin ? <>{cockpit.planner && <KanbanButton planner={cockpit.planner} bots={cockpit.bots} />}<VilaButton route={route} isAdmin={isAdmin} onGo={nav} /></> : undefined, footer: bodyFooter };
   const openPalette = () => { setDrawer(false); setPalette(true); };
-  const account = { userId: sbAuth.session?.user.id, onSignOut: SUPABASE_ENABLED ? sbAuth.signOut : undefined, onChangePassword: SUPABASE_ENABLED ? sbAuth.changePassword : undefined, drops: dropApi };
+  const openPaletteDesktop = useCallback(() => setPalette(true), [setPalette]);
+  const userId = sbAuth.session?.user.id;
+  const account = useMemo(
+    () => ({ userId, onSignOut: SUPABASE_ENABLED ? sbAuth.signOut : undefined, onChangePassword: SUPABASE_ENABLED ? sbAuth.changePassword : undefined, drops: dropApi }),
+    [userId, sbAuth.signOut, sbAuth.changePassword, dropApi],
+  );
 
   const closeDrawer = useCallback(() => setDrawer(false), [setDrawer]);
   const drawerNav = drawer ? (
@@ -311,11 +316,13 @@ function CockpitBody() {
       <DesktopTitleBar />
       <div className="flex min-h-0 flex-1">
         {!isMobile && (
-          <Sidebar
-            route={menuRoute(route, agentId)} nav={nav} role={role} navCounts={navCounts} onNew={handleNew} onPalette={() => setPalette(true)}
+          <DesktopShell
+            route={menuRoute(route, agentId)} nav={nav} navAgent={navAgent} role={role} navCounts={navCounts} onNew={handleNew} onPalette={openPaletteDesktop}
             bitState={bitState} conn={conn.ws} account={account}
-            sessions={<SessionsPanel {...sidebarProps} embedded />}
-            rail={<RailChats sessions={sidebarSessions} running={runningAnywhere} activeId={activeSessionId} onSelect={selectSession} />}
+            agents={agent.views} activeAgentId={agent.active?.bot.id ?? null} onOpenAgent={agent.open} onNewAgent={isAdmin ? agent.openNew : undefined}
+            onRotateAgent={isAdmin ? cockpit.onTeamRotate : undefined}
+            sessionsPanel={<SessionsPanel {...sessionsProps} embedded />}
+            chatSessions={sidebarSessions} sessions={sessions} activeSessionId={activeSessionId} running={runningAnywhere} onSelectSession={selectSession}
           />
         )}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">

@@ -32,4 +32,11 @@ describe('Avatar', () => {
     const { container } = render(<Avatar name="Ana" src="/a.png" />);
     expect(container.querySelector('img')?.getAttribute('src')).toBe('/a.png');
   });
+
+  it('draws a glyph instead of the initials on a soft tint', () => {
+    render(<Avatar name="Ana" tone="pink" glyph={<b>m</b>} />);
+    const el = screen.getByRole('img');
+    expect(el.textContent).toBe('m');
+    expect(el.className).toContain('bg-[#ec4899]/20');
+  });
 });

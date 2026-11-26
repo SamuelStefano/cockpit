@@ -4,6 +4,7 @@ import type { MeetingInput, TeamMeeting } from '../../shared/team-meeting';
 import type { ExecutorState, HeavyJob, JobInput } from '../../shared/heavy-job';
 import type { TeamState } from '../../shared/team-state';
 import { mergeTeamMessages, type TeamMessage } from '../../shared/team-messages';
+import { toast } from '../components/primitives/toast-bus';
 
 export interface AgentBuildResult { reqId: string; ok: boolean; text?: string; error?: string }
 export type AgentBuildRequest = Omit<Extract<ClientMsg, { t: 'agent-build' }>, 't'>;
@@ -33,6 +34,8 @@ export interface Team {
   onTeamSyncSource: (id: string) => void;
   onTeamMessagesGet: (q?: TeamMessagesQuery) => void;
   onTeamPauseSet: (paused: boolean) => void;
+  // Starts the bot on a fresh session; the current one stays in previousSessionIds.
+  onTeamRotate: (botId: string) => void;
   agentBuild: AgentBuildResult | null;
   onAgentBuild: (req: AgentBuildRequest) => boolean;
   onMsg: (msg: ServerMsg) => boolean;
@@ -83,6 +86,9 @@ export function useTeam(send: (m: ClientMsg) => boolean): Team {
         setExecutor(msg.executor);
         setHeavyJobs(msg.jobs);
         return true;
+      case 'team-rotate-result':
+        if (!msg.ok) toast(msg.error ? `Não deu pra começar do zero: ${msg.error}` : 'Não deu pra começar do zero.', { tone: 'error' });
+        return true;
       case 'team-pending':
         setPendingQuestions(msg.items);
         return true;
@@ -115,6 +121,7 @@ export function useTeam(send: (m: ClientMsg) => boolean): Team {
     onTeamSyncSource: useCallback((id: string) => { send({ t: 'team-sync-source', id }); }, [send]),
     onTeamMessagesGet: useCallback((q: TeamMessagesQuery = {}) => { send({ t: 'team-messages-get', ...q }); }, [send]),
     onTeamPauseSet: useCallback((paused: boolean) => { send({ t: 'team-pause-set', paused }); }, [send]),
+    onTeamRotate: useCallback((botId: string) => { send({ t: 'team-rotate', botId }); }, [send]),
     onMsg,
   };
 }

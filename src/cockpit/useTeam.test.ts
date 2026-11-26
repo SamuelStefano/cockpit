@@ -111,3 +111,13 @@ describe('useTeam messages and pause', () => {
     expect(sent).toEqual([{ t: 'heavy-get' }, { t: 'heavy-run', repo: 'r', branch: 'b', command: 'c' }, { t: 'heavy-cancel', id: 'h1' }]);
   });
 });
+
+describe('useTeam rotate', () => {
+  it('sends the rotate frame and claims its result', () => {
+    const { result, sent } = mount();
+    act(() => { result.current.onTeamRotate('capo1'); });
+    expect(sent).toEqual([{ t: 'team-rotate', botId: 'capo1' }]);
+    act(() => { expect(result.current.onMsg({ t: 'team-rotate-result', botId: 'capo1', ok: true, words: 10 })).toBe(true); });
+    act(() => { expect(result.current.onMsg({ t: 'team-rotate-result', botId: 'capo1', ok: false, error: 'rodando' })).toBe(true); });
+  });
+});
