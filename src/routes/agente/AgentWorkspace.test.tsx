@@ -38,4 +38,49 @@ describe('AgentWorkspace', () => {
     const r = render(<AgentWorkspace botId="capo1" api={api({ botFiles: { capo1: [] } })} connected />);
     expect(r.getByText('Nenhum arquivo ainda')).toBeTruthy();
   });
+
+  it('students see no edit controls', () => {
+    const a = api({ botFileData: { 'capo1:antigo.md': { status: 'ok', mime: 'text/markdown', size: 2, url: '', text: 'oi' } }, onBotFilePut: vi.fn(() => true) });
+    const r = render(<AgentWorkspace botId="capo1" api={a} connected />);
+    fireEvent.click(r.getByText('antigo.md'));
+    expect(r.queryByRole('button', { name: 'Editar' })).toBeNull();
+    expect(r.queryByRole('button', { name: 'Novo arquivo' })).toBeNull();
+  });
+
+  it('admin edits, marks dirty and saves with Ctrl+S and the base mtime', () => {
+    const put = vi.fn(() => true);
+    const a = api({ botFileData: { 'capo1:antigo.md': { status: 'ok', mime: 'text/markdown', size: 2, url: '', text: 'oi' } }, onBotFilePut: put, botFileSaves: {} });
+    const r = render(<AgentWorkspace botId="capo1" api={a} connected canEdit />);
+    fireEvent.click(r.getByText('antigo.md'));
+    fireEvent.click(r.getByRole('button', { name: 'Editar' }));
+    const box = r.getByLabelText('Editar antigo.md');
+    fireEvent.change(box, { target: { value: 'oi de novo' } });
+    expect(r.getByLabelText('Alterações não salvas')).toBeTruthy();
+    fireEvent.keyDown(box, { key: 's', ctrlKey: true });
+    expect(put).toHaveBeenCalledWith('capo1', 'antigo.md', 'oi de novo', now - 40 * 86_400_000);
+  });
+
+  it('shows the conflict copy when the server refuses', () => {
+    const put = vi.fn(() => true);
+    const base = { botFileData: { 'capo1:antigo.md': { status: 'ok' as const, mime: 'text/markdown', size: 2, url: '', text: 'oi' } }, onBotFilePut: put };
+    const r = render(<AgentWorkspace botId="capo1" api={api({ ...base, botFileSaves: {} })} connected canEdit />);
+    fireEvent.click(r.getByText('antigo.md'));
+    fireEvent.click(r.getByRole('button', { name: 'Editar' }));
+    fireEvent.change(r.getByLabelText('Editar antigo.md'), { target: { value: 'x' } });
+    fireEvent.click(r.getByRole('button', { name: 'Salvar' }));
+    r.rerender(<AgentWorkspace botId="capo1" api={api({ ...base, botFileSaves: { 'capo1:antigo.md': { status: 'saving' } } })} connected canEdit />);
+    r.rerender(<AgentWorkspace botId="capo1" api={api({ ...base, botFileSaves: { 'capo1:antigo.md': { status: 'error', error: 'conflito' } } })} connected canEdit />);
+    expect(r.getByRole('alert').textContent).toBe('O arquivo mudou desde que você abriu. Recarregue antes de salvar.');
+  });
+
+  it('creates a new .md file without a base mtime', () => {
+    const put = vi.fn(() => true);
+    const r = render(<AgentWorkspace botId="capo1" api={api({ onBotFilePut: put, botFileSaves: {} })} connected canEdit />);
+    fireEvent.click(r.getByRole('button', { name: 'Novo arquivo' }));
+    fireEvent.change(r.getByLabelText('Nome do novo arquivo'), { target: { value: 'notas' } });
+    fireEvent.click(r.getByRole('button', { name: 'Criar' }));
+    fireEvent.change(r.getByLabelText('Editar notas.md'), { target: { value: '# notas' } });
+    fireEvent.click(r.getByRole('button', { name: 'Salvar' }));
+    expect(put).toHaveBeenCalledWith('capo1', 'notas.md', '# notas', undefined);
+  });
 });

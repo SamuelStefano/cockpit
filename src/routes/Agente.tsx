@@ -92,7 +92,7 @@ export function Agente({ agentId, tab, views, api, connected, isAdmin, isMobile,
         </div>
       )}
       {tab === 'rotinas' && <RoutinesTab botId={bot.id} bots={api.bots} api={api} connected={connected} onChat={onChat} />}
-      {tab === 'arquivos' && <AgentWorkspace botId={bot.id} api={api} connected={connected} />}
+      {tab === 'arquivos' && <AgentWorkspace botId={bot.id} api={api} connected={connected} canEdit={isAdmin} />}
       {tab === 'computador' && <BotComputer bot={bot} state={state} />}
     </>
   );

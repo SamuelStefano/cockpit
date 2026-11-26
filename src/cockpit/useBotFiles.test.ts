@@ -34,4 +34,16 @@ describe('useBotFiles', () => {
     act(() => { result.current.onMsg({ t: 'team-file', botId: 'capo1', path: '../x', error: 'caminho inválido' }); });
     expect(result.current.botFileData[botFileKey('capo1', '../x')]).toEqual({ status: 'error', error: 'caminho inválido' });
   });
+
+  it('puts a file, tracks the save and refreshes on success', () => {
+    const { result, sent } = mount();
+    act(() => { result.current.onBotFilePut('capo1', 'a.md', 'x', 5); });
+    expect(sent).toEqual([{ t: 'team-file-put', botId: 'capo1', path: 'a.md', text: 'x', baseMtime: 5 }]);
+    expect(result.current.botFileSaves[botFileKey('capo1', 'a.md')]).toEqual({ status: 'saving' });
+    act(() => { result.current.onMsg({ t: 'team-file-saved', botId: 'capo1', path: 'a.md', ok: false, error: 'conflito' }); });
+    expect(result.current.botFileSaves[botFileKey('capo1', 'a.md')]).toEqual({ status: 'error', error: 'conflito' });
+    act(() => { result.current.onMsg({ t: 'team-file-saved', botId: 'capo1', path: 'a.md', ok: true, mtime: 9 }); });
+    expect(result.current.botFileSaves[botFileKey('capo1', 'a.md')]).toEqual({ status: 'saved', mtime: 9 });
+    expect(sent.slice(1)).toEqual([{ t: 'team-files-get', botId: 'capo1' }, { t: 'team-file-get', botId: 'capo1', path: 'a.md' }]);
+  });
 });

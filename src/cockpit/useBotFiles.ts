@@ -6,11 +6,15 @@ export type BotFileData =
   | { status: 'error'; error: string }
   | { status: 'ok'; mime: string; size: number; url: string; text?: string; truncated?: boolean };
 
+export type BotFileSave = { status: 'saving' } | { status: 'saved'; mtime?: number } | { status: 'error'; error: string };
+
 export interface BotFiles {
   botFiles: Record<string, BotFile[]>;
   botFileData: Record<string, BotFileData>;
   onBotFilesGet: (botId: string) => void;
   onBotFileGet: (botId: string, path: string, force?: boolean) => void;
+  botFileSaves: Record<string, BotFileSave>;
+  onBotFilePut: (botId: string, path: string, text: string, baseMtime?: number) => boolean;
   onMsg: (msg: ServerMsg) => boolean;
 }
 
@@ -29,6 +33,7 @@ export function decode(dataB64: string, mime: string, size: number): BotFileData
 export function useBotFiles(send: (m: ClientMsg) => boolean): BotFiles {
   const [botFiles, setBotFiles] = useState<Record<string, BotFile[]>>({});
   const [botFileData, setBotFileData] = useState<Record<string, BotFileData>>({});
+  const [botFileSaves, setBotFileSaves] = useState<Record<string, BotFileSave>>({});
   const asked = useRef(new Set<string>());
 
   const put = useCallback((key: string, v: BotFileData) => {
@@ -51,8 +56,17 @@ export function useBotFiles(send: (m: ClientMsg) => boolean): BotFiles {
       else put(key, decode(msg.dataB64, msg.mime, msg.size ?? 0));
       return true;
     }
+    if (msg.t === 'team-file-saved') {
+      const key = botFileKey(msg.botId, msg.path);
+      setBotFileSaves((prev) => ({ ...prev, [key]: msg.ok ? { status: 'saved', mtime: msg.mtime } : { status: 'error', error: msg.error ?? 'não foi possível salvar' } }));
+      if (msg.ok) {
+        send({ t: 'team-files-get', botId: msg.botId });
+        if (send({ t: 'team-file-get', botId: msg.botId, path: msg.path })) asked.current.add(key);
+      }
+      return true;
+    }
     return false;
-  }, [put]);
+  }, [put, send]);
 
   const onBotFilesGet = useCallback((botId: string) => { send({ t: 'team-files-get', botId }); }, [send]);
   const onBotFileGet = useCallback((botId: string, path: string, force = false) => {
@@ -63,5 +77,11 @@ export function useBotFiles(send: (m: ClientMsg) => boolean): BotFiles {
     put(key, { status: 'loading' });
   }, [send, put]);
 
-  return { botFiles, botFileData, onBotFilesGet, onBotFileGet, onMsg };
+  const onBotFilePut = useCallback((botId: string, path: string, text: string, baseMtime?: number) => {
+    if (!send({ t: 'team-file-put', botId, path, text, ...(baseMtime !== undefined ? { baseMtime } : {}) })) return false;
+    setBotFileSaves((prev) => ({ ...prev, [botFileKey(botId, path)]: { status: 'saving' } }));
+    return true;
+  }, [send]);
+
+  return { botFiles, botFileData, onBotFilesGet, onBotFileGet, botFileSaves, onBotFilePut, onMsg };
 }

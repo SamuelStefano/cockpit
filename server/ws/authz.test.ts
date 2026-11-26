@@ -32,6 +32,11 @@ describe('authorize', () => {
     expect(authorize('student', 'team-file-get')).toBe(true);
   });
 
+  it('only admin writes a bot workspace file (team-file-put)', () => {
+    expect(authorize('student', 'team-file-put')).toBe(false);
+    expect(authorize('admin', 'team-file-put')).toBe(true);
+  });
+
   it('student may poll grok usage like Claude, and read computer counts', () => {
     expect(authorize('student', 'grok-usage-get')).toBe(true);
     expect(authorize('student', 'plan-usage-get')).toBe(true);

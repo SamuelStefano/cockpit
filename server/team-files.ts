@@ -1,5 +1,5 @@
-import { lstat, readdir, readFile, realpath, stat } from 'node:fs/promises';
-import { extname, join, resolve, sep } from 'node:path';
+import { lstat, mkdir, readdir, readFile, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { basename, dirname, extname, join, resolve, sep } from 'node:path';
 import type { BotFile } from '../shared/protocol';
 import { botWorkspace } from './engine/restricted-profile';
 
@@ -68,5 +68,52 @@ export async function readBotFile(botId: string, rel: unknown): Promise<BotFileR
     return { path, mime: mimeOf(real), size: buf.length, dataB64: buf.toString('base64') };
   } catch {
     return { error: 'arquivo não encontrado' };
+  }
+}
+
+export const MAX_BOT_WRITE_BYTES = 256 * 1024;
+const WRITABLE_EXT = new Set(['.md', '.txt', '.json', '.yaml', '.yml']);
+
+export type BotFileWrite = { path: string; mtime: number } | { error: string };
+
+// Writes only text files the bot's own CLI never treats as config: dot segments
+// (`.claude/settings.json`, `.git/…`) are refused so a save cannot widen the
+// restricted profile. The parent dir is realpath-checked, the target itself must
+// not be a symlink, and the bytes land through tmp + rename.
+export async function writeBotFile(botId: string, rel: unknown, text: unknown, baseMtime?: unknown): Promise<BotFileWrite> {
+  const ws = botWorkspace(botId);
+  if (!ws) return { error: 'bot inválido' };
+  if (unsafeRelPath(rel)) return { error: 'caminho inválido' };
+  const path = (rel as string).replace(/^(\.\/)+/, '');
+  const segs = path.split(/[\\/]/);
+  if (segs.some((s) => !s || s.startsWith('.'))) return { error: 'caminho inválido' };
+  if (!WRITABLE_EXT.has(extname(path).toLowerCase())) return { error: 'tipo de arquivo não editável' };
+  if (typeof text !== 'string' || text.includes('\0')) return { error: 'conteúdo inválido' };
+  const buf = Buffer.from(text, 'utf8');
+  if (buf.length > MAX_BOT_WRITE_BYTES) return { error: 'arquivo passa de 256KB' };
+  let root: string;
+  try { root = await realpath(ws); } catch { return { error: 'workspace não encontrado' }; }
+  const target = resolve(root, path);
+  const parent = dirname(target);
+  try {
+    let dir = root;
+    for (const seg of segs.slice(0, -1)) {
+      dir = join(dir, seg);
+      const st = await lstat(dir).catch(() => null);
+      if (!st) await mkdir(dir);
+      else if (!st.isDirectory()) return { error: 'caminho inválido' };
+    }
+    const realParent = await realpath(parent);
+    if (realParent !== root && !realParent.startsWith(root + sep)) return { error: 'caminho inválido' };
+    const dest = join(realParent, basename(target));
+    const cur = await lstat(dest).catch(() => null);
+    if (cur && !cur.isFile()) return { error: 'caminho inválido' };
+    if (typeof baseMtime === 'number' && cur && Math.abs(cur.mtimeMs - baseMtime) > 1) return { error: 'conflito' };
+    const tmp = join(realParent, `.${basename(target)}.${process.pid}.${Date.now()}.tmp`);
+    await writeFile(tmp, buf, { flag: 'wx', mode: 0o644 });
+    try { await rename(tmp, dest); } catch (e) { await rm(tmp, { force: true }); throw e; }
+    return { path, mtime: (await stat(dest)).mtimeMs };
+  } catch {
+    return { error: 'não foi possível salvar' };
   }
 }

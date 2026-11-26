@@ -1,5 +1,5 @@
 import type { BotFile, Cron, ModelInfo, TeamBot, TeamBotInput } from '../../../shared/protocol';
-import type { BotFileData } from '../../cockpit/useBotFiles';
+import type { BotFileData, BotFileSave } from '../../cockpit/useBotFiles';
 import type { BotComputerState } from '../../cockpit/useBotComputer';
 import type { TermApi } from '../../cockpit/useTerminals';
 import type { ChatPanelProps } from '../../components/chat/chat-panel-props';
@@ -27,6 +27,8 @@ export interface BotFilesApi {
   botFileData: Record<string, BotFileData>;
   onBotFilesGet: (botId: string) => void;
   onBotFileGet: (botId: string, path: string, force?: boolean) => void;
+  botFileSaves?: Record<string, BotFileSave>;
+  onBotFilePut?: (botId: string, path: string, text: string, baseMtime?: number) => boolean;
 }
 
 export interface BotComputerApi {
