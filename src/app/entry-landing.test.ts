@@ -26,11 +26,12 @@ describe('opensNewChat', () => {
 
 describe('landsOnTeamHome', () => {
   it('lands on the bare URL', () => {
-    expect(landsOnTeamHome({ path: '/', navType: 'navigate' })).toBe(true);
+    expect(landsOnTeamHome({ path: '/', navType: 'navigate', hiddenAt: null, now: 0 })).toBe(true);
   });
   it('keeps a reload on the bare URL and any chat or other route', () => {
-    expect(landsOnTeamHome({ path: '/', navType: 'reload' })).toBe(false);
-    expect(landsOnTeamHome({ path: '/c/abc', navType: 'navigate' })).toBe(false);
-    expect(landsOnTeamHome({ path: '/canvas', navType: 'navigate' })).toBe(false);
+    expect(landsOnTeamHome({ path: '/', navType: 'reload', hiddenAt: null, now: 0 })).toBe(false);
+    expect(landsOnTeamHome({ path: '/c/abc', navType: 'navigate', hiddenAt: null, now: 0 })).toBe(false);
+    expect(landsOnTeamHome({ path: '/c/abc', navType: 'reload', hiddenAt: 0, now: 31 * 60_000 })).toBe(true);
+    expect(landsOnTeamHome({ path: '/canvas', navType: 'navigate', hiddenAt: null, now: 0 })).toBe(false);
   });
 });
