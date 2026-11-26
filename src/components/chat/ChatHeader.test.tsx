@@ -139,10 +139,10 @@ describe('ChatHeader', () => {
 describe('ChatHeader phone bar', () => {
   const base = { session: { id: 's1', title: 'Relatório' } as never, messages: [], isEmpty: false, isMobile: true, contextTokens: 0, onNew: vi.fn(), fullLoaded: false, setFullLoaded: vi.fn() };
 
-  it('shows ☰ · title · "+" · one "…" menu that holds the terminal row', () => {
+  it('shows back · chip · one "…" menu that holds the terminal row', () => {
     const onMenu = vi.fn();
     render(<ChatHeader {...base} onMenu={onMenu} onTerminal={vi.fn()} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Menu' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Conversas' }));
     expect(onMenu).toHaveBeenCalledOnce();
     expect(screen.getByRole('button', { name: 'Mais ações da conversa' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Abrir terminais' })).toBeNull();
@@ -150,12 +150,35 @@ describe('ChatHeader phone bar', () => {
     expect(screen.getAllByRole('menuitem', { name: 'Abrir terminais' })).toHaveLength(1);
   });
 
-  it('on a fresh chat the action is "+" and the title is Deck', () => {
+  it('on a fresh chat the chip says Deck and "Nova conversa" lives in the menu', () => {
     const onNew = vi.fn();
     render(<ChatHeader {...base} isEmpty onNew={onNew} onMenu={vi.fn()} />);
     expect(screen.getByText('Deck')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Nova conversa' }));
+    expect(screen.queryByRole('button', { name: 'Nova conversa' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Mais ações da conversa' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Nova conversa' }));
     expect(onNew).toHaveBeenCalledOnce();
+  });
+
+  it('the chip opens "Trocar agente": Conversa livre plus every agent', () => {
+    const onOpen = vi.fn(); const onFree = vi.fn();
+    const views = [{ bot: { id: 'a1', name: 'Capo', mascot: 'bit' }, state: 'idle' }] as never;
+    render(<ChatHeader {...base} onMenu={vi.fn()} agentSwitch={{ views, activeId: null, onOpen, onFree }} />);
+    fireEvent.click(screen.getByRole('button', { name: /^Trocar agente/ }));
+    const sheet = screen.getByRole('dialog', { name: 'Trocar agente' });
+    expect(sheet.textContent).toContain('Conversa livre');
+    fireEvent.click(screen.getByRole('button', { name: /Capo/ }));
+    expect(onOpen).toHaveBeenCalledWith('a1');
+  });
+
+  it('Kanban and Vila moved into the menu', () => {
+    const onVila = vi.fn();
+    const planner = { tasks: [], onPlannerGet: vi.fn() } as never;
+    render(<ChatHeader {...base} onMenu={vi.fn()} phoneTeam={{ kanban: { planner }, onVila }} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Mais ações da conversa' }));
+    expect(screen.getByRole('menuitem', { name: 'Kanban' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Vila' }));
+    expect(onVila).toHaveBeenCalledOnce();
   });
 
   it('names the running-conversations count inside the menu instead of a bare "1/5" in the header', () => {
@@ -185,9 +208,10 @@ describe('ChatHeader phone bar', () => {
     expect(screen.getByRole('menuitem', { name: /^Uso do plano: 43%/ })).toBeTruthy();
   });
 
-  it('renaming keeps the title field mounted: no compact swap when the keyboard opens', () => {
+  it('renaming from the menu swaps the chip for the title field', () => {
     render(<ChatHeader {...base} onMenu={vi.fn()} onRename={vi.fn()} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Renomear sessão: Relatório' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Mais ações da conversa' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Renomear' }));
     expect(document.activeElement).toBe(screen.getByLabelText('Nome da sessão'));
   });
 
