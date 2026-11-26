@@ -37,6 +37,12 @@ function SpacesRailImpl({ bitState, views, selectedAgentId, onAll, onAgent, onNe
     <nav aria-label="Espaços" className="relative z-30 flex h-full w-20 shrink-0 flex-col items-center border-r border-(--border) bg-neutral-950 pb-3 pt-3.5">
       <RailLogo bitState={bitState} onHome={() => bottom.nav('/')} />
       <BoxChip onAdd={onAddBox} />
+      {collapsed && (
+        <div className="flex shrink-0 flex-col items-center gap-1 pb-1">
+          <IconButton icon="panelLeft" label="Expandir barra lateral" side="right" aria-expanded={false} onClick={onExpand} />
+          <IconButton icon="squarePen" label="Nova conversa" side="right" onClick={onNew} />
+        </div>
+      )}
       <div className="scroll-thin flex min-h-0 w-full flex-1 flex-col items-center gap-1 overflow-y-auto overflow-x-hidden pt-1">
         <SpaceButton label="Todas as conversas" selected={!selectedAgentId} onClick={onAll}>
           <SpaceTile selected={!selectedAgentId}><Icon name="message" size={18} /></SpaceTile>
@@ -51,12 +57,6 @@ function SpacesRailImpl({ bitState, views, selectedAgentId, onAll, onAgent, onNe
           <SpaceButton label="Novo agente" onClick={onNewAgent}>
             <SpaceTile><Icon name="plus" size={18} /></SpaceTile>
           </SpaceButton>
-        )}
-        {collapsed && (
-          <div className="mt-1 flex flex-col items-center gap-1 border-t border-(--border) pt-2">
-            <IconButton icon="panelLeft" label="Expandir barra lateral" side="right" aria-expanded={false} onClick={onExpand} />
-            <IconButton icon="squarePen" label="Nova conversa" side="right" onClick={onNew} />
-          </div>
         )}
         {collapsed && <RailChats sessions={chatSessions} running={chatRunning} activeId={activeChatId} onSelect={onSelectChat} />}
       </div>
