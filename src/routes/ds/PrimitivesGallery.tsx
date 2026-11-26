@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Avatar, Button, Badge, BrandMark, IconButton, Input, ListRow, Menu, MenuItem, MenuLabel, MenuSeparator, PageTitle, Popover, RiskBadge, SectionTitle, Sheet, Switch, ToggleChip, Tooltip, UsageRing, toast } from '../../components/primitives';
+import { Avatar, Button, Badge, BrandMark, Icon, IconButton, Input, ListRow, Menu, MenuItem, MenuLabel, MenuSeparator, PageTitle, Popover, RiskBadge, SectionTitle, Sheet, Switch, ToggleChip, Tooltip, UsageRing, toast } from '../../components/primitives';
 import { tokens } from '../../components/primitives/tokens';
 import { Section } from './Section';
 import { Row } from './Row';
@@ -23,6 +23,9 @@ export function PrimitivesGallery() {
         </Row>
         <Row label="Avatar status">
           {(['ok', 'warn', 'err', 'idle'] as const).map((st) => <Avatar key={st} name={st} tone="blue" status={st} size={36} />)}
+        </Row>
+        <Row label="Avatar glyph">
+          <Avatar name="Bot" tone="purple" status="ok" size={44} glyph={<Icon name="sparkles" size={22} />} />
         </Row>
         <Row label="Token swatches">
           {Object.entries(tokens.color).map(([k, v]) => (
