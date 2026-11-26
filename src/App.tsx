@@ -239,7 +239,7 @@ function CockpitBody() {
   const sidebarProps = { ...sessionsProps, agents: agent.views, activeAgentId: agent.active?.bot.id ?? null, onOpenAgent: agent.open, onNewAgent: isAdmin ? agent.openNew : undefined };
   const quotaNotice = claudeQuota && quotaGate.warn && !quotaClosed && rate ? <QuotaBanner reset={relReset(rate.resetsAt)} onClose={() => setQuotaClosed(true)} /> : null;
   const bodyFooter = isMobile ? null : <BodyFooter end={quotaNotice} />;
-  const chatWithTeam = { ...chatProps, teamSlot: isAdmin ? <><VilaButton route={route} isAdmin={isAdmin} onGo={nav} />{cockpit.planner && <KanbanButton planner={cockpit.planner} bots={cockpit.bots} />}</> : undefined, footer: bodyFooter };
+  const chatWithTeam = { ...chatProps, teamSlot: isAdmin ? <>{cockpit.planner && <KanbanButton planner={cockpit.planner} bots={cockpit.bots} />}<VilaButton route={route} isAdmin={isAdmin} onGo={nav} /></> : undefined, footer: bodyFooter };
   const openPalette = () => { setDrawer(false); setPalette(true); };
   const account = { userId: sbAuth.session?.user.id, onSignOut: SUPABASE_ENABLED ? sbAuth.signOut : undefined, onChangePassword: SUPABASE_ENABLED ? sbAuth.changePassword : undefined, drops: dropApi };
 
