@@ -18,9 +18,10 @@ export function opensNewChat({ path, navType, hiddenAt, now }: Entry): boolean {
   return path === '/' && navType !== 'reload';
 }
 
-// Root/admin opening the bare URL (not a reload, not a pasted /c/<id>) land on the Equipe home.
-export function landsOnTeamHome({ path, navType }: Pick<Entry, 'path' | 'navType'>): boolean {
-  return path === '/' && navType !== 'reload';
+// Root/admin land on the Equipe home whenever the app opens fresh: the bare URL, or the
+// installed PWA coming back after a long absence on its old /c/<id> (Safari reloads it there).
+export function landsOnTeamHome(entry: Entry): boolean {
+  return opensNewChat(entry);
 }
 
 function readEntry(): Entry {
