@@ -18,6 +18,17 @@ function setup(over: Partial<Parameters<typeof ChatHeader>[0]> = {}) {
 }
 
 describe('ChatHeader', () => {
+  it('shows the owner and model on a muted second line', () => {
+    setup({ selectedModel: 'claude-sonnet-5-5' });
+    expect(screen.getByText('Deck · Sonnet 5.5')).toBeTruthy();
+  });
+
+  it('labels an agent thread as Agente with its model', () => {
+    setup({ selectedModel: 'claude-opus-4-8', agent: { name: 'Íris', avatar: <span>av</span> } as never });
+    expect(screen.getByText('Íris')).toBeTruthy();
+    expect(screen.getByText('Agente · Opus 4.8')).toBeTruthy();
+  });
+
   it('is a single line with the title and a menu, no message icon or badges', () => {
     setup();
     expect(screen.getByLabelText('Renomear sessão: Minha conversa')).toBeTruthy();

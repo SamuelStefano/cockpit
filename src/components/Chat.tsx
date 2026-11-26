@@ -77,7 +77,7 @@ export function ChatPanel({ session, messages, phase, settled = false, terminalB
       queued={c.queued} queuedIds={c.queuedIds} queuedAtts={c.queuedAtts} queuedModels={c.queuedModels} onRunQueuedBg={c.runQueuedInBgAt} onRunQueuedNow={c.runQueuedNowAt} onQueue={c.enqueue} onCancelQueueAt={c.cancelQueueAt} onEditQueuedAt={c.editQueuedAt} onMoveQueued={c.moveQueuedItem} history={c.sentHistory} pendingConfirm={c.bannerConfirm} onNew={onNew} onShowHelp={onShowHelp}
       queuePaused={queuePaused} queueReleaseAt={queueReleaseAt} onToggleQueuePause={() => queueSetPaused(!queuePaused)}
       queueHeld={c.queueHeld} onResumeQueue={c.resumeQueue}
-      paused={locked} capacityFull={capacityFull} quotaResetsAt={resetAt} agentOut={agentOut && useAgent ? { name: agentOut.displayName, use: useAgent } : undefined} focusMode={focus} onCall={call.supported ? call.dial : undefined} />
+      paused={locked} capacityFull={capacityFull} quotaResetsAt={resetAt} agentOut={agentOut && useAgent ? { name: agentOut.displayName, use: useAgent } : undefined} focusMode={focus} onCall={call.supported ? call.dial : undefined} contextTokens={contextTokens} contextModel={contextModel} />
   );
   const hero = c.isEmpty && phase === 'idle' && !botDecor && !restoring;
 

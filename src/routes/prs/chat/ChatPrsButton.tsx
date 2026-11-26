@@ -13,7 +13,7 @@ function Inner({ sessionId, markers, compact, deps }: ChatPrsButtonProps & { dep
   return (
     <>
       <Button
-        variant="ghost" size="sm" icon="gitPullRequest" square={compact || !s.count} title={label} aria-label={label}
+        variant="ghost" size="xs" icon="gitPullRequest" square={compact || !s.count} title={label} aria-label={label}
         aria-haspopup="dialog" aria-expanded={s.open} onClick={() => s.setOpen(true)}
         className={`relative ${compact ? 'pointer-coarse:h-11 pointer-coarse:w-11' : ''} ${s.count ? 'text-neutral-200' : ''}`}
       >

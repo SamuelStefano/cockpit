@@ -3,6 +3,7 @@ import { IconButton, Popover } from '../primitives';
 import { ConfirmDelete } from '../sessions/ConfirmDelete';
 import { ChatHeaderMenu } from './ChatHeaderMenu';
 import { EditableTitle } from './EditableTitle';
+import { ChatHeaderIdentity } from './ChatHeaderIdentity';
 import { useHeaderMenu } from './useHeaderMenu';
 import type { Session, Message } from '../../data/types';
 import { ranOnOtherModel } from '../../cockpit/session-model';
@@ -93,14 +94,14 @@ export function ChatHeader({ session, messages, isEmpty, contextTokens, contextM
       }
     >
       <span className="relative inline-flex">
-        <IconButton icon="ellipsis" label={ctxHot || usageHot ? `Mais ações da conversa, ${[ctxHot && 'contexto cheio', usageHot && 'uso do plano alto'].filter(Boolean).join(' e ')}` : 'Mais ações da conversa'} side="bottom" aria-expanded={menu.open} aria-haspopup="dialog" onClick={menu.toggle} />
+        <IconButton icon="ellipsis" size="xs" label={ctxHot || usageHot ? `Mais ações da conversa, ${[ctxHot && 'contexto cheio', usageHot && 'uso do plano alto'].filter(Boolean).join(' e ')}` : 'Mais ações da conversa'} side="bottom" aria-expanded={menu.open} aria-haspopup="dialog" onClick={menu.toggle} />
         {(ctxHot || usageHot) && <span aria-hidden className={`pointer-events-none absolute right-1 top-1 h-2 w-2 rounded-full ring-2 ring-neutral-950 ${ctxHot ? 'bg-red-400' : 'bg-amber-400'}`} />}
       </span>
     </Popover>
   );
   const terminalButton = onTerminal && (
     <span className="relative inline-flex">
-      <IconButton icon="terminal" label="Abrir terminais" side="bottom" aria-pressed={terminalOpen} onClick={onTerminal} className={terminalOpen ? 'bg-neutral-800 text-neutral-100' : ''} />
+      <IconButton icon="terminal" size="xs" label="Abrir terminais" side="bottom" aria-pressed={terminalOpen} onClick={onTerminal} className={terminalOpen ? 'bg-neutral-800 text-neutral-100' : ''} />
       {terminalRunning && (
         <span className="pointer-events-none absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-neutral-900 bg-green-500" />
       )}
@@ -141,21 +142,17 @@ export function ChatHeader({ session, messages, isEmpty, contextTokens, contextM
   }
 
   return (
-    <div className="flex h-12 shrink-0 items-center gap-2 px-4">
-      {agent ? (
-        <span className="flex min-w-0 items-center gap-2">
-          {agent.avatar}
-          <span className="truncate text-[14px] font-medium text-neutral-100">{agent.name}</span>
-        </span>
-      ) : (
-        <EditableTitle id={session?.id} title={title} editable={saved} onRename={onRename} startSignal={renameSignal} />
-      )}
-      <div className="ml-auto flex shrink-0 items-center gap-2 pointer-coarse:gap-3">
+    <div className="flex h-14 shrink-0 items-center gap-2 border-b border-(--border) px-4">
+      <ChatHeaderIdentity
+        agentName={agent?.name} avatar={agent?.avatar} sessionId={session?.id} title={title} editable={saved}
+        onRename={onRename} renameSignal={renameSignal} model={selectedModel ?? contextModel ?? undefined}
+      />
+      <div className="ml-auto flex shrink-0 items-center gap-1 pointer-coarse:gap-3">
         {agent?.actions}
         {teamSlot}
         {prs(false)}
-        {usage && !inShell() && <UsageDock {...usage} />}
         {terminalButton}
+        {usage && !inShell() && <UsageDock {...usage} />}
         {moreMenu}
       </div>
       {confirm}

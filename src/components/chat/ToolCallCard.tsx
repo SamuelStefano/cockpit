@@ -73,14 +73,14 @@ export function ToolCallCard({ tool }: ToolCallCardProps) {
   const cmdIcon = isAgent || kind === 'taskcreate' || kind === 'taskupdate' ? headIcon : 'file';
 
   return (
-    <div className={`my-2 overflow-hidden rounded-xl border ${ring} bg-neutral-900/70`}>
+    <div className={`my-2 overflow-hidden rounded-[10px] border ${ring} bg-neutral-900/60`}>
       <div className="flex items-center gap-2.5 px-3 py-2">
         <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${status === 'error' ? 'bg-red-500/15 text-red-400' : 'bg-neutral-800 text-orange-400'}`}>
           <Icon name={headIcon} size={13} />
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className="truncate font-mono text-[13px] font-medium text-neutral-200">{tool.label}</span>
+            <span className="truncate rounded-md bg-neutral-800 px-1.5 py-0.5 font-mono text-[12px] font-medium text-neutral-200">{tool.label}</span>
             <span className="shrink-0">{statusEl}</span>
           </div>
         </div>
