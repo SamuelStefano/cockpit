@@ -5,7 +5,6 @@ import type { TermApi } from '../cockpit/useTerminals';
 import type { AgentBuildRequest, AgentBuildResult } from '../cockpit/useTeam';
 import type { AgentTab } from '../useRoute';
 import { BotComputer } from './equipe/BotComputer';
-import { BotFiles } from './equipe/BotFiles';
 import { BotRoutines } from './equipe/BotRoutines';
 import { BotComputerProvider } from './equipe/computer-context';
 import type { BotComputerApi, BotFilesApi, CronApi } from './equipe/equipe-props';
@@ -13,6 +12,7 @@ import type { BotView } from './equipe/team-view';
 import { useRotinas } from './equipe/rotinas/useRotinas';
 import { AgentForm } from './agente/AgentForm';
 import { AgentHeader } from './agente/AgentHeader';
+import { AgentWorkspace } from './agente/AgentWorkspace';
 
 export interface AgentePageApi extends CronApi, BotFilesApi, BotComputerApi {
   bots: TeamBot[];
@@ -60,8 +60,8 @@ export function Agente({ agentId, tab, views, api, connected, isAdmin, isMobile,
   if (agentId === 'novo') {
     if (!api.teamLoaded) return shell(<SkeletonCards />);
     return shell(
-      <div className="max-w-95">
-        <h1 className="pb-5 text-[22px] max-lg:hidden font-semibold tracking-[-0.02em] text-neutral-100">Novo agente</h1>
+      <div className="max-w-170">
+        <div className="flex flex-col gap-1 pb-5 max-lg:hidden"><h1 className="text-[22px] font-semibold tracking-[-0.02em] text-neutral-100">Novo agente</h1><p className="text-[13px] text-(--text-muted)">Quem ele é e o que pode fazer.</p></div>
         <AgentForm key={String(isAdmin)} bot={null} bots={api.bots} models={api.models} skills={api.skills} locked={!isAdmin} onSave={api.onTeamSave}
           agentBuild={api.agentBuild} onAgentBuild={api.onAgentBuild} onSaved={(id) => onTab(id, 'perfil')} onCancel={onList} />
       </div>,
@@ -85,14 +85,14 @@ export function Agente({ agentId, tab, views, api, connected, isAdmin, isMobile,
       <AgentHeader bot={bot} bots={api.bots} state={state} onChat={() => onChat(bot.id)} onBack={onList} />
       <Tabs items={tabs} active={tab} onChange={(t) => onTab(bot.id, t)} className="mb-6 max-lg:mb-3" />
       {tab === 'perfil' && (
-        <div className="max-w-95">
+        <div className="max-w-170">
           <AgentForm key={`${bot.id}:${bot.updatedAt}:${formKey}:${isAdmin}`} bot={bot} bots={api.bots} models={api.models} skills={api.skills} locked={!isAdmin}
             agentBuild={api.agentBuild} onAgentBuild={api.onAgentBuild} onSave={api.onTeamSave} onSaved={() => toast('Agente salvo')} onCancel={() => setFormKey((k) => k + 1)}
             onDelete={(id) => { api.onTeamDelete(id); onList(); }} onSyncSource={api.onTeamSyncSource} />
         </div>
       )}
       {tab === 'rotinas' && <RoutinesTab botId={bot.id} bots={api.bots} api={api} connected={connected} onChat={onChat} />}
-      {tab === 'arquivos' && <BotFiles botId={bot.id} api={api} connected={connected} />}
+      {tab === 'arquivos' && <AgentWorkspace botId={bot.id} api={api} connected={connected} />}
       {tab === 'computador' && <BotComputer bot={bot} state={state} />}
     </>
   );

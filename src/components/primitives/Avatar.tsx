@@ -9,6 +9,8 @@ interface AvatarProps {
   src?: string;
   size?: number;
   tone?: AvatarTone;
+  // Arbitrary data color (a bot mascot hex); wins over `tone`.
+  color?: string;
   status?: AvatarStatus;
   className?: string;
 }
@@ -30,20 +32,20 @@ const statusBg: Record<AvatarStatus, string> = {
   idle: 'bg-neutral-600',
 };
 
-export function Avatar({ name, src, size = 28, tone, status, className = '' }: AvatarProps) {
+export function Avatar({ name, src, size = 28, tone, color, status, className = '' }: AvatarProps) {
   const init = initials(name);
-  const look = tone
-    ? `rounded-[30%] ${toneBg[tone]} text-neutral-950`
+  const look = tone || color
+    ? `rounded-[30%] ${color ? '' : toneBg[tone!]} text-neutral-950`
     : 'rounded-full bg-linear-to-br from-amber-300 to-amber-500 text-amber-950';
   const dot = Math.max(8, Math.round(size * 0.32));
   return (
     <span
       role="img"
       aria-label={name || 'Avatar'}
-      style={{ width: size, height: size, fontSize: Math.round(size * 0.43) }}
+      style={{ width: size, height: size, fontSize: Math.round(size * 0.43), ...(color ? { background: color } : {}) }}
       className={`relative inline-flex shrink-0 items-center justify-center font-semibold ${look} ${className}`}
     >
-      <span className={`flex h-full w-full items-center justify-center overflow-hidden ${tone ? 'rounded-[30%]' : 'rounded-full'}`}>
+      <span className={`flex h-full w-full items-center justify-center overflow-hidden ${tone || color ? 'rounded-[30%]' : 'rounded-full'}`}>
         {src ? <img src={src} alt="" className="h-full w-full object-cover" /> : init || <Icon name="user" size={Math.round(size * 0.5)} />}
       </span>
       {status && (
