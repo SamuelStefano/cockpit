@@ -7,14 +7,15 @@ interface AgentRowProps {
   isLeader: boolean;
   onChat: (id: string) => void;
   onWorkspace: (id: string) => void;
+  onProfile: (id: string) => void;
 }
 
-export function AgentRow({ view, isLeader, onChat, onWorkspace }: AgentRowProps) {
+export function AgentRow({ view, isLeader, onChat, onWorkspace, onProfile }: AgentRowProps) {
   const { bot, state } = view;
   const status = AGENT_STATUS[state];
   return (
     <div className="flex items-center gap-3.5 border-b border-(--border) px-4 py-3.5 last:border-b-0">
-      <button type="button" onClick={() => onWorkspace(bot.id)} aria-label={`Perfil de ${bot.name}`} className="flex min-w-0 flex-1 items-center gap-3 rounded-lg text-left">
+      <button type="button" onClick={() => onProfile(bot.id)} aria-label={`Perfil de ${bot.name}`} className="flex min-w-0 flex-1 items-center gap-3 rounded-lg text-left">
         <Avatar name={bot.name} color={bot.mascot.color} size={48} status={status.avatar} />
         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="flex items-center gap-2">

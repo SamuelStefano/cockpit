@@ -12,12 +12,15 @@ interface ChatPrsButtonProps {
   // Phone: the header menu owns the trigger; each bump of the signal opens the panel.
   openSignal?: number;
   hideTrigger?: boolean;
+  onCount?: (count: number) => void;
 }
 
-function Inner({ sessionId, markers, compact, openSignal = 0, hideTrigger = false, deps }: ChatPrsButtonProps & { deps: ChatPrDeps }) {
+function Inner({ sessionId, markers, compact, openSignal = 0, hideTrigger = false, onCount, deps }: ChatPrsButtonProps & { deps: ChatPrDeps }) {
   const s = useChatPrs(sessionId, markers, deps.connected);
   const { setOpen } = s;
   useEffect(() => { if (openSignal > 0) setOpen(true); }, [openSignal, setOpen]);
+  const { count } = s;
+  useEffect(() => { onCount?.(count); }, [count, onCount]);
   const label = s.count ? `Pull requests desta conversa: ${s.count}` : 'Pull requests desta conversa';
   return (
     <>

@@ -11,6 +11,7 @@ import { MobileTopBar } from './components/chrome/sidebar/MobileTopBar';
 import { TopBarSlotContext } from './components/chrome/sidebar/TopBarSlot';
 import { MobileBottomNav } from './components/chrome/sidebar/MobileBottomNav';
 import { MobileChatsHeader } from './components/chrome/sidebar/MobileChatsHeader';
+import { MobileDrawerShortcuts } from './components/chrome/sidebar/MobileDrawerShortcuts';
 import { pendingRequests } from './components/chrome/sidebar/mobile-pending';
 import { MobileNavDrawer } from './components/chrome/sidebar/MobileNavDrawer';
 import { SessionsPanel } from './components/Sessions';
@@ -264,6 +265,7 @@ function CockpitBody() {
       sessions={(
         <div className="flex h-full flex-col">
           <MobileChatsHeader views={agent.views} onOpenAgent={(id) => { closeDrawer(); agent.open(id); }} onTeam={role === 'student' ? undefined : () => { closeDrawer(); nav('/equipe'); }} />
+          <MobileDrawerShortcuts role={role} views={agent.views} onNavigate={(to) => { closeDrawer(); nav(to); }} />
           <div className="min-h-0 flex-1"><SessionsPanel {...sidebarProps} embedded onCloseMobile={closeDrawer} /></div>
         </div>
       )}

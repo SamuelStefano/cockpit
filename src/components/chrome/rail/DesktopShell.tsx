@@ -54,7 +54,7 @@ export function DesktopShell(p: DesktopShellProps) {
             <AgentSpaceSide
               view={s.view} chief={s.chief} sessions={p.sessions} activeSessionId={p.activeSessionId} running={p.running}
               onOpenThread={p.onOpenAgent} onSelectSession={p.onSelectSession} onRotate={p.onRotateAgent}
-              onWorkspace={(id) => p.navAgent(id, 'arquivos')} onProfile={(id) => p.navAgent(id)} onCollapse={s.toggle}
+              onWorkspace={(id) => p.navAgent(id, 'arquivos')} onProfile={(id) => p.navAgent(id)} onCollapse={s.toggle} onNew={p.onNew}
             />
           ) : (
             <AllSpaceSide sessions={p.sessionsPanel} onNew={p.onNew} onCollapse={s.toggle} onManageAgents={() => p.nav('/agentes')} />

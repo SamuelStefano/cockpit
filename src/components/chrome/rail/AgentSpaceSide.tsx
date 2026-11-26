@@ -17,12 +17,13 @@ interface AgentSpaceSideProps {
   onWorkspace: (botId: string) => void;
   onProfile: (botId: string) => void;
   onCollapse: () => void;
+  onNew: () => void;
 }
 
 const row = `flex min-h-11 w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left ${tokens.focusRing}`;
 const groupLabel = 'px-2 pb-1 pt-3.5 text-[11px] font-medium uppercase tracking-[0.06em] text-(--text-muted)';
 
-export function AgentSpaceSide({ view, chief, sessions, activeSessionId, running, onOpenThread, onSelectSession, onRotate, onWorkspace, onProfile, onCollapse }: AgentSpaceSideProps) {
+export function AgentSpaceSide({ view, chief, sessions, activeSessionId, running, onOpenThread, onSelectSession, onRotate, onWorkspace, onProfile, onCollapse, onNew }: AgentSpaceSideProps) {
   const { bot } = view;
   const threads = agentThreads(view, sessions);
   const meta = agentMeta(bot);
@@ -38,6 +39,7 @@ export function AgentSpaceSide({ view, chief, sessions, activeSessionId, running
             </div>
             {meta && <span className="truncate text-[12px] text-(--text-muted)">{meta}</span>}
           </div>
+          <IconButton icon="squarePen" label="Nova conversa" size="sm" side="bottom" onClick={onNew} />
           <IconButton icon="panelLeft" label="Recolher barra lateral" size="sm" side="bottom" aria-expanded onClick={onCollapse} />
         </div>
         {bot.label && <p className="text-[13px] leading-snug text-(--text-strong)">{bot.label}</p>}

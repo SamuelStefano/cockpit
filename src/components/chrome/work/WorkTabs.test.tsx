@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { loadPref } from '../../../lib/persist';
+import { loadPref, setPref } from '../../../lib/persist';
 import { WorkTabs } from './WorkTabs';
 
 beforeEach(() => { localStorage.clear(); history.replaceState(null, '', '/canvas'); });
@@ -29,6 +29,15 @@ describe('WorkTabs', () => {
     render(<WorkTabs role="root" active="canvas" />);
     fireEvent.click(screen.getByRole('tab', { name: 'Kanban' }));
     expect(loadPref('canvas.mode', 'canvas')).toBe('kanban');
+  });
+
+  it.each(['kanban', 'chain'])('resets %s mode when Canvas is picked from any tab', (mode) => {
+    localStorage.clear();
+    setPref('canvas.mode', mode);
+    render(<WorkTabs role="root" active="prs" />);
+    fireEvent.click(screen.getByRole('tab', { name: 'Canvas' }));
+    expect(loadPref('canvas.mode', 'canvas')).toBe('canvas');
+    expect(location.pathname).toBe('/canvas');
   });
 
   it('renders the actions slot', () => {

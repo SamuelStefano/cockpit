@@ -2,6 +2,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { ChatHeader } from './ChatHeader';
+import { ChatPrDepsContext } from '../../routes/prs/chat/pr-deps-context';
+
+vi.mock('../../routes/prs/chat/useChatPrs', () => ({
+  useChatPrs: () => ({ open: false, setOpen: vi.fn(), count: 3, groups: [] }),
+}));
 
 afterEach(cleanup);
 
@@ -169,6 +174,13 @@ describe('ChatHeader phone bar', () => {
     expect(sheet.textContent).toContain('Conversa livre');
     fireEvent.click(screen.getByRole('button', { name: /Capo/ }));
     expect(onOpen).toHaveBeenCalledWith('a1');
+  });
+
+  it('shows the PR count on the phone menu item', () => {
+    const deps = { connected: true, onAllPrs: vi.fn() } as never;
+    render(<ChatPrDepsContext.Provider value={deps}><ChatHeader {...base} onMenu={vi.fn()} /></ChatPrDepsContext.Provider>);
+    fireEvent.click(screen.getByRole('button', { name: 'Mais ações da conversa' }));
+    expect(screen.getByRole('menuitem', { name: /Pull requests/ }).textContent).toContain('3');
   });
 
   it('Kanban and Vila moved into the menu', () => {
