@@ -2,6 +2,7 @@ import type { TeamBot } from '../../shared/protocol';
 import { botThreadKey } from '../../shared/team';
 import { botName, teamPrompt } from '../../shared/team-messages';
 import { botTurnParams, botDenyRules } from '../team-prompt';
+import { executorConfigured } from '../heavy-executor';
 import { readMemoriesSafe } from '../memories';
 import { startTeamOutbox, type Delivery, type SpoolMessage } from '../team-outbox';
 import { getTeam } from '../team';
@@ -28,7 +29,7 @@ function park(key: string, params: RunParams, prompt: string, resumeId: string |
 // Like a routine (fireBotRoutine), it runs under `bot-<id>`; the browser aliases
 // that key to the bot's thread.
 export async function deliverTeamMessage(m: SpoolMessage, team: TeamBot[]): Promise<Delivery> {
-  const turn = botTurnParams(team, botThreadKey(m.to), undefined, await readMemoriesSafe());
+  const turn = botTurnParams(team, botThreadKey(m.to), undefined, await readMemoriesSafe(), executorConfigured());
   if (!turn) return 'failed';
   const resume = resumableId(turn.resumeId);
   const key = botThreadKey(m.to);

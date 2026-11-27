@@ -14,7 +14,7 @@ interface ComposerActionsProps {
 }
 
 // 44px on touch: the one primary action must be an easy target.
-const btn = 'flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition focus-visible:outline-hidden focus-visible:ring-2';
+const btn = 'flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] pointer-coarse:h-11 pointer-coarse:w-11 pointer-coarse:rounded-full transition focus-visible:outline-hidden focus-visible:ring-2';
 const idle = 'bg-neutral-800 text-neutral-600';
 const chunk = 'btn-chunk bg-orange-500 text-neutral-950 hover:bg-orange-400';
 
@@ -57,7 +57,7 @@ function MicButton({ mic }: { mic: Mic }) {
       </button>
     );
   }
-  return <IconButton icon="mic" label="Ditar por voz" tip={mic.error ?? 'Ditar por voz'} onClick={mic.toggle} className="rounded-full" />;
+  return <IconButton icon="mic" label="Ditar por voz" tip={mic.error ?? 'Ditar por voz'} onClick={mic.toggle} className="rounded-[10px] pointer-coarse:rounded-full" />;
 }
 
 const HOLD_TITLE = {

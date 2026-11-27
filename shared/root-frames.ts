@@ -17,6 +17,7 @@ export const ROOT_ONLY: ReadonlySet<ClientMsg['t']> = new Set<ClientMsg['t']>([
   'agent-add-custom', 'agent-probe-draft', 'provider-probe',
   'claude-import-scan', 'claude-import-apply', 'claude-account-get', 'claude-logout',
   'versions-restore',
+  'team-ws-repos-get', 'team-ws-connect',
   'vault-put', 'vault-list', 'vault-rm',
   'prs-get', 'prs-detail-get', 'prs-merge', 'prs-diff-get', 'prs-session-get',
 ]);

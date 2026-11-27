@@ -7,9 +7,11 @@ import { ComposerPlus } from './ComposerPlus';
 import { ModelPicker } from './ModelPicker';
 import { AttachmentChips } from './AttachmentChips';
 import { QueuedBanner } from './QueuedBanner';
+import { ComposerStatusLine } from './ComposerStatusLine';
 import { SlashPalette, SLASH_LIST_ID, slashOptionId } from './SlashPalette';
 import type { PermMode, Effort, ModelInfo, Caps } from '../../../shared/protocol';
 import type { Attachment } from '../../useCockpit';
+import { useRef } from 'react';
 import { useChatInput } from './useChatInput';
 import { useScreenshotOffer } from './useScreenshotOffer';
 import { ScreenshotPrompt } from './ScreenshotPrompt';
@@ -75,10 +77,14 @@ interface ChatInputProps {
   onShowHelp?: () => void;
   onCall?: () => void;
   focusMode?: boolean;
+  contextTokens?: number;
+  contextModel?: string | null;
 }
 
 export function ChatInput(props: ChatInputProps) {
-  const { disabled, placeholder, onStop, value, setValue, mode, setMode, caps, bypass, setBypass, model, setModel, modelLocked, models, onRefreshModels, effort, setEffort, mcpServers, selectedMcps, setSelectedMcps, attachments, onRemoveAttachment, onOpenAttachment, attThumbs, onAttThumb, queued, queuedIds, queuedAtts, queuedModels, onRunQueuedBg, onRunQueuedNow, onCancelQueueAt, onEditQueuedAt, onMoveQueued, queueHeld = false, onResumeQueue, queuePaused = false, queueReleaseAt = 0, onToggleQueuePause, paused = false, capacityFull = false, agentOut, quotaResetsAt, onCall, focusMode } = props;
+  const { disabled, placeholder, onStop, value, setValue, mode, setMode, caps, bypass, setBypass, model, setModel, modelLocked, models, onRefreshModels, effort, setEffort, mcpServers, selectedMcps, setSelectedMcps, attachments, onRemoveAttachment, onOpenAttachment, attThumbs, onAttThumb, queued, queuedIds, queuedAtts, queuedModels, onRunQueuedBg, onRunQueuedNow, onCancelQueueAt, onEditQueuedAt, onMoveQueued, queueHeld = false, onResumeQueue, queuePaused = false, queueReleaseAt = 0, onToggleQueuePause, paused = false, capacityFull = false, agentOut, quotaResetsAt, onCall, focusMode, contextTokens = 0, contextModel = null } = props;
+  const queueRef = useRef<HTMLDivElement>(null);
+  const openQueue = () => { queueRef.current?.scrollIntoView({ block: 'nearest' }); queueRef.current?.focus(); };
   const holding = paused || capacityFull;
   const hasAtt = attachments.length > 0;
   const attUploading = attachments.some((a) => a.uploading);
@@ -97,7 +103,7 @@ export function ChatInput(props: ChatInputProps) {
       {hasAtt && <AttachmentChips attachments={attachments} onRemoveAttachment={onRemoveAttachment} onOpen={onOpenAttachment} thumbs={attThumbs} onThumb={onAttThumb} />}
       <ScreenshotPrompt s={shots} />
       {mic.hint && <ComposerNotice icon="mic" tone="info" onDismiss={mic.dismissHint}>{mic.hint}</ComposerNotice>}
-      {queued.length > 0 && <QueuedBanner queued={queued} queuedIds={queuedIds} queuedAtts={queuedAtts} queuedModels={queuedModels} models={models} onRunBg={onRunQueuedBg} onRunNow={onRunQueuedNow} onCancelQueueAt={onCancelQueueAt} onEdit={onEditQueuedAt} onMove={onMoveQueued} held={queueHeld} onResume={onResumeQueue} paused={queuePaused} releaseAt={queueReleaseAt} onTogglePause={onToggleQueuePause} quotaHeld={paused} resetLabel={resetLabel} />}
+      {queued.length > 0 && <div ref={queueRef} tabIndex={-1} className="outline-hidden"><QueuedBanner queued={queued} queuedIds={queuedIds} queuedAtts={queuedAtts} queuedModels={queuedModels} models={models} onRunBg={onRunQueuedBg} onRunNow={onRunQueuedNow} onCancelQueueAt={onCancelQueueAt} onEdit={onEditQueuedAt} onMove={onMoveQueued} held={queueHeld} onResume={onResumeQueue} paused={queuePaused} releaseAt={queueReleaseAt} onTogglePause={onToggleQueuePause} quotaHeld={paused} resetLabel={resetLabel} /></div>}
       {paused && (
         <ComposerNotice icon="clock">
           Tokens do plano esgotados — chat pausado{resetLabel ? ` até ${resetLabel}` : ''}. Nada é perdido: a fila retoma sozinha quando a janela resetar.
@@ -110,13 +116,13 @@ export function ChatInput(props: ChatInputProps) {
       {focusMode && <div><FocusSummary queued={queued.length} attachments={attachments.length} /></div>}
       <div className="relative" onDragEnter={onDragEnter} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
       {dragging && (
-        <div className="absolute inset-0 z-40 flex items-center justify-center gap-2 rounded-3xl border-2 border-dashed border-orange-500/60 bg-neutral-950/85 text-[13px] font-medium text-orange-300 backdrop-blur-xs">
+        <div className="absolute inset-0 z-40 flex items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-orange-500/60 bg-neutral-950/85 text-[13px] font-medium text-orange-300 backdrop-blur-xs">
           <Icon name="paperclip" size={15} /> Solte os arquivos pra anexar
         </div>
       )}
       {touch && ghost && !showPalette && <GhostChip ghostShown={ghostShown} acceptGhost={acceptGhost} />}
       {showPalette && <SlashPalette matches={matches} sel={sel} setSel={setSel} complete={complete} onDismiss={touch ? dismissPalette : undefined} />}
-      <div className="elev-1 flex flex-wrap items-end gap-1.5 rounded-[26px] pointer-coarse:pt-2.5 border border-neutral-700 bg-neutral-950 py-1.5 pl-1.5 pr-2 transition focus-within:border-[#3a3a42]">
+      <div className="elev-1 flex flex-wrap items-end gap-1.5 rounded-2xl pointer-coarse:pt-2.5 border border-neutral-700 bg-neutral-950 py-1.5 pl-1.5 pr-2 transition focus-within:border-orange-500/60 focus-within:ring-2 focus-within:ring-orange-500/20">
         <ComposerPlus
           touch={touch} mic={mic} onCall={onCall} settings={settings}
           onAttach={() => fileRef.current?.click()}
@@ -159,6 +165,9 @@ export function ChatInput(props: ChatInputProps) {
         />
       </div>
       </div>
+      <FocusCollapse hidden={!!focusMode}>
+        <ComposerStatusLine contextTokens={contextTokens} contextModel={contextModel} queued={queued.length} onOpenQueue={openQueue} />
+      </FocusCollapse>
       </div>
     </div>
   );
