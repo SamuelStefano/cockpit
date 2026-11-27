@@ -35,7 +35,10 @@ export function ChatEmpty({ onPrompt, onSeed, suggestions = FALLBACK_SUGGESTIONS
       {!compact && <>
       <div className="min-h-6 flex-[6]" />
       <BitPlayground />
-      <h2 className="fade-up mb-7 px-3 text-center font-display text-[41px] font-bold leading-none tracking-normal text-neutral-50 pointer-coarse:text-[26px]">O que vamos trabalhar hoje?</h2>
+      <div className="fade-up mb-7 flex flex-col items-center gap-1.5 px-3 text-center">
+        <h2 className="font-display text-[30px] font-semibold leading-tight tracking-normal text-neutral-50 pointer-coarse:text-[26px]">O que vamos fazer hoje?</h2>
+        <p className="max-w-[460px] text-[14px] text-(--text-muted)">Escolha o agente e escreva. Arquivos, PRs e Kanban aparecem dentro da conversa.</p>
+      </div>
       {needsProvider && (
         <p className="fade-up -mt-3 mb-5 text-center text-[13px] text-neutral-400">
           Nenhum provedor conectado ainda.{' '}

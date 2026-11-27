@@ -49,6 +49,12 @@ const STUDENT_ALLOWED: ReadonlySet<ClientMsg['t']> = new Set([
   // Read-only, limited to a bot in this account's team.json and to that bot's
   // workspace after realpath (ws/team-files-frames.ts, team-files.ts).
   'team-files-get', 'team-file-get',
+  // Write: same scoping (ownBotId), plus writeBotFile limits a non-admin's
+  // .claude/settings.json to deny/ask rules (an allow rule would widen the restricted profile).
+  'team-file-put',
+  // Read-only git history of a bot of this team (agents-repo-frames.ts); restore,
+  // sync and the GitHub connect frames stay admin/root.
+  'team-ws-log-get', 'team-ws-diff-get',
   // Counts/cwd/state of that bot. Pane preview is emptied for student in
   // sendBotComputer; taking over is term-* (admin-only).
   'team-computer-get',

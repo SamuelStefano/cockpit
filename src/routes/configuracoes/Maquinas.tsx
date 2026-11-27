@@ -1,4 +1,4 @@
-import { Button, EmptyState, Input, Modal, SectionTitle } from '../../components/primitives';
+import { Button, EmptyState, Input, Modal } from '../../components/primitives';
 import { AddBoxModal } from '../../components/sessions/AddBoxModal';
 import { useBoxSwitcher } from '../../components/sessions/useBoxSwitcher';
 import { NO_UNREAD, useBoxUnread } from '../../cockpit/box-unread';
@@ -12,8 +12,7 @@ export function Maquinas({ userId }: { userId?: string }) {
 
   return (
     <>
-      <div className="flex items-center max-lg:hidden">
-        <SectionTitle className="flex-1">Máquinas</SectionTitle>
+      <div className="flex justify-end max-lg:hidden">
         <Button variant="secondary" size="sm" icon="plus" onClick={s.startAdd}>Adicionar à Fleet</Button>
       </div>
       {!s.visible ? (
@@ -21,7 +20,7 @@ export function Maquinas({ userId }: { userId?: string }) {
           <Button icon="plus" onClick={s.startAdd}>Adicionar à Fleet</Button>
         </EmptyState>
       ) : (
-        <ul aria-label="Máquinas" className="overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900/60 hairline max-lg:rounded-none max-lg:border-0 max-lg:bg-transparent">
+        <ul aria-label="Máquinas" className="overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-900/60 hairline">
           {s.sorted.map((b) => (
             <MachineRow
               key={b.id} box={b} active={b.id === s.active} level={s.levelOf(b.id)} unread={unread[b.id] ?? NO_UNREAD}
@@ -31,7 +30,7 @@ export function Maquinas({ userId }: { userId?: string }) {
         </ul>
       )}
       {s.visible && (
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button className="lg:hidden" variant="secondary" icon="plus" onClick={s.startAdd}>Adicionar à Fleet</Button>
           <Button variant="ghost" size="sm" icon="shield" onClick={s.openHealth}>Saúde das máquinas</Button>
         </div>

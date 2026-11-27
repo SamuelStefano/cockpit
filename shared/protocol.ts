@@ -15,6 +15,7 @@ import type { ByoKeyView } from './byo-providers';
 import type { AgentView, AgentPreset, AgentStatus, AgentCustomField } from './agents';
 import type { TeamMessage } from './team-messages';
 import type { TeamMeeting } from './team-meeting';
+import type { ExecutorState, HeavyJob } from './heavy-job';
 import type { TeamState } from './team-state';
 import type { TalkChunkPayload, TalkPayload } from './team-talk';
 import type { PrDetail, PrDiff, PrsSnapshot, SessionPrs } from './prs';
@@ -455,6 +456,13 @@ export interface RosterBox {
   self: boolean;
 }
 
+export interface WsCommit { hash: string; message: string; at: number; source: 'deck' | 'github' }
+// `tooBig`: the bodies were left out of the frame; restore still works server-side.
+export interface WsDiffFile { path: string; old: string; new: string; tooBig?: boolean }
+export interface WsConflict { botId: string; path: string }
+// `repo` absent = local history only ("Só local").
+export interface WsRepoStatus { repo?: string; head?: string; at?: number; pending?: boolean }
+
 export interface TeamBot {
   id: string;
   name: string;
@@ -512,6 +520,21 @@ export interface BotComputer {
   termId: string;
   termAlive: boolean;
   preview: string[];
+  live?: AgentLive;
+}
+
+// "Live computer" snapshot of a bot, derived server-side from its tool events.
+// Everything here is already redacted and size-capped on the box.
+export interface AgentLive {
+  at?: number;
+  status?: ToolCall['status'];
+  step?: string;
+  stepIndex?: number;
+  stepTotal?: number;
+  tool?: string;
+  command?: string;
+  file?: { path: string; diff: string; truncated: boolean; hidden?: boolean };
+  terminal?: string[];
 }
 export interface TurnStats { costUsd?: number; durationMs?: number; numTurns?: number; model?: string }
 
@@ -872,11 +895,22 @@ export type ClientMsg =
   | { t: 'team-rotate'; botId: string }
   | { t: 'team-meeting-start'; question: string; participantIds: string[]; moderatorId: string }
   | { t: 'team-meetings-get' }
+  | { t: 'heavy-run'; repo: string; branch: string; dir?: string; command: string; requestedBy?: string }
+  | { t: 'heavy-cancel'; id: string }
+  | { t: 'heavy-get' }
   | { t: 'team-state-get'; followUpHours?: number }
   | { t: 'team-talk-get'; botId: string; recording?: boolean }
   | { t: 'team-talk-send'; botId: string; text: string; msgId: string; recording?: boolean }
   | { t: 'team-files-get'; botId: string }
   | { t: 'team-file-get'; botId: string; path: string }
+  | { t: 'team-file-put'; botId: string; path: string; text: string; baseMtime?: number }
+  | { t: 'team-ws-log-get'; botId: string }
+  | { t: 'team-ws-diff-get'; botId: string; hash: string }
+  | { t: 'team-ws-restore'; botId: string; hash: string; path: string }
+  | { t: 'team-ws-sync' }
+  | { t: 'team-ws-repos-get' }
+  | { t: 'team-ws-connect'; repo: string }
+  | { t: 'session-file-get'; sessionId: string; path: string }
   | { t: 'team-computer-get'; botId: string }
   | { t: 'skill-list' }
   | { t: 'versions-list'; kind: VersionKind; id: string }
@@ -1099,9 +1133,17 @@ export type ServerMsg =
   | { t: 'team-talk'; talk: TalkPayload }
   | { t: 'team-talk-chunk'; botId: string; msgId?: string; chunk: TalkChunkPayload }
   | { t: 'team-meeting'; item: TeamMeeting }
+  | { t: 'heavy'; executor: ExecutorState; jobs: HeavyJob[] }
   | { t: 'team-pending'; items: TeamPendingQuestion[] }
   | { t: 'team-files'; botId: string; items: BotFile[]; error?: string }
-  | { t: 'team-file'; botId: string; path: string; mime?: string; size?: number; dataB64?: string; error?: string }
+  | { t: 'team-file'; botId: string; path: string; mime?: string; size?: number; mtime?: number; dataB64?: string; error?: string }
+  | { t: 'team-file-saved'; botId: string; path: string; ok: boolean; mtime?: number; error?: string }
+  | { t: 'team-ws-log'; botId: string; items: WsCommit[]; status: WsRepoStatus; error?: string }
+  | { t: 'team-ws-diff'; botId: string; hash: string; files: WsDiffFile[]; patch: string; error?: string }
+  | { t: 'team-ws-restored'; botId: string; path: string; ok: boolean; error?: string }
+  | { t: 'team-ws-status'; status: WsRepoStatus; conflicts?: WsConflict[]; error?: string }
+  | { t: 'team-ws-repos'; repos: string[]; error?: string }
+  | { t: 'session-file'; sessionId: string; path: string; mime?: string; size?: number; dataB64?: string; truncated?: boolean; error?: string }
   | { t: 'team-computer'; botId: string; computer?: BotComputer; error?: string }
   | { t: 'context'; id: string; title: string; body: string }
   | { t: 'models'; models: ModelInfo[] }

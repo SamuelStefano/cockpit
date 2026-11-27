@@ -28,6 +28,16 @@ export function botWorkspace(botId: string | undefined): string | undefined {
   return join(botsRoot(), botId, 'workspace');
 }
 
+// The workspace is the turn's project dir, so its `.claude/` settings and `.mcp.json`
+// are config the CLI loads: a bot that could write them would grant itself allow
+// rules, hooks or MCP servers on the next turn. Deny wins over the workspace allow.
+// Bash and NotebookEdit are denied whole above, so no shell redirection reaches them.
+const CONFIG_WRITE_TOOLS = ['Edit', 'MultiEdit', 'Write'];
+export function configDeny(ws: string): string[] {
+  const globs = [`/${ws}/.claude/**`, `/${ws}/**/.claude/**`, `/${ws}/.mcp.json`, `/${ws}/**/.mcp.json`];
+  return CONFIG_WRITE_TOOLS.flatMap((tool) => globs.map((g) => `${tool}(${g})`));
+}
+
 export interface RestrictedTurn {
   cwd: string;
   permissionMode: 'plan' | 'default';
@@ -55,7 +65,7 @@ export function restrictedTurn(o: { botId?: string; mode?: string }, projectDirN
     cwd: ws,
     permissionMode: plan ? 'plan' : 'default',
     allow: plan ? [] : ['Glob', 'Grep', 'WebFetch', 'WebSearch', `Read(${root})`, `Edit(${root})`, `Write(${root})`],
-    deny: RESTRICTED_DENY,
+    deny: [...RESTRICTED_DENY, ...configDeny(ws)],
     args: ['--restricted', '--tools', RESTRICTED_TOOLS.join(' ')],
     env: {
       CLAUDE_CONFIG_DIR: join(home, '.claude'),

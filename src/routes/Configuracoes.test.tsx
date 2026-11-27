@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { render, cleanup, screen } from '@testing-library/react';
+import { render, cleanup, screen, fireEvent } from '@testing-library/react';
 import { Configuracoes } from './Configuracoes';
 import type { NavRole } from '../components/chrome/nav-routes';
 import type { Route } from '../useRoute';
@@ -106,5 +106,29 @@ describe('Configuracoes', () => {
   it('admin: Avançado has no restart', () => {
     mount('admin', '/configuracoes/avancado');
     expect(screen.queryByText('Reiniciar o Deck')).toBeNull();
+  });
+});
+
+describe('Configuracoes layout', () => {
+  const props = { role: 'admin' as NavRole, nav: noop, connected: true, cockpit, account: { onSignOut: noop, onChangePassword: async () => null }, usageDock: dock, onOpenSession: noop, onOpenTerminal: noop };
+
+  it('Conta splits into ordered cards and signs out alone in the last one', () => {
+    render(<Configuracoes route="/configuracoes" isMobile={false} {...props} />);
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Conta');
+    const cards = Array.from(document.querySelectorAll('section[aria-label]')).map((e) => e.getAttribute('aria-label'));
+    expect(cards.slice(0, 3)).toEqual(['Perfil', 'Preferências', 'Segurança']);
+    expect(cards[cards.length - 1]).toBe('Sessão');
+    const last = document.querySelector('section[aria-label="Sessão"]') as HTMLElement;
+    expect(last.textContent).toContain('Desconectar conta');
+    expect(last.querySelector('input')).toBeNull();
+  });
+
+  it('phone starts on the section list and opens a section with a back row', () => {
+    render(<Configuracoes route="/configuracoes" isMobile {...props} />);
+    expect(screen.queryByRole('heading', { level: 1 })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Uso' }));
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Conta');
+    fireEvent.click(screen.getByRole('button', { name: 'Configurações' }));
+    expect(screen.getByRole('button', { name: 'Uso' })).toBeTruthy();
   });
 });
