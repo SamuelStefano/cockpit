@@ -1,17 +1,28 @@
+import { detachedGroup, killGroup, platformEnv } from '../platform';
 import { spawn, execFileSync, type ChildProcess } from 'node:child_process';
 import { createInterface } from 'node:readline';
-import { writeFileSync, unlinkSync, readdirSync } from 'node:fs';
+import { writeFileSync, unlinkSync, readdirSync, statSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { ClaudeEvent } from './events';
-import { cliPath } from './cli-path';
+import { claudeBin, cliPath, managedPrefix } from './cli-path';
 import { CONFIG } from '../config';
 import { managedEnvSync, mcpServerDefsSync } from '../admin-ops';
+import { makeRedactor, vaultEnvSync } from '../vault';
 import type { Role } from '../auth';
 import { isLongContextModel } from '../../shared/long-context';
 import { ALL_MCPS } from '../../shared/mcp';
+import { TEAM_MCP_NAME, TEAM_MCP_TOOLS } from '../../shared/team-messages';
+import { plannerFile } from '../planner/store';
+import { teamFile, teamLogFile, teamOutboxDir, teamPauseFile } from '../team-log';
+import type { TeamProfile } from '../../shared/protocol';
+import { projectSlug } from '../config';
+import { restrictedTurn, ensureWorkspace, type RestrictedTurn } from './restricted-profile';
+import { deckAgentContext, joinSystemPrompts } from '../deck-context';
+import { withGithubCredentialHelper } from '../github-app';
+import { agentCwdSync, agentCloneRootSync, ancestorClaudeMdExcludes } from '../agent-dir';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -41,7 +52,13 @@ export interface RunOpts {
   mcps?: string[];             // MCP servers a CARREGAR neste turno. Default = NENHUM (strict-mcp-config). Cada server adiciona ~5-20k tokens de tool defs por chamada; carregar só os escolhidos corta o overhead que inflava a quota (vs terminal).
   effort?: string;             // nível de pensamento (--effort low|medium|high|xhigh|max). Sem isto o CLI usa o default da conta (alto) → thinking tokens caros em pedido simples. Default do Deck = low.
   allowWorkflow?: boolean;
+  appendSystemPrompt?: string; // Equipe bot identity (--append-system-prompt); never starts with '-' (built server-side)
+  deckContext?: string;        // where the session runs (server/deck-context.ts); goes before the bot identity
+  botId?: string;              // a Equipe bot's turn: loads the team MCP (team_list/team_send/team_tasks/team_handoff) as this bot
+  teamHop?: number;            // chain depth of the message that started this turn; the MCP stamps hop+1
   forkId?: string;             // roda em cima do transcript do `resumeId` mas GRAVA neste id novo (--fork-session). Sem isto dois processos escreveriam o mesmo JSONL.
+  profile?: TeamProfile;       // 'restricted' = profilePermissions() below decides tools, cwd, MCPs and mode
+  cwd?: string;                // default CONFIG.workdir; a restricted profile's workspace still wins
   onEvent: (ev: ClaudeEvent) => void;
   // exit/signal são passados quando o erro veio do close do processo (não de um
   // spawn falho) — insumo do gate de OOM (D1, ws/mem-guard.ts looksLikeOomKill).
@@ -108,6 +125,8 @@ export function pickMcpDefs(all: Record<string, unknown>, names: string[], role:
     const def = all[name];
     if (!def || typeof def !== 'object') continue;
     if (role !== 'admin' && 'command' in def) continue;
+    // A claude.ai connector acts as the box owner's account (Gmail, Drive...).
+    if (role !== 'admin' && (def as { type?: unknown }).type === 'claudeai-proxy') continue;
     picked[name] = def;
   }
   return picked;
@@ -118,23 +137,64 @@ export function pickMcpDefs(all: Record<string, unknown>, names: string[], role:
 // sem a flag o CLI nem REGISTRA a tool (some do `tools` do init e do ToolSearch), o
 // modelo não tem como emitir o tool_use e o card de escolha nunca nasce — por isso a
 // pergunta sumiu do Deck mesmo com AskUserQuestion na allow-list. A flag também
-// devolve EnterPlanMode/ExitPlanMode. O server por trás dela nega tudo: a allow-list
-// continua sendo o gate real (ver permission-mcp.mjs).
+// devolve EnterPlanMode/ExitPlanMode. Em modo que executa, o server por trás dela
+// libera toda tool que não está na allow-list (Monitor, Agent, MCPs...): o dono pediu
+// = é pra rodar. Em plan continua negando tudo. --disallowedTools segue precedendo.
 export const PERMISSION_MCP_NAME = 'deck-permission';
 export const PERMISSION_PROMPT_TOOL = `mcp__${PERMISSION_MCP_NAME}__prompt`;
+export const PERMISSION_ALLOW_ALL_FLAG = '--allow-all';
+export const PERMISSION_RESTRICTED_FLAG = '--restricted';
 
-export function permissionMcpDef(): Record<string, unknown> {
-  return {
-    type: 'stdio',
-    command: process.execPath,
-    args: [join(dirname(fileURLToPath(import.meta.url)), 'permission-mcp.mjs')],
-  };
+export function permissionMcpDef(allowAll = false, restricted = false): Record<string, unknown> {
+  const script = join(dirname(fileURLToPath(import.meta.url)), 'permission-mcp.mjs');
+  const args = [script];
+  if (restricted) args.push(PERMISSION_RESTRICTED_FLAG);
+  else if (allowAll) args.push(PERMISSION_ALLOW_ALL_FLAG);
+  return { type: 'stdio', command: process.execPath, args };
 }
 
 // Escreve SEMPRE, mesmo sem MCP escolhido: o server de permissão precisa existir no
 // config pra flag apontar pra algo. `picked` nunca sobrescreve o nosso nome.
-export function mcpConfigBody(picked: Record<string, unknown>): string {
-  return JSON.stringify({ mcpServers: { ...picked, [PERMISSION_MCP_NAME]: permissionMcpDef() } });
+export function mcpConfigBody(picked: Record<string, unknown>, allowAll = false, team?: { botId: string; hop?: number }, restricted = false): string {
+  const servers: Record<string, unknown> = { ...picked, [PERMISSION_MCP_NAME]: permissionMcpDef(allowAll, restricted) };
+  if (team) servers[TEAM_MCP_NAME] = teamMcpDef(team.botId, team.hop ?? 0);
+  else delete servers[TEAM_MCP_NAME];
+  return JSON.stringify({ mcpServers: servers });
+}
+
+// The claude child runs with minimalEnv, so the MCP it spawns never sees COCKPIT_*:
+// every path goes in argv, resolved here where the env (and the tests') applies.
+export function teamMcpDef(botId: string, hop: number): Record<string, unknown> {
+  const script = join(dirname(fileURLToPath(import.meta.url)), 'team-mcp.mjs');
+  return {
+    type: 'stdio',
+    command: process.execPath,
+    args: [script, '--bot', botId, '--hop', String(hop), '--team', teamFile(), '--outbox', teamOutboxDir(), '--log', teamLogFile(), '--pause', teamPauseFile(), '--planner', plannerFile()],
+  };
+}
+
+// The one place a bot profile changes a turn: tools, paths, cwd, env, MCPs and mode.
+// undefined = not restricted, the turn follows resolveMode as before.
+// The transcript must still land in the Deck's projects dir when the cwd moves
+// (history, `--resume` and the session list read it from there).
+// A repo agent is used by people other than the operator: it must not see the
+// operator's memory. Pinning the project dir would otherwise point auto-memory at
+// the operator's own MEMORY.md, so it is switched off here.
+export function agentDirEnv(home = process.env.HOME ?? ''): Record<string, string> {
+  return { CLAUDE_CONFIG_DIR: join(home, '.claude'), CLAUDE_CODE_PROJECT_DIR_NAME: projectSlug(CONFIG.workdir), CLAUDE_CODE_DISABLE_AUTO_MEMORY: '1' };
+}
+
+// Setting sources for a repo agent: the folder's own CLAUDE.md, .claude/settings
+// and .claude/skills load; the operator's user source (user settings, hooks,
+// skills, plugins) does not, and neither does any CLAUDE.md above the clone
+// (~/.claude/CLAUDE.md included). Auth is not a setting source.
+export function agentDirArgs(cloneRoot: string): string[] {
+  return ['--setting-sources', 'project,local', '--settings', JSON.stringify({ claudeMdExcludes: ancestorClaudeMdExcludes(cloneRoot) })];
+}
+
+export function profilePermissions(o: Pick<RunOpts, 'profile' | 'botId' | 'mode'>): RestrictedTurn | { error: string } | undefined {
+  if (o.profile !== 'restricted') return undefined;
+  return restrictedTurn(o, projectSlug(CONFIG.workdir));
 }
 
 // Spawn do claude headless com hardening DR-004:
@@ -154,13 +214,18 @@ export function mcpConfigBody(picked: Record<string, unknown>): string {
 // task pendente (`system/task_updated {status:"killed"}`) e sai — é por isso
 // que "eu te aviso quando terminar" nunca chegava a acontecer no Deck. Root
 // cause + comportamento verificados ao vivo com claude 2.1.281 (ver PR).
-export type BuildArgsOpts = Pick<RunOpts, 'prompt' | 'resumeId' | 'mode' | 'model' | 'effort' | 'maxBudgetUsd' | 'bypass' | 'role' | 'disallowedSkills' | 'forkId' | 'allowWorkflow'>;
+export type BuildArgsOpts = Pick<RunOpts, 'prompt' | 'resumeId' | 'mode' | 'model' | 'effort' | 'maxBudgetUsd' | 'bypass' | 'role' | 'disallowedSkills' | 'forkId' | 'allowWorkflow' | 'appendSystemPrompt' | 'deckContext' | 'botId' | 'profile'> & { agentRoot?: string };
 
 export function buildArgs(opts: BuildArgsOpts, mcpConfigPath?: string): { args: string[] } | { error: string } {
-  const { resumeId, mode, model, effort, maxBudgetUsd, bypass, role, disallowedSkills, forkId, allowWorkflow } = opts;
-  const resolved = resolveMode(mode, { bypass, role });
+  const { resumeId, mode, model, effort, maxBudgetUsd, bypass, role, disallowedSkills, forkId, allowWorkflow, appendSystemPrompt, deckContext, botId } = opts;
+  const restricted = profilePermissions(opts);
+  if (restricted && 'error' in restricted) return { error: restricted.error };
+  const resolved = restricted ?? resolveMode(mode, { bypass, role });
   const { permissionMode } = resolved;
-  const allow = withWorkflowGrant(resolved, allowWorkflow);
+  const base = restricted ? restricted.allow : withWorkflowGrant(resolved, allowWorkflow);
+  // A bot talks to its team in every mode and profile, plan and restricted included:
+  // the tools only drop a file in the outbox, and the backend applies the brakes.
+  const allow = botId && mcpConfigPath ? [...new Set([...base, ...TEAM_MCP_TOOLS])] : base;
 
   const args = [
     '-p',
@@ -175,6 +240,8 @@ export function buildArgs(opts: BuildArgsOpts, mcpConfigPath?: string): { args: 
     // selecionado não paga esse overhead — era a maior diferença pro terminal.
     '--strict-mcp-config',
   ];
+  if (restricted) args.push(...restricted.args);
+  else if (opts.agentRoot) args.push(...agentDirArgs(opts.agentRoot));
   if (mcpConfigPath) args.push('--mcp-config', mcpConfigPath, '--permission-prompt-tool', PERMISSION_PROMPT_TOOL);
   if (model && validModel(model)) args.push('--model', model);
   // Nível de pensamento. Sem a flag o CLI usa o default da conta (alto) e queima
@@ -191,8 +258,12 @@ export function buildArgs(opts: BuildArgsOpts, mcpConfigPath?: string): { args: 
   if (allow.length) args.push('--allowedTools', [...allow].sort().join(' '));
   // Kill-switch de tools (config) + skills não-selecionadas (por-prompt) entram no
   // MESMO --disallowedTools (uma flag só; rules space-separated).
-  const deny = [...new Set([...CONFIG.disallowedTools, ...(disallowedSkills ?? [])])].sort();
+  const deny = [...new Set([...(restricted?.deny ?? []), ...CONFIG.disallowedTools, ...(disallowedSkills ?? [])])].sort();
   if (deny.length) args.push('--disallowedTools', deny.join(' '));
+  // Passed on resume too: the CLI's system-prompt snapshot keeps the first launch's
+  // text verbatim, so a resumed thread never sees it twice or a different version.
+  const system = joinSystemPrompts(deckContext, appendSystemPrompt);
+  if (system) args.push('--append-system-prompt', system);
   if (resumeId) {
     if (!UUID_RE.test(resumeId)) return { error: 'sessionId inválido' };
     args.push('--resume', resumeId);
@@ -228,22 +299,33 @@ export function shouldCloseStdin(sawResult: boolean, pendingBackgroundTasks: num
 }
 
 export function run(opts: RunOpts): RunHandle {
-  const { prompt, resumeId, mode, model, effort, maxBudgetUsd, bypass, role, disallowedSkills, forkId, allowWorkflow, onEvent, onError, onClose } = opts;
+  const { prompt, resumeId, mode, model, effort, maxBudgetUsd, bypass, role, disallowedSkills, forkId, allowWorkflow, appendSystemPrompt, botId, teamHop, profile, onEvent, onError, onClose } = opts;
+  const restricted = profilePermissions(opts);
+  const fail = (msg: string): RunHandle => { onError(msg); onClose(); return { kill: () => {}, send: () => false }; };
+  if (restricted && 'error' in restricted) return fail(restricted.error);
+  if (restricted && !ensureWorkspace(restricted.cwd)) return fail('perfil travado: não deu pra criar o workspace do bot');
+  // A repo-backed bot starts in its synced folder, so its CLAUDE.md and skills load.
+  const agentDir = restricted ? undefined : agentCwdSync(botId);
 
   // MCP por sessão: escreve um config TEMPORÁRIO só com os servers escolhidos
   // (definições completas lidas do ~/.claude.json). Sem seleção → sem arquivo →
   // --strict-mcp-config sozinho = zero MCP. mode 600 (pode ter token nos headers).
   let mcpConfigPath: string | undefined;
   {
-    const picked = opts.mcps?.length ? pickMcpDefs(mcpServerDefsSync(), opts.mcps, role) : {};
+    // A restricted turn never loads the session's MCPs (nor the '*' sentinel): a
+    // remote MCP is a tool surface the workspace rules do not cover.
+    const picked = !restricted && opts.mcps?.length ? pickMcpDefs(mcpServerDefsSync(), opts.mcps, role) : {};
     mcpConfigPath = join(tmpdir(), `deck-mcp-${randomBytes(6).toString('hex')}.json`);
-    try { writeFileSync(mcpConfigPath, mcpConfigBody(picked), { mode: 0o600 }); }
+    const allowAll = !restricted && resolveMode(mode, { bypass, role }).permissionMode !== 'plan';
+    try { writeFileSync(mcpConfigPath, mcpConfigBody(picked, allowAll, botId ? { botId, hop: teamHop } : undefined, !!restricted), { mode: 0o600 }); }
     catch { mcpConfigPath = undefined; }
   }
   const cleanupMcp = () => { if (mcpConfigPath) { try { unlinkSync(mcpConfigPath); } catch { /* já removido */ } mcpConfigPath = undefined; } };
 
   const built = buildArgs({
-    prompt, resumeId, mode, model, effort, maxBudgetUsd, bypass, role, disallowedSkills, forkId, allowWorkflow,
+    prompt, resumeId, mode, model, effort, maxBudgetUsd, bypass, role, disallowedSkills, forkId, allowWorkflow, appendSystemPrompt, botId, profile,
+    agentRoot: agentDir ? agentCloneRootSync(botId) ?? agentDir : undefined,
+    deckContext: restricted ? undefined : deckAgentContext({ bot: !!botId, repoAgent: !!agentDir }),
   }, mcpConfigPath);
   if ('error' in built) {
     cleanupMcp();
@@ -252,17 +334,29 @@ export function run(opts: RunOpts): RunHandle {
     return { kill: () => {}, send: () => false };
   }
 
-  const child: ChildProcess = spawn('claude', built.args, {
-    cwd: CONFIG.workdir,
-    env: minimalEnv(),
-    shell: false,
-    detached: true,
-    // stdin agora é um PIPE aberto, não 'ignore': o prompt vai por stdin (uma
-    // linha NDJSON, ver encodeUserLine) e o pipe FICA aberto depois do `result`
-    // pra o processo poder continuar sozinho quando um background task
-    // (Bash run_in_background, subagente) termina — ver shouldCloseStdin.
-    stdio: ['pipe', 'pipe', 'pipe'],
-  });
+  const vaultEnv = role === 'admin' && !restricted ? vaultEnvSync('claude') : {};
+  const redact = makeRedactor(vaultEnv);
+  let child: ChildProcess;
+  // A synchronous spawn failure (EAGAIN on fork) is caught by the caller, so the
+  // close handler below never runs: drop the config here or it sits in /tmp, with
+  // tokens in it, until the next sweep.
+  try {
+    child = spawn(claudeBin(), built.args, {
+      cwd: restricted?.cwd ?? agentDir ?? opts.cwd ?? CONFIG.workdir,
+      env: { ...vaultEnv, ...minimalEnv(), ...restricted?.env, ...(agentDir ? agentDirEnv() : {}) },
+      shell: false,
+      detached: detachedGroup,
+      windowsHide: true,
+      // stdin agora é um PIPE aberto, não 'ignore': o prompt vai por stdin (uma
+      // linha NDJSON, ver encodeUserLine) e o pipe FICA aberto depois do `result`
+      // pra o processo poder continuar sozinho quando um background task
+      // (Bash run_in_background, subagente) termina — ver shouldCloseStdin.
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+  } catch (e) {
+    cleanupMcp();
+    throw e;
+  }
   child.stdin!.on('error', () => {}); // EPIPE esperado quando o kill() já matou o processo
   let stdinOpen = true;
   child.stdin!.write(encodeUserLine(prompt));
@@ -289,7 +383,7 @@ export function run(opts: RunOpts): RunHandle {
   rl.on('error', () => {});
   child.stdout!.on('error', () => {});
   rl.on('line', (line) => {
-    const s = line.trim();
+    const s = redact(line.trim());
     if (!s) return;
     try {
       const ev = JSON.parse(s) as ClaudeEvent;
@@ -336,8 +430,9 @@ export function run(opts: RunOpts): RunHandle {
   child.on('error', (err) => { onError(sanitize(err.message)); finish(); });
   child.on('close', (code, signal) => {
     if (shouldReportExit(killed, code, sawResult)) {
-      const tail = stderr.trim().slice(-300);
-      onError(sanitize(tail ? `claude saiu (${code}): ${tail}` : `claude saiu (${code})`), { code, signal });
+      const tail = redact(stderr.trim()).slice(-300);
+      const hint = explainExit(code, tail);
+      onError(sanitize(hint ? `claude saiu (${code}): ${hint}` : tail ? `claude saiu (${code}): ${tail}` : `claude saiu (${code})`), { code, signal });
     }
     finish();
   });
@@ -357,8 +452,7 @@ export function run(opts: RunOpts): RunHandle {
       killed = true;
       stdinOpen = false;
       const signal = (sig: NodeJS.Signals) => {
-        try { if (child.pid) process.kill(-child.pid, sig); }
-        catch { try { child.kill(sig); } catch { /* já morto */ } }
+        killGroup(child, sig);
       };
       // Varre a ÁRVORE de descendentes AGORA, antes do SIGTERM — não só na escalada.
       // Um tool que chamou setsid (Bash longo, subagente claude -p, MCP stdio) está
@@ -438,14 +532,18 @@ export function withWorkflowGrant(r: { permissionMode: string; allow: string[] }
 // variável (PATH inclusive), e um PATH gerenciado na frente de cliPath() trocaria
 // qual binário `claude` roda.
 export function minimalEnv(): NodeJS.ProcessEnv {
-  return {
+  return withGithubCredentialHelper({
+    ...platformEnv(),
     LANG: process.env.LANG ?? 'en_US.UTF-8',
     TERM: 'dumb',
     ...managedEnvSync(),
     PATH: cliPath(),
+    // The CLI's own auto-updater installs with `npm i -g`: pinned here it updates
+    // the binary we spawn instead of creating a second install next to node.
+    NPM_CONFIG_PREFIX: managedPrefix(),
     HOME: process.env.HOME,
     ANTHROPIC_API_KEY: '',
-  };
+  });
 }
 
 // Varre temp-configs de MCP órfãos (deck-mcp-*.json) que sobraram de um crash do
@@ -453,11 +551,17 @@ export function minimalEnv(): NodeJS.ProcessEnv {
 // headers — não devem acumular no /tmp. Chamado no boot + no sweep periódico; no
 // boot não há run vivo, e no periódico os vivos já foram lidos pelo claude no spawn
 // (o --mcp-config é lido uma vez), então apagar é seguro.
-export function sweepMcpConfigs(): void {
+// Only files older than MCP_CONFIG_GRACE_MS: a run spawned a moment ago may not
+// have read its --mcp-config yet, and deleting it would start that turn with no
+// MCP servers and no permission tool.
+export const MCP_CONFIG_GRACE_MS = 5 * 60_000;
+
+export function sweepMcpConfigs(dir = tmpdir(), now = Date.now()): void {
   try {
-    const dir = tmpdir();
     for (const f of readdirSync(dir)) {
-      if (/^deck-mcp-[0-9a-f]+\.json$/.test(f)) { try { unlinkSync(join(dir, f)); } catch { /* em uso/sumiu */ } }
+      if (!/^deck-mcp-[0-9a-f]+\.json$/.test(f)) continue;
+      const full = join(dir, f);
+      try { if (now - statSync(full).mtimeMs >= MCP_CONFIG_GRACE_MS) unlinkSync(full); } catch { /* em uso/sumiu */ }
     }
   } catch { /* tmp ilegível */ }
 }
@@ -479,4 +583,15 @@ export function sanitize(msg: string): string {
 // Só reporta quando NÃO matamos e o `claude` NÃO reportou um result próprio.
 export function shouldReportExit(killed: boolean, code: number | null, sawResult = false): boolean {
   return !killed && !sawResult && code != null && code !== 0;
+}
+
+// O perfil travado passa --restricted (e --tools) ao `claude` (restricted-profile.ts).
+// Um claude antigo não conhece essas flags e o commander sai com
+// "error: unknown option '--restricted'" — cru, o dono não sabe o que fazer. Traduz
+// pra ação. O bot no perfil travado é o PADRÃO, então o primeiro bot de um fellow
+// com claude desatualizado cai exatamente aqui.
+export function explainExit(code: number | null, tail: string): string | null {
+  const m = /unknown option '(--restricted|--tools)'/.exec(tail);
+  if (!m) return null;
+  return `o claude desta máquina é antigo demais pro perfil travado (não conhece ${m[1]}). Atualize o claude e reinicie o deck-agent.`;
 }

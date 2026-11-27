@@ -235,12 +235,23 @@ function evictData() {
   const e = cache.get(oldest); if (e) delete e.data;
 }
 
-async function readAndParse(p: string): Promise<{ mtime: number; parsed: unknown } | null> {
-  try {
-    const st = await stat(p);
-    const parsed = JSON.parse(await readFile(p, 'utf8'));
-    return { mtime: st.mtimeMs, parsed };
-  } catch { return null; }
+// The global graph is ~56 MB of JSON. Concurrent list/open calls (two tabs, a
+// list right after a build) each read and parsed it before the cache was set:
+// several hundred MB of transient heap on a 3.7 GB box. One parse per path in flight.
+const inflight = new Map<string, Promise<{ mtime: number; parsed: unknown } | null>>();
+
+export function readAndParse(p: string): Promise<{ mtime: number; parsed: unknown } | null> {
+  const running = inflight.get(p);
+  if (running) return running;
+  const job = (async () => {
+    try {
+      const st = await stat(p);
+      const parsed = JSON.parse(await readFile(p, 'utf8'));
+      return { mtime: st.mtimeMs, parsed };
+    } catch { return null; }
+  })().finally(() => inflight.delete(p));
+  inflight.set(p, job);
+  return job;
 }
 
 async function loadGraphDataFromPath(p: string): Promise<GraphData | null> {

@@ -2,11 +2,11 @@ import React from 'react';
 import type { ReactNode } from 'react';
 import { Icon } from '../Icon';
 import { renderInline } from './render-inline';
-import { headingSlug } from './slug';
-import { classifyBlock } from './classify-block';
+import { uniqueHeadingSlug } from './slug';
+import { classifyBlock, proseBlockStrings } from './classify-block';
 
-export function proseBlocks(md: string, keyBase: string, caret: boolean): ReactNode[] {
-  const blocks = md.split('\n\n');
+export function proseBlocks(md: string, keyBase: string, caret: boolean, slugs: Map<string, number> = new Map()): ReactNode[] {
+  const blocks = proseBlockStrings(md);
   const lastIdx = blocks.length - 1;
   return blocks.map((block, idx) => {
     const showCaret = caret && idx === lastIdx;
@@ -25,10 +25,10 @@ export function proseBlocks(md: string, keyBase: string, caret: boolean): ReactN
       const cls = level === 1 ? 'pt-2 text-[20px] font-semibold text-neutral-50'
         : level === 2 ? 'pt-2 text-[17px] font-semibold text-neutral-100'
         : level === 3 ? 'pt-1 text-[16px] font-semibold text-neutral-200'
-        : 'pt-1 text-[12.5px] font-semibold uppercase tracking-wide text-neutral-400';
+        : 'pt-1 text-[13px] font-semibold uppercase tracking-wide text-neutral-400';
       return React.createElement(
         `h${level}`,
-        { key: k, id: headingSlug(node.text), className: `scroll-mt-4 ${cls}` },
+        { key: k, id: uniqueHeadingSlug(node.text, slugs), className: `scroll-mt-4 ${cls}` },
         renderInline(node.text, `${k}-h`),
         showCaret ? <span key={`${k}-caret`} className="caret" /> : null,
       );
@@ -38,7 +38,9 @@ export function proseBlocks(md: string, keyBase: string, caret: boolean): ReactN
       const { header, rows } = node;
       return (
         <div key={k} className="scroll-thin overflow-x-auto">
-          <table className="w-full border-collapse text-[13px]">
+          {/* leading-snug: cells inherited the prose leading-7 (28px lines at 13px),
+              so every wrapped cell grew ~2x taller than its text. */}
+          <table className="w-full border-collapse text-[13px] leading-snug">
             <thead>
               <tr>{header.map((h, hi) => (
                 <th key={hi} className="border border-neutral-800 bg-neutral-900/60 px-2.5 py-1.5 text-left font-semibold text-neutral-200">{renderInline(h, `${k}-th${hi}`)}</th>
@@ -92,7 +94,10 @@ export function proseBlocks(md: string, keyBase: string, caret: boolean): ReactN
       return (
         <ListTag key={k} className={`space-y-1 pl-5 text-pretty ${ordered ? 'list-decimal' : 'list-disc'} marker:text-neutral-500`}>
           {items.map((it, li) => (
-            <li key={li} style={it.depth ? { marginLeft: it.depth * 16 } : undefined}>{renderInline(it.text, `${k}-i${li}`)}</li>
+            // A bullet nested in a numbered list keeps its bullet; numbered items
+            // carry their source number, so a nested bullet doesn't shift the count.
+            <li key={li} value={it.num} className={ordered && it.num === undefined ? 'list-disc' : !ordered && it.num !== undefined ? 'list-decimal' : undefined}
+              style={it.depth ? { marginLeft: it.depth * 16 } : undefined}>{renderInline(it.text, `${k}-i${li}`)}</li>
           ))}
         </ListTag>
       );

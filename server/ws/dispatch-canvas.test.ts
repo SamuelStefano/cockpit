@@ -134,10 +134,29 @@ describe("'canvas-card-save' — status change also broadcasts a slim canvas-car
     expect(canvasClients.emitCanvasMsg).toHaveBeenCalledWith({ t: 'canvas-card-status', cardId: 'c1', status: 'review' });
   });
 
+  it('takes prev from the snapshot the write lands on, not a stale read', async () => {
+    const fresh = { id: 'c1', status: 'doing' };
+    board.cards = [fresh];
+    // A stale read still carries a DFL link that a concurrent unlink already removed.
+    boardMod.readBoard.mockResolvedValueOnce({ ...board, cards: [{ id: 'c1', status: 'doing', dfl: { taskId: 'gone' } }] } as never);
+    boardMod.sanitizeCard.mockReturnValue({ id: 'c1', title: 't', status: 'doing' });
+    await handle(ws, { t: 'canvas-card-save', card: { id: 'c1', status: 'doing' } as never }, 'admin');
+    expect(boardMod.sanitizeCard).toHaveBeenCalledWith(expect.anything(), fresh, expect.any(Number));
+  });
+
   it('does not broadcast when the status is unchanged (e.g. a title-only edit)', async () => {
     boardMod.sanitizeCard.mockReturnValue({ id: 'c1', title: 't2', status: 'doing' });
     board.cards = [{ id: 'c1', status: 'doing' }];
     await handle(ws, { t: 'canvas-card-save', card: { id: 'c1', status: 'doing' } as never }, 'admin');
     expect(canvasClients.emitCanvasMsg).not.toHaveBeenCalled();
+  });
+});
+
+describe("'dfl-task-create-link' — never creates a second DFL task for a card", () => {
+  it('refuses a card that is already linked, before touching DFL', async () => {
+    board.cards = [{ id: 'c1', status: 'doing', dfl: { taskId: '11111111-1111-4111-8111-111111111111' } } as never];
+    await handle(ws, { t: 'dfl-task-create-link', reqId: 'r1', confirm: true, cardId: 'c1', epicId: 'e', deliveryId: 'd', taskName: 'T', why: 'w', what: 'w' } as never, 'admin');
+    expect(bc.send).toHaveBeenCalledWith(ws, { t: 'dfl-task-write', reqId: 'r1', ok: false, message: 'card já vinculado a uma task DFL' });
+    expect(canvasIndex.buildCanvas).not.toHaveBeenCalled();
   });
 });

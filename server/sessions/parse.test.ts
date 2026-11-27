@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { recToMessage, turnStats, attachTurnStats, cleanUserText, weaveByTs, markersInRange, truncateAtPendingQuestion } from './parse';
+import { recToMessage, turnStats, attachTurnStats, cleanUserText, weaveByTs, markersInRange, truncateAtPendingQuestion, parseKey, parseCacheGet, parseCacheSet, parseCacheSize } from './parse';
 import type { Rec, ToolResultRec } from './records';
 import type { Message } from '../../shared/protocol';
 
@@ -283,5 +283,23 @@ describe('weaveByTs + markersInRange (marcadores na timeline)', () => {
   it('markersInRange sem mensagem com ts mantém tudo', () => {
     const extras = [{ id: 'p', role: 'compact', kind: 'pr', ts: 50 }] as Message[];
     expect(markersInRange([], extras)).toBe(extras);
+  });
+});
+
+describe('parse cache', () => {
+  it('keeps one slot per file, however many versions it had', async () => {
+    const { mkdtempSync, writeFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const { tmpdir } = await import('node:os');
+    const f = join(mkdtempSync(join(tmpdir(), 'deck-parse-')), 's.jsonl');
+    const before = parseCacheSize();
+    for (let i = 0; i < 5; i++) {
+      writeFileSync(f, 'x'.repeat(i + 1));
+      const k = parseKey('T', f, 0);
+      expect(parseCacheGet(k)).toBeUndefined(); // new version → miss
+      parseCacheSet(k, i);
+      expect(parseCacheGet(k)).toBe(i);
+    }
+    expect(parseCacheSize() - before).toBe(1);
   });
 });

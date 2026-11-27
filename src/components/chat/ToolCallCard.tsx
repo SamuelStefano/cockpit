@@ -7,6 +7,12 @@ import { McpAppFrame } from './McpAppFrame';
 import { TodoPanel } from './TodoPanel';
 import { CopyTextButton } from './MessageActions';
 import { permissionDeniedTool } from './permission-deny';
+import { useCoarse } from '../primitives/useCoarse';
+import { fmtToolDuration } from './message-format';
+import { FilePathLink } from '../primitives/markdown/file-path-context';
+import { toolPath } from '../primitives/markdown/looks-like-path';
+
+const FILE_TOOLS = new Set(['read', 'edit', 'write', 'multiedit', 'notebookedit']);
 
 interface ToolCallCardProps {
   tool: ToolCall;
@@ -14,24 +20,33 @@ interface ToolCallCardProps {
 
 export function ToolCallCard({ tool }: ToolCallCardProps) {
   const [open, setOpen] = useState(!!tool.expanded);
+  // Output lines render only once the output was opened: a long session has
+  // hundreds of collapsed tool cards, each holding a full <pre> of every line.
+  const [everOpened, setEverOpened] = useState(open);
+  if (open && !everOpened) setEverOpened(true);
+  const coarse = useCoarse();
+  const [showAll, setShowAll] = useState(false);
   const [showShellCmd, setShowShellCmd] = usePersisted('showShellCmd', true);
   const { status } = tool;
   const lines = tool.output || [];
+  const PHONE_LINES = 12;
+  const clipped = coarse && !showAll && lines.length > PHONE_LINES;
+  const shown = clipped ? lines.slice(-PHONE_LINES) : lines;
   const deniedTool = status === 'error' ? permissionDeniedTool(lines) : null;
 
   const statusEl = {
     running: (
-      <span className="flex items-center gap-1.5 text-[11px] font-medium text-neutral-400">
+      <span className="flex items-center gap-1.5 text-[12px] font-medium text-neutral-400">
         <Icon name="rotate" size={12} className="spin text-orange-400" /> rodando…
       </span>
     ),
     done: (
-      <span className="flex items-center gap-1.5 text-[11px] font-medium text-green-400">
-        <Icon name="check" size={13} /> ok{tool.durationMs !== undefined && ` ${(tool.durationMs / 1000).toFixed(1)}s`}
+      <span className="flex items-center gap-1.5 text-[12px] font-medium text-green-400">
+        <Icon name="check" size={13} /> ok{tool.durationMs !== undefined && ` ${fmtToolDuration(tool.durationMs)}`}
       </span>
     ),
     error: (
-      <span className="flex items-center gap-1.5 text-[11px] font-medium text-red-400">
+      <span className="flex items-center gap-1.5 text-[12px] font-medium text-red-400">
         <Icon name="x" size={13} /> falhou (exit {tool.exit ?? 1})
       </span>
     ),
@@ -44,6 +59,8 @@ export function ToolCallCard({ tool }: ToolCallCardProps) {
   const kind = (tool.name || tool.label || '').toLowerCase();
   const isShell = kind === 'bash' || kind === 'shell' || kind === 'sh';
   const isAgent = kind === 'task' || kind === 'agent';
+  // Only the file tools carry a path there; Grep/Glob carry a pattern.
+  const filePath = FILE_TOOLS.has(kind) ? toolPath(tool.command) : null;
   const headIcon = isShell ? 'terminal'
     : kind === 'read' ? 'file'
     : kind === 'edit' || kind === 'write' || kind === 'multiedit' || kind === 'notebookedit' ? 'pencil'
@@ -56,14 +73,14 @@ export function ToolCallCard({ tool }: ToolCallCardProps) {
   const cmdIcon = isAgent || kind === 'taskcreate' || kind === 'taskupdate' ? headIcon : 'file';
 
   return (
-    <div className={`my-2 overflow-hidden rounded-xl border ${ring} bg-neutral-900/70`}>
+    <div className={`my-2 overflow-hidden rounded-[10px] border ${ring} bg-neutral-900/60`}>
       <div className="flex items-center gap-2.5 px-3 py-2">
         <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${status === 'error' ? 'bg-red-500/15 text-red-400' : 'bg-neutral-800 text-orange-400'}`}>
           <Icon name={headIcon} size={13} />
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className="truncate font-mono text-[12px] font-medium text-neutral-200">{tool.label}</span>
+            <span className="truncate rounded-md bg-neutral-800 px-1.5 py-0.5 font-mono text-[12px] font-medium text-neutral-200">{tool.label}</span>
             <span className="shrink-0">{statusEl}</span>
           </div>
         </div>
@@ -73,22 +90,25 @@ export function ToolCallCard({ tool }: ToolCallCardProps) {
           <button
             onClick={() => setShowShellCmd(true)}
             title="Comandos de shell ocultos. Clique para voltar a mostrá-los."
-            className={`flex items-center gap-1.5 rounded-md border border-dashed border-neutral-800 px-2.5 py-1 font-mono text-[11px] text-neutral-600 transition hover:border-neutral-700 hover:text-neutral-400 ${tokens.focusRing}`}
+            className={`flex items-center gap-1.5 rounded-md border border-dashed border-neutral-800 px-2.5 py-1 font-mono text-[12px] text-neutral-600 transition hover:border-neutral-700 hover:text-neutral-400 ${tokens.focusRing}`}
           >
             <span className="select-none text-orange-500/50">$</span> comando oculto · mostrar
           </button>
         </div>
       ) : (
         <div className="px-3 pb-2">
-          <div className="flex items-center gap-2 rounded-md border border-neutral-800 bg-[#0c0c0c] px-2.5 py-1.5">
+          <div className="flex items-start gap-2 rounded-md border border-neutral-800 bg-[#0c0c0c] px-2.5 py-1.5">
             {isShell
-              ? <span className="select-none font-mono text-[11px] text-orange-500/70">$</span>
-              : <Icon name={cmdIcon} size={12} className="shrink-0 text-neutral-500" />}
-            <code className="scroll-thin min-w-0 flex-1 overflow-x-auto whitespace-nowrap font-mono text-[11.5px] text-neutral-300">{tool.command}</code>
+              ? <span className="select-none font-mono text-[12px] leading-relaxed text-orange-500/70">$</span>
+              : <Icon name={cmdIcon} size={12} className="mt-1 shrink-0 text-neutral-500" />}
+            <code className="scroll-thin max-h-52 min-w-0 flex-1 overflow-auto whitespace-pre font-mono text-[12px] leading-relaxed text-neutral-300">
+              {filePath ? <FilePathLink path={filePath} exact>{tool.command}</FilePathLink> : tool.command}
+            </code>
             {isShell && (
               <button
                 onClick={() => setShowShellCmd(false)}
                 title="Ocultar comandos de shell por padrão"
+                aria-label="Ocultar comandos de shell por padrão"
                 className={`ml-auto shrink-0 rounded-sm text-neutral-600 transition hover:text-neutral-300 ${tokens.focusRing}`}
               >
                 <Icon name="x" size={12} />
@@ -99,10 +119,10 @@ export function ToolCallCard({ tool }: ToolCallCardProps) {
       ))}
       {deniedTool && (
         <div className="px-3 pb-2">
-          <div className="flex items-start gap-2 rounded-md border border-amber-500/25 bg-amber-500/10 px-2.5 py-2 text-[12px] leading-relaxed text-amber-200">
+          <div className="flex items-start gap-2 rounded-md border border-amber-500/25 bg-amber-500/10 px-2.5 py-2 text-[13px] leading-relaxed text-amber-200">
             <Icon name="shield" size={13} className="mt-0.5 shrink-0 text-amber-400" />
             <span>
-              Permissão negada pra <code className="font-mono text-[11.5px] text-amber-100">{deniedTool}</code>.
+              Permissão negada pra <code className="font-mono text-[12px] text-amber-100">{deniedTool}</code>.
               O modo atual não deixa o agente usar essa ferramenta — troque no seletor de modo
               junto ao campo de mensagem (Executar, ou Bypass se for admin) e reenvie.
             </span>
@@ -124,7 +144,7 @@ export function ToolCallCard({ tool }: ToolCallCardProps) {
           <div className="flex items-center pr-2">
             <button
               onClick={() => setOpen(o => !o)}
-              className={`flex flex-1 items-center gap-1.5 px-3 py-1.5 text-[11px] text-neutral-500 transition hover:text-neutral-300 ${tokens.focusRing}`}
+              className={`flex flex-1 items-center gap-1.5 px-3 py-1.5 text-[12px] text-neutral-500 transition hover:text-neutral-300 ${tokens.focusRing}`}
             >
               <Icon name="chevronDown" size={13} className="transition-transform duration-200" style={{ transform: open ? 'rotate(0deg)' : 'rotate(-90deg)' }} />
               {open ? 'ocultar output' : `mostrar output (${lines.length} linhas)`}
@@ -133,11 +153,12 @@ export function ToolCallCard({ tool }: ToolCallCardProps) {
           </div>
           <div className={`grid transition-[grid-template-rows] duration-200 ease-out ${open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
             <div className="overflow-hidden">
-            <pre className="scroll-thin max-h-52 overflow-auto border-t border-neutral-800 bg-[#070707] px-3 py-2.5 font-mono text-[11.5px] leading-relaxed text-neutral-400">
-              {lines.map((l, i) => (
+            {everOpened && <pre className="scroll-thin max-h-52 overflow-auto border-t border-neutral-800 bg-[#070707] px-3 py-2.5 font-mono text-[12px] leading-relaxed text-neutral-400">
+              {clipped && <button onClick={() => setShowAll(true)} className={`mb-1 block min-h-11 text-[12px] text-orange-300 ${tokens.focusRing}`}>… {lines.length - PHONE_LINES} linhas antes · ver tudo</button>}
+              {shown.map((l, i) => (
                 <div key={i} className={l.startsWith('##') || l.startsWith('?') ? 'text-sky-400/80' : l.startsWith(' M') ? 'text-orange-400/80' : ''}>{l || ' '}</div>
               ))}
-            </pre>
+            </pre>}
             </div>
           </div>
         </div>

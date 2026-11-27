@@ -1,5 +1,9 @@
-import { useEffect, type ReactNode } from 'react';
+import { useRef, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
+import { useEscapeLayer } from './useEscapeLayer';
+import { useDialogFocus } from './useDialogFocus';
 import { Button } from './Button';
+import { tokens } from './tokens';
 import { Icon, type IconName } from './Icon';
 
 // Overlay modal do design system: backdrop com blur, fecha no clique-fora e no Esc,
@@ -7,7 +11,7 @@ import { Icon, type IconName } from './Icon';
 // recriar `fixed inset-0` solto a cada tela. footer opcional (ações); sem footer, o
 // conteúdo já traz seus botões.
 export function Modal({
-  open, onClose, title, icon, children, footer, maxWidth = 'max-w-lg', label,
+  open, onClose, title, icon, children, footer, maxWidth = 'max-w-lg', label, fill: fillProp = false, pop = false, full = false,
 }: {
   open: boolean;
   onClose: () => void;
@@ -17,34 +21,45 @@ export function Modal({
   footer?: ReactNode;
   maxWidth?: string;
   label?: string;
+  // Fixed-height panel whose child owns the scroll (side nav + pane); full screen on a phone.
+  fill?: boolean;
+  pop?: boolean;
+  // Near-full-screen workspace (board-like views); implies fill.
+  full?: boolean;
 }) {
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
+  const fill = fillProp || full;
+  useEscapeLayer(open, onClose);
+  const ref = useRef<HTMLDivElement>(null);
+  const opener = useRef<Element | null>(null);
+  // Read during render, before an autoFocus child takes focus in the commit.
+  if (!open) opener.current = null;
+  else if (!opener.current && typeof document !== 'undefined') opener.current = document.activeElement;
+  useDialogFocus(ref, open, opener);
 
   if (!open) return null;
-  return (
-    <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/70 p-4 backdrop-blur-xs" onClick={onClose}>
+  const overlay = (
+    <div className={`fixed inset-0 z-60 flex items-center justify-center bg-black/70 p-4 pt-[max(1rem,env(safe-area-inset-top))] pr-[max(1rem,env(safe-area-inset-right))] pb-[max(1rem,env(safe-area-inset-bottom))] pl-[max(1rem,env(safe-area-inset-left))] backdrop-blur-xs ${fill ? 'max-sm:px-0 max-sm:pt-[env(safe-area-inset-top)] max-sm:pb-0' : ''}`} onClick={onClose}>
       <div
+        ref={ref}
         role="dialog"
         aria-modal="true"
         aria-label={label ?? title}
-        className={`scale-in flex max-h-[88dvh] w-full ${maxWidth} flex-col overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-900 shadow-2xl shadow-black/50`}
+        tabIndex={-1}
+        className={`${full ? 'slide-up-in' : pop ? 'pop-in' : 'scale-in'} flex w-full ${full ? 'max-h-full max-w-[1680px]' : `max-h-[88dvh] ${maxWidth}`} ${fill ? `${full ? 'h-full' : 'h-[min(760px,88dvh)]'} max-sm:h-full max-sm:max-h-full max-sm:rounded-none max-sm:border-0` : ''} flex-col overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-900 shadow-2xl shadow-black/50`}
         onClick={(e) => e.stopPropagation()}
       >
         {title && (
           <div className="flex items-center gap-2 border-b border-neutral-800 px-4 py-2.5">
             {icon && <Icon name={icon} size={14} className="shrink-0 text-neutral-500" />}
             <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-neutral-200" title={title}>{title}</span>
-            <Button variant="ghost" size="sm" square icon="x" onClick={onClose} title="Fechar (Esc)" />
+            <Button variant="ghost" size="sm" square icon="x" onClick={onClose} title="Fechar (Esc)" aria-label="Fechar" className={tokens.touchTarget} />
           </div>
         )}
-        <div className="overflow-auto overscroll-contain px-4 py-4">{children}</div>
+        <div className={fill ? 'flex min-h-0 flex-1 flex-col overflow-hidden pb-[env(safe-area-inset-bottom)]' : 'overflow-auto overscroll-contain px-4 py-4'}>{children}</div>
         {footer && <div className="flex items-center justify-end gap-2 border-t border-neutral-800 px-4 py-3">{footer}</div>}
       </div>
     </div>
   );
+  // A full board opened from inside a header would be clipped by that header's stacking context.
+  return full && typeof document !== 'undefined' ? createPortal(overlay, document.body) : overlay;
 }

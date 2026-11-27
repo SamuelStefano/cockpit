@@ -1,6 +1,6 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { MAX_PROMPT_BYTES } from '../shared/limits';
+import { MAX_PROMPT_BYTES, MAX_UPLOAD_BYTES } from '../shared/limits';
 
 // O CLI nomeia o dir do projeto trocando os separadores do caminho absoluto do
 // cwd por '-' (/home/samuel -> -home-samuel; /home/joao -> -home-joao). Derivar o
@@ -95,7 +95,7 @@ export const CONFIG = {
   maxBudgetUsd: positiveOrUndefined(process.env.COCKPIT_MAX_BUDGET_USD),
 
   // Teto por anexo gravado no workdir (loopback-only, mas evita encher o disco).
-  maxUploadBytes: 15_000_000,
+  maxUploadBytes: MAX_UPLOAD_BYTES,
 
   // Anexos são one-shot (o agente lê no turno e nunca mais). Varre e apaga os
   // mais velhos que isto pra o workdir não crescer sem limite num daily driver.
@@ -106,6 +106,11 @@ export const CONFIG = {
   // Modelo dedicado (não o do chat) pra manter o custo do resumo previsível.
   summaryEnabled: process.env.COCKPIT_SUMMARY !== 'off',
   summaryModel: process.env.COCKPIT_SUMMARY_MODEL ?? 'claude-haiku-4-5-20251001',
+
+  // One-shot `claude -p` calls (triage, auth keep-alive, harness plan engine) run
+  // without built-in tools, skills, user settings/hooks/CLAUDE.md and transcript:
+  // measured 30.4k -> 2.2k input tokens per triage call. 'off' restores the old argv.
+  leanOneShots: process.env.COCKPIT_LEAN_ONESHOTS !== 'off',
 
   // Variantes de janela de 1M (`claude-opus-5[1m]`) no seletor e no argv. Default
   // FALSE: uma sessão nelas para de compactar e chega a ~800k de contexto, onde
@@ -168,6 +173,8 @@ export function positiveOrUndefined(v: string | undefined): number | undefined {
 }
 
 // 'bypassPermissions' nunca entra: numa máquina com sudo NOPASSWD = RCE root.
+// Fallback is acceptEdits, not plan: a run with no explicit mode (deckctl, crons,
+// orchestrator dispatch) landed in plan mode and stalled on ExitPlanMode.
 export function safeMode(v: string | undefined): 'plan' | 'default' | 'acceptEdits' {
-  return v === 'default' || v === 'acceptEdits' ? v : 'plan';
+  return v === 'default' || v === 'acceptEdits' || v === 'plan' ? v : 'acceptEdits';
 }

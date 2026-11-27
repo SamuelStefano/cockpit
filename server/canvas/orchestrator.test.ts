@@ -1,9 +1,9 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, beforeAll, afterAll } from 'vitest';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { readOrchestrator, readOrchestratorSync, isTmuxAliveSync } from './orchestrator';
+import { readOrchestrator, readOrchestratorSync, isTmuxAliveSync, paneLostClaudeSync } from './orchestrator';
 
 const dir = mkdtempSync(join(tmpdir(), 'cockpit-orchestrator-'));
 const file = join(dir, 'orchestrator.json');
@@ -48,10 +48,53 @@ describe('readOrchestratorSync', () => {
 
 describe('isTmuxAliveSync', () => {
   const name = `cockpit-orchestrator-test-${process.pid}`;
+  // A private tmux server (own socket dir), never the live one that hosts every
+  // Deck terminal: the `cockpit-` name would otherwise show up in term stats and
+  // leak there if the test died between create and kill.
+  const saved = { tmpdir: process.env.TMUX_TMPDIR, tmux: process.env.TMUX };
+  beforeAll(() => {
+    process.env.TMUX_TMPDIR = mkdtempSync(join(tmpdir(), 'tmux-test-'));
+    delete process.env.TMUX;
+  });
+  afterAll(() => {
+    try { execFileSync('tmux', ['kill-server']); } catch { /* no server */ }
+    if (saved.tmpdir === undefined) delete process.env.TMUX_TMPDIR; else process.env.TMUX_TMPDIR = saved.tmpdir;
+    if (saved.tmux !== undefined) process.env.TMUX = saved.tmux;
+  });
   afterEach(() => { try { execFileSync('tmux', ['kill-session', '-t', name]); } catch { /* already gone */ } });
+
+  it('finds claude anywhere in the pane process tree, even under a bash -c wrapper', () => {
+    const bin = mkdtempSync(join(tmpdir(), 'fake-claude-'));
+    writeFileSync(join(bin, 'claude'), '#!/bin/bash\nsleep 30\n', { mode: 0o755 });
+    execFileSync('tmux', ['new-session', '-d', '-s', `${name}-sh`, 'bash']);
+    execFileSync('tmux', ['new-session', '-d', '-s', `${name}-wrapped`, `bash -c "${bin}/claude; exec bash"`]);
+    execFileSync('tmux', ['new-session', '-d', '-s', `${name}-other`, 'sleep 30']);
+    try {
+      // The wrapped pane forks claude asynchronously: poll until the tree settles
+      // instead of reading it the instant the session is created.
+      const deadline = Date.now() + 5000;
+      while (paneLostClaudeSync(`${name}-wrapped`) && Date.now() < deadline) execFileSync('sleep', ['0.1']);
+      expect(paneLostClaudeSync(`${name}-sh`)).toBe(true);
+      expect(paneLostClaudeSync(`${name}-other`)).toBe(true);
+      expect(paneLostClaudeSync(`${name}-wrapped`)).toBe(false);
+      expect(paneLostClaudeSync(`${name}-missing`)).toBe(false);
+    } finally {
+      for (const n of ['sh', 'wrapped', 'other']) execFileSync('tmux', ['kill-session', '-t', `=${name}-${n}`]);
+      rmSync(bin, { recursive: true, force: true });
+    }
+  });
 
   it('is false for a session that was never created', () => {
     expect(isTmuxAliveSync(`${name}-nope`)).toBe(false);
+  });
+
+  it('does not take a longer session that starts with the name for it', () => {
+    execFileSync('tmux', ['new-session', '-d', '-s', `${name}-2`]);
+    try {
+      expect(isTmuxAliveSync(name)).toBe(false);
+    } finally {
+      execFileSync('tmux', ['kill-session', '-t', `=${name}-2`]);
+    }
   });
 
   it('is true for a live tmux session and false again once it is killed', () => {

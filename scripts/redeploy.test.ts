@@ -1,14 +1,22 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, afterAll } from 'vitest';
 import { spawn, execFileSync, type ChildProcess } from 'node:child_process';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, mkdirSync, copyFileSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 // Este script manda SIGKILL. O teste roda SEMPRE em REDEPLOY_DRY_RUN: ele lista os
 // alvos e sai, então nem o backend real do Samuel nem os iscas morrem aqui.
-const SCRIPT = resolve(dirname(fileURLToPath(import.meta.url)), 'redeploy.sh');
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+// The script runs from a COPY in a temp checkout, never from this repo: its ROOT
+// is the directory above the script, and from the live checkout the real Deck
+// backend is a valid target — only the DRY_RUN guards stood between `npm test`
+// and a SIGKILL. From the copy, ROOT is the temp dir and nothing live can match.
+const SRC = resolve(dirname(fileURLToPath(import.meta.url)), 'redeploy.sh');
+const ROOT = realpathSync(mkdtempSync(`${tmpdir()}/redeploy-root-`));
+mkdirSync(`${ROOT}/scripts`);
+copyFileSync(SRC, `${ROOT}/scripts/redeploy.sh`);
+const SCRIPT = `${ROOT}/scripts/redeploy.sh`;
+afterAll(() => rmSync(ROOT, { recursive: true, force: true }));
 
 const kids: ChildProcess[] = [];
 afterEach(() => { for (const k of kids.splice(0)) k.kill('SIGKILL'); });

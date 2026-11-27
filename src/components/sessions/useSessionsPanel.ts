@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import type { Session } from '../../data/types';
 import { usePersisted } from '../../lib/persist';
-import { PINS_KEY, TAGS_KEY, syncEnabled, pushPinsRemote, pushTagsRemote } from '../../lib/session-prefs';
+import { PINS_KEY, syncEnabled, pushPinsRemote } from '../../lib/session-prefs';
+import { toast } from '../primitives/toast-bus';
 import { filterSessions } from './filter';
 import { useWaitingDismissed } from './useWaitingDismissed';
 
@@ -11,23 +12,36 @@ interface UseSessionsPanelArgs {
   searchResults: Session[];
   onSearch?: (q: string) => void;
   userId?: string;
+  activeId?: string;
+  onClose: (id: string) => void;
+  onUnhide?: (id: string) => void;
+  onSelect: (id: string) => void;
 }
 
-export function useSessionsPanel({ sessions, archived = [], searchResults, onSearch, userId }: UseSessionsPanelArgs) {
+// Fired by the shell after it brings the all-conversations panel back, so the search can take focus once it mounts.
+export const FOCUS_SESSION_SEARCH = 'deck:focus-session-search';
+
+export function useSessionsPanel({ sessions, archived = [], searchResults, onSearch, userId, activeId, onClose, onUnhide, onSelect }: UseSessionsPanelArgs) {
   const [query, setQuery] = useState('');
-  const [confirmId, setConfirmId] = useState<string | null>(null);
+  // Archiving only flips metadata on the server, so it runs at once and the toast
+  // offers the way back. Local `new-` sessions have nothing to restore: no toast.
+  const archive = useCallback((id: string) => {
+    const wasActive = activeId === id;
+    onClose(id);
+    if (!onUnhide || id.startsWith('new-')) return;
+    toast('Sessão arquivada', {
+      action: { label: 'Desfazer', onClick: () => { onUnhide(id); if (wasActive) onSelect(id); } },
+    });
+  }, [activeId, onClose, onUnhide, onSelect]);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  // Sessão sumiu (deletada/arquivada por outro cliente) com o modal aberto:
-  // fecha em vez de deixar um confirm órfão agindo num id que não existe mais.
-  useEffect(() => {
-    if (confirmId && !sessions.some((s) => s.id === confirmId)) setConfirmId(null);
-  }, [confirmId, sessions]);
+  // Sessão sumiu (deletada por outro cliente) com o modal aberto: fecha em vez
+  // de deixar um confirm órfão agindo num id que não existe mais.
   useEffect(() => {
     if (deleteId && !sessions.some((s) => s.id === deleteId) && !archived.some((s) => s.id === deleteId)) setDeleteId(null);
   }, [deleteId, sessions, archived]);
   // Logado no produto multi-conta: além do cache local, empurra o estado completo
-  // pro Supabase pra favoritos/tags seguirem a conta em outro device (a hidratação
+  // pro Supabase pra favoritos seguirem a conta em outro device (a hidratação
   // em [[session-prefs.ts]] traz de volta no login). No loopback fica só local.
   const synced = syncEnabled(userId);
   const [pins, setPins] = usePersisted<string[]>(PINS_KEY, []);
@@ -38,31 +52,9 @@ export function useSessionsPanel({ sessions, archived = [], searchResults, onSea
     if (synced) pushPinsRemote(userId!, next);
   }, [pins, setPins, synced, userId]);
 
-  // Etiquetas por sessão. Permite organizar/filtrar além da recência — o "tags"
-  // pedido junto do grupo "trabalhando agora" (#144).
-  const [tagMap, setTagMap] = usePersisted<Record<string, string[]>>(TAGS_KEY, {});
-  const [tagFilter, setTagFilter] = useState<string | null>(null);
-  const addTag = useCallback((id: string, tag: string) => {
-    const cur = tagMap[id] || [];
-    if (cur.includes(tag)) return;
-    const next = { ...tagMap, [id]: [...cur, tag] };
-    setTagMap(next);
-    if (synced) pushTagsRemote(userId!, next);
-  }, [tagMap, setTagMap, synced, userId]);
-  const removeTag = useCallback((id: string, tag: string) => {
-    const cur = (tagMap[id] || []).filter((t) => t !== tag);
-    const next = { ...tagMap };
-    if (cur.length) next[id] = cur; else delete next[id];
-    setTagMap(next);
-    if (synced) pushTagsRemote(userId!, next);
-  }, [tagMap, setTagMap, synced, userId]);
-  const allTags = useMemo(() => {
-    const set = new Set<string>();
-    for (const arr of Object.values(tagMap)) for (const t of arr) set.add(t);
-    return [...set].sort();
-  }, [tagMap]);
   const { dismissed: dismissedWaiting, dismissWaiting } = useWaitingDismissed(sessions);
   const searchRef = useRef<HTMLInputElement>(null);
+  const lastSent = useRef('');
 
   // ⌘/ foca a busca de sessões (⌘K virou o command palette). Esc limpa+desfoca.
   useEffect(() => {
@@ -81,25 +73,32 @@ export function useSessionsPanel({ sessions, archived = [], searchResults, onSea
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  // Busca de conteúdo no backend (debounce 150ms). O filtro local (título/snippet)
+  useEffect(() => {
+    const focus = () => requestAnimationFrame(() => { searchRef.current?.focus(); searchRef.current?.select(); });
+    window.addEventListener(FOCUS_SESSION_SEARCH, focus);
+    return () => window.removeEventListener(FOCUS_SESSION_SEARCH, focus);
+  }, []);
+
+  // Busca de conteúdo no backend (debounce 350ms, só se a query mudou). O filtro local (título/snippet)
   // aparece na hora; os hits por CONTEÚDO chegam logo depois e são mesclados.
   useEffect(() => {
     if (!onSearch) return;
-    const id = setTimeout(() => onSearch(query), 150);
+    const trimmed = query.trim();
+    if (trimmed === lastSent.current) return;
+    const id = setTimeout(() => { lastSent.current = trimmed; onSearch(trimmed); }, 350);
     return () => clearTimeout(id);
   }, [query, onSearch]);
 
   const filtered = useMemo(
-    () => filterSessions(sessions, query, searchResults, pinned, tagFilter, tagMap),
-    [sessions, query, searchResults, pinned, tagFilter, tagMap],
+    () => filterSessions(sessions, query, searchResults, pinned),
+    [sessions, query, searchResults, pinned],
   );
 
   return {
     query, setQuery,
-    confirmId, setConfirmId,
+    archive,
     deleteId, setDeleteId,
     pinned, togglePin,
-    tagMap, tagFilter, setTagFilter, addTag, removeTag, allTags,
     dismissedWaiting, dismissWaiting,
     searchRef,
     filtered,

@@ -2,7 +2,7 @@ import { useCallback, useRef, useState } from 'react';
 import type { ClientMsg, DflPointsSnapshot, PointsEntry, ServerMsg } from '../../shared/protocol';
 import type { DflDraft, DraftOp } from '../../shared/dfl-drafts';
 
-export interface DflWriteResult { ok: boolean; message?: string }
+export interface DflWriteResult { ok: boolean; message?: string; taskId?: string }
 
 export interface DflChange {
   taskId: string; taskName: string; currentPoints: number; newPoints: number; reason?: string;
@@ -97,7 +97,7 @@ export function usePoints(send: (m: ClientMsg) => boolean): Points {
       }
       case 'dfl-task-write': {
         const resolve = writeResolvers.current.get(msg.reqId);
-        if (resolve) { writeResolvers.current.delete(msg.reqId); resolve({ ok: msg.ok, message: msg.message }); }
+        if (resolve) { writeResolvers.current.delete(msg.reqId); resolve({ ok: msg.ok, message: msg.message, taskId: msg.taskId }); }
         return true;
       }
       default:

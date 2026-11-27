@@ -91,14 +91,17 @@ function panePids(): Promise<Map<string, number>> {
     const p = spawn('tmux', ['list-panes', '-a', '-F', '#{session_name} #{pane_pid}'], { stdio: ['ignore', 'pipe', 'ignore'] });
     let buf = '';
     p.stdout.on('data', (d) => { buf += d; });
+    // A wedged tmux never closes; resolve with what we have instead of hanging.
+    const timer = setTimeout(() => p.kill('SIGKILL'), 3000);
     p.on('close', () => {
+      clearTimeout(timer);
       for (const line of buf.split('\n')) {
         const [name, pid] = line.trim().split(' ');
         if (name?.startsWith('cockpit-') && Number(pid) > 0) out.set(name.slice('cockpit-'.length), Number(pid));
       }
       resolve(out);
     });
-    p.on('error', () => resolve(out));
+    p.on('error', () => { clearTimeout(timer); resolve(out); });
   });
 }
 

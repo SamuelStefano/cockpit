@@ -70,7 +70,41 @@ function open(): Database.Database {
       updated_at INTEGER NOT NULL
     );
   `);
+  // Plain-language mission summary per kanban card (server/mission-summary.ts).
+  // Keyed by card id; `card_updated_at` marks which card revision it describes.
+  // Derived and disposable: a missing row only means it is regenerated.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS mission_plain (
+      card_id         TEXT PRIMARY KEY,
+      card_updated_at INTEGER NOT NULL,
+      title           TEXT NOT NULL,
+      what            TEXT NOT NULL,
+      why             TEXT NOT NULL,
+      updated_at      INTEGER NOT NULL
+    );
+  `);
   return db;
+}
+
+export interface MissionPlainRow { cardId: string; cardUpdatedAt: number; title: string; what: string; why: string }
+
+export function setMissionPlain(r: MissionPlainRow): void {
+  try {
+    open()
+      .prepare(`INSERT INTO mission_plain (card_id, card_updated_at, title, what, why, updated_at) VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(card_id) DO UPDATE SET card_updated_at = excluded.card_updated_at, title = excluded.title,
+          what = excluded.what, why = excluded.why, updated_at = excluded.updated_at`)
+      .run(r.cardId, r.cardUpdatedAt, r.title, r.what, r.why, Date.now());
+  } catch { /* lock/disk — disposable, ignore */ }
+}
+
+export function allMissionPlain(): Map<string, MissionPlainRow> {
+  try {
+    const rows = open()
+      .prepare('SELECT card_id AS cardId, card_updated_at AS cardUpdatedAt, title, what, why FROM mission_plain')
+      .all() as MissionPlainRow[];
+    return new Map(rows.map((r) => [r.cardId, r]));
+  } catch { return new Map(); }
 }
 
 export function setSummary(sessionId: string, summary: string): void {
@@ -227,6 +261,9 @@ export function sweepUsage(): void {
     // session_summary também crescia sem poda (1 linha por sessão, pra sempre).
     // Descarta resumos não tocados há > RETAIN_DAYS (sessão antiga/sumida).
     db.prepare('DELETE FROM session_summary WHERE updated_at < ?').run(cutoff);
+    // Same for the last-turn outcome (one row per session, never pruned before).
+    db.prepare('DELETE FROM session_turn_outcome WHERE updated_at < ?').run(cutoff);
+    db.prepare('DELETE FROM mission_plain WHERE updated_at < ?').run(cutoff);
   } catch { /* lock/disco — ignora, tenta no próximo sweep */ }
 }
 
@@ -296,17 +333,26 @@ function computeStats(): UsageStats {
     totalOutput: sessions.reduce((a, s) => a + s.outputTokens, 0),
     totalSamples: sessions.reduce((a, s) => a + s.samples, 0),
     totalCost: sessions.reduce((a, s) => a + s.costUsd, 0),
-    series: dailySeries(14),
+    // The whole retention window: /uso's 30d and "tudo" buttons used to filter a
+    // 14-day series, so both showed 14 days and "tudo" disagreed with the headline.
+    series: dailySeries(RETAIN_DAYS),
   };
 }
+
+const BRT_OFFSET_MS = 3 * 60 * 60 * 1000;
 
 // Buckets diários (output + custo estimado) dos últimos N dias, pra trend no /uso.
 function dailySeries(days: number): { day: number; output: number; cost: number }[] {
   const cutoff = Date.now() - days * 86_400_000;
+  // Aggregated in SQL per (Brasília day, model): pulling every sample row into JS
+  // is ~150k rows for 90 days on this box. BRT has no DST, so a fixed -3h shift
+  // groups by local day; the label still comes from midnightInTz.
   const rows = open().prepare(`
-    SELECT ts, output_tokens AS output, input_tokens AS input,
-           cache_read_tokens AS cacheRead, cache_creation_tokens AS cacheCreation, model
+    SELECT MIN(ts) AS ts, model,
+           SUM(output_tokens) AS output, SUM(input_tokens) AS input,
+           SUM(cache_read_tokens) AS cacheRead, SUM(cache_creation_tokens) AS cacheCreation
     FROM usage_sample WHERE ts >= ?
+    GROUP BY CAST((ts - ${BRT_OFFSET_MS}) / 86400000 AS INTEGER), model
   `).all(cutoff) as Array<{ ts: number; output: number; input: number; cacheRead: number; cacheCreation: number; model: string | null }>;
 
   const buckets = new Map<number, { day: number; output: number; cost: number }>();

@@ -28,16 +28,16 @@ export function UsageRow({ row, maxOut, title, openable, onOpen }: UsageRowProps
     >
       <td className="max-w-0 px-2 py-2 sm:px-3">
         <div className="truncate text-neutral-300">{title}</div>
-        {row.model && <div className="truncate font-mono text-[10px] text-neutral-600">{row.model}</div>}
+        {row.model && <div className="truncate font-mono text-[12px] text-neutral-600">{row.model}</div>}
       </td>
       <td className="hidden px-3 py-2 md:table-cell">
         <div className="flex items-center gap-2">
           <div className="h-1.5 w-16 overflow-hidden rounded-full bg-neutral-800">
             <div className={`h-full rounded-full ${fill > 75 ? 'bg-red-500' : fill > 50 ? 'bg-amber-500' : 'bg-orange-500'}`} style={{ width: `${fill}%` }} />
           </div>
-          <span className="font-mono text-[11px] text-neutral-500">{fmt(row.ctxTokens)}</span>
+          <span className="font-mono text-[12px] text-neutral-500">{fmt(row.ctxTokens)}</span>
           {fill >= 75 && (
-            <span title="Contexto quase cheio — considere uma nova sessão" className="flex items-center gap-0.5 rounded-sm bg-red-500/10 px-1 text-[9.5px] font-medium text-red-400">
+            <span title="Contexto quase cheio — considere uma nova sessão" className="flex items-center gap-0.5 rounded-sm bg-red-500/10 px-1 text-[12px] font-medium text-red-400">
               <Icon name="zap" size={9} /> {fill}%
             </span>
           )}
@@ -48,10 +48,10 @@ export function UsageRow({ row, maxOut, title, openable, onOpen }: UsageRowProps
           <div className="hidden h-1.5 w-16 overflow-hidden rounded-full bg-neutral-800 sm:block">
             <div className="h-full rounded-full bg-sky-500" style={{ width: `${Math.round((row.outputTokens / maxOut) * 100)}%` }} />
           </div>
-          <span className="font-mono text-[11px] text-neutral-400">{fmt(row.outputTokens)}</span>
+          <span className="font-mono text-[12px] text-neutral-400">{fmt(row.outputTokens)}</span>
         </div>
       </td>
-      <td className="px-2 py-2 font-mono text-[11px] text-emerald-400/80 sm:px-3">{fmtCost(row.costUsd)}</td>
+      <td className="px-2 py-2 font-mono text-[12px] text-emerald-400/80 sm:px-3">{fmtCost(row.costUsd)}</td>
       <td className="hidden px-3 py-2 font-mono text-neutral-500 lg:table-cell">{row.samples}</td>
       <td className="whitespace-nowrap px-2 py-2 text-right text-neutral-500 sm:px-3">{relPast(row.lastTs)}</td>
     </tr>

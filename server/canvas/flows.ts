@@ -10,7 +10,7 @@ import { emitCanvasMsg } from '../ws/canvas-clients';
 import { enqueuePending } from '../ws/pending';
 import { addParked, removeParked } from '../ws/parked';
 import { resumableId } from '../ws/resume';
-import { isDrainerEnabled, runParkedInBackground, startRun } from '../ws/runs';
+import { isDrainerEnabled, orchestratorPaneTarget, runParkedInBackground, startRun } from '../ws/runs';
 import { resolveThreadKey, threads, type RunParams } from '../ws/threads';
 import { bindCardSession, cardIdForSession, lastCardMarker, neutralizeMarkers } from './card-sessions';
 import { cardIdFromRefsCache } from './index';
@@ -18,6 +18,7 @@ import { claimFlowFire, markCardDoing, readBoardChained, recordFlowFailure, reco
 import { clearFlowRun, registerFlowRun } from './flow-runs';
 import { blockedAreaFor } from './autopause-loop';
 import { hasInteractiveClaude } from './term-stats';
+import { readBusyElsewhereSessionIds } from './cv-liveness';
 import { onTurnClosed, type TurnClosed } from './turn-hooks';
 
 export { neutralizeMarkers };
@@ -213,8 +214,22 @@ export async function deliverToSession(sessionId: string, prompt: string, source
   // retries later, once the area (hopefully) isn't over anymore.
   const blocked = blockedAreaFor(resume);
   if (blocked) return { delivered: false, areaBlocked: blocked };
-  startRun({ ws: null, sessionKey: resume, prompt, resumeId: resume, flowHop: hop, ...params });
-  return { delivered: threads.has(resume) };
+  // The Orchestrator's session lives in its tmux pane: startRun types the prompt
+  // there and returns 'pane' with no thread. That IS a delivery — read as a
+  // failure, the "report back" arrow backed off and skipped later results.
+  if (orchestratorPaneTarget(resume, params.role)) {
+    return { delivered: startRun({ ws: null, sessionKey: resume, prompt, resumeId: resume, flowHop: hop, ...params }) === 'pane' };
+  }
+  // Same double-writer guards 'send' runs (dispatch.ts): a session driven by an
+  // interactive `claude` in a pane, or live in the OTHER Deck process, is not in
+  // this process's `threads`, and a `claude -p --resume` here would be a second
+  // writer on its transcript. Not delivered = fireFlow backs off and retries.
+  if (await hasInteractiveClaude(resume)) return { delivered: false };
+  if ((await readBusyElsewhereSessionIds().catch(() => [] as string[])).includes(resume)) return { delivered: false };
+  // Those awaits did real I/O: a turn may have started here meanwhile.
+  if (resolveThreadKey(sessionId)) return { delivered: false };
+  const r = startRun({ ws: null, sessionKey: resume, prompt, resumeId: resume, flowHop: hop, ...params });
+  return { delivered: r === 'pane' || threads.has(resume) };
 }
 
 async function resolveCardNodes(contextIds: string[], sessionIds: string[]): Promise<{ contexts: CanvasNode[]; sessions: CanvasNode[] }> {
@@ -320,17 +335,28 @@ async function deliverToReuseTarget(card: CanvasCard, flow: CanvasFlow, result: 
   // has no thread in `threads` for resolveThreadKey above to have caught).
   const resume = resumableId(sessionId);
   if (!resume) return { delivered: false };
-  if (await hasInteractiveClaude(sessionId)) return { delivered: false };
   const blockedArea = blockedAreaFor(resume);
   if (blockedArea) return { delivered: false, areaBlocked: blockedArea };
+  // A card continuing into the Orchestrator: startRun pastes into its pane ('pane',
+  // no thread) — a delivery, same as deliverToSession. Checked before the
+  // interactive/busy guards, which would otherwise refuse or FORK its whole
+  // transcript (its claude is interactive and reads busy while it works).
+  if (orchestratorPaneTarget(resume, params.role)) {
+    return { delivered: startRun({ ws: null, sessionKey: resume, prompt, resumeId: resume, flowHop: hop, ...params }) === 'pane' };
+  }
+  if (await hasInteractiveClaude(sessionId)) return { delivered: false };
   // hasInteractiveClaude just awaited real I/O (a /proc scan) — a user could
   // have sent into this session in that exact window, making it live. startRun
   // on an already-live sessionKey takes the `replacing` branch and KILLS that
   // fresh turn (`threads.get(sessionKey)!.handle.kill()`), which a background
   // flow firing must never do. Re-check immediately before the spawn — not
   // just once, before the await — and fall back to fork if it's live now.
+  // Live in the other Deck process (not in this process's threads): fork
+  // instead of a second writer, same as a live turn here.
+  if ((await readBusyElsewhereSessionIds().catch(() => [] as string[])).includes(resume)) return viaFork();
   if (resolveThreadKey(sessionId)) return viaFork();
-  startRun({ ws: null, sessionKey: resume, prompt, resumeId: resume, flowHop: hop, ...params });
+  const r = startRun({ ws: null, sessionKey: resume, prompt, resumeId: resume, flowHop: hop, ...params });
+  if (r === 'pane') return { delivered: true };
   return threads.has(resume) ? { delivered: true, runKey: resume } : { delivered: false };
 }
 
@@ -344,7 +370,11 @@ export async function deliverToCard(cardId: string, flow: CanvasFlow, result: st
   // areaBlocked (#599) has to survive this early return too — fireFlow reads
   // it off deliverToCard's own result to pick the dedicated toast/backoff,
   // and a card target is exactly as area-gateable as an `s:` one.
-  if (!delivery.delivered || !delivery.runKey) return { delivered: false, areaBlocked: delivery.areaBlocked };
+  if (!delivery.delivered) return { delivered: false, areaBlocked: delivery.areaBlocked };
+  // A pane delivery (the Orchestrator) is delivered but has no run of ours: no
+  // turn-closed ever fires for it, so a card marked doing here would never move to
+  // review. Leave its status alone.
+  if (!delivery.runKey) return delivery;
   await updateBoard((b) => markCardDoing(b, cardId, Date.now()));
   // Live until handleTurnClosed sees this exact runKey close (below) — read
   // back by server/ws/dispatch.ts on every canvas-board answer, so a tab
@@ -378,15 +408,23 @@ export async function fireFlow(flow: CanvasFlow, hop: number, result: string, pa
   let delivered = false;
   let runKey: string | undefined;
   let areaBlocked: AreaId | undefined;
-  if (flow.to.startsWith('s:')) {
-    const r = await deliverToSession(ref, buildFlowPrompt(flow, result, hop), params, flow, hop);
-    delivered = r.delivered;
-    areaBlocked = r.areaBlocked;
-  } else {
-    const r = await deliverToCard(ref, flow, result, hop, params);
-    delivered = r.delivered;
-    runKey = r.runKey;
-    areaBlocked = r.areaBlocked;
+  // A throw after the claim (a board read rejecting, a spawn failing) used to skip
+  // the failure branch below: fires/lastFiredAt stayed advanced with no failure
+  // streak, no backoff and no toast. It is a failed delivery like any other.
+  try {
+    if (flow.to.startsWith('s:')) {
+      const r = await deliverToSession(ref, buildFlowPrompt(flow, result, hop), params, flow, hop);
+      delivered = r.delivered;
+      areaBlocked = r.areaBlocked;
+    } else {
+      const r = await deliverToCard(ref, flow, result, hop, params);
+      delivered = r.delivered;
+      runKey = r.runKey;
+      areaBlocked = r.areaBlocked;
+    }
+  } catch (e) {
+    console.error(`canvas flow ${flow.id}: delivery threw:`, (e as Error).message);
+    delivered = false;
   }
 
   if (!delivered) {

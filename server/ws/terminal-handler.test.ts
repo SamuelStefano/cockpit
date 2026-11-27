@@ -151,3 +151,23 @@ describe('term-open with watch', () => {
     expect(myTerms.has('w-b')).toBe(false);
   });
 });
+
+describe('term-open with watch — pty spawn failure', () => {
+  const live = { readyState: 1, OPEN: 1 } as unknown as WebSocket;
+  const uuid = '55b717e4-4e61-4a4f-83f9-2d2a4cdea948';
+
+  it('reports term-exit instead of rejecting when openTerm throws', async () => {
+    term.openTerm.mockImplementation(() => { throw new Error('forkpty(3) failed'); });
+    const rejections: unknown[] = [];
+    const onRejection = (e: unknown) => { rejections.push(e); };
+    process.on('unhandledRejection', onRejection);
+    try {
+      handleTerm(live, { t: 'term-open', termId: 'w-f', cols: 80, rows: 24, watch: uuid }, new Map());
+      await vi.waitFor(() => expect(sent.fn).toHaveBeenCalledWith(live, { t: 'term-exit', termId: 'w-f' }));
+      await new Promise((r) => setTimeout(r, 20));
+      expect(rejections).toEqual([]);
+    } finally {
+      process.off('unhandledRejection', onRejection);
+    }
+  });
+});

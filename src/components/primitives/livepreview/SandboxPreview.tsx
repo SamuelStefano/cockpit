@@ -11,12 +11,22 @@ import type { SandboxTarget } from '../../../../shared/sandbox-preview';
 // `allow-top-navigation`, senão o app embutido conseguiria trocar a página do Deck.
 const SANDBOX_PERMS = 'allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-downloads';
 
+// The safety argument above holds only when the src really is another origin.
+// The fence body is untrusted (model output); pointed at the Deck's own origin,
+// allow-same-origin + allow-scripts would let the frame read the Deck's
+// localStorage (auth token) and lift its own sandbox. Same origin → no same-origin.
+export function sandboxPerms(src: string, deckOrigin: string): string {
+  let origin: string;
+  try { origin = new URL(src, deckOrigin).origin; } catch { return SANDBOX_PERMS.replace(' allow-same-origin', ''); }
+  return origin === deckOrigin ? SANDBOX_PERMS.replace(' allow-same-origin', '') : SANDBOX_PERMS;
+}
+
 function Frame({ src, title, className, width }: { src: string; title: string; className: string; width: number | null }) {
   return (
     <iframe
       src={src}
       title={title}
-      sandbox={SANDBOX_PERMS}
+      sandbox={sandboxPerms(src, window.location.origin)}
       referrerPolicy="no-referrer"
       allow="clipboard-write; fullscreen"
       className={className}
@@ -34,7 +44,7 @@ export function SandboxPreview({ target }: { target: SandboxTarget }) {
   return (
     <div className="my-1 overflow-hidden rounded-lg border border-orange-500/25 bg-[#0c0c0c]">
       <div className="flex flex-wrap items-center justify-between gap-1.5 border-b border-neutral-800 px-3 py-1.5">
-        <span className="flex min-w-0 items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-orange-300/80">
+        <span className="flex min-w-0 items-center gap-1.5 font-mono text-[12px] uppercase tracking-wider text-orange-300/80">
           <Icon name="monitor" size={11} className="shrink-0" />
           <span className="truncate" title={target.url}>sandbox · {target.host}</span>
           {!probing && !proxied && (
@@ -62,9 +72,9 @@ export function SandboxPreview({ target }: { target: SandboxTarget }) {
       </div>
 
       {probing ? (
-        <div className="px-3 py-6 text-center font-mono text-[11px] text-neutral-600">preparando…</div>
+        <div className="px-3 py-6 text-center font-mono text-[12px] text-neutral-600">preparando…</div>
       ) : full ? (
-        <div className="px-3 py-6 text-center font-mono text-[11px] text-neutral-600">aberto em tela cheia…</div>
+        <div className="px-3 py-6 text-center font-mono text-[12px] text-neutral-600">aberto em tela cheia…</div>
       ) : (
         <div className="flex justify-center bg-white">
           <Frame key={nonce} src={src} title={title} width={width} className="h-[560px] w-full border-0" />

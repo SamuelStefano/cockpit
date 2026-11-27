@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import type { WebSocket } from 'ws';
-import { registerCanvasClient, emitCanvasMsg, _resetCanvasClients } from './canvas-clients';
+import { registerCanvasClient, emitCanvasMsg, hasCanvasClients, _resetCanvasClients } from './canvas-clients';
 
 // Same fake-socket shape as finance-clients.test.ts: records sent payloads
 // and lets the test fire the 'close' handler.
@@ -24,6 +24,15 @@ describe('canvas-clients (push admin-only, canvas-flow-failed etc.)', () => {
     emitCanvasMsg({ t: 'canvas-flow-failed', flowId: 'x', message: 'falhou' });
     expect(a.sent).toHaveLength(1);
     expect(b.sent).toHaveLength(0); // b never registered (never sent canvas-get) — never receives it
+  });
+
+  it('hasCanvasClients tracks registration and close', () => {
+    const a = fakeWs();
+    expect(hasCanvasClients()).toBe(false);
+    registerCanvasClient(a.ws);
+    expect(hasCanvasClients()).toBe(true);
+    a.close();
+    expect(hasCanvasClients()).toBe(false);
   });
 
   it('registration is idempotent', () => {

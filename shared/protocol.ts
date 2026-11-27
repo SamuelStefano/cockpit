@@ -2,9 +2,26 @@
 // REGRA (squad L3): types-only — zero import de node:*/fs. O bundle do browser
 // importa este arquivo.
 
-import type { AreaBudget, AreaId, CanvasBoard, CanvasCard, CanvasFlow, CanvasFlowRun, CanvasGraph, CanvasPos, CardStatus, OrchestratorActivity, OrchestratorInfo, SessionPeek, TermStats } from './canvas';
+import type { AreaBudget, AreaId, CanvasBoard, CanvasCard, CanvasFlow, CanvasFlowRun, CanvasGraph, CanvasPos, CardPlain, CardStatus, OrchestratorActivity, OrchestratorInfo, SessionPeek, TermStats } from './canvas';
+import type { DepartmentId } from './departments';
 import type { AreaUsage } from './canvas-budget';
+import type { PlannerMove, PlannerTask, TaskHandoff } from './planner';
 import type { DflDraft, DraftOp } from './dfl-drafts';
+import type { McpsState } from './mcps';
+import type { Connection } from './connections';
+import type { ProbeResult } from './provider-probe';
+import type { ClaudeImportResult, ClaudeImportScan, ImportKind } from './claude-import';
+import type { ByoKeyView } from './byo-providers';
+import type { AgentView, AgentPreset, AgentStatus, AgentCustomField } from './agents';
+import type { TeamMessage } from './team-messages';
+import type { TeamMeeting } from './team-meeting';
+import type { ExecutorState, HeavyJob } from './heavy-job';
+import type { TeamState } from './team-state';
+import type { TalkChunkPayload, TalkPayload } from './team-talk';
+import type { PrDetail, PrDiff, PrsSnapshot, SessionPrs } from './prs';
+import type { BoxHealth, SmokeResult } from './box-health';
+import type { VersionKind, VersionMeta } from './versions';
+import type { VillagePlanView, VillageView } from './village';
 
 export interface ToolDiff {
   path: string;
@@ -22,6 +39,8 @@ export interface ToolQuestion {
   header: string;
   multiSelect: boolean;
   options: ToolQuestionOption[];
+  image?: string; // proposal picture: a path in the bot's workspace or an https URL
+  deadline?: string; // free text shown in the footer ("10:30"): when the bot holds the round
 }
 
 // MCP Apps (SEP-1865): uma tool MCP pode declarar `_meta.ui.resourceUri` apontando
@@ -112,6 +131,9 @@ export interface AssistantMessage {
   blocks: Block[];
   ts?: number; // epoch ms; ausente em sessões antigas sem timestamp no JSONL
   error?: boolean; // bubble de erro do turno (habilita "tentar novamente" na UI)
+  // Error bubble that is NOT a failed turn (offline, refused, queue): the prompt
+  // it refers to is not the last user bubble, so it must not arm "tentar novamente".
+  notice?: boolean;
   quick?: boolean; // resposta-rápida de subagente (triagem 'answer'); fora do turno principal
   model?: string; // modelo EFETIVO daquele turno; rotula a bolha (evita anacronismo ao trocar modelo mid-thread)
   stats?: TurnBubbleStats; // gasto/tempo/tokens do turno, carimbado no 'done' pra exibição discreta sob a bolha
@@ -183,12 +205,34 @@ export interface ContextMeta {
   mtime: number;
 }
 
+// Memória da equipe: o que os agentes ligados a ela sabem antes da conversa
+// começar. `agents` = ids dos bots que a leem. Ligada a ninguém = só consulta.
+export interface Memory {
+  id: string;
+  title: string;
+  body: string;
+  agents: string[];
+  updatedAt: number;
+  updatedBy: string;
+  fileName?: string;
+  fromDisk?: boolean;
+}
+export type MemoryInput = Pick<Memory, 'title' | 'body' | 'agents'> & { id?: string; fileName?: string };
+
 // Skill do agente (dir com SKILL.md) surfaceada read-only na rota Skills.
+export type SkillRisk = 'read' | 'write' | 'net';
 export interface SkillMeta {
   id: string;
   name: string;
   description: string;
   mtime: number;
+  // Frontmatter `source:`; absent on the wire = a skill of the Deck itself. Any
+  // other value is the name of the host MCP that ships it.
+  source?: string;
+  // Frontmatter `risk:`; absent = the UI shows `read`.
+  risk?: SkillRisk[];
+  // Ids of the team bots that can run it (a bot without a skill list runs all).
+  usedBy?: string[];
 }
 
 // DFL Skills registry (skills.devfellowship.com), read server-side with the
@@ -225,6 +269,9 @@ export interface RegistryPack {
 export interface RegistryCatalog {
   skills: RegistrySkill[];
   packs: RegistryPack[];
+  // The API answered with the public tier only: no DFL session on this box (or the
+  // token was not sent), so internal skills are hidden, not missing.
+  publicOnly?: boolean;
   fetchedAt: number;
 }
 
@@ -240,6 +287,15 @@ export interface DropRef {
   sha256: string;
   mtime: number;
   expiresAt?: number;
+}
+
+// Metadata of a box-vault secret (server/vault.ts). Never carries the value.
+export interface VaultItem {
+  name: string;
+  bytes: number;
+  agents: string[];
+  createdAt: number;
+  updatedAt: number;
 }
 
 // Uso/tokens por sessão (time-series agregada do SQLite) — observatório.
@@ -383,6 +439,102 @@ export interface Cron {
   enabled: boolean;
   lastRun?: number;
   createdAt: number;
+  // Rotina de um bot da Equipe: dispara na thread do bot (`bot-<id>`), com a identidade dele.
+  botId?: string;
+}
+// Bot da Equipe: um agente persistente com nome, cargo e mascote, dono de UMA thread
+// contínua (sessionId). Persistido em ~/.cockpit/team.json (server/team.ts).
+// A hierarquia (parentId) é convenção de prompt, não do sistema. `profile`
+// 'restricted' é o gancho da fatia E (tools/MCP mínimos); hoje só é gravado.
+export type MascotShape = 'drop' | 'blob' | 'tri' | 'bean';
+export interface TeamMascot { shape: MascotShape; color: string }
+export type TeamProfile = 'full' | 'restricted';
+export interface BotPermissions { read: boolean; write: boolean; net: boolean }
+export interface RosterBox {
+  label: string;
+  online: boolean;
+  self: boolean;
+}
+
+export interface WsCommit { hash: string; message: string; at: number; source: 'deck' | 'github' }
+// `tooBig`: the bodies were left out of the frame; restore still works server-side.
+export interface WsDiffFile { path: string; old: string; new: string; tooBig?: boolean }
+export interface WsConflict { botId: string; path: string }
+// `repo` absent = local history only ("Só local").
+export interface WsRepoStatus { repo?: string; head?: string; at?: number; pending?: boolean }
+
+export interface TeamBot {
+  id: string;
+  name: string;
+  label: string;
+  instructions: string;
+  mascot: TeamMascot;
+  parentId?: string;
+  department?: DepartmentId;
+  // Project house the bot works in on the team world (a project id, e.g. 'itera').
+  project?: string;
+  // Building the bot lives in on the team world (a building id, e.g. 'deck').
+  home?: string;
+  // Desk index inside that building (0..63); the world uses it when the desk is free.
+  homeSeat?: number;
+  sprite?: string;
+  primary?: boolean;
+  sessionId?: string;
+  // Sessions this bot left behind on `team rotate` (newest last); a turn aimed at one still speaks as the bot.
+  previousSessionIds?: string[];
+  // Set by `team rotate`: the next turn starts a fresh session carrying the bot's handoff file. Cleared once it binds.
+  rotatedAt?: number;
+  profile: TeamProfile;
+  model?: string;
+  // Stored only for now: the automatic switch to it is a later slice.
+  fallbackModel?: string;
+  mode?: PermMode;
+  effort?: Effort;
+  // Absent = every skill / today's tool set. Empty skills also means every skill.
+  skills?: string[];
+  permissions?: BotPermissions;
+  // Agent defined in a GitHub repo folder, synced read-only to the box (server/agent-source.ts).
+  source?: AgentSource;
+  sourceSync?: AgentSourceSync;
+  createdAt: number;
+  updatedAt: number;
+}
+export interface AgentSource { repo: string; path: string }
+export interface AgentSourceSync { at: number; commit?: string; error?: string }
+// What the browser may send: sessionId/createdAt/updatedAt/sourceSync are the server's.
+export type TeamBotInput = Omit<TeamBot, 'sessionId' | 'rotatedAt' | 'createdAt' | 'updatedAt' | 'sourceSync'>;
+// A bot's AskUserQuestion still waiting on the human. Persisted server-side
+// (~/.cockpit/team-pending.json) so a question asked by a routine or a bot↔bot
+// turn, with nobody watching, survives a reload and reaches another device.
+export interface TeamPendingQuestion { botId: string; sessionKey: string; questions: ToolQuestion[]; at: number }
+// A file in a bot's workspace (`~/.cockpit/bots/<id>/workspace`), path relative to it.
+export interface BotFile { path: string; size: number; mtime: number }
+// Aba Computador: não há VM por bot — o computador é esta máquina, e o que é do
+// bot é o workspace. `preview` = últimas linhas do terminal dele, já sem bytes de
+// controle; vazio quando o terminal ainda não existe ou o caller não é admin.
+export interface BotComputer {
+  cwd: string;
+  files: number;
+  bytes: number;
+  truncated: boolean;
+  termId: string;
+  termAlive: boolean;
+  preview: string[];
+  live?: AgentLive;
+}
+
+// "Live computer" snapshot of a bot, derived server-side from its tool events.
+// Everything here is already redacted and size-capped on the box.
+export interface AgentLive {
+  at?: number;
+  status?: ToolCall['status'];
+  step?: string;
+  stepIndex?: number;
+  stepTotal?: number;
+  tool?: string;
+  command?: string;
+  file?: { path: string; diff: string; truncated: boolean; hidden?: boolean };
+  terminal?: string[];
 }
 export interface TurnStats { costUsd?: number; durationMs?: number; numTurns?: number; model?: string }
 
@@ -402,6 +554,9 @@ export interface BgAgent {
 // específico (ex: claude-opus-4-8); aliases opus/sonnet/haiku ainda valem como
 // fallback antes da lista carregar.
 export interface ModelInfo { id: string; displayName: string }
+
+// Run slots of one box: `cap` is min(configured ceiling, what free memory allows), never below 1.
+export interface CapacityInfo { live: number; cap: number; configCap: number; availMb: number }
 
 export interface SysStats {
   cpu: number;                 // 0..100
@@ -593,6 +748,12 @@ export interface DflPointsSnapshot {
   stale: boolean;          // DERIVADO no server: sync velho demais
 }
 
+export type ClaudeLoginState = 'waiting-url' | 'url' | 'verifying' | 'done' | 'error';
+
+// optimistic = set by the client on start, cleared by the first real server frame.
+export interface ClaudeAccount { loggedIn: boolean; email?: string; orgName?: string; authMethod?: string }
+export interface ClaudeLoginView { state: 'idle' | ClaudeLoginState; url?: string; error?: string; optimistic?: boolean }
+
 export type ClientMsg =
   // skills = ids das skills SELECIONADAS p/ este prompt (subconjunto de SkillMeta.id).
   // Vazio/ausente = todas ativas (default fail-open). O backend nega via permission
@@ -611,6 +772,10 @@ export type ClientMsg =
   // (relay/NAT dropou sem FIN, laptop dormiu) segue "OPEN" pro browser sem disparar
   // onclose — o pong é o único sinal de que o ida-e-volta ainda vive.
   | { t: 'ping' }
+  | { t: 'client-visibility'; hidden: boolean }
+  // The relay's box list, forwarded by the tab so the box can describe its siblings
+  // in the Deck context of the sessions it spawns (boxes never get it from the relay).
+  | { t: 'box-roster'; boxes: RosterBox[] }
   | { t: 'list' }
   // Resume (mobile): reemite o estado durável (busy/rate/plan-usage/models +
   // sessions) que o CLI só manda durante um run, sem depender de eventos perdidos.
@@ -619,6 +784,8 @@ export type ClientMsg =
   // sessões inteiro, caro demais pra abrir um popover.
   // `force` = o usuário clicou: ler agora, sem esperar o espaçamento do poll.
   | { t: 'plan-usage-get'; force?: boolean }
+  // Mesmo contrato, conta do Grok (créditos do período, não janela de 5h).
+  | { t: 'grok-usage-get'; force?: boolean }
   // `chainOnly` = o usuário PEDIU a visão resumida; sem ele o servidor pode servir
   // a timeline completa quando a cadeia ativa colapsou (pós-/compact).
   | { t: 'open'; sessionId: string; chainOnly?: boolean }
@@ -638,16 +805,25 @@ export type ClientMsg =
   | { t: 'search'; q: string }
   | { t: 'ctx-list' }
   | { t: 'ctx-open'; id: string }
+  | { t: 'mem-list' }
+  | { t: 'mem-save'; memory: MemoryInput }
+  | { t: 'mem-delete'; id: string }
   | { t: 'notes-get' }
   | { t: 'notes-save'; text: string }
   // Drop privado (admin-only, fora do STUDENT_ALLOWED): entrega segredo/script à
   // box do agente sem passar pelo chat. `drop-put` responde SÓ a referência — o
   // conteúdo nunca volta, senão ele entraria no estado do cliente e derrotaria o
   // propósito. `drop-open` é o último recurso, explícito.
-  | { t: 'drop-put'; slug: string; content: string; ttlMs?: number }
+  // `encoding: 'base64'` = binary file (.p8, .p12, images). Absent = UTF-8 text, the
+  // original frame, so text drops keep working against agents that predate it.
+  | { t: 'drop-put'; slug: string; content: string; ttlMs?: number; encoding?: 'base64' }
   | { t: 'drop-list' }
   | { t: 'drop-open'; slug: string }
   | { t: 'drop-rm'; slug: string }
+  // Box vault (root-only): write-only values, list returns names + metadata.
+  | { t: 'vault-put'; name: string; value: string; agents?: string[] }
+  | { t: 'vault-list' }
+  | { t: 'vault-rm'; name: string }
   | { t: 'points-get' }
   | { t: 'points-add'; title: string; points: number; description?: string }
   | { t: 'points-correct'; entryId: string; points: number }
@@ -703,13 +879,63 @@ export type ClientMsg =
   | { t: 'cron-save'; cron: Cron }
   | { t: 'cron-delete'; id: string }
   | { t: 'cron-run'; id: string }
+  | { t: 'team-get' }
+  | { t: 'team-save'; bot: TeamBotInput }
+  | { t: 'team-delete'; id: string }
+  | { t: 'team-sync-source'; id: string }
+  // One chunk (<=600 chars) rendered to mp3 by the box; answered by tts-audio or tts-error with the same reqId.
+  | { t: 'tts'; reqId: string; text: string }
+  | { t: 'stt-token'; reqId: string }
+  | { t: 'agent-build'; reqId: string; history: { role: 'user' | 'assistant'; text: string }[]; draft: { name: string; label: string; instructions: string; skills: string[] } }
+  | { t: 'team-messages-get'; botId?: string; peer?: string; before?: number }
+  | { t: 'team-pause-set'; paused: boolean }
+  | { t: 'village-get' }
+  | { t: 'village-config'; enabled?: boolean; dailyCap?: number }
+  | { t: 'village-dry' }
+  | { t: 'team-rotate'; botId: string }
+  | { t: 'team-meeting-start'; question: string; participantIds: string[]; moderatorId: string }
+  | { t: 'team-meetings-get' }
+  | { t: 'heavy-run'; repo: string; branch: string; dir?: string; command: string; requestedBy?: string }
+  | { t: 'heavy-cancel'; id: string }
+  | { t: 'heavy-get' }
+  | { t: 'team-state-get'; followUpHours?: number }
+  | { t: 'team-talk-get'; botId: string; recording?: boolean }
+  | { t: 'team-talk-send'; botId: string; text: string; msgId: string; recording?: boolean }
+  | { t: 'team-files-get'; botId: string }
+  | { t: 'team-file-get'; botId: string; path: string }
+  | { t: 'team-file-put'; botId: string; path: string; text: string; baseMtime?: number }
+  | { t: 'team-ws-log-get'; botId: string }
+  | { t: 'team-ws-diff-get'; botId: string; hash: string }
+  | { t: 'team-ws-restore'; botId: string; hash: string; path: string }
+  | { t: 'team-ws-sync' }
+  | { t: 'team-ws-repos-get' }
+  | { t: 'team-ws-connect'; repo: string }
+  | { t: 'session-file-get'; sessionId: string; path: string }
+  | { t: 'team-computer-get'; botId: string }
   | { t: 'skill-list' }
+  | { t: 'versions-list'; kind: VersionKind; id: string }
+  | { t: 'versions-diff'; kind: VersionKind; id: string; from: string; to: string }
+  | { t: 'versions-restore'; kind: VersionKind; id: string; version: string }
   | { t: 'skill-open'; id: string }
   | { t: 'registry-get'; refresh?: boolean }
   | { t: 'registry-install'; reqId: string; items: RegistryRef[] }
   | { t: 'usage-list' }
   | { t: 'refresh-models' }
+  | { t: 'claude-login-start' }
+  | { t: 'claude-login-code'; code: string }
+  | { t: 'claude-login-cancel' }
+  | { t: 'claude-account-get' }
+  | { t: 'claude-logout' }
+  | { t: 'mcps-get' }
+  | { t: 'connections-get' }
+  // Lists the models of an OpenAI-compatible endpoint. The key is used once and never stored, logged or echoed.
+  | { t: 'provider-probe'; endpoint: string; key?: string }
+  | { t: 'claude-import-scan'; path?: string }
+  | { t: 'claude-import-apply'; path?: string; kinds: ImportKind[] }
   | { t: 'admin-health' }
+  // Machine health (shared/box-health.ts): a fresh report, and one tiny real prompt.
+  | { t: 'box-health-get' }
+  | { t: 'box-smoke-test' }
   // Admin write-ops no host (#162, DR-023). Gated por role admin (authorize) e —
   // p/ cli-install (RCE) — por loopback (CONFIG.localOnly) no dispatch. Valor de
   // token nunca volta; só o nome aparece em health.envTokens.
@@ -722,9 +948,21 @@ export type ClientMsg =
   // deploy do repo. Só loopback: fora dele o admin não reinicia a box de um fellow.
   | { t: 'admin-cli-update' }
   | { t: 'admin-deck-restart'; mode: 'idle' | 'now' }
+  // External ACP agents (shared/agents.ts). Admin-only by authorize's default-deny;
+  // a custom command is a subprocess the box will spawn: root-only (relay) on the
+  // owner's own box (engine), validated in server/agents/custom-agent.ts.
+  | { t: 'agents-get' }
+  | { t: 'agent-connect'; preset: string }
+  | { t: 'agent-add-custom'; id: string; name: string; command: string; args: string[]; install?: string; login?: string }
+  | { t: 'agent-probe-draft'; id: string; name: string; command: string; args: string[] }
+  | { t: 'agent-remove'; id: string }
+  | { t: 'agent-test'; id: string }
+  | { t: 'byo-keys-get' }
+  | { t: 'byo-key-set'; provider: string; key: string }
+  | { t: 'byo-key-remove'; provider: string }
   | { t: 'upload-chunk'; uploadId: string; sessionKey: string; name: string; seq: number; total: number; dataB64: string; clientId?: string }
   | { t: 'att-open'; path: string }
-  | { t: 'term-open'; termId: string; cols: number; rows: number; watch?: string } // watch = session uuid to follow live
+  | { t: 'term-open'; termId: string; cols: number; rows: number; watch?: string; botId?: string } // watch = session uuid to follow live; botId = abre no workspace do bot (o servidor resolve o caminho)
   | { t: 'term-input'; termId: string; data: string }
   | { t: 'term-resize'; termId: string; cols: number; rows: number }
   | { t: 'term-detach'; termId: string }
@@ -762,6 +1000,12 @@ export type ClientMsg =
   | { t: 'canvas-pos-reset' }
   | { t: 'canvas-card-save'; card: CanvasCard }
   | { t: 'canvas-card-delete'; id: string }
+  | { t: 'planner-get' }
+  | { t: 'planner-task-save'; task: PlannerTask }
+  | { t: 'planner-task-ready'; id: string; ready: boolean }
+  | { t: 'planner-task-delete'; id: string }
+  | { t: 'planner-reorder'; moves: PlannerMove[] }
+  | { t: 'planner-task-handoff'; id: string; handoff: Omit<TaskHandoff, 'at'> }
   // Kanban session item (src/routes/canvas/kanban-items.ts): user override on
   // a session's derived status — drag onto a column or "marcar completo".
   | { t: 'canvas-session-status'; sessionId: string; status: CardStatus }
@@ -782,6 +1026,13 @@ export type ClientMsg =
   // do chat. `repo` é SLUG de registro do servidor, nunca caminho — caminho vindo
   // do cliente seria leitura arbitrária de arquivo.
   | { t: 'bench-build'; buildId: string; repo: string; code: string }
+  // PR hub (/prs): the owner's PRs via the box's `gh`. Merge re-reads the PR on
+  // the server and enforces the risk gate there — the client's confirm is a hint.
+  | { t: 'prs-get'; force?: boolean }
+  | { t: 'prs-detail-get'; url: string }
+  | { t: 'prs-diff-get'; url: string }
+  | { t: 'prs-session-get'; sessionId: string; hydrate?: boolean }
+  | { t: 'prs-merge'; reqId: string; url: string; confirmText?: string }
   // Fila estacionada (overnight): mesma carga do 'send', mas o servidor persiste e
   // o drainer dispara assim que a sessão fica ociosa (sem olhar quota). queue-get pede
   // o snapshot atual; add/remove/move/clear gerenciam a fila; set-paused liga/desliga
@@ -793,6 +1044,7 @@ export type ClientMsg =
   | { t: 'queue-clear'; sessionKey: string }
   | { t: 'queue-set-paused'; paused: boolean }
   | { t: 'queue-retry'; sessionKey: string; id: string }
+  | { t: 'queue-retarget'; sessionKey: string; model: string }
   // Descarta a pergunta pendente que está segurando a fila desta sessão e drena na
   // hora. É o "mesmo assim" do usuário: sem isto, só a resposta dele destrava.
   | { t: 'queue-force'; sessionKey: string }
@@ -822,31 +1074,41 @@ export type ClientMsg =
 // bypass (env opt-in + admin + loopback). A UI só mostra o switch quando true.
 // role: engine Role no loopback ('admin'|'student'); AccountRole no T3
 // ('root'|'admin'|'fellow'). Privilegiado = 'admin'|'root'.
-export type Caps = { role: 'root' | 'admin' | 'fellow' | 'student'; canBypass: boolean };
+// clientVisibility: this agent understands client-visibility. An older student agent answers
+// any unknown frame with "sem permissão", so the client only sends it when this is true.
+export type Caps = { role: 'root' | 'admin' | 'fellow' | 'student'; canBypass: boolean; clientVisibility?: boolean };
 
 export type ServerMsg =
   | { t: 'caps'; caps: Caps }
-  | { t: 'mcp-servers'; servers: string[] }  // nomes dos MCP disponíveis (do ~/.claude.json), p/ o seletor por sessão; default = nenhum carregado
+  | { t: 'mcp-servers'; servers: string[] }  // nomes dos MCP disponíveis (~/.claude.json, servers do projeto do workdir e conectores claude.ai), p/ o seletor por sessão; default = nenhum carregado
   // Esta box tem uma conta Anthropic conectada (OAuth ou ANTHROPIC_API_KEY)? Sem
   // isso o `claude` nem inicia, então a UI avisa que nada vai rodar até conectar.
   // É fato do ENGINE (a VPS), não do viewer — por isso vai à parte do caps, que
   // o agente T3 não reanuncia.
   | { t: 'claude-auth'; ready: boolean }
+  | { t: 'claude-account'; account: ClaudeAccount | null }
+  | { t: 'agent-health'; health: BoxHealth }
+  | ({ t: 'box-smoke' } & SmokeResult)
+  | { t: 'claude-login'; state: ClaudeLoginState; url?: string; error?: string }
   // Relay T3 (DR-023): a VPS pareada da conta está online/offline. O browser usa
   // pra mostrar o dashboard de pareamento quando não há agente atendendo.
   | { t: 'agent-online' }
   | { t: 'agent-offline' }
+  // Lean turn-end signal for peeks: no text, read only by other-box watchers.
+  | { t: 'turn-summary'; sessionKey: string; sessionId: string; ok: boolean }
   | { t: 'pong' }  // resposta ao ping do cliente — prova que o socket ainda faz ida-e-volta
   | { t: 'sessions'; items: SessionMeta[] }
   | { t: 'archived'; items: SessionMeta[] }
   | { t: 'search-results'; q: string; items: SessionMeta[] }
   | { t: 'session-summary'; sessionId: string; summary: string }
   | { t: 'contexts'; items: ContextMeta[] }
+  | { t: 'memories'; items: Memory[] }
   | { t: 'notes'; text: string }
   // `content` preenchido SÓ em resposta a drop-open. No put a referência viaja
   // sozinha (caminho/bytes/sha256) — o segredo não volta pro cliente.
   | { t: 'drop'; ref: DropRef; content?: string }
   | { t: 'drops'; items: DropRef[] }
+  | { t: 'vault'; items: VaultItem[] }
   | { t: 'points'; entries: PointsEntry[]; total: number }
   // snapshot = null quando o sync ainda não rodou (nada em ~/.cockpit/dfl-points.json).
   | { t: 'points-dfl'; snapshot: DflPointsSnapshot | null }
@@ -857,11 +1119,43 @@ export type ServerMsg =
   | { t: 'points-dfl-write'; reqId: string; kind: 'change' | 'invoice' | 'agent'; ok: boolean; message?: string }
   // Resultado de dfl-task-link/dfl-task-create-link. reqId casa com o pedido;
   // sucesso já vem acompanhado de um canvas-board com o card.dfl atualizado.
-  | { t: 'dfl-task-write'; reqId: string; ok: boolean; message?: string }
+  | { t: 'dfl-task-write'; reqId: string; ok: boolean; message?: string; taskId?: string }
   | { t: 'crons'; items: Cron[] }
+  | { t: 'team'; bots: TeamBot[] }
+  | { t: 'team-messages'; items: TeamMessage[]; botId?: string; peer?: string; before?: number }
+  | { t: 'team-message'; item: TeamMessage }
+  | { t: 'team-paused'; paused: boolean }
+  | { t: 'village'; village: VillageView }
+  | { t: 'village-plan'; plan: VillagePlanView }
+  | { t: 'team-rotate-result'; botId: string; ok: boolean; error?: string; words?: number }
+  | { t: 'team-meetings'; items: TeamMeeting[] }
+  | { t: 'team-state'; state: TeamState }
+  | { t: 'team-talk'; talk: TalkPayload }
+  | { t: 'team-talk-chunk'; botId: string; msgId?: string; chunk: TalkChunkPayload }
+  | { t: 'team-meeting'; item: TeamMeeting }
+  | { t: 'heavy'; executor: ExecutorState; jobs: HeavyJob[] }
+  | { t: 'team-pending'; items: TeamPendingQuestion[] }
+  | { t: 'team-files'; botId: string; items: BotFile[]; error?: string }
+  | { t: 'team-file'; botId: string; path: string; mime?: string; size?: number; mtime?: number; dataB64?: string; error?: string }
+  | { t: 'team-file-saved'; botId: string; path: string; ok: boolean; mtime?: number; error?: string }
+  | { t: 'team-ws-log'; botId: string; items: WsCommit[]; status: WsRepoStatus; error?: string }
+  | { t: 'team-ws-diff'; botId: string; hash: string; files: WsDiffFile[]; patch: string; error?: string }
+  | { t: 'team-ws-restored'; botId: string; path: string; ok: boolean; error?: string }
+  | { t: 'team-ws-status'; status: WsRepoStatus; conflicts?: WsConflict[]; error?: string }
+  | { t: 'team-ws-repos'; repos: string[]; error?: string }
+  | { t: 'session-file'; sessionId: string; path: string; mime?: string; size?: number; dataB64?: string; truncated?: boolean; error?: string }
+  | { t: 'team-computer'; botId: string; computer?: BotComputer; error?: string }
   | { t: 'context'; id: string; title: string; body: string }
   | { t: 'models'; models: ModelInfo[] }
+  | { t: 'agents'; items: AgentView[]; presets: AgentPreset[]; customAllowed: boolean }
+  | { t: 'byo-keys'; items: ByoKeyView[]; ok?: boolean; message?: string }
+  | { t: 'agent-test-result'; id: string; ok: boolean; status: AgentStatus; message: string }
+  | { t: 'agent-custom-result'; ok: boolean; message: string; field?: AgentCustomField; id?: string }
+  | { t: 'agent-draft-result'; ok: boolean; status: AgentStatus; message: string; field?: AgentCustomField }
   | { t: 'skills'; items: SkillMeta[] }
+  | { t: 'versions'; kind: VersionKind; id: string; items: VersionMeta[] }
+  | { t: 'versions-diff'; kind: VersionKind; id: string; from: string; to: string; ok: boolean; diff: string; message?: string }
+  | { t: 'versions-restore-result'; kind: VersionKind; id: string; ok: boolean; message: string }
   | { t: 'skill'; id: string; name: string; body: string }
   | { t: 'registry'; catalog: RegistryCatalog | null; error?: string }
   | { t: 'registry-install-result'; reqId: string; ok: boolean; installed: string[]; skipped: string[]; error?: string }
@@ -882,6 +1176,8 @@ export type ServerMsg =
   // prepend = resposta a um open-full com `before`: são as mensagens ANTERIORES às
   // que o cliente já tem, não um snapshot novo. O cliente concatena em vez de trocar.
   | { t: 'history'; sessionId: string; messages: Message[]; prepend?: boolean; tokens?: number; model?: string; full?: boolean; truncated?: boolean; todos?: ToolTodo[] }
+  // The agent is about to restart for a self-update or Node upgrade; it comes back on its own.
+  | { t: 'agent-restarting'; reason: 'update' }
   | { t: 'busy'; keys: string[]; startedAt?: Record<string, number> } // startedAt: turn start per key, so a reload keeps the real elapsed time
   // O JSONL da sessão mudou no disco (ex.: claude rodado direto no terminal).
   // Cliente com a sessão aberta re-puxa o histórico — sem F5.
@@ -891,14 +1187,24 @@ export type ServerMsg =
   // bolha do usuário só aparece no F5 (lendo o JSONL). `id` casa o id otimista do
   // remetente p/ dedup; os demais clientes anexam.
   | { t: 'user'; sessionKey: string; id: string; text: string; ts: number }
+  // The prompt was typed into a live tmux pane instead of starting a relay run.
+  // No 'started'/'done' will ever follow, so the client must drop its own
+  // in-flight latch and go back to tailing the transcript (session-touched).
+  | { t: 'pane-delivered'; sessionKey: string; msgId?: string }
   // Veredito da triagem de um prompt enviado com o turno ocupado. msgId casa a
   // bolha do usuário p/ anexar o selo; quick-answer chega à parte quando answer.
   | { t: 'triage'; sessionKey: string; msgId?: string; action: TriageAction; reason: string }
+  | { t: 'tts-audio'; reqId: string; audio: string }
+  | { t: 'tts-error'; reqId: string }
+  | { t: 'stt-token-result'; reqId: string; token?: string }
+  | { t: 'agent-build-result'; reqId: string; ok: boolean; text?: string; error?: string }
   | { t: 'quick-answer'; sessionKey: string; id: string; text: string; ts: number }
   // model = modelo PEDIDO no turno (alias/id); carimba a bolha na hora pra o label
   // não cair no seletor vivo e mudar retroativamente ao trocar de modelo. O 'done'
   // refina pro modelo EFETIVO (revela fallback silencioso, se houver).
-  | { t: 'started'; sessionKey: string; model?: string }
+  // startedAt: server clock, so the client's live bubble compares with the
+  // transcript's timestamps instead of the browser's (possibly skewed) clock.
+  | { t: 'started'; sessionKey: string; model?: string; startedAt?: number }
   | { t: 'replay'; sessionKey: string; text: string; thinking: string; tools: ToolCall[]; startedAt?: number; sessionId?: string; model?: string }
   | { t: 'system'; sessionKey: string; sessionId: string }
   | { t: 'slash-commands'; items: string[] }
@@ -913,6 +1219,7 @@ export type ServerMsg =
   // `nextReadAt` = quando o servidor volta a poder ler (429 ou orçamento da hora
   // esgotado). Sem ele um clique que não trouxe número novo parecia botão quebrado.
   | { t: 'plan-usage'; usage: PlanUsage | null; blockedUntil?: number | null; readAt?: number | null; nextReadAt?: number | null }
+  | { t: 'grok-usage'; usage: PlanUsage | null; blockedUntil?: number | null; readAt?: number | null; nextReadAt?: number | null }
   | { t: 'harness-config'; config: HarnessConfig }
   | { t: 'harness-task'; task: HarnessTaskView }
   | { t: 'harness-event'; taskId: string; event: HarnessEvent }
@@ -926,10 +1233,16 @@ export type ServerMsg =
   | { t: 'usage-stats'; stats: UsageStats }
   | { t: 'health'; health: AdminHealth }
   | { t: 'admin-op'; ok: boolean; message: string }
+  | { t: 'mcps'; state: McpsState }
+  | { t: 'connections'; items: Connection[] }
+  | { t: 'provider-probe'; result: ProbeResult }
+  | { t: 'claude-import'; scan: ClaudeImportScan; hint?: string; result?: ClaudeImportResult }
   | { t: 'accounts'; accounts: AccountSummary[] }
   | { t: 'stats'; stats: SysStats }
+  | ({ t: 'capacity' } & CapacityInfo)
   | { t: 'graphs'; items: GraphMeta[] }
   | { t: 'canvas-graph'; graph: CanvasGraph }
+  | { t: 'planner-board'; tasks: PlannerTask[] }
   | { t: 'orchestrator-info'; info?: OrchestratorInfo }
   | { t: 'orchestrator-activity'; activity: OrchestratorActivity }
   | { t: 'canvas-term-stats'; stats: Record<string, TermStats> }
@@ -943,12 +1256,18 @@ export type ServerMsg =
   // prompt waiting for Samuel, not "done". Optional: an older server that
   // hasn't redeployed this field yet just omits it, no client crash.
   | { t: 'cv-live'; sessionIds: string[]; idleSessionIds?: string[] }
+  // Sessions with a turn live outside THIS backend process (the other Deck
+  // process, or an interactive claude) — every client, not just the canvas.
+  | { t: 'live-elsewhere'; sessionIds: string[] }
   // flowRuns: every card-target flow run still live right now (server/canvas/
   // flow-runs.ts) — a tab that (re)connects mid-run (F5, a second tab, opening
   // /canvas after the flow already fired) gets this on the SAME frame as the
   // board, so it doesn't have to have caught the one-shot canvas-flow-run
   // broadcast to know the card is running.
   | { t: 'canvas-board'; board: CanvasBoard; flowRuns: CanvasFlowRun[] }
+  // Plain-language summary of one card became ready (server/mission-summary.ts);
+  // patches just that card's `plain`, never the whole board.
+  | { t: 'canvas-card-plain'; cardId: string; cardUpdatedAt: number; plain: CardPlain }
   // A flow just delivered its result to its target — the UI pulses that arrow
   // and patches just this flow's counters, never the whole board (which would
   // leak every card's prompt and every other flow's template to every socket).
@@ -998,14 +1317,21 @@ export type ServerMsg =
   | { t: 'graph-build-done'; ok: boolean; id?: string; error?: string }
   | { t: 'bench-bundle'; buildId: string; js: string; css: string; ms: number }
   | { t: 'bench-error'; buildId: string; error: string }
+  // `pending`: a cached snapshot painted at once; a fresh one follows on this socket.
+  | { t: 'prs'; snapshot: PrsSnapshot; pending?: boolean }
+  | { t: 'prs-diff'; url: string; diff: PrDiff | null; error?: string }
+  | { t: 'prs-session'; session: SessionPrs }
+  | { t: 'prs-detail'; url: string; detail: PrDetail | null; error?: string }
+  | { t: 'prs-merge-result'; reqId: string; url: string; ok: boolean; message?: string }
   | { t: 'term-data'; termId: string; data: string }
   | { t: 'term-replay'; termId: string; data: string }
   | { t: 'term-exit'; termId: string }
   | { t: 'terms'; ids: string[] }
+  // The CLI emitted its final `result` with nothing pending; `done` follows when the process closes.
+  | { t: 'settled'; sessionKey: string }
   | { t: 'done'; sessionKey: string; sessionId: string; costUsd?: number; durationMs?: number; numTurns?: number; turnTokens?: number; inputTokens?: number; outputTokens?: number; endReason?: string; model?: string; stopped?: boolean }
   // Tópicos de continuação sugeridos pós-turno (chips selecionáveis, estilo ChatGPT).
-  | { t: 'suggestions'; sessionKey: string; items: string[] }
-  | { t: 'queue'; items: ParkedView[]; paused: boolean }
+  | { t: 'queue'; items: ParkedView[]; paused: boolean; releaseAt?: number }
   // O enfileiramento foi recusado: devolve o texto pro cliente restaurar o composer.
   | { t: 'queue-reject'; sessionKey: string; text: string; message: string }
   // Uma AÇÃO da fila foi recusada (furar a fila, rodar em paralelo). Separado do

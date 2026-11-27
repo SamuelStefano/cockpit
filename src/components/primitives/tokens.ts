@@ -9,6 +9,20 @@ export const tokens = {
     ok: 'var(--ok)',
     warn: 'var(--warn)',
     err: 'var(--err)',
+    info: 'var(--info)',
+    accentTint: 'var(--accent-tint)',
+    accentBorder: 'var(--accent-border)',
+    ring: 'var(--ring)',
+    textStrong: 'var(--text-strong)',
+    textBody: 'var(--text-body)',
+    textWeak: 'var(--text-weak)',
+    textMuted: 'var(--text-muted)',
+  },
+  radiusVar: {
+    sm: 'var(--r-sm)',
+    md: 'var(--r-md)',
+    lg: 'var(--r-lg)',
+    xl: 'var(--r-xl)',
   },
   radius: {
     sm: 'rounded-md',
@@ -22,6 +36,12 @@ export const tokens = {
     secondary: 'text-neutral-300',
     muted: 'text-neutral-500',
     accent: 'text-orange-400',
+    display: 'font-display text-[30px] leading-[1.1] font-bold tracking-normal',
+    title: 'font-display text-[19px] leading-[1.25] font-bold tracking-normal',
+    body: 'text-[16px] leading-[1.6]',
+    ui: 'text-[14px] leading-[1.4]',
+    micro: 'text-[12px] leading-[1.3]',
+    sectionTitle: 'text-[11px] font-medium uppercase tracking-[0.06em] text-neutral-500',
   },
   surface: {
     // Card em repouso: hairline (luz no topo) dá profundidade sem sombra pesada.

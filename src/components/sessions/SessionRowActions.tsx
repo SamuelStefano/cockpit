@@ -2,6 +2,9 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Icon, tokens } from '../primitives';
 import type { IconName } from '../primitives/Icon';
 import { shouldDropUp } from './menu-flip';
+import { escapeLayerOpen } from '../primitives/useEscapeLayer';
+import { Sheet } from '../primitives/Sheet';
+import { COARSE_QUERY } from '../primitives/useCoarse';
 
 interface SessionRowActionsProps {
   pinned: boolean;
@@ -38,6 +41,9 @@ export function SessionRowActions({ pinned, running, canStop, canDescribe, marat
   const setOpen = (v: boolean) => { onOpenChange ? onOpenChange(v) : setOpenInternal(v); };
   const ref = useRef<HTMLDivElement>(null);
   const [dropUp, setDropUp] = useState(false);
+  // Touch: the menu is a bottom sheet (44px rows, never clipped by the scrolling
+  // list or the sticky group header) opened by long-press; the grip is hidden.
+  const touchMenu = open && typeof window.matchMedia === 'function' && window.matchMedia(COARSE_QUERY).matches;
 
   // Layout effect: mede e decide o lado ANTES do paint — sem flash do menu
   // abrindo pro lado errado por um frame.
@@ -47,13 +53,15 @@ export function SessionRowActions({ pinned, running, canStop, canDescribe, marat
 
   // Fecha ao clicar fora ou apertar Esc.
   useEffect(() => {
-    if (!open) return;
-    const onDown = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !e.defaultPrevented && !e.isComposing) { e.preventDefault(); setOpen(false); } };
-    window.addEventListener('mousedown', onDown);
+    if (!open || touchMenu) return;
+    // pointerdown, not mousedown: iOS fires no mousedown on non-clickable areas, so
+    // tapping empty list space left the menu open (RouteMenu/ProfileMenu already switched).
+    const onDown = (e: PointerEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !e.defaultPrevented && !e.isComposing && !escapeLayerOpen()) { e.preventDefault(); setOpen(false); } };
+    window.addEventListener('pointerdown', onDown);
     window.addEventListener('keydown', onKey);
-    return () => { window.removeEventListener('mousedown', onDown); window.removeEventListener('keydown', onKey); };
-  }, [open]);
+    return () => { window.removeEventListener('pointerdown', onDown); window.removeEventListener('keydown', onKey); };
+  }, [open, touchMenu]);
 
   const items: Item[] = [];
   if (onTogglePin) items.push({ key: 'pin', label: pinned ? 'Desafixar' : 'Favoritar', icon: 'star', run: onTogglePin });
@@ -72,12 +80,35 @@ export function SessionRowActions({ pinned, running, canStop, canDescribe, marat
         title="Ações"
         aria-haspopup="menu"
         aria-expanded={open}
-        className={`rounded p-1.5 text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-200 sm:p-0.5 ${tokens.touchBox}
-          ${open ? 'bg-neutral-800 text-neutral-200' : 'sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100'}`}
+        className={`rounded p-1.5 text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-200 sm:p-0.5 pointer-coarse:hidden ${tokens.touchBox}
+          ${open ? 'bg-neutral-800 text-neutral-200' : 'sm:pointer-fine:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100'}`}
       >
         <Icon name="grip" size={14} />
       </button>
-      {open && (
+      {touchMenu && (
+        <Sheet
+          open onClose={() => setOpen(false)} label="Ações da sessão"
+          content={(
+            <ul className="flex flex-col">
+              {items.map((it) => (
+                <li key={it.key}>
+                  <button
+                    type="button"
+                    onClick={() => { setOpen(false); it.run(); }}
+                    className={`flex h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-[15px] hover:bg-neutral-800 ${it.danger ? 'text-red-400' : 'text-neutral-100'}`}
+                  >
+                    <Icon name={it.icon} size={16} className="shrink-0" />
+                    {it.label}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        >
+          <span />
+        </Sheet>
+      )}
+      {open && !touchMenu && (
         <div
           role="menu"
           onClick={(e) => e.stopPropagation()}
@@ -88,7 +119,7 @@ export function SessionRowActions({ pinned, running, canStop, canDescribe, marat
               key={it.key}
               role="menuitem"
               onClick={(e) => { e.stopPropagation(); setOpen(false); it.run(); }}
-              className={`flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-[12px] transition
+              className={`flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-[13px] transition
                 ${it.danger
                   ? 'text-red-400 hover:bg-red-500/10 hover:text-red-300'
                   : 'text-neutral-300 hover:bg-neutral-800 hover:text-neutral-100'}`}

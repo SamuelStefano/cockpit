@@ -3,6 +3,7 @@ import { withFileLock } from './file-lock';
 import { join, dirname } from 'node:path';
 import { homedir } from 'node:os';
 import type { Role } from '../auth';
+import type { TeamProfile } from '../../shared/protocol';
 import type { RunParams } from './threads';
 import { coerceItem, type ParkedItem } from './parked';
 
@@ -51,11 +52,18 @@ function read(): LiveMap {
 }
 
 function write(map: LiveMap): void {
-  mkdirSync(dirname(LIVE_PATH), { recursive: true });
-  const tmp = `${LIVE_PATH}.${process.pid}.tmp`;
-  // 0600: guarda role/bypass do turno, que o boot vai reexecutar sem passar por authz.
-  writeFileSync(tmp, JSON.stringify(map), { encoding: 'utf8', mode: 0o600 });
-  renameSync(tmp, LIVE_PATH);
+  // Called from a child's close handler and from stream callbacks. This registry
+  // is crash-recovery hardening; a full disk (ENOSPC) must not throw out of
+  // onClose, where it would crash the agent or leave the session busy.
+  try {
+    mkdirSync(dirname(LIVE_PATH), { recursive: true });
+    const tmp = `${LIVE_PATH}.${process.pid}.tmp`;
+    // 0600: guarda role/bypass do turno, que o boot vai reexecutar sem passar por authz.
+    writeFileSync(tmp, JSON.stringify(map), { encoding: 'utf8', mode: 0o600 });
+    renameSync(tmp, LIVE_PATH);
+  } catch (e) {
+    console.error('[recover] live-runs write failed:', (e as Error).message);
+  }
 }
 
 // Mesma trava do parked.json, pelo mesmo motivo: agente e index escrevem aqui. Um
@@ -110,6 +118,10 @@ function sanitize(p: unknown): RunParams {
     mcps: Array.isArray(r.mcps) ? r.mcps.filter((s): s is string => typeof s === 'string') : undefined,
     effort: typeof r.effort === 'string' ? r.effort : undefined,
     allowWorkflow: r.allowWorkflow === true ? true : undefined,
+    botId: typeof r.botId === 'string' ? r.botId : undefined,
+    appendSystemPrompt: typeof r.appendSystemPrompt === 'string' ? r.appendSystemPrompt : undefined,
+    teamHop: typeof r.teamHop === 'number' ? r.teamHop : undefined,
+    profile: r.profile === 'restricted' || r.profile === 'full' ? (r.profile as TeamProfile) : undefined,
     // Todo campo do RunParams é opcional, então esquecer uma linha aqui compilaria
     // — e o param sumiria calado no boot, fazendo a retomada rodar com config
     // diferente da que o turno tinha (o oposto do que o RunParams promete). O

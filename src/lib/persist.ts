@@ -77,15 +77,21 @@ function broadcast(key: string, value: unknown, self: (v: unknown) => void): voi
 
 export function usePersisted<T>(key: string, fallback: T): [T, Dispatch<SetStateAction<T>>] {
   const [value, setValue] = useState<T>(() => loadPref(key, fallback));
-  const selfRef = useRef<(v: unknown) => void>((v) => setValue(v as T));
+  // The latest value, so a functional update resolves here, in the caller's
+  // event, instead of inside React's updater. The updater runs during render
+  // (and twice under StrictMode): saving and broadcasting from there set state
+  // on the other instances mid-render ("Cannot update a component while
+  // rendering a different component").
+  const current = useRef(value);
+  current.current = value;
+  const selfRef = useRef<(v: unknown) => void>((v) => { current.current = v as T; setValue(v as T); });
   useEffect(() => subscribePref(key, selfRef.current), [key]);
   const set = useCallback<Dispatch<SetStateAction<T>>>((action) => {
-    setValue((prev) => {
-      const next = typeof action === 'function' ? (action as (p: T) => T)(prev) : action;
-      savePref(key, next);
-      broadcast(key, next, selfRef.current);
-      return next;
-    });
+    const next = typeof action === 'function' ? (action as (p: T) => T)(current.current) : action;
+    current.current = next;
+    setValue(next);
+    savePref(key, next);
+    broadcast(key, next, selfRef.current);
   }, [key]);
   return [value, set];
 }

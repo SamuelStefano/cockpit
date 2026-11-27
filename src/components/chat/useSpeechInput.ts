@@ -1,17 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { joinTranscript, SPEECH_LANG } from './speech';
+import { normalizeDictation } from './speech-normalize';
 import { speechErrorMessage, isFatalSpeechError, noCaptureMessage, KEYBOARD_DICTATION_HINT } from './speech-errors';
 import { rememberEngineFailure, hasRecentEngineFailure } from './speech-fallback';
 // No toque a Web Speech API costuma faltar (iOS Safari/webviews) ou ser instável
 // — mas o TECLADO nativo tem ditado ótimo.
 import { isTouchMobile } from './touch';
+import { primeScribeAudio, scribeSupported, startScribe, type ScribeSession } from './call/scribe-capture';
 
 // Tipos mínimos da Web Speech API (não vêm no lib.dom de todo target). Só o que
 // usamos: ditado contínuo com resultados parciais e final por trecho.
-interface SpeechResult { 0: { transcript: string }; isFinal: boolean }
-interface SpeechResultEvent { resultIndex: number; results: ArrayLike<SpeechResult> }
-interface SpeechErrorEvent { error: string }
-interface SpeechRecognition {
+export interface SpeechResult { 0: { transcript: string; confidence?: number }; isFinal: boolean }
+export interface SpeechResultEvent { resultIndex: number; results: ArrayLike<SpeechResult> }
+export interface SpeechErrorEvent { error: string }
+export interface SpeechRecognition {
   lang: string;
   continuous: boolean;
   interimResults: boolean;
@@ -25,7 +27,7 @@ interface SpeechRecognition {
 }
 type SpeechCtor = new () => SpeechRecognition;
 
-function speechCtor(): SpeechCtor | null {
+export function speechCtor(): SpeechCtor | null {
   const w = window as unknown as { SpeechRecognition?: SpeechCtor; webkitSpeechRecognition?: SpeechCtor };
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
@@ -75,7 +77,9 @@ export function useSpeechInput(value: string, setValue: (v: string) => void, foc
   // Modo teclado de saída: sem API, iOS pela tela inicial (nunca capta) ou engine
   // que já falhou por aqui recentemente — não faz o usuário esperar 8s de novo.
   const [keyboardMode, setKeyboardMode] = useState(() => touch && (!hasApi || iosStandalone() || hasRecentEngineFailure()));
-  const supported = hasApi || touch;
+  const supported = hasApi || touch || scribeSupported();
+  const scribeRef = useRef<ScribeSession | null>(null);
+  const stopScribe = () => { scribeRef.current?.stop(); scribeRef.current = null; };
   const [listening, setListening] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hint, setHint] = useState<string | null>(null);
@@ -161,8 +165,8 @@ export function useSpeechInput(value: string, setValue: (v: string) => void, foc
       let interim = '';
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const r = e.results[i];
-        if (r.isFinal) finalRef.current += r[0].transcript;
-        else interim += r[0].transcript;
+        if (r.isFinal) finalRef.current += normalizeDictation(r[0].transcript);
+        else interim += normalizeDictation(r[0].transcript);
       }
       setValueRef.current(joinTranscript(baseRef.current, finalRef.current + interim));
     };
@@ -198,7 +202,41 @@ export function useSpeechInput(value: string, setValue: (v: string) => void, foc
     }
   };
 
+  const startBrowserEngine = () => {
+    if (keyboardMode || !speechCtor()) { setListening(false); startKeyboard(); return; }
+    wantRef.current = true;
+    setListening(true);
+    begin();
+  };
+
+  // Web Speech never captures on iOS (Safari, Chrome iOS, home-screen app) and is
+  // flaky on Android, so the box's Scribe engine comes first, like the voice call.
+  const startScribeEngine = () => {
+    primeScribeAudio();
+    baseRef.current = value;
+    setError(null);
+    setHint(null);
+    wantRef.current = true;
+    setListening(true);
+    scribeRef.current = startScribe({
+      onHeard: ({ text }) => { if (wantRef.current) setValueRef.current(joinTranscript(baseRef.current, text)); },
+      onFatal: (message) => {
+        scribeRef.current = null;
+        wantRef.current = false;
+        setListening(false);
+        setError(message);
+      },
+      onUnavailable: () => {
+        scribeRef.current = null;
+        if (!wantRef.current) return;
+        finalRef.current = '';
+        startBrowserEngine();
+      },
+    });
+  };
+
   const start = () => {
+    if (scribeSupported()) { stopScribe(); detach(); startScribeEngine(); return; }
     if (keyboardMode || !speechCtor()) { startKeyboard(); return; }
     detach();
     setError(null);
@@ -220,6 +258,7 @@ export function useSpeechInput(value: string, setValue: (v: string) => void, foc
   const stop = () => {
     wantRef.current = false;
     clearWatchdog();
+    if (scribeRef.current) { stopScribe(); setListening(false); return; }
     const rec = recRef.current;
     if (!rec) { setListening(false); return; }
     try { rec.stop(); } catch { detach(); setListening(false); return; }
@@ -232,8 +271,21 @@ export function useSpeechInput(value: string, setValue: (v: string) => void, foc
     }, STOP_GRACE_MS);
   };
 
+  // The composer was sent or cleared mid-dictation: drop the recognizer and what it
+  // already heard. A plain stop() flushes the last partial as final, and the next
+  // result rebuilds base + everything said — the sent prompt would come back.
+  const reset = () => {
+    wantRef.current = false;
+    clearWatchdog();
+    stopScribe();
+    detach();
+    baseRef.current = '';
+    finalRef.current = '';
+    setListening(false);
+  };
+
   // Desmontou no meio da gravação? Encerra o reconhecimento pra não vazar o mic.
-  useEffect(() => () => { wantRef.current = false; clearWatchdog(); detach(); }, []);
+  useEffect(() => () => { wantRef.current = false; clearWatchdog(); stopScribe(); detach(); }, []);
 
   // A dica do teclado some sozinha quando o texto muda (o usuário já achou o 🎤
   // ou preferiu digitar) — não precisa fechar à mão.
@@ -248,5 +300,5 @@ export function useSpeechInput(value: string, setValue: (v: string) => void, foc
   const dismissError = () => setError(null);
   const dismissHint = () => setHint(null);
 
-  return { supported, keyboardMode, listening, error, hint, dismissError, dismissHint, start, stop, toggle: () => (listening ? stop() : start()) };
+  return { supported, keyboardMode, listening, error, hint, dismissError, dismissHint, start, stop, reset, toggle: () => (listening ? stop() : start()) };
 }

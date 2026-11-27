@@ -1,103 +1,135 @@
 import { useEffect, useMemo } from 'react';
+import { composerLocked, isAgentModel } from '../../shared/agents';
 import { Icon } from './primitives';
 import { subscribeRefine } from './primitives/livepreview/refine-bus';
-import { MessageRow, Thinking } from './chat/MessageView';
+import { MessageRow } from './chat/MessageView';
+import { LiveLine } from './chat/LiveLine';
+import { showsWorking } from './chat/turn-settled';
 import { ChatEmpty, ChatInput } from './chat/ChatInput';
 import { ChatHeader } from './chat/ChatHeader';
+import { FocusCollapse } from './chat/FocusCollapse';
+import { useFocusMode, blurActiveEditable } from './chat/useFocusMode';
+import { CallDock } from './chat/call/CallDock';
 import { ScrollAffordances } from './chat/ScrollAffordances';
 import { ChatTopics } from './chat/ChatTopics';
 import { useChatTopics } from './chat/useChatTopics';
-import { TaskTray } from './chat/TaskTray';
-import { latestTodos } from './chat/task-tray';
 import { useShownMessages } from './chat/useShownMessages';
+import { interleaveByTime } from './chat/interleave';
+import type { ShownMessage } from './chat/shown';
 import { useCompacting } from './chat/useCompacting';
 import { TurnBanners } from './chat/TurnBanners';
-import { FollowupChips } from './chat/FollowupChips';
-import { ClaudeAuthBanner } from './chat/ClaudeAuthBanner';
-import { OrchestratorSessionBanner } from './chat/OrchestratorSessionBanner';
-import { isOrchestratorSession } from './chat/orchestrator-banner';
 import { SaturationBanner } from './chat/SaturationBanner';
-import { SendCostNotice } from './chat/SendCostNotice';
 import { useChatPanel, type Phase } from './chat/useChatPanel';
 import { useFileDrop } from './chat/useFileDrop';
+import { useTurnBit } from './chat/useTurnBit';
 import { BackgroundAgents } from './chat/BackgroundAgents';
+import { BitFishing } from './bit/fishing/BitFishing';
+import { BitMischief } from './bit/play/BitMischief';
 import { AttachmentModal } from './chat/AttachmentModal';
 import type { ChatPanelProps } from './chat/chat-panel-props';
+import { BotThreadContext, BOT_ANSWER_PLACEHOLDER } from './chat/bot-thread-context';
 
 export type { Phase };
 
-export function ChatPanel({ session, messages, phase, terminalBusy = false, sessionTodos, followups, onDismissFollowups, draft, setDraft, onSend, onPrompt, onApproveWorkflow, onStop, mode, setMode, caps, claudeReady = true, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, slashCommands, contextTokens, contextModel = null, sendCost, liveTurnTokens, turnStartedAt, bgAgents, lastTurn, lastEnd, onNew, onHandoff, handoffBusy = false, attachments, onUpload, onRemoveAttachment, attPreview = null, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser, onQuote, onMemorize, onRename, onOpenFull, onLoadOlder, onOpenSummary, truncated, onShowHelp, focusSignal = 0, onTerminal, terminalRunning, isMobile = false, keyboardOpen = false, quotaPaused = false, quotaResetsAt = null, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce, resumeOffer = null, resumeRun, orchestratorSessionId }: ChatPanelProps) {
-  const c = useChatPanel({ session, messages, phase, models, model, lastEnd, onSend, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queueRetry, queueRunBg, queueRunNow });
+export function ChatPanel({ session, messages, phase, settled = false, terminalBusy = false, draft, setDraft, onSend, onPrompt, onApproveWorkflow, onStop, mode, setMode, caps, claudeReady = true, bypass, setBypass, model, setModel, modelLocked, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, slashCommands, contextTokens, contextModel = null, sendCost, liveTurnTokens, turnStartedAt, bgAgents, lastTurn, lastEnd, onNew, onHandoff, handoffBusy = false, attachments, onUpload, onRemoveAttachment, attPreview = null, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser, onQuote, onMemorize, onRename, onDelete, onOpenFull, onLoadOlder, onOpenSummary, truncated, onShowHelp, focusSignal = 0, onTerminal, terminalRunning, terminalOpen, usage, isMobile = false, onMenu, keyboardOpen = false, quotaPaused = false, capacityFull = false, quotaResetsAt = null, queue, queueAdd, queueRetarget, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueReleaseAt = 0, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce, resumeOffer = null, resumeRun, turnStatus, teamSlot, agentSwitch, phoneTeam, footer, restoring = false, botDecor, conn, call }: ChatPanelProps) {
+  const c = useChatPanel({ session, messages, phase, models, model, lastEnd, onSend, queue, queueAdd, queueRetarget, queueRemove, queueEdit, queueMove, queueClear, queueRetry, queueRunBg, queueRunNow });
   // Modo iterativo: um refino pedido de dentro de um live preview vira o próximo
   // prompt (o card não tem acesso ao compositor — publica no [[refine-bus]]).
   useEffect(() => subscribeRefine((text) => onPrompt(`Refina a última tela/preview: ${text}`)), [onPrompt]);
   // Stats AO VIVO do turno (estilo terminal): tokens gastos + tempo decorrido,
   // enquanto o turno roda. Some no `done` (phase volta a idle).
   const running = phase === 'thinking' || phase === 'streaming';
+  // Equipe overlays the bot model (Grok) on a ChatPanel that still receives the
+  // Claude window's quotaPaused. Lock follows the model the picker shows.
+  const locked = composerLocked(quotaPaused, model);
+  const resetAt = locked ? quotaResetsAt : null;
+  // The way out of the lock: this chat and what it already queued move to the agent.
+  const agentOut = locked && !modelLocked ? models.find((m) => isAgentModel(m.id)) : undefined;
+  const useAgent = agentOut ? () => { setModel(agentOut.id); c.retargetQueue(agentOut.id); } : undefined;
   // Compactação não emite frame nenhum (o CLI só avisa depois): o silêncio longo
   // com o contexto cheio é o que denuncia, e vira indicador ao vivo no lugar do
   // "Pensando…" — antes o chat parecia travado por minutos.
-  const compactingSince = useCompacting(messages, running, contextTokens, quotaPaused, contextModel);
+  const compactingSince = useCompacting(messages, running, contextTokens, locked, contextModel);
+  const turnBit = useTurnBit({ conn, phase, messages, waiting: c.pendingQuestion || c.planPending, failed: c.failed, quotaPaused: locked });
   const live = running ? { tokens: liveTurnTokens ?? 0, startedAt: turnStartedAt, compactingSince: compactingSince ?? undefined } : undefined;
-  // Drop em qualquer lugar do chat (não só no composer): teto de 15MB espelha o
-  // backend. O composer tem seu próprio drop com stopPropagation, então soltar lá
-  // não dispara este também.
-  const panelDnd = useFileDrop((files) => { let n = 0; for (const f of files) { if (f.size > 15_000_000) continue; onUpload(f); n++; } return n; });
-  // Derivado memoizado: messages troca de referência a cada token streamado e a
-  // varredura reversa só deve rodar quando a lista realmente muda.
-  // Precedência do tray: com turno RODANDO os snapshots ao vivo (carimbados nos
-  // tool frames) são os mais novos; ocioso, o estado do arquivo inteiro (frame
-  // history) vence — um snapshot velho visível na chain não desatualiza o tray.
-  const trayTodos = useMemo(
-    () => (phase !== 'idle' ? latestTodos(messages) ?? sessionTodos : sessionTodos ?? latestTodos(messages)),
-    [messages, sessionTodos, phase],
-  );
-  const shown = useShownMessages(messages);
+  // Drop em qualquer lugar do chat (não só no composer); o teto de tamanho é
+  // checado no onUpload, que avisa em vez de descartar calado. O composer tem seu
+  // próprio drop com stopPropagation, então soltar lá não dispara este também.
+  const panelDnd = useFileDrop((files) => { for (const f of files) onUpload(f); return files.length; });
+  const allShown = useShownMessages(messages);
+  const shown = useMemo(() => (botDecor ? allShown.filter((m) => !botDecor.hideMessage(m)) : allShown), [allShown, botDecor]);
+  const rows = useMemo(() => interleaveByTime(shown, botDecor?.extras ?? []), [shown, botDecor]);
   const lastUserIdx = shown.findLastIndex((m) => m.role === 'user');
   const topics = useChatTopics(c.scrollRef, messages);
+  const focus = useFocusMode(isMobile, keyboardOpen);
+
+  const renderRow = (m: ShownMessage, i: number) => (
+    <MessageRow key={m.id} msg={m} caretOnLast={c.streaming && i === shown.length - 1 && m.role === 'assistant'} modelLabel={botDecor ? botDecor.name : m.role === 'assistant' && m.model ? c.labelFor(m.model) : c.modelLabel} avatar={botDecor?.avatar} bit={i === shown.length - 1 && m.role === 'assistant' ? turnBit : undefined} showModelLabel={!!botDecor} thinking={showsWorking(phase, settled) && !c.pendingQuestion && i === shown.length - 1 && m.role === 'assistant'} live={i === shown.length - 1 && m.role === 'assistant' && !c.pendingQuestion ? live : undefined} onEditUser={onEditUser} onQuote={onQuote} onMemorize={onMemorize} answerable={(phase === 'idle' || c.pendingQuestion) && i === shown.length - 1 && m.role === 'assistant'} onAnswer={onPrompt} reviewable={phase === 'idle' && i > lastUserIdx && m.role === 'assistant'} onApproveWorkflow={onApproveWorkflow} onRegenerate={phase === 'idle' && !c.pendingQuestion && i === shown.length - 1 && m.role === 'assistant' ? c.retryLast : undefined} onOpenAttachment={onAttOpen} attThumbs={attThumbs} onAttThumb={onAttThumb} />
+  );
+
+  const composer = (
+    <ChatInput disabled={c.disabled} placeholder={botDecor && c.pendingQuestion ? BOT_ANSWER_PLACEHOLDER : undefined} onSend={onSend} onStop={onStop} value={draft} setValue={setDraft} mode={mode} setMode={setMode}
+      caps={caps} bypass={bypass} setBypass={setBypass}
+      model={model} setModel={setModel} modelLocked={modelLocked} models={models} onRefreshModels={onRefreshModels}
+      effort={effort} setEffort={setEffort}
+      mcpServers={mcpServers} selectedMcps={selectedMcps} setSelectedMcps={setSelectedMcps} slashCommands={slashCommands}
+      attachments={attachments} onUpload={onUpload} onRemoveAttachment={onRemoveAttachment} onOpenAttachment={onAttOpen} attThumbs={attThumbs} onAttThumb={onAttThumb} focusSignal={focusSignal}
+      queued={c.queued} queuedIds={c.queuedIds} queuedAtts={c.queuedAtts} queuedModels={c.queuedModels} onRunQueuedBg={c.runQueuedInBgAt} onRunQueuedNow={c.runQueuedNowAt} onQueue={c.enqueue} onCancelQueueAt={c.cancelQueueAt} onEditQueuedAt={c.editQueuedAt} onMoveQueued={c.moveQueuedItem} history={c.sentHistory} pendingConfirm={c.bannerConfirm} onNew={onNew} onShowHelp={onShowHelp}
+      queuePaused={queuePaused} queueReleaseAt={queueReleaseAt} onToggleQueuePause={() => queueSetPaused(!queuePaused)}
+      queueHeld={c.queueHeld} onResumeQueue={c.resumeQueue}
+      paused={locked} capacityFull={capacityFull} quotaResetsAt={resetAt} agentOut={agentOut && useAgent ? { name: agentOut.displayName, use: useAgent } : undefined} focusMode={focus} onCall={call.supported ? call.dial : undefined} contextTokens={contextTokens} contextModel={contextModel} />
+  );
+  const hero = c.isEmpty && phase === 'idle' && !botDecor && !restoring;
 
   return (
     <div
-      className="relative flex h-full flex-col bg-neutral-900"
+      className="relative flex h-full flex-col bg-[var(--bg-deep)]"
       onDragEnter={panelDnd.onDragEnter} onDragOver={panelDnd.onDragOver}
       onDragLeave={panelDnd.onDragLeave} onDrop={panelDnd.onDrop}
     >
+      <div aria-hidden className="chat-backdrop" />
       {panelDnd.dragging && (
         <div className="pointer-events-none absolute inset-2 z-50 flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-orange-500/60 bg-neutral-950/85 text-[14px] font-medium text-orange-300 backdrop-blur-xs">
           <Icon name="paperclip" size={22} /> Solte os arquivos pra anexar
         </div>
       )}
+      <FocusCollapse hidden={focus}>
       <ChatHeader
         session={session} messages={messages} isEmpty={c.isEmpty} isMobile={isMobile}
         contextTokens={contextTokens} contextModel={contextModel} lastTurn={lastTurn} onNew={onNew}
         fullLoaded={c.fullLoaded} truncated={truncated} onOpenFull={onOpenFull} onLoadOlder={onLoadOlder} onOpenSummary={onOpenSummary}
         beforeGrow={c.captureAnchor}
-        setFullLoaded={c.setFullLoaded} onTerminal={onTerminal} terminalRunning={terminalRunning} onRename={onRename}
-        keyboardOpen={keyboardOpen}
+        setFullLoaded={c.setFullLoaded} onTerminal={onTerminal} terminalRunning={terminalRunning} terminalOpen={terminalOpen} usage={usage} onRename={onRename} onDelete={onDelete}
+        selectedModel={model} onMenu={isMobile ? onMenu : undefined} teamSlot={teamSlot} agentSwitch={agentSwitch} phoneTeam={phoneTeam} restoring={restoring}
+        agent={botDecor && { name: botDecor.name, avatar: botDecor.avatar, ...botDecor.header }}
       />
-
-      {!claudeReady && <ClaudeAuthBanner onTerminal={onTerminal} />}
-      {isOrchestratorSession(session?.id, orchestratorSessionId) && <OrchestratorSessionBanner />}
+      </FocusCollapse>
 
       {/* Wrapper relativo: as afordâncias de scroll ancoram no fim da ÁREA DE
           SCROLL, não do painel — antes (bottom fixo no painel) um composer alto
           engolia os botões pra dentro do input. */}
+      {hero ? <ChatEmpty compact={keyboardOpen} onPrompt={onPrompt} onSeed={setDraft} needsProvider={!claudeReady && !isAgentModel(model)}>{composer}</ChatEmpty> : (
       <div className="relative flex min-h-0 flex-1 flex-col">
-      <div ref={c.scrollRef} onScroll={c.onScroll} className="print-thread scroll-thin flex-1 overflow-y-auto overflow-x-hidden overscroll-contain">
-        {c.isEmpty && phase === 'idle' ? (
-          <ChatEmpty onPrompt={onPrompt} />
+      <div ref={c.scrollRef} onScroll={c.onScroll} onPointerDown={keyboardOpen ? blurActiveEditable : undefined} className="print-thread scroll-thin flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-3">
+        {c.isEmpty && phase === 'idle' && !botDecor?.extras.length ? (
+          botDecor?.empty
         ) : (
-          <div className={`mx-auto flex max-w-3xl flex-col gap-6 py-6 pl-4 ${topics.topics.length > 0 ? 'pr-9' : 'pr-4'}`}>
-            {shown.map((m, i) => (
-              <MessageRow key={m.id} msg={m} caretOnLast={c.streaming && i === shown.length - 1 && m.role === 'assistant'} modelLabel={m.role === 'assistant' && m.model ? c.labelFor(m.model) : c.modelLabel} showModelLabel thinking={phase !== 'idle' && !c.pendingQuestion && i === shown.length - 1 && m.role === 'assistant'} live={i === shown.length - 1 && m.role === 'assistant' && !c.pendingQuestion ? live : undefined} onEditUser={onEditUser} onQuote={onQuote} onMemorize={onMemorize} answerable={(phase === 'idle' || c.pendingQuestion) && i === shown.length - 1 && m.role === 'assistant'} onAnswer={onPrompt} reviewable={phase === 'idle' && i > lastUserIdx && m.role === 'assistant'} onApproveWorkflow={onApproveWorkflow} onRegenerate={phase === 'idle' && !c.pendingQuestion && i === shown.length - 1 && m.role === 'assistant' ? c.retryLast : undefined} onOpenAttachment={onAttOpen} attThumbs={attThumbs} onAttThumb={onAttThumb} />
-
-            ))}
+          // role=log is polite-live: a reader hears new replies. aria-busy holds it
+          // while tokens stream, so it reads the finished answer, not every delta.
+          <div role="log" aria-label="Conversa" aria-busy={c.streaming} className={`mx-auto flex w-full min-w-0 max-w-[760px] flex-col gap-6 pb-10 pt-8 ${topics.topics.length > 0 ? 'lg:pr-6' : ''}`}>
+            <BotThreadContext.Provider value={!!botDecor}>
+              {rows.map((r) => (r.kind === 'extra' ? <div key={r.key}>{r.node}</div> : renderRow(r.msg, r.index)))}
+            </BotThreadContext.Provider>
             {/* Sem bolha de assistente na cauda (ex: divisor recém-inserido) o turno
                 em voo ficaria sem nenhum sinal — vale pra streaming também. */}
-            {!c.pendingQuestion && (phase !== 'idle' && shown[shown.length - 1]?.role !== 'assistant' || phase === 'idle' && terminalBusy) && <Thinking live={live} />}
+            {!c.pendingQuestion && (showsWorking(phase, settled) && shown[shown.length - 1]?.role !== 'assistant' || phase === 'idle' && terminalBusy) && <div className="fade-up"><LiveLine live={live} bit={phase === 'idle' ? 'working' : turnBit} avatar={botDecor?.avatar} /></div>}
           </div>
         )}
       </div>
+
+      {!c.isEmpty && !botDecor && <BitFishing running={running} />}
+
+      {!c.isEmpty && !botDecor && <BitMischief textRootRef={c.scrollRef} thinking={running} messageCount={messages.length} />}
 
       {!c.isEmpty && <ChatTopics topics={topics.topics} activeId={topics.activeId} open={topics.open} setOpen={topics.setOpen} onJump={topics.jumpTo} />}
 
@@ -105,40 +137,30 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, sess
         <ScrollAffordances promptAbove={c.promptAbove} onScrollToPrompt={c.scrollToLastPrompt} onScrollToBottom={c.scrollToBottom} />
       )}
       </div>
+      )}
 
-      {trayTodos && <TaskTray todos={trayTodos} isMobile={isMobile} keyboardOpen={keyboardOpen} />}
-
-      {/* Com o teclado aberto o thread inteiro cabe em ~150px: faixa de agentes,
-          chips de continuação e aviso de saturação saem de cena até fechar. */}
+      {/* Com o teclado aberto o thread inteiro cabe em ~150px: faixa de agentes
+          e aviso de saturação saem de cena até fechar. */}
       {!keyboardOpen && <BackgroundAgents agents={bgAgents} />}
 
-      {/* Chips só em repouso de verdade: sem turno, sem pergunta/plano pendente e
-          sem fila — nesses estados o banner correspondente é a ação principal. */}
-      {!keyboardOpen && phase === 'idle' && !c.isEmpty && !c.pendingQuestion && !c.planPending && !c.failed && c.queued.length === 0 && followups && onDismissFollowups && (
-        <FollowupChips items={followups} onPick={onPrompt} onDismiss={onDismissFollowups} />
+      {/* One chip answers both "is the session full?" and "what does the next send
+          cost?": only together do they explain the spend. */}
+      {!keyboardOpen && phase === 'idle' && (
+        <SaturationBanner sessionId={session?.id} contextTokens={contextTokens} contextModel={contextModel} busy={handoffBusy} onHandoff={onHandoff} cost={sendCost ?? null} />
       )}
 
-      {!keyboardOpen && phase === 'idle' && onHandoff && (
-        <SaturationBanner sessionId={session?.id} contextTokens={contextTokens} contextModel={contextModel} busy={handoffBusy} onHandoff={onHandoff} />
-      )}
+      <FocusCollapse hidden={focus}>{turnStatus}</FocusCollapse>
 
-      {/* Preço do próximo envio. Fica em repouso e com o teclado fechado, junto do
-          banner de saturação: os dois respondem perguntas diferentes (a sessão está
-          cheia? / quanto custa mandar agora?) e só juntos explicam o gasto. */}
-      {!keyboardOpen && phase === 'idle' && <SendCostNotice cost={sendCost ?? null} />}
+      <FocusCollapse hidden={focus && !c.failed && !resumeOffer && !c.planPending}>
+      <TurnBanners phase={phase} failed={c.failed} resumeOffer={resumeOffer} onResume={resumeOffer && resumeRun ? () => resumeRun(resumeOffer.sessionKey) : undefined} planPending={c.planPending} pendingQuestion={c.pendingQuestion} queuedCount={c.queued.length} lastEnd={lastEnd} retryLast={c.retryLast} retryText={c.retryText} onSend={onSend} onForceQueue={session ? () => queueForce(session.id) : undefined} />
+      </FocusCollapse>
+      <FocusCollapse hidden={focus && call.state.phase === 'off'}>
+      <CallDock call={call} />
+      </FocusCollapse>
 
-      <TurnBanners phase={phase} failed={c.failed} resumeOffer={resumeOffer} onResume={resumeOffer && resumeRun ? () => resumeRun(resumeOffer.sessionKey) : undefined} planPending={c.planPending} pendingQuestion={c.pendingQuestion} queuedCount={c.queued.length} lastEnd={lastEnd} retryLast={c.retryLast} onSend={onSend} onForceQueue={session ? () => queueForce(session.id) : undefined} />
+      {!hero && composer}
 
-      <ChatInput disabled={c.disabled} onSend={onSend} onStop={onStop} value={draft} setValue={setDraft} mode={mode} setMode={setMode}
-        caps={caps} bypass={bypass} setBypass={setBypass}
-        model={model} setModel={setModel} models={models} onRefreshModels={onRefreshModels}
-        effort={effort} setEffort={setEffort}
-        skills={skills} selectedSkills={selectedSkills} setSelectedSkills={setSelectedSkills} mcpServers={mcpServers} selectedMcps={selectedMcps} setSelectedMcps={setSelectedMcps} slashCommands={slashCommands}
-        attachments={attachments} onUpload={onUpload} onRemoveAttachment={onRemoveAttachment} onOpenAttachment={onAttOpen} focusSignal={focusSignal}
-        queued={c.queued} queuedAtts={c.queuedAtts} queuedModels={c.queuedModels} onRunQueuedBg={c.runQueuedInBgAt} onRunQueuedNow={c.runQueuedNowAt} onQueue={c.enqueue} onCancelQueueAt={c.cancelQueueAt} onEditQueuedAt={c.editQueuedAt} onMoveQueued={c.moveQueuedItem} history={c.sentHistory} pendingConfirm={c.bannerConfirm} onNew={onNew} onShowHelp={onShowHelp}
-        queuePaused={queuePaused} onToggleQueuePause={() => queueSetPaused(!queuePaused)}
-        queueHeld={c.queueHeld} onResumeQueue={c.resumeQueue}
-        paused={quotaPaused} quotaResetsAt={quotaResetsAt} keyboardOpen={keyboardOpen} />
+      {!keyboardOpen && footer}
 
       {attPreview && onAttClose && <AttachmentModal att={attPreview} onClose={onAttClose} />}
     </div>

@@ -33,7 +33,7 @@ export function EpicNavigator({ nav, activeKey, onSelect, filter, onFilter, quer
         <Segmented label="Filtrar por status" items={FILTERS} value={filter} onChange={onFilter} className="self-start" />
       </div>
       <div className="scroll-thin min-h-0 flex-1 overflow-y-auto px-1.5 pb-2">
-        <div aria-hidden className="sticky top-0 z-10 flex h-6 items-center gap-2 bg-neutral-950 pl-2.5 pr-2 font-mono text-[9.5px] tracking-wide text-neutral-600">
+        <div aria-hidden className="sticky top-0 z-10 flex h-6 items-center gap-2 bg-neutral-950 pl-2.5 pr-2 font-mono text-[12px] tracking-wide text-neutral-600">
           <span className="w-1.5 shrink-0" /><span className="flex-1">épico</span>
           <span className={NAV_COLS.pt}>pt</span><span className={NAV_COLS.brl}>R$</span><span className={NAV_COLS.cap}>teto</span>
         </div>

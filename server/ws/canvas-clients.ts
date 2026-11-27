@@ -24,6 +24,10 @@ export function registerCanvasClient(ws: WebSocket): void {
   ws.on('close', () => clients.delete(ws));
 }
 
+export function hasCanvasClients(): boolean {
+  return clients.size > 0;
+}
+
 export function emitCanvasMsg(msg: ServerMsg): void {
   for (const ws of clients) send(ws, msg);
 }

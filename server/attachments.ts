@@ -1,9 +1,8 @@
-import { mkdir, writeFile, readFile, readdir, stat, rm } from 'node:fs/promises';
+import { mkdir, writeFile, readFile, readdir, stat, rm, rmdir } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { inflateRawSync } from 'node:zlib';
 import { CONFIG } from './config';
-import { uploadToS3 } from './s3';
 
 // Content-type por extensão (imagens principalmente) — o S3 precisa do mime certo
 // pra o navegador renderizar inline em vez de baixar. Sem match → octet-stream.
@@ -14,6 +13,7 @@ const MIME: Record<string, string> = {
   // da DFL; um SVG com <script> serviria stored-XSS inline. Força download binário.
   svg: 'application/octet-stream',
   pdf: 'application/pdf', mp4: 'video/mp4', webm: 'video/webm', mp3: 'audio/mpeg',
+  glb: 'model/gltf-binary', gltf: 'model/gltf+json',
 };
 export function mimeOf(name: string): string {
   return MIME[(name.split('.').pop() ?? '').toLowerCase()] ?? 'application/octet-stream';
@@ -157,14 +157,33 @@ async function persistBuffer(
 // buracos — retornava false já no 1º chunk, finalizando cada chunk como se fosse
 // o arquivo inteiro. Era o bug que partia uma imagem em duas metades (cada chunk
 // virava um .png no boundary do CHUNK do cliente).
-interface ChunkUpload { sessionKey: string; name: string; total: number; parts: string[]; received: number; bytes: number; ts: number }
+// parts guarda cada chunk JÁ decodificado: remontar juntando o base64 inteiro
+// segurava base64 + string unida + buffer (~3,7× o arquivo) na box de 3,7GB.
+interface ChunkUpload { sessionKey: string; name: string; total: number; parts: (Buffer | null)[]; received: number; bytes: number; ts: number }
 const chunkUploads = new Map<string, ChunkUpload>();
 const CHUNK_TTL = 120_000;
 // Cada upload em voo segura até ~2× maxUploadBytes de base64 em RAM pelo TTL
 // inteiro. O teto por upload já existia; sem teto de uploads SIMULTÂNEOS, abrir
 // vários uploadId diferentes multiplica isso sem freio.
 const MAX_ACTIVE_UPLOADS = 8;
-function sweepChunks(now: number): void { for (const [id, u] of chunkUploads) if (now - u.ts > CHUNK_TTL) chunkUploads.delete(id); }
+// Teto de bytes em voo somando TODOS os uploads: com o teto por arquivo em 100MB,
+// 8 uploads grandes simultâneos seguravam ~800MB numa box de 3,7GB. Cabem ~2
+// arquivos no teto por vez; os pequenos seguem livres.
+const MAX_INFLIGHT_BYTES = CONFIG.maxUploadBytes * 2;
+// O cliente manda ~700KB de base64 por chunk; bem acima disso é frame forjado.
+const MAX_CHUNK_B64 = 4_000_000;
+// Pré-visualização manda o arquivo inteiro num frame WS de volta; acima disto o
+// anexo continua indo pro agente, só não abre no modal.
+const PREVIEW_MAX_BYTES = 15_000_000;
+function inflightBytes(): number { let n = 0; for (const u of chunkUploads.values()) n += u.bytes; return n; }
+// Upload abortado (teto estourado): o cliente ainda manda os lotes restantes, que
+// recriariam uma entrada órfã segurando RAM até o TTL. Ignora o id até lá.
+const abortedUploads = new Map<string, number>();
+function abortUpload(id: string, now: number): void { chunkUploads.delete(id); abortedUploads.set(id, now); }
+function sweepChunks(now: number): void {
+  for (const [id, u] of chunkUploads) if (now - u.ts > CHUNK_TTL) chunkUploads.delete(id);
+  for (const [id, ts] of abortedUploads) if (now - ts > CHUNK_TTL) abortedUploads.delete(id);
+}
 
 export async function addUploadChunk(
   uploadId: string, sessionKey: string, name: string, seq: number, total: number, dataB64: string,
@@ -175,23 +194,31 @@ export async function addUploadChunk(
   if (!Number.isInteger(seq) || seq < 0 || seq >= total) return { error: 'upload inválido' };
   const now = Date.now();
   sweepChunks(now);
+  if (abortedUploads.has(uploadId)) return null;
   let u = chunkUploads.get(uploadId);
   if (!u) {
     if (chunkUploads.size >= MAX_ACTIVE_UPLOADS) return { error: 'muitos uploads simultâneos' };
-    u = { sessionKey, name, total, parts: new Array(total).fill(''), received: 0, bytes: 0, ts: now };
+    u = { sessionKey, name, total, parts: new Array<Buffer | null>(total).fill(null), received: 0, bytes: 0, ts: now };
     chunkUploads.set(uploadId, u);
   }
-  if (u.parts[seq] === '') { u.parts[seq] = dataB64; u.bytes += dataB64.length; u.received++; }
+  // Chunk que não é o último precisa fechar em múltiplo de 4 pra decodificar
+  // sozinho (o cliente corta em 700_000); fora disso é upload inválido.
+  if (dataB64.length > MAX_CHUNK_B64 || (seq < total - 1 && dataB64.length % 4 !== 0)) {
+    abortUpload(uploadId, now); return { error: 'upload inválido' };
+  }
+  if (u.parts[seq] === null) { const b = Buffer.from(dataB64, 'base64'); u.parts[seq] = b; u.bytes += b.length; u.received++; }
   u.ts = now;
-  // Teto cedo (base64 ~+33%): aborta uploads grandes antes de remontar.
-  if (u.bytes > CONFIG.maxUploadBytes * 2) { chunkUploads.delete(uploadId); return { error: 'arquivo grande demais' }; }
+  // Teto cedo: aborta uploads grandes antes de remontar.
+  if (u.bytes > CONFIG.maxUploadBytes) { abortUpload(uploadId, now); return { error: 'arquivo grande demais' }; }
+  if (inflightBytes() > MAX_INFLIGHT_BYTES) { abortUpload(uploadId, now); return { error: 'uploads demais em andamento — espere terminar e anexe de novo' }; }
   if (u.received < u.total) return null; // ainda faltam chunks
   chunkUploads.delete(uploadId);
-  const buf = Buffer.from(u.parts.join(''), 'base64');
+  const buf = Buffer.concat(u.parts as Buffer[]);
+  u.parts = [];
   const r = await persistBuffer(sessionKey, name, buf);
   if ('error' in r) return r;
-  const s3 = await uploadToS3(buf, name, mimeOf(name));
-  return { ...r, s3url: s3?.url };
+  // Attachments stay on the box: mirroring them to the shared DFL bucket leaked private files.
+  return r;
 }
 
 // Lê um anexo salvo pra preview no chat. Aceita só paths relativos no formato que
@@ -208,7 +235,8 @@ export async function readAttachment(
   if (!full.startsWith(root + '/')) return { error: 'anexo inválido' };
   try {
     const st = await stat(full);
-    if (!st.isFile() || st.size > CONFIG.maxUploadBytes) return { error: 'anexo indisponível' };
+    if (!st.isFile()) return { error: 'anexo indisponível' };
+    if (st.size > PREVIEW_MAX_BYTES) return { error: 'anexo grande demais pra pré-visualizar' };
     const buf = await readFile(full);
     // Mesmo prefixo que persistBuffer gera (ts36-hex-nome) — devolve o nome original.
     const name = basename(full).replace(/^[a-z0-9]+-[a-z0-9]+-/i, '') || basename(full);
@@ -246,7 +274,9 @@ export async function sweepAttachments(): Promise<number> {
         else live++;
       } catch { /* corrida com outra remoção — ignora */ }
     }
-    if (live === 0) { try { await rm(dir, { recursive: true, force: true }); } catch { /* best-effort */ } }
+    // Non-recursive: an upload that landed in this dir after the readdir above
+    // makes rmdir fail (ENOTEMPTY) instead of being deleted with it.
+    if (live === 0) { try { await rmdir(dir); } catch { /* not empty or gone */ } }
   }
   return removed;
 }

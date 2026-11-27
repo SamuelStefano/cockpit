@@ -57,6 +57,13 @@ describe('classifySlash', () => {
     expect(imp && 'text' in imp && imp.text).toContain('conversations.json');
   });
 
+  it('never pins memory prompts to one home directory', () => {
+    for (const cmd of ['/attcontext', '/importgpt']) {
+      const r = classifySlash(cmd);
+      expect(r && 'text' in r && r.text).not.toMatch(/\/home\//);
+    }
+  });
+
   it('is case-insensitive on the command and model arg', () => {
     expect(classifySlash('/HELP')).toEqual({ kind: 'help' });
     expect(classifySlash('/Model Opus')).toEqual({ kind: 'model', model: 'opus' });
@@ -69,5 +76,17 @@ describe('isLocalSlash / slashHint', () => {
     expect(isLocalSlash('compact')).toBe(false);
     expect(slashHint('help')).toMatch(/atalhos/);
     expect(slashHint('compact')).toMatch(/Claude/);
+  });
+});
+
+describe('classifySlash keeps the text after the command', () => {
+  it('returns it for mode, new and help, with its original case', () => {
+    expect(classifySlash('/plan Refactor the auth hook')).toEqual({ kind: 'mode', mode: 'plan', rest: 'Refactor the auth hook' });
+    expect(classifySlash('/new fix login')).toEqual({ kind: 'new', rest: 'fix login' });
+    expect(classifySlash('/help me')).toEqual({ kind: 'help', rest: 'me' });
+  });
+
+  it('keeps multi-line text instead of falling through to the model', () => {
+    expect(classifySlash('/auto step one\nstep two')).toEqual({ kind: 'mode', mode: 'auto', rest: 'step one\nstep two' });
   });
 });

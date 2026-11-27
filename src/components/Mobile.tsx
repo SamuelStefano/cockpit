@@ -1,16 +1,19 @@
-import { useEffect, useState, useRef } from 'react';
-import { SessionsPanel, type SessionsPanelProps } from './Sessions';
+import { useState, useRef, type ReactNode } from 'react';
+import { MobileDrawer } from './MobileDrawer';
+import { ChatWithFilePanel } from './chat/file-panel/ChatWithFilePanel';
 import { ChatPanel } from './Chat';
 import type { ChatPanelProps } from './chat/chat-panel-props';
 import { TerminalsPanel, type TerminalsPanelProps } from './Terminals';
 import type { Terminal } from '../data/types';
+import { useEscapeLayer } from './primitives/useEscapeLayer';
 
 interface TerminalSheetProps {
   termProps: TerminalsPanelProps;
   onClose: () => void;
+  keyboardOpen?: boolean;
 }
 
-function TerminalSheet({ termProps, onClose }: TerminalSheetProps) {
+function TerminalSheet({ termProps, onClose, keyboardOpen = false }: TerminalSheetProps) {
   const [dragY, setDragY] = useState(0);
   const startY = useRef<number | null>(null);
 
@@ -32,7 +35,7 @@ function TerminalSheet({ termProps, onClose }: TerminalSheetProps) {
       <div
         className="absolute inset-x-0 bottom-0 flex flex-col overflow-hidden rounded-t-2xl border-t border-neutral-700 shadow-2xl"
         style={{
-          height: '72%',
+          height: keyboardOpen ? '100%' : '72%',
           background: 'var(--term-bg)',
           transform: `translateY(${dragY}px)`,
           animation: dragY === 0 ? 'sheetUp 0.3s cubic-bezier(0.22,1,0.36,1)' : 'none',
@@ -54,7 +57,6 @@ function TerminalSheet({ termProps, onClose }: TerminalSheetProps) {
 }
 
 export interface MobileLayoutProps {
-  sessionsProps: SessionsPanelProps;
   chatProps: ChatPanelProps;
   termProps: TerminalsPanelProps;
   drawer: boolean;
@@ -62,45 +64,35 @@ export interface MobileLayoutProps {
   termSheet: boolean;
   setTermSheet: (v: boolean) => void;
   runningTerm: Terminal | undefined;
+  // The drawer's content: the sidebar itself, in drawer mode.
+  drawerNav?: ReactNode;
+  // An agent's thread, full screen in place of the plain chat.
+  center?: ReactNode;
 }
 
-export function MobileLayout({ sessionsProps, chatProps, termProps, drawer, setDrawer, termSheet, setTermSheet, runningTerm }: MobileLayoutProps) {
-  // Teclado físico (iPad, celular com Bluetooth): Esc fechava tudo menos as duas
-  // sobreposições daqui, que só saíam tocando no backdrop.
-  useEffect(() => {
-    if (!drawer && !termSheet) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape' || e.isComposing || e.defaultPrevented) return;
-      e.preventDefault();
-      if (termSheet) setTermSheet(false);
-      else setDrawer(false);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [drawer, termSheet, setDrawer, setTermSheet]);
+export function MobileLayout({ chatProps, termProps, drawer, setDrawer, termSheet, setTermSheet, runningTerm, drawerNav, center }: MobileLayoutProps) {
+  // Hardware keyboard (iPad, Bluetooth phone): Esc closes these two overlays too.
+  // They are escape layers so a dialog opened on top of the drawer closes first.
+  useEscapeLayer(drawer, () => setDrawer(false));
+  useEscapeLayer(termSheet, () => setTermSheet(false));
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
       <div className="min-h-0 flex-1">
-        <ChatPanel key={chatProps.session?.id ?? 'none'} {...chatProps} onTerminal={() => setTermSheet(true)} terminalRunning={!!runningTerm} />
+        {center ?? (
+          <ChatWithFilePanel sessionId={chatProps.session?.id} files={chatProps.sessionFiles} isMobile>
+            <ChatPanel key={chatProps.session?.id ?? 'none'} {...chatProps} onMenu={() => setDrawer(true)} onTerminal={() => setTermSheet(true)} terminalRunning={!!runningTerm} />
+          </ChatWithFilePanel>
+        )}
       </div>
 
-      {/* fixed, não absolute: este wrapper é irmão do <header>, e com o drawer
-          absolute o header ficava 100% tocável por cima do backdrop (e o painel
-          de uso, z-50 no header, abria por baixo do drawer). */}
       {drawer && (
-        <>
-          <div className="fixed inset-0 z-40 bg-black/60" style={{ animation: 'overlayIn 0.2s ease' }} onClick={() => setDrawer(false)} />
-          <div
-            className="fixed inset-y-0 left-0 z-50 w-[82%] max-w-[330px] border-r border-neutral-800 bg-neutral-950 shadow-2xl"
-            style={{ animation: 'drawerIn 0.26s cubic-bezier(0.22,1,0.36,1)', paddingTop: 'env(safe-area-inset-top)', paddingLeft: 'env(safe-area-inset-left)', paddingBottom: 'env(safe-area-inset-bottom)' }}
-          >
-            <SessionsPanel {...sessionsProps} onCloseMobile={() => setDrawer(false)} />
-          </div>
-        </>
+        <MobileDrawer onClose={() => setDrawer(false)}>
+          {drawerNav}
+        </MobileDrawer>
       )}
 
-      {termSheet && <TerminalSheet termProps={termProps} onClose={() => setTermSheet(false)} />}
+      {termSheet && <TerminalSheet keyboardOpen={chatProps.keyboardOpen} termProps={termProps} onClose={() => setTermSheet(false)} />}
     </div>
   );
 }

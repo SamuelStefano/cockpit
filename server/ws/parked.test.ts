@@ -17,7 +17,7 @@ process.env.COCKPIT_PARKED = PARKED_FILE;
 process.env.COCKPIT_QUEUE_PAUSE = PAUSE_FILE;
 
 const mod = await import('./parked');
-const { addParked, retryParked, removeParked, editParked, moveParked, promoteParked, shiftParked, unshiftParked, findParked, takeParked, parkedHeads, parkedView, clearParked, isQueuePaused, setQueuePaused } = mod;
+const { addParked, retryParked, removeParked, editParked, moveParked, promoteParked, shiftParked, unshiftParked, findParked, takeParked, parkedHeads, retargetParked, parkedView, clearParked, isQueuePaused, setQueuePaused } = mod;
 
 // addParked devolve { id } | { reject }; nos testes que só querem o id, isto encurta.
 const add = (key: string, item: Parameters<typeof addParked>[1]): string => {
@@ -160,6 +160,17 @@ describe('unshiftParked (devolução)', () => {
     expect(parkedHeads()[0].first.held).toBe(true);
   });
 
+  it('retargetParked moves Claude items to the agent, never a bot item', () => {
+    addParked('rt', { prompt: 'a', model: 'claude-opus-5-5' });
+    addParked('rt', { prompt: 'b' });
+    addParked('rt', { prompt: 'c', model: 'claude-opus-5-5', botId: 'b1' });
+    expect(retargetParked('rt', 'claude-sonnet-5-5')).toBe(0);
+    expect(retargetParked('rt', 'agent:grok')).toBe(2);
+    const models = parkedView().filter((p: { sessionKey: string }) => p.sessionKey === 'rt').map((p: { model?: string }) => p.model);
+    expect(models).toEqual(['agent:grok', 'agent:grok', 'claude-opus-5-5']);
+    clearParked('rt');
+  });
+
   it('retryParked destrava o item e zera as tentativas', () => {
     const id = add('s', { prompt: 'a' });
     for (let i = 0; i < 3; i++) unshiftParked('s', shiftParked('s')!);
@@ -294,5 +305,14 @@ describe('editParked — retorno', () => {
     const r = addParked('s1', { prompt: 'antigo' }) as { id: string };
     expect(editParked('s1', r.id, 'novo')).toBe(true);
     expect(parkedView().find((p) => p.id === r.id)?.text).toBe('novo');
+  });
+});
+
+describe('coerceItem profile (fatia E)', () => {
+  it('keeps a known profile and drops anything else', async () => {
+    const { coerceItem } = await import('./parked');
+    expect(coerceItem({ id: 'a', prompt: 'p', profile: 'restricted' })?.profile).toBe('restricted');
+    expect(coerceItem({ id: 'a', prompt: 'p', profile: 'full' })?.profile).toBe('full');
+    expect(coerceItem({ id: 'a', prompt: 'p', profile: 'root' })?.profile).toBeUndefined();
   });
 });

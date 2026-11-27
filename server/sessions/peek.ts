@@ -1,6 +1,7 @@
+import { stat } from 'node:fs/promises';
 import type { Message } from '../../shared/protocol';
 import type { SessionPeek } from '../../shared/canvas';
-import { readRecords, recTs, sessionPath, type Rec } from './records';
+import { readPeekRecords, recTs, sessionPath, type Rec } from './records';
 
 export const PEEK_TAIL_CHARS = 600;
 const MAX_LINKS = 12;
@@ -53,13 +54,41 @@ export function peekFromRecords(msgs: Rec[], markers: Message[]): SessionPeek {
   return { lastAssistant, lastAt, prs: [...prs].map(([url, label]) => ({ url, label })), links };
 }
 
+interface PeekEntry { key: string; peek: Promise<SessionPeek | null> }
+
+const PEEK_CACHE_MAX = 64;
+const peekCache = new Map<string, PeekEntry>();
+
+// Keyed on mtime+size: an unchanged transcript is never reparsed (they reach
+// 100+ MB), and concurrent requests for the same state share one read — the
+// cached promise is the in-flight read.
 export async function peekSession(sessionId: string): Promise<SessionPeek | null> {
   const path = sessionPath(sessionId);
   if (!path) return null;
   try {
-    const scan = await readRecords(path);
-    return peekFromRecords(scan.msgs, scan.markers);
+    const st = await stat(path);
+    const key = `${st.mtimeMs}:${st.size}`;
+    const hit = peekCache.get(sessionId);
+    if (hit?.key === key) return hit.peek;
+    const entry: PeekEntry = { key, peek: Promise.resolve(null) };
+    // A failed read (EMFILE, ENOMEM on a huge transcript) must not stick: cached
+    // under the same mtime+size, an idle session's drawer stayed empty until the
+    // file changed. Drop it (if still ours) so the next open retries.
+    entry.peek = readPeekRecords(path).then((scan) => peekFromRecords(scan.msgs, scan.markers), () => {
+      if (peekCache.get(sessionId) === entry) peekCache.delete(sessionId);
+      return null;
+    });
+    const peek = entry.peek;
+    peekCache.delete(sessionId);
+    peekCache.set(sessionId, entry);
+    if (peekCache.size > PEEK_CACHE_MAX) peekCache.delete(peekCache.keys().next().value as string);
+    return await peek;
   } catch {
     return null;
   }
+}
+
+// Test-only: the cache is module-level.
+export function _resetPeekCache(): void {
+  peekCache.clear();
 }

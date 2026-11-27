@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { rm } from 'node:fs/promises';
-import { projectGraph, nameCommunity, rejectFlagLike, runGraphify, buildGraph, GRAPHIFY_TIMEOUT } from './graph';
+import { projectGraph, nameCommunity, rejectFlagLike, runGraphify, buildGraph, GRAPHIFY_TIMEOUT, readAndParse } from './graph';
 import type { GraphNode } from '../shared/protocol';
 
 // GRAPHS_DIR é lido no import do módulo; o hoisted roda antes dele. Sem isto o
@@ -160,5 +160,20 @@ describe('buildGraph (single-flight)', () => {
     expect(r.error).toContain('não é um diretório');
     process.env.COCKPIT_GRAPHIFY_BIN = '/bin/false';
     expect((await buildGraph(__dirname)).error).not.toContain('em andamento');
+  });
+});
+
+describe('readAndParse', () => {
+  it('shares one parse between concurrent callers of the same path', async () => {
+    const { mkdtempSync, writeFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const { tmpdir } = await import('node:os');
+    const f = join(mkdtempSync(join(tmpdir(), 'deck-graph-')), 'graph.json');
+    writeFileSync(f, JSON.stringify({ nodes: [1, 2], links: [1] }));
+    const [a, b] = await Promise.all([readAndParse(f), readAndParse(f)]);
+    expect(a).not.toBeNull();
+    expect(a!.parsed).toBe(b!.parsed);
+    const c = await readAndParse(f);
+    expect(c!.parsed).not.toBe(a!.parsed); // a later call reads fresh
   });
 });

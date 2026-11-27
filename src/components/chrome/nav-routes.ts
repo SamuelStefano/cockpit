@@ -1,20 +1,75 @@
 import type { Route } from '../../useRoute';
+import type { IconName } from '../primitives';
+import type { Caps } from '../../../shared/protocol';
 
-export const NAV: { to: Route; label: string; adminOnly?: boolean }[] = [
-  { to: '/', label: 'chat' },
-  { to: '/contextos', label: 'contextos' },
-  { to: '/skills', label: 'skills' },
-  { to: '/notas', label: 'notas' },
-  { to: '/pontos', label: 'pontos' },
-  { to: '/crons', label: 'crons' },
-  { to: '/uso', label: 'uso' },
-  { to: '/play', label: 'playground' },
-  { to: '/canvas', label: 'canvas', adminOnly: true },
-  { to: '/graph', label: 'graph', adminOnly: true },
-  { to: '/harness', label: 'harness', adminOnly: true },
-  { to: '/admin', label: 'admin', adminOnly: true },
-  { to: '/docs', label: 'docs' },
+// The account role as far as navigation goes. Default-deny: no caps yet = student.
+export type NavRole = 'root' | 'admin' | 'student';
+
+export function navRole(role: Caps['role'] | undefined): NavRole {
+  if (role === 'root') return 'root';
+  if (role === 'admin') return 'admin';
+  return 'student';
+}
+
+// `student`: what a non-admin is shown. The chat (with the default agent) is their home; the rest
+// is either refused by the server (STUDENT_ALLOWED) or useless without a terminal.
+// `root`: the owner only — the server refuses its frames to anyone else
+// (shared/root-frames.ts).
+export interface NavItem {
+  to: Route;
+  label: string;
+  icon: IconName;
+  student?: true;
+  root?: true;
+  // Listed in the account menu, in this order (the rest stays reachable by ⌘K and by URL); `tile` is the coloured square behind the icon.
+  side?: true;
+  tile?: string;
+}
+
+export const NAV: NavItem[] = [
+  { to: '/', label: 'Chat', icon: 'message', student: true },
+  { to: '/equipe', label: 'Equipe', icon: 'users' },
+  { to: '/canvas', label: 'Canvas', icon: 'grip', side: true, tile: 'bg-amber-500/20 text-amber-300' },
+  { to: '/base', label: 'Base', icon: 'layers' },
+  { to: '/prs', label: 'Pull requests', icon: 'gitPullRequest', root: true, side: true, tile: 'bg-orange-500/20 text-orange-300' },
+  { to: '/pontos', label: 'Pontos', icon: 'star', root: true, side: true, tile: 'bg-green-500/20 text-green-300' },
+  { to: '/graph', label: 'Graph', icon: 'globe' },
+  { to: '/agentes', label: 'Agente', icon: 'users', student: true },
+  { to: '/agentes/loja', label: 'Loja', icon: 'tag', side: true, tile: 'bg-violet-500/20 text-violet-300' },
+  { to: '/equipe/rotinas', label: 'Rotinas', icon: 'clock', side: true, tile: 'bg-sky-500/20 text-sky-300' },
+  { to: '/equipe/memoria', label: 'Memória', icon: 'brain' },
+  { to: '/equipe/mundo', label: 'Mundo', icon: 'globe' },
+  { to: '/explorar', label: 'Explorar', icon: 'compass' },
+  { to: '/configuracoes', label: 'Configurações', icon: 'sliders', student: true },
 ];
 
-// A aba admin some pra quem não é admin (default-deny: sem caps = não-admin).
-export const navFor = (isAdmin: boolean) => NAV.filter((n) => !n.adminOnly || isAdmin);
+// Page title for a route: the exact entry, else the longest entry it lives under.
+export function navLabel(route: Route): string | undefined {
+  const hit = NAV.find((n) => n.to === route)
+    ?? NAV.filter((n) => n.to !== '/' && route.startsWith(`${n.to}/`)).sort((a, b) => b.to.length - a.to.length)[0];
+  return hit?.label;
+}
+
+export function navFor(role: NavRole) {
+  if (role === 'root') return NAV;
+  if (role === 'admin') return NAV.filter((n) => !n.root);
+  return NAV.filter((n) => n.student);
+}
+
+// Where root/admin land when the app opens on the bare URL.
+export const TEAM_HOME: Route = '/equipe';
+
+export const STUDENT_HOME: Route = '/';
+
+// Where a non-admin lands: the home chat. A route outside their menu always goes there. null = stay.
+export function studentRedirect(route: Route): Route | null {
+  return NAV.some((n) => n.to === route && n.student) ? null : STUDENT_HOME;
+}
+
+// Where a role that opened a URL outside its menu goes. Root is never moved; /ds
+// (the design-system gallery) stays reachable by URL for admins.
+export function roleRedirect(role: NavRole, route: Route): Route | null {
+  if (role === 'student') return studentRedirect(route);
+  if (role === 'admin' && NAV.some((n) => n.to === route && n.root)) return '/';
+  return null;
+}

@@ -1,13 +1,20 @@
 import type { TurnStats } from '../../../shared/protocol';
 import { CONTEXT_LIMIT, ctxPct } from '../../lib/format';
+import { AGENT_MODEL_PREFIX, isAgentModel } from '../../../shared/agents';
 
 export { CONTEXT_LIMIT };
+
+function agentLabel(id: string): string {
+  const raw = id.slice(AGENT_MODEL_PREFIX.length);
+  return raw ? raw[0].toUpperCase() + raw.slice(1) : id;
+}
 
 // Modelo efetivo do CLI ("claude-opus-4-..." -> "opus", "claude-fable-5" ->
 // "fable"); sob --fallback-model pode divergir do escolhido no picker. Genérico
 // p/ qualquer família que a Anthropic lance, sem hardcode de opus/sonnet/haiku.
 export function shortModel(m?: string): string {
   if (!m) return '';
+  if (isAgentModel(m)) return agentLabel(m);
   const fam = m.toLowerCase().match(/^claude-([a-z]+)/);
   return fam ? fam[1] : m;
 }
@@ -31,6 +38,7 @@ export function prettyModel(id?: string, displayName?: string): string {
   if (id?.startsWith('<')) return '';
   if (displayName && displayName !== id) return displayName;
   if (!id) return '';
+  if (isAgentModel(id)) return `${agentLabel(id)} · agente`;
   const lo = id.toLowerCase();
   const fam = modelFamily(id);
   if (!fam) return displayName || id;

@@ -1,0 +1,26 @@
+export const VILLAGE_DEFAULT_DAILY_CAP = 6;
+export const VILLAGE_MAX_DAILY_CAP = 24;
+export const VILLAGE_EVENTS_CAP = 50;
+export const VILLAGE_TURN_DAYS = 7;
+
+export interface VillageEvent { at: number; type: 'claim' | 'release' | 'skip'; botId: string; taskId: string; reason?: string }
+export interface VillageState {
+  enabled: boolean;
+  dailyCap: number;
+  turns: Record<string, Record<string, number>>;
+  events: VillageEvent[];
+}
+
+export interface VillageView {
+  enabled: boolean;
+  dailyCap: number;
+  paused: boolean;
+  claimed: { botId: string; taskId: string }[];
+  events: { at: number; type: VillageEvent['type']; botId: string; taskId: string }[];
+}
+
+export interface VillagePlanView { claims: { botId: string; taskId: string }[]; releases: { botId: string; taskId: string }[]; blocked?: 'paused' | 'disabled' }
+
+export function clampDailyCap(v: unknown): number | null {
+  return typeof v === 'number' && Number.isInteger(v) && v >= 1 && v <= VILLAGE_MAX_DAILY_CAP ? v : null;
+}

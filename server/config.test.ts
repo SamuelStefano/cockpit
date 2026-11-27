@@ -22,21 +22,21 @@ describe('projectSlug', () => {
 });
 
 describe('safeMode', () => {
-  it('passes through default and acceptEdits', () => {
+  it('passes through default, acceptEdits and an explicit plan', () => {
     expect(safeMode('default')).toBe('default');
     expect(safeMode('acceptEdits')).toBe('acceptEdits');
+    expect(safeMode('plan')).toBe('plan');
   });
 
   // CRÍTICO: bypassPermissions = RCE root numa máquina com sudo NOPASSWD.
-  // NUNCA pode passar — qualquer valor não-allowlistado cai pra 'plan'.
-  it('never lets bypassPermissions through (falls back to plan)', () => {
-    expect(safeMode('bypassPermissions')).toBe('plan');
+  // NUNCA pode passar — qualquer valor não-allowlistado cai pra 'acceptEdits'.
+  it('never lets bypassPermissions through (falls back to acceptEdits)', () => {
+    expect(safeMode('bypassPermissions')).toBe('acceptEdits');
   });
 
-  it('falls back to plan for undefined or unknown values', () => {
-    expect(safeMode(undefined)).toBe('plan');
-    expect(safeMode('plan')).toBe('plan');
-    expect(safeMode('garbage')).toBe('plan');
-    expect(safeMode('')).toBe('plan');
+  it('falls back to acceptEdits for undefined or unknown values', () => {
+    expect(safeMode(undefined)).toBe('acceptEdits');
+    expect(safeMode('garbage')).toBe('acceptEdits');
+    expect(safeMode('')).toBe('acceptEdits');
   });
 });

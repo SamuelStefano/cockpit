@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 
-type BadgeTone = 'neutral' | 'orange' | 'green' | 'red' | 'yellow' | 'purple';
+type BadgeTone = 'neutral' | 'orange' | 'green' | 'red' | 'yellow' | 'purple' | 'info';
 
 interface BadgeProps {
   children: ReactNode;
@@ -17,14 +17,15 @@ interface BadgeProps {
 
 export function Badge({ children, tone = 'neutral', className = '', dot = false, href, onClick, title }: BadgeProps) {
   const tones: Record<BadgeTone, string> = {
-    neutral: 'bg-neutral-800 text-neutral-300 border-neutral-700',
-    orange: 'bg-orange-500/15 text-orange-400 border-orange-500/30',
-    green: 'bg-green-500/15 text-green-400 border-green-500/30',
-    red: 'bg-red-500/15 text-red-400 border-red-500/30',
-    yellow: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30',
+    neutral: 'bg-neutral-800 text-(--text-body) border-(--border-strong)',
+    orange: 'bg-(--accent-tint) text-(--accent-soft) border-(--accent-border)',
+    green: 'bg-green-500/10 text-green-300 border-green-500/30',
+    red: 'bg-red-500/10 text-red-300 border-red-500/30',
+    yellow: 'bg-yellow-500/10 text-yellow-300 border-yellow-500/30',
     purple: 'bg-fuchsia-500/15 text-fuchsia-300 border-fuchsia-500/30',
+    info: 'bg-blue-500/10 text-blue-300 border-blue-500/30',
   };
-  const cls = `inline-flex items-center gap-1 rounded-full border px-1.5 py-px text-[10px] font-medium leading-none ${tones[tone]} ${className}`;
+  const cls = `inline-flex h-5 items-center gap-[5px] whitespace-nowrap rounded-full border px-2 text-[11px] font-medium leading-none ${tones[tone]} ${className}`;
   const body = <>{dot && <span className="h-1 w-1 rounded-full bg-current" />}{children}</>;
   if (href) {
     return (

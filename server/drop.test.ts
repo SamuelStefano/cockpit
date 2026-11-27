@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, rmSync, statSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, rmSync, statSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { tmpdir, homedir } from 'node:os';
 import { join } from 'node:path';
@@ -48,7 +48,7 @@ describe('drop privado', () => {
   });
 
   it('recusa path traversal, barra, dotfile e nome fora da regex', async () => {
-    for (const slug of ['..', '../fora', '../../etc/passwd', 'a/b', '/etc/passwd', '.ttl.json', '.bashrc', '', 'x'.repeat(65), 'com espaço', 'a\0b']) {
+    for (const slug of ['..', '../fora', '../../etc/passwd', 'a/b', '/etc/passwd', '.ttl.json', '.bashrc', '', 'x'.repeat(65), 'com espaço', 'a\0b', '__proto__']) {
       expect(validSlug(slug)).toBe(false);
       expect(await putDrop(slug, 'x')).toEqual({ error: 'nome inválido' });
       expect(await openDrop(slug)).toEqual({ error: 'nome inválido' });
@@ -134,5 +134,38 @@ describe('drop privado', () => {
     if ('error' in r) throw new Error(r.error);
     // HOME é descartável no vitest.setup — não encosta no ~ real de quem roda.
     expect(r.path).toBe(join(homedir(), '.deck-drop', 'padrao'));
+  });
+});
+
+describe('TTL index under concurrent writes', () => {
+  it('keeps every TTL when drops are put at the same time', async () => {
+    const refs = await Promise.all(Array.from({ length: 8 }, (_, i) => putDrop(`s${i}`, 'segredo', 60_000)));
+    for (const r of refs) expect('expiresAt' in r && r.expiresAt).toBeTruthy();
+    const listed = await listDrops();
+    expect(listed).toHaveLength(8);
+    for (const r of listed) expect(r.expiresAt).toBeGreaterThan(Date.now());
+  });
+
+  it('decodes base64 binary to exact bytes with 0600', async () => {
+    const bytes = Buffer.from([0, 255, 1, 128, 200, 10]);
+    const r = await putDrop('asc-api-key.p8', bytes.toString('base64'), undefined, 'base64');
+    if ('error' in r) throw new Error(r.error);
+    expect(r.bytes).toBe(6);
+    expect(readFileSync(r.path).equals(bytes)).toBe(true);
+    expect(mode(r.path)).toBe('600');
+  });
+
+  it('rejects malformed base64 and unknown encodings', async () => {
+    for (const bad of ['abc', 'a b=', '@@@@', 'AAAA=AAA', 'AAA=AAAA']) {
+      expect(await putDrop('x', bad, undefined, 'base64')).toEqual({ error: 'base64 inválido' });
+    }
+    expect(await putDrop('x', 'AAAA', undefined, 'hex')).toEqual({ error: 'encoding inválido' });
+  });
+
+  it('enforces 1 MB on the decoded size', async () => {
+    const ok = Buffer.alloc(1_000_000, 7).toString('base64');
+    expect('error' in (await putDrop('ok', ok, undefined, 'base64'))).toBe(false);
+    const big = Buffer.alloc(1_000_001, 7).toString('base64');
+    expect(await putDrop('big', big, undefined, 'base64')).toEqual({ error: 'conteúdo grande demais' });
   });
 });

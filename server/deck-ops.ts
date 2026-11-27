@@ -1,10 +1,12 @@
 import { execFile, spawn } from 'node:child_process';
-import { mkdirSync, openSync } from 'node:fs';
+import { mkdirSync, openSync, closeSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
-import { cliPath } from './engine/cli-path';
+import { claudeBin, cliPath, resolveCli } from './engine/cli-path';
+import { IS_WINDOWS } from './platform';
+import { cliUpdater, compareVersions, parseCliVersion } from './engine/cli-update';
 import type { ClaudeCliInfo, DeckInfo } from '../shared/protocol';
 
 const run = promisify(execFile);
@@ -16,17 +18,15 @@ export const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const IDLE_LOCK = '/tmp/deck-deploy-when-idle.lock';
 const LOG = join(homedir(), '.cockpit', 'deck-update.log');
 
-export function parseCliVersion(stdout: string): string {
-  return /(\d+\.\d+\.\d+)/.exec(stdout)?.[1] ?? '';
-}
+export { parseCliVersion };
 
 // Versão do `claude` que o SPAWN do Deck enxerga (PATH prefixado por cliPath),
 // não a do PATH do supervisor — é exatamente esse binário que a API valida.
 export async function claudeCliInfo(): Promise<ClaudeCliInfo> {
   const env = { ...process.env, PATH: cliPath() };
   const [version, path] = await Promise.all([
-    run('claude', ['--version'], { env, timeout: 15_000 }).then((r) => parseCliVersion(r.stdout)).catch(() => ''),
-    run('which', ['claude'], { env, timeout: 5_000 }).then((r) => r.stdout.trim()).catch(() => ''),
+    run(claudeBin(), ['--version'], { env, timeout: 15_000 }).then((r) => parseCliVersion(r.stdout)).catch(() => ''),
+    IS_WINDOWS ? Promise.resolve(resolveCli()) : run('which', ['claude'], { env, timeout: 5_000 }).then((r) => r.stdout.trim()).catch(() => ''),
   ]);
   return { version, path: path.replace(homedir(), '~') };
 }
@@ -53,21 +53,17 @@ export async function deckInfo(): Promise<DeckInfo> {
   return { bootCommit: boot, headCommit: head, inFlight: flying, restartArmed: armed };
 }
 
-// `claude update` troca o install nativo (~/.local/bin/claude → versions/<v>); como
-// o spawn resolve o symlink a cada turno, o CLI novo vale sem reiniciar o Deck.
+// Same path as the agent's auto-update: npm latest into the managed prefix (or the
+// native installer in place); new spawns pick it up without restarting the Deck.
 export async function updateClaudeCli(): Promise<{ ok: boolean; message: string }> {
-  const before = await claudeCliInfo();
-  try {
-    await run('claude', ['update'], { env: { ...process.env, PATH: cliPath() }, timeout: 180_000 });
-  } catch (e) {
-    return { ok: false, message: `claude update falhou: ${(e as Error).message.slice(0, 120)}` };
+  const u = cliUpdater();
+  const [before, want] = await Promise.all([u.installed(), u.latest()]);
+  if (want && before.version && compareVersions(before.version, want) >= 0) {
+    return { ok: true, message: `CLI já estava na ${before.version}` };
   }
-  const after = await claudeCliInfo();
-  if (!after.version) return { ok: false, message: 'claude update rodou, mas o CLI não responde --version' };
-  return {
-    ok: true,
-    message: before.version === after.version ? `CLI já estava na ${after.version}` : `CLI ${before.version || '?'} → ${after.version}`,
-  };
+  const r = await u.update('manual', want || null);
+  if (!r.ok) return { ok: false, message: `atualização do CLI falhou: ${r.message}` };
+  return { ok: true, message: `CLI ${r.from || '?'} → ${r.to}` };
 }
 
 // Reinício desacoplado do processo: o script vira sessão própria (detached) e loga
@@ -76,10 +72,17 @@ export async function restartDeck(mode: 'idle' | 'now'): Promise<{ ok: boolean; 
   if (mode === 'idle' && (await restartArmed())) {
     return { ok: true, message: 'restart já estava agendado; entra quando não houver turno em voo' };
   }
+  // The redeploy scripts are bash, and a bash.exe here would run them inside WSL.
+  if (IS_WINDOWS) return { ok: false, message: 'no Windows, reinicie a tarefa deck-agent no Agendador de Tarefas' };
   const script = join(REPO_ROOT, 'scripts', mode === 'now' ? 'redeploy.sh' : 'deploy-when-idle.sh');
   mkdirSync(dirname(LOG), { recursive: true });
   const out = openSync(LOG, 'a');
   const child = spawn('bash', [script], { cwd: REPO_ROOT, detached: true, stdio: ['ignore', out, out] });
+  // The child holds its own copy of the fd; ours would leak one per restart.
+  closeSync(out);
+  // A spawn failure is emitted as 'error'; with no listener it would be an
+  // uncaughtException, and index.ts kills every run on that.
+  child.on('error', () => {});
   child.unref();
   return mode === 'now'
     ? { ok: true, message: 'reiniciando agora — o Deck volta em alguns segundos' }
