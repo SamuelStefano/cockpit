@@ -1,5 +1,6 @@
 import type { TeamBot } from '../../shared/protocol';
 import { PLANNER_LIMITS } from '../../shared/planner';
+import { redactText } from '../../shared/diag';
 import { botWorkspace } from '../engine/restricted-profile';
 import { updateTasks } from '../planner/store';
 import type { HandoffOutcome, SpoolMessage, SpoolTaskDone } from '../team-outbox';
@@ -12,7 +13,7 @@ const SUMMARY_MAX = 600;
 // from the MCP process the server launched for that bot's turn, never from tool arguments).
 export async function applyTaskDone(m: SpoolMessage & { taskDone: SpoolTaskDone }, _team: TeamBot[], now = Date.now()): Promise<HandoffOutcome> {
   let outcome: HandoffOutcome = { ok: false, reason: 'tarefa não encontrada' };
-  const summary = m.taskDone.summary.trim().slice(0, SUMMARY_MAX);
+  const summary = redactText(m.taskDone.summary.trim()).slice(0, SUMMARY_MAX);
   if (!summary) return { ok: false, reason: 'resumo vazio' };
   const tasks = await updateTasks((list) => {
     const task = list.find((t) => t.id === m.taskDone.taskId);

@@ -5,6 +5,7 @@ import { MdImage } from './image-context';
 import { safeHref } from '../../../lib/safe-href';
 import { splitSessionRefs } from './session-link';
 import { SessionLink } from './session-link-context';
+import { FilePathLink } from './file-path-context';
 
 function withSessionLinks(text: string): ReactNode[] {
   return splitSessionRefs(text).map((p, i) => (p.type === 'ref' ? <SessionLink key={i} value={p.value} /> : p.value));
@@ -34,7 +35,7 @@ export function renderInline(text: string, keyBase: string): ReactNode[] {
       case 'code':
         nodes.push(
           <code key={key} className="rounded-sm bg-neutral-800 px-1.5 py-0.5 font-mono text-[0.86em] text-orange-300 [overflow-wrap:anywhere]">
-            {/^[0-9a-f-]{8,36}$/i.test(t.value) ? <SessionLink value={t.value} /> : t.value}
+            {/^[0-9a-f-]{8,36}$/i.test(t.value) ? <SessionLink value={t.value} /> : <FilePathLink path={t.value} />}
           </code>
         );
         break;

@@ -1,4 +1,4 @@
-import { Avatar, Badge, Button, Input, ListRow, SectionTitle } from '../../components/primitives';
+import { Avatar, Badge, Button, Input, ListRow } from '../../components/primitives';
 import { roleBadge } from '../../components/chrome/role-badge';
 import type { NavRole } from '../../components/chrome/nav-routes';
 import { useProfileMenu } from '../../components/avatar/useProfileMenu';
@@ -11,6 +11,7 @@ import { isIOS, isStandalone } from '../../lib/platform';
 import { requestNotifyPermission } from '../../lib/notify';
 import { DESKTOP_DOWNLOAD_URL, inDesktopApp } from '../../lib/desktop';
 import { SwitchRow } from './SwitchRow';
+import { SettingsCard } from './SettingsCard';
 import { DevicesSection } from '../../components/profile/DevicesSection';
 import { SendDiagButton } from '../../components/chrome/SendDiagButton';
 import { SUPABASE_ENABLED } from '../../lib/supabase';
@@ -35,8 +36,7 @@ export function Conta({ account, role }: { account: AccountProps; role: NavRole 
 
   return (
     <>
-      <SectionTitle className="max-lg:hidden">Conta</SectionTitle>
-      <div className="overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900/60 hairline">
+      <SettingsCard title="Perfil" flush>
         <ListRow
           leading={<Avatar name={name} src={avatar || undefined} size={36} />}
           label={<span className="flex items-center gap-1.5"><span className="truncate">{name || 'Sem nome'}</span>{badge && <Badge tone={badge.tone} title={badge.title} className="font-mono">{badge.label}</Badge>}</span>}
@@ -55,6 +55,8 @@ export function Conta({ account, role }: { account: AccountProps; role: NavRole 
           trailing={<span className="w-44 shrink-0 max-sm:w-full"><Input id="profile-name" size="sm" value={name} maxLength={40} onChange={(e) => setName(e.target.value)} placeholder="Seu nome" /></span>}
         />
         <input ref={fileRef} type="file" accept="image/*" onChange={onFile} className="hidden" />
+      </SettingsCard>
+      <SettingsCard title="Preferências" flush>
         <SwitchRow label="Mostrar ferramentas" hint="Bash, Read, Grep… no chat" checked={showTools} onChange={() => setShowTools((v) => !v)} />
         <SwitchRow label="Agrupar notas do agente" hint="Só a resposta final fica solta" checked={groupNotes} onChange={() => setGroupNotes((v) => !v)} />
         <SwitchRow
@@ -69,20 +71,28 @@ export function Conta({ account, role }: { account: AccountProps; role: NavRole 
         {!inDesktopApp() && !isIOS() && (
           <ListRow label="App para Windows" hint="Janela própria, bandeja e avisos nativos. Sem assinatura: o Windows avisa na primeira instalação" trailing={<a href={DESKTOP_DOWNLOAD_URL} className="text-[13px] text-orange-300 underline underline-offset-2 hover:text-orange-200">Baixar</a>} />
         )}
-        {account.drops && (
-          <ListRow label="Drop privado" hint="Entrega segredo ou script ao agente sem passar pelo chat" trailing={<DropButton api={account.drops} bare />} />
-        )}
-        {account.onChangePassword && (
-          <div className="border-t border-neutral-800 px-4 py-3"><ChangePasswordForm onSubmit={account.onChangePassword} bare /></div>
-        )}
-        {account.onSignOut && <div className="border-t border-neutral-800 px-4 pb-3"><DevicesSection /></div>}
-        {SUPABASE_ENABLED && (
-          <ListRow label="Diagnóstico" hint="Manda o log da conexão pro admin" trailing={<SendDiagButton />} />
-        )}
-        {account.onSignOut && (
+      </SettingsCard>
+      {(account.drops || account.onChangePassword || account.onSignOut) && (
+        <SettingsCard title="Segurança" flush>
+          {account.onChangePassword && (
+            <div className="border-t border-neutral-800 px-4 py-3"><ChangePasswordForm onSubmit={account.onChangePassword} bare /></div>
+          )}
+          {account.onSignOut && <div className="border-t border-neutral-800 px-4 pb-3"><DevicesSection /></div>}
+          {account.drops && (
+            <ListRow label="Drop privado" hint="Entrega segredo ou script ao agente sem passar pelo chat" trailing={<DropButton api={account.drops} bare />} />
+          )}
+        </SettingsCard>
+      )}
+      {SUPABASE_ENABLED && (
+        <SettingsCard title="Diagnóstico" flush>
+          <ListRow label="Log da conexão" hint="Manda o log da conexão pro admin" trailing={<SendDiagButton />} />
+        </SettingsCard>
+      )}
+      {account.onSignOut && (
+        <SettingsCard title="Sessão" tone="danger" flush>
           <ListRow label="Sair desta conta" trailing={<Button variant="danger" size="sm" icon="x" onClick={account.onSignOut}>Desconectar conta</Button>} />
-        )}
-      </div>
+        </SettingsCard>
+      )}
     </>
   );
 }

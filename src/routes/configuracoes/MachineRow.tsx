@@ -19,7 +19,7 @@ interface Props {
 export function MachineRow({ box, active, level, unread, onOpen, onRename, onRevoke }: Props) {
   const label = boxLabel(box);
   return (
-    <li className="flex items-center gap-2 border-t border-neutral-800 px-3 py-2.5 first:border-t-0 max-lg:px-0">
+    <li className="flex items-center gap-2 border-t border-neutral-800 px-3 py-2.5 first:border-t-0">
       <BoxDot online={box.online} />
       <span className="min-w-0 flex-1 truncate text-[13.5px] text-neutral-100">{label}</span>
       <HealthBadge level={level} />

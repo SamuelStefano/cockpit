@@ -24,3 +24,4 @@ export const Base = lazy(() => import('../routes/base/Base').then((m) => ({ defa
 export const Conexoes = lazy(() => import('../routes/Conexoes').then((m) => ({ default: m.Conexoes })));
 export const Prs = lazy(() => import('../routes/prs/Prs').then((m) => ({ default: m.Prs })));
 export const EquipeHome = lazy(() => import('../routes/equipe-home/EquipeHome').then((m) => ({ default: m.EquipeHome })));
+export const Explorar = lazy(() => import('../routes/explorar/Explorar').then((m) => ({ default: m.Explorar })));

@@ -1,17 +1,22 @@
-import { useState, type ReactNode } from 'react';
+import { useContext, useState, type ReactNode } from 'react';
 import { IconButton, Popover } from '../primitives';
+import { KanbanModal } from '../planner/KanbanModal';
+import { todayPendingCount } from '../../planner/planner-logic';
+import { PhoneChatChip } from './PhoneChatChip';
+import { AgentSwitchSheet } from './AgentSwitchSheet';
 import { ConfirmDelete } from '../sessions/ConfirmDelete';
-import { ChatHeaderMenu } from './ChatHeaderMenu';
-import { EditableTitle } from './EditableTitle';
+import { ChatHeaderMenu, type PhoneItem } from './ChatHeaderMenu';
+import { ChatHeaderIdentity } from './ChatHeaderIdentity';
 import { useHeaderMenu } from './useHeaderMenu';
 import type { Session, Message } from '../../data/types';
 import { ranOnOtherModel } from '../../cockpit/session-model';
 import { contextMeter, turnStatParts } from './toolbar-format';
 import type { TurnStats } from '../../../shared/protocol';
-import type { ChatAgentHeader } from './chat-panel-props';
+import type { AgentSwitch, ChatAgentHeader, PhoneTeam } from './chat-panel-props';
 import { UsageDock, UsageSheet, readUsage, type UsageDockProps } from '../chrome/sidebar/UsageDock';
 import { inShell } from '../../lib/shell';
 import { ChatPrsButton } from '../../routes/prs/chat/ChatPrsButton';
+import { ChatPrDepsContext } from '../../routes/prs/chat/pr-deps-context';
 
 export type ChatHeaderAgent = ChatAgentHeader & { name: string };
 
@@ -43,14 +48,21 @@ interface ChatHeaderProps {
   // Phone: the single top bar owns the drawer button (☰ · title · one action).
   onMenu?: () => void;
   teamSlot?: ReactNode;
+  agentSwitch?: AgentSwitch;
+  phoneTeam?: PhoneTeam;
   restoring?: boolean;
 }
 
-export function ChatHeader({ session, messages, isEmpty, contextTokens, contextModel = null, lastTurn, onNew, fullLoaded, truncated, onOpenFull, onLoadOlder, onOpenSummary, setFullLoaded, beforeGrow, onTerminal, terminalRunning, terminalOpen = false, usage, onRename, onDelete, selectedModel, agent, onMenu, teamSlot, restoring = false }: ChatHeaderProps) {
+export function ChatHeader({ session, messages, isEmpty, contextTokens, contextModel = null, lastTurn, onNew, fullLoaded, truncated, onOpenFull, onLoadOlder, onOpenSummary, setFullLoaded, beforeGrow, onTerminal, terminalRunning, terminalOpen = false, usage, onRename, onDelete, selectedModel, agent, onMenu, teamSlot, agentSwitch, phoneTeam, restoring = false }: ChatHeaderProps) {
   const menu = useHeaderMenu();
   const [renameSignal, setRenameSignal] = useState(0);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [usageOpen, setUsageOpen] = useState(false);
+  const [switchOpen, setSwitchOpen] = useState(false);
+  const [kanbanOpen, setKanbanOpen] = useState(false);
+  const [prsSignal, setPrsSignal] = useState(0);
+  const [prCount, setPrCount] = useState(0);
+  const prDeps = useContext(ChatPrDepsContext);
   const title = agent?.name ?? (session ? session.title : restoring ? '' : 'Nova conversa');
 
   const saved = !!session && !session.id.startsWith('new-');
@@ -69,8 +81,16 @@ export function ChatHeader({ session, messages, isEmpty, contextTokens, contextM
   const reading = phoneMenu && usage && !inShell() ? readUsage(usage) : null;
   const usageHot = !!reading && (reading.paused || reading.warn || (reading.s.pct ?? 0) >= 85);
   const ctxHot = (ctx?.pct ?? 0) >= 85;
+  const kanbanPending = phoneTeam?.kanban ? todayPendingCount(phoneTeam.kanban.planner.tasks) : 0;
+  const phoneItems = [
+    !agent && { icon: 'squarePen', label: 'Nova conversa', onClick: onNew },
+    phoneTeam?.kanban && { icon: 'layers', label: 'Kanban', onClick: () => setKanbanOpen(true), count: kanbanPending },
+    phoneTeam?.onVila && { icon: 'globe', label: 'Vila', onClick: phoneTeam.onVila },
+    saved && prDeps && { icon: 'gitPullRequest', label: 'Pull requests', onClick: () => setPrsSignal((n) => n + 1), count: prCount },
+  ].filter((i): i is PhoneItem => !!i);
   const phone = phoneMenu
     ? {
+        items: phoneItems,
         usage: reading ? { text: reading.s.tip, hot: usageHot, onOpen: () => setUsageOpen(true) } : undefined,
         onTerminal, terminalOpen,
       }
@@ -93,14 +113,14 @@ export function ChatHeader({ session, messages, isEmpty, contextTokens, contextM
       }
     >
       <span className="relative inline-flex">
-        <IconButton icon="ellipsis" label={ctxHot || usageHot ? `Mais ações da conversa, ${[ctxHot && 'contexto cheio', usageHot && 'uso do plano alto'].filter(Boolean).join(' e ')}` : 'Mais ações da conversa'} side="bottom" aria-expanded={menu.open} aria-haspopup="dialog" onClick={menu.toggle} />
+        <IconButton icon="ellipsis" size="xs" label={ctxHot || usageHot ? `Mais ações da conversa, ${[ctxHot && 'contexto cheio', usageHot && 'uso do plano alto'].filter(Boolean).join(' e ')}` : 'Mais ações da conversa'} side="bottom" aria-expanded={menu.open} aria-haspopup="dialog" onClick={menu.toggle} />
         {(ctxHot || usageHot) && <span aria-hidden className={`pointer-events-none absolute right-1 top-1 h-2 w-2 rounded-full ring-2 ring-neutral-950 ${ctxHot ? 'bg-red-400' : 'bg-amber-400'}`} />}
       </span>
     </Popover>
   );
   const terminalButton = onTerminal && (
     <span className="relative inline-flex">
-      <IconButton icon="terminal" label="Abrir terminais" side="bottom" aria-pressed={terminalOpen} onClick={onTerminal} className={terminalOpen ? 'bg-neutral-800 text-neutral-100' : ''} />
+      <IconButton icon="terminal" size="xs" label="Abrir terminais" side="bottom" aria-pressed={terminalOpen} onClick={onTerminal} className={terminalOpen ? 'bg-neutral-800 text-neutral-100' : ''} />
       {terminalRunning && (
         <span className="pointer-events-none absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-neutral-900 bg-green-500" />
       )}
@@ -118,22 +138,19 @@ export function ChatHeader({ session, messages, isEmpty, contextTokens, contextM
     const fresh = !agent && isEmpty;
     return (
       <div className="flex h-[52px] shrink-0 items-center gap-1 px-2">
-        <IconButton icon="menu" label="Menu" side="bottom" onClick={onMenu} className="pointer-coarse:h-11 pointer-coarse:w-11" />
-        {agent ? (
-          <span className="flex min-w-0 flex-1 items-center gap-2">
-            {agent.avatar}
-            <span className="truncate text-[15px] font-medium text-neutral-100">{agent.name}</span>
-          </span>
-        ) : fresh ? (
-          <span className="min-w-0 flex-1 truncate text-[15px] font-medium text-neutral-100">Deck</span>
-        ) : (
-          <div className="min-w-0 flex-1 overflow-hidden"><EditableTitle id={session?.id} title={title} editable={saved} onRename={onRename} startSignal={renameSignal} /></div>
-        )}
+        <IconButton icon="chevronLeft" label="Conversas" side="bottom" onClick={onMenu} className="pointer-coarse:h-11 pointer-coarse:w-11" />
+        <div className="flex min-w-0 flex-1 justify-center">
+          <PhoneChatChip
+            avatar={agent?.avatar} label={agent ? agent.name : fresh ? 'Deck' : title} sessionId={session?.id}
+            renamable={canRename} onRename={onRename} renameSignal={renameSignal}
+            onOpen={() => { if (agentSwitch) setSwitchOpen(true); }}
+          />
+        </div>
         {agent?.actions}
-        {teamSlot}
-        {prs(true)}
-        {!agent && <IconButton icon="plus" label="Nova conversa" side="bottom" onClick={onNew} className="pointer-coarse:h-11 pointer-coarse:w-11" />}
-        {(!fresh || !!reading) && moreMenu}
+        {moreMenu}
+        {saved && prDeps && <ChatPrsButton sessionId={session.id} markers={prMarkers} openSignal={prsSignal} hideTrigger onCount={setPrCount} />}
+        {phoneTeam?.kanban && <KanbanModal open={kanbanOpen} onClose={() => setKanbanOpen(false)} planner={phoneTeam.kanban.planner} bots={phoneTeam.kanban.bots} />}
+        {switchOpen && agentSwitch && <AgentSwitchSheet {...agentSwitch} onClose={() => setSwitchOpen(false)} />}
         {usage && reading && <UsageSheet {...usage} open={usageOpen} onClose={() => setUsageOpen(false)} />}
         {confirm}
       </div>
@@ -141,21 +158,17 @@ export function ChatHeader({ session, messages, isEmpty, contextTokens, contextM
   }
 
   return (
-    <div className="flex h-12 shrink-0 items-center gap-2 px-4">
-      {agent ? (
-        <span className="flex min-w-0 items-center gap-2">
-          {agent.avatar}
-          <span className="truncate text-[14px] font-medium text-neutral-100">{agent.name}</span>
-        </span>
-      ) : (
-        <EditableTitle id={session?.id} title={title} editable={saved} onRename={onRename} startSignal={renameSignal} />
-      )}
-      <div className="ml-auto flex shrink-0 items-center gap-2 pointer-coarse:gap-3">
+    <div className="flex h-14 shrink-0 items-center gap-2 border-b border-(--border) px-4">
+      <ChatHeaderIdentity
+        agentName={agent?.name} avatar={agent?.avatar} sessionId={session?.id} title={title} editable={saved}
+        onRename={onRename} renameSignal={renameSignal} model={selectedModel ?? contextModel ?? undefined}
+      />
+      <div className="ml-auto flex shrink-0 items-center gap-1 pointer-coarse:gap-3">
         {agent?.actions}
         {teamSlot}
         {prs(false)}
-        {usage && !inShell() && <UsageDock {...usage} />}
         {terminalButton}
+        {usage && !inShell() && <UsageDock {...usage} />}
         {moreMenu}
       </div>
       {confirm}
