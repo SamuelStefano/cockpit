@@ -78,6 +78,8 @@ interface AnimatedTile { tile: Phaser.Tilemaps.Tile; anim: TileAnim }
 
 type KeyName = 'W' | 'A' | 'S' | 'D' | 'UP' | 'DOWN' | 'LEFT' | 'RIGHT' | 'SHIFT';
 
+const TALK_REACH = 28;
+
 class WorldSceneV2 extends Phaser.Scene {
   private readonly opts: WorldOptions & { onError?: () => void };
   private failed = false;
@@ -111,6 +113,7 @@ class WorldSceneV2 extends Phaser.Scene {
   private userZoomed = false;
   private userMoved = false;
   private selecting = false;
+  private followId: string | null = null;
   private selected = new Set<string>();
   private rings = new Map<string, Phaser.GameObjects.Ellipse>();
   private lastCelebrate: string[] | null = null;
@@ -221,6 +224,7 @@ class WorldSceneV2 extends Phaser.Scene {
   setMode(mode: CameraMode): void {
     if (mode === this.mode) return;
     this.mode = mode;
+    this.followId = null;
     this.userZoomed = false;
     this.userMoved = false;
     if (this.ready) this.applyMode();
@@ -502,6 +506,7 @@ class WorldSceneV2 extends Phaser.Scene {
     const kb = this.input.keyboard;
     if (kb) {
       const k = (c: string): Phaser.Input.Keyboard.Key => kb.addKey(c, false);
+      kb.addKey('E', false).on('down', () => { if (!isTypingTarget(document.activeElement as HTMLElement | null) && this.mode === 'avatar') { const id = this.botNearAvatar(); if (id) this.opts.onOpenBot(id); } });
       this.keys = { W: k('W'), A: k('A'), S: k('S'), D: k('D'), UP: k('UP'), DOWN: k('DOWN'), LEFT: k('LEFT'), RIGHT: k('RIGHT'), SHIFT: k('SHIFT') };
     }
     this.input.addPointer(1);
@@ -512,6 +517,7 @@ class WorldSceneV2 extends Phaser.Scene {
     });
     this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
       if (this.mode !== 'god' || !p.isDown || p.rightButtonDown() || this.pinching) return;
+      if (this.followId) this.releaseFollow();
       const cam = this.cameras.main;
       cam.setScroll(cam.clampX(cam.scrollX - (p.x - p.prevPosition.x) / cam.zoom), cam.clampY(cam.scrollY - (p.y - p.prevPosition.y) / cam.zoom));
       this.userMoved = true;
@@ -533,6 +539,37 @@ class WorldSceneV2 extends Phaser.Scene {
       this.wheelAcc = 0;
       this.stepCameraZoom(dir);
     });
+  }
+
+  screenPos(id: string): { x: number; y: number; w: number; h: number } | null {
+    const b = this.bots.get(id);
+    if (!b) return null;
+    const c = this.cameras.main;
+    return { x: (b.sprite.x - c.worldView.x) * c.zoom, y: (b.sprite.y - c.worldView.y) * c.zoom, w: c.width, h: c.height };
+  }
+
+  private botNearAvatar(): string | null {
+    let best: string | null = null;
+    let bestD = TALK_REACH;
+    for (const [id, b] of this.bots) {
+      const d = Math.hypot(b.sprite.x - this.avatar.x, b.sprite.y - this.avatar.y);
+      if (d <= bestD) { best = id; bestD = d; }
+    }
+    return best;
+  }
+
+  follow(id: string | null): void {
+    const b = id ? this.bots.get(id) : undefined;
+    this.followId = b ? id : null;
+    if (!this.ready) return;
+    if (b) this.cameras.main.startFollow(b.sprite, true, 0.15, 0.15);
+    else this.releaseFollow();
+  }
+
+  private releaseFollow(): void {
+    this.followId = null;
+    if (this.mode === 'avatar') this.cameras.main.startFollow(this.avatar, true, 0.15, 0.15);
+    else this.cameras.main.stopFollow();
   }
 
   private stepCameraZoom(dir: number): void {
@@ -604,6 +641,7 @@ class WorldSceneV2 extends Phaser.Scene {
     const step = (runSpeed(AVATAR_SPEED, running) * dt) / 1000;
     let routed = false;
     if (vx !== 0 || vy !== 0) {
+      if (this.followId) this.releaseFollow();
       this.route = [];
       this.marker.setVisible(false);
     } else if (this.route.length > 0) {
@@ -771,6 +809,8 @@ export function createWorldV2(opts: WorldOptions & { onError?: () => void }): Wo
     setMode: (m) => scene.setMode(m),
     setRecording: (r) => scene.setRecording(r),
     setSelection: (s, ids) => scene.setSelection(s, ids),
+    follow: (id) => scene.follow(id),
+    screenPos: (id) => scene.screenPos(id),
     celebrate: (id) => scene.celebrate(id),
     setStick: (x, y) => scene.setStick(x, y),
     refresh: () => game.scale.refresh(),
