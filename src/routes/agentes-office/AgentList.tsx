@@ -1,11 +1,15 @@
-import { useMemo, useState } from 'react';
+import type { TeamBotInput } from '../../../shared/protocol';
 import type { ExecutorState, HeavyJob } from '../../../shared/heavy-job';
-import { Badge, Button, EmptyState, ToggleChip } from '../../components/primitives';
+import { Badge, Button, EmptyState } from '../../components/primitives';
 import type { BotView } from '../equipe/team-view';
-import { agentRowsOf, filterBySector, sectorChips, type SectorFilter } from './agent-list';
+import { AgentFilters } from './AgentFilters';
 import { AgentRow } from './AgentRow';
+import { AgentRowMenu } from './AgentRowMenu';
+import { DeleteAgentModal } from './DeleteAgentModal';
 import { executorChip } from './executor/executor-view';
 import { summarize } from './office-view';
+import { useAgentActions } from './useAgentActions';
+import { useAgentFilters } from './useAgentFilters';
 
 interface AgentListProps {
   views: BotView[];
@@ -13,16 +17,16 @@ interface AgentListProps {
   onWorkspace: (id: string) => void;
   onProfile: (id: string) => void;
   onNew?: () => void;
+  onSave?: (bot: TeamBotInput) => void;
+  onDelete?: (id: string) => void;
   executor?: ExecutorState;
   heavyJobs?: HeavyJob[];
   onOpenExecutor?: () => void;
 }
 
-export function AgentList({ views, onChat, onWorkspace, onProfile, onNew, executor, heavyJobs, onOpenExecutor }: AgentListProps) {
-  const [sector, setSector] = useState<SectorFilter>('all');
-  const chips = useMemo(() => sectorChips(views), [views]);
-  const active = chips.some((c) => c.id === sector) ? sector : 'all';
-  const rows = useMemo(() => agentRowsOf(filterBySector(views, active), views), [views, active]);
+export function AgentList({ views, onChat, onWorkspace, onProfile, onNew, onSave, onDelete, executor, heavyJobs, onOpenExecutor }: AgentListProps) {
+  const f = useAgentFilters(views);
+  const actions = useAgentActions({ views, onSave, onDelete, onProfile });
   const s = summarize(views);
   const executorText = executorChip(executor, heavyJobs);
   if (views.length === 0) {
@@ -37,23 +41,29 @@ export function AgentList({ views, onChat, onWorkspace, onProfile, onNew, execut
       <div role="group" aria-label="Resumo" className="flex flex-wrap items-center gap-2">
         <h1 className="mr-auto text-[22px] font-semibold tracking-[-0.02em] text-neutral-100 max-lg:hidden">Agentes</h1>
         <Badge>{s.total} {s.total === 1 ? 'agente' : 'agentes'}</Badge>
-        <Badge tone="green">{s.working} trabalhando</Badge>
-        <Badge tone="yellow">{s.waiting} esperando você</Badge>
+        <Badge tone="green" onClick={() => f.setStatus('working')}>{s.working} trabalhando</Badge>
+        <Badge tone="yellow" onClick={() => f.setStatus('waiting')}>{s.waiting} esperando você</Badge>
         {executorText && (onOpenExecutor
           ? <Badge onClick={onOpenExecutor}>{executorText}</Badge>
           : <Badge>{executorText}</Badge>)}
         {onNew && <Button variant="primary" size="sm" icon="plus" onClick={onNew}>Novo agente</Button>}
       </div>
-      {chips.length > 1 && (
-        <div role="group" aria-label="Setor" className="flex flex-wrap items-center gap-2">
-          {chips.map((c) => <ToggleChip key={c.id} on={c.id === active} aria-pressed={c.id === active} onClick={() => setSector(c.id)}>{c.label}</ToggleChip>)}
+      <AgentFilters query={f.query} onQuery={f.setQuery} statuses={f.statuses} status={f.status} onStatus={f.setStatus} sectors={f.sectors} sector={f.sector} onSector={f.setSector} />
+      {f.rows.length === 0 ? (
+        <EmptyState size="sm" icon="search" title="Nenhum agente encontrado" description="Nenhum agente bate com a busca e os filtros atuais.">
+          <Button variant="secondary" size="md" onClick={f.clear}>Limpar filtros</Button>
+        </EmptyState>
+      ) : (
+        <div role="list" className="rounded-2xl border border-(--border) bg-neutral-900/60">
+          {f.rows.map(({ view, isLeader }) => (
+            <div key={view.bot.id} role="listitem">
+              <AgentRow view={view} isLeader={isLeader} onChat={onChat} onWorkspace={onWorkspace} onProfile={onProfile}
+                menu={actions.canManage && <AgentRowMenu name={view.bot.name} busy={actions.busy} canDelete={!view.bot.primary} onDuplicate={() => actions.duplicate(view.bot)} onDelete={() => actions.askDelete(view.bot)} />} />
+            </div>
+          ))}
         </div>
       )}
-      <div role="list" className="rounded-2xl border border-(--border) bg-neutral-900/60">
-        {rows.map(({ view, isLeader }) => (
-          <div key={view.bot.id} role="listitem"><AgentRow view={view} isLeader={isLeader} onChat={onChat} onWorkspace={onWorkspace} onProfile={onProfile} /></div>
-        ))}
-      </div>
+      <DeleteAgentModal name={actions.toDelete?.name ?? null} onCancel={actions.cancelDelete} onConfirm={actions.confirmDelete} />
     </div>
   );
 }

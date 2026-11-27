@@ -1,4 +1,5 @@
 import { Avatar, Badge, Button } from '../../components/primitives';
+import type { ReactNode } from 'react';
 import type { BotView } from '../equipe/team-view';
 import { AGENT_STATUS, agentMeta } from './agent-list';
 
@@ -8,9 +9,10 @@ interface AgentRowProps {
   onChat: (id: string) => void;
   onWorkspace: (id: string) => void;
   onProfile: (id: string) => void;
+  menu?: ReactNode;
 }
 
-export function AgentRow({ view, isLeader, onChat, onWorkspace, onProfile }: AgentRowProps) {
+export function AgentRow({ view, isLeader, onChat, onWorkspace, onProfile, menu }: AgentRowProps) {
   const { bot, state } = view;
   const status = AGENT_STATUS[state];
   return (
@@ -29,6 +31,7 @@ export function AgentRow({ view, isLeader, onChat, onWorkspace, onProfile }: Age
       <Badge tone={status.tone} dot className="w-32.5 justify-center">{status.label}</Badge>
       <Button variant="secondary" size="sm" onClick={() => onWorkspace(bot.id)} aria-label={`Workspace de ${bot.name}`}>Workspace</Button>
       <Button variant="primary" size="sm" onClick={() => onChat(bot.id)} aria-label={`Chat com ${bot.name}`}>Chat</Button>
+      {menu}
     </div>
   );
 }
