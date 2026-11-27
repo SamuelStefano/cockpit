@@ -26,6 +26,12 @@ export const DEMO_BOTS: TeamStateBot[] = [
   bot('ada', 'Ada', 'working', 'dfl'),
 ];
 
+export const DEMO_ROLES: Record<string, string> = {
+  iris: 'CEO', otto: 'CTO', luffy: 'Tech Lead Itera', zoro: 'Tech Lead DFL', raquel: 'Reviewer', anderson: 'QA', lara: 'Designer',
+  lorena: 'Segurança', goku: 'Tech Lead Deck', nami: 'Game dev e pixel art', arthur: 'Head de Growth', mari: 'Conteúdo',
+  usopp: 'Animação e 3D', malu: 'Autora de aulas Itera', robin: 'CFO', bulma: 'Receita DFL', ada: 'Operações',
+};
+
 export const DEMO_PROJECTS: Record<string, number> = { itera: 4, dfl: 6, 'corte-radar': 1 };
 
 // Who sits in the demo meeting (?meeting=1 or after Convocar in demo).

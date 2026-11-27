@@ -60,6 +60,13 @@ export async function loadWorldFont(): Promise<void> {
   document.fonts.add(face);
 }
 
+const TALK_REACH = 28;
+
+function isTyping(): boolean {
+  const el = document.activeElement;
+  return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || (el as HTMLElement).isContentEditable);
+}
+
 export interface WorldOptions {
   parent: HTMLElement;
   mode: CameraMode;
@@ -74,6 +81,8 @@ export interface WorldHandle {
   setMode: (mode: CameraMode) => void;
   setRecording: (recording: boolean) => void;
   setSelection: (selecting: boolean, ids: string[]) => void;
+  follow: (id: string | null) => void;
+  screenPos: (id: string) => { x: number; y: number; w: number; h: number } | null;
   celebrate: (id: string) => void;
   // Virtual stick, each axis in -1..1; (0, 0) releases it.
   setStick: (x: number, y: number) => void;
@@ -157,6 +166,7 @@ class WorldScene extends Phaser.Scene {
   private avatarFace: Face = 'down';
   private marker!: Phaser.GameObjects.Ellipse;
   private keys!: Record<'W' | 'A' | 'S' | 'D' | 'UP' | 'DOWN' | 'LEFT' | 'RIGHT' | 'SHIFT', Phaser.Input.Keyboard.Key>;
+  private followId: string | null = null;
   private stick = { x: 0, y: 0 };
   private dustAcc = 0;
   private dustNext = 0;
@@ -284,6 +294,7 @@ class WorldScene extends Phaser.Scene {
   setMode(mode: CameraMode): void {
     if (mode === this.mode) return;
     this.mode = mode;
+    this.followId = null;
     this.userMoved = false;
     if (this.ready) this.applyMode(true);
   }
@@ -1030,6 +1041,7 @@ class WorldScene extends Phaser.Scene {
       const k = (c: string) => kb.addKey(c, false);
       this.keys = { W: k('W'), A: k('A'), S: k('S'), D: k('D'), UP: k('UP'), DOWN: k('DOWN'), LEFT: k('LEFT'), RIGHT: k('RIGHT'), SHIFT: k('SHIFT') };
     }
+    kb?.addKey('E', false).on('down', () => { if (!isTyping() && this.mode === 'avatar') { const id = this.npcNearAvatar(); if (id) this.opts.onOpenBot(id); } });
     this.input.addPointer(1);
     this.input.mouse?.disableContextMenu();
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
@@ -1038,6 +1050,7 @@ class WorldScene extends Phaser.Scene {
     });
     this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
       if (this.mode !== 'god' || !p.isDown || p.rightButtonDown() || this.pinching) return;
+      if (this.followId) this.releaseFollow();
       const cam = this.cameras.main;
       cam.scrollX -= (p.x - p.prevPosition.x) / cam.zoom;
       cam.scrollY -= (p.y - p.prevPosition.y) / cam.zoom;
@@ -1073,6 +1086,37 @@ class WorldScene extends Phaser.Scene {
     this.cameras.main.setZoom(stepZoom(this.cameras.main.zoom, dir));
   }
 
+  screenPos(id: string): { x: number; y: number; w: number; h: number } | null {
+    const n = this.npcs.get(id);
+    if (!n) return null;
+    const c = this.cameras.main;
+    return { x: (n.sprite.x - c.worldView.x) * c.zoom, y: (n.sprite.y - c.worldView.y) * c.zoom, w: c.width, h: c.height };
+  }
+
+  private npcNearAvatar(): string | null {
+    let best: string | null = null;
+    let bestD = TALK_REACH;
+    for (const [id, n] of this.npcs) {
+      const d = Math.hypot(n.sprite.x - this.avatar.x, n.sprite.y - this.avatar.y);
+      if (d <= bestD) { best = id; bestD = d; }
+    }
+    return best;
+  }
+
+  follow(id: string | null): void {
+    const n = id ? this.npcs.get(id) : undefined;
+    this.followId = n ? id : null;
+    if (!this.ready) return;
+    if (n) this.cameras.main.startFollow(n.sprite, true, 0.12, 0.12);
+    else this.releaseFollow();
+  }
+
+  private releaseFollow(): void {
+    this.followId = null;
+    if (this.mode === 'avatar') this.cameras.main.startFollow(this.avatar, true, 0.12, 0.12);
+    else this.cameras.main.stopFollow();
+  }
+
   private npcAt(wx: number, wy: number): string | null {
     let best: string | null = null;
     let bestD = Infinity;
@@ -1103,7 +1147,7 @@ class WorldScene extends Phaser.Scene {
     const k = this.keys;
     let vx = 0;
     let vy = 0;
-    if (k) {
+    if (k && !isTyping()) {
       vx = (k.D.isDown || k.RIGHT.isDown ? 1 : 0) - (k.A.isDown || k.LEFT.isDown ? 1 : 0);
       vy = (k.S.isDown || k.DOWN.isDown ? 1 : 0) - (k.W.isDown || k.UP.isDown ? 1 : 0);
     }
@@ -1115,6 +1159,7 @@ class WorldScene extends Phaser.Scene {
     }
     const a = this.avatar;
     if (vx !== 0 || vy !== 0) {
+      if (this.followId) this.releaseFollow();
       this.route = [];
       this.marker.setVisible(false);
     } else if (this.route.length > 0) {
@@ -1224,6 +1269,8 @@ export function createWorld(opts: WorldOptions): WorldHandle {
     setMode: (m) => scene.setMode(m),
     setRecording: (r) => scene.setRecording(r),
     setSelection: (s, ids) => scene.setSelection(s, ids),
+    follow: (id) => scene.follow(id),
+    screenPos: (id) => scene.screenPos(id),
     celebrate: (id) => scene.celebrate(id),
     setStick: (x, y) => scene.setStick(x, y),
     refresh: () => game.scale.refresh(),
