@@ -28,6 +28,7 @@ interface AgentsHomeProps {
   canEdit: boolean;
   onSkillList?: () => void;
   onSave: (bot: TeamBotInput) => void;
+  onDelete?: (id: string) => void;
   onOpen: (id: string) => void;
   onProfile: (id: string, tab?: AgentTab) => void;
   onNew?: () => void;
@@ -44,7 +45,7 @@ interface AgentsHomeProps {
 const noop = () => {};
 const NO_EXECUTOR: ExecutorState = { configured: false, label: '', online: null };
 
-export function AgentsHome({ tab, onTab, views, bots, skills, connected, canEdit, onSkillList, onSave, onOpen, onProfile, onNew, meetings = [], onMeetingsGet, onMeetingStart, executor, heavyJobs = [], onHeavyGet, onHeavyRun, onHeavyCancel }: AgentsHomeProps) {
+export function AgentsHome({ tab, onTab, views, bots, skills, connected, canEdit, onSkillList, onSave, onDelete, onOpen, onProfile, onNew, meetings = [], onMeetingsGet, onMeetingStart, executor, heavyJobs = [], onHeavyGet, onHeavyRun, onHeavyCancel }: AgentsHomeProps) {
   const [view, setView] = useState<EscritorioView>('lista');
   useEffect(() => { if (connected && tab === 'loja') onSkillList?.(); }, [connected, tab, onSkillList]);
   useEffect(() => { if (connected && canEdit) onHeavyGet?.(); }, [connected, canEdit, onHeavyGet]);
@@ -61,7 +62,7 @@ export function AgentsHome({ tab, onTab, views, bots, skills, connected, canEdit
           <>
             <div className="flex justify-end"><Segmented items={VIEWS} value={view} onChange={setView} label="Visão dos agentes" /></div>
             {view === 'lista'
-              ? <AgentList views={views} onChat={onOpen} onWorkspace={(id) => onProfile(id, 'arquivos')} onProfile={(id) => onProfile(id, 'perfil')} onNew={onNew} executor={executor} heavyJobs={heavyJobs} onOpenExecutor={() => onTab('executor')} />
+              ? <AgentList views={views} onChat={onOpen} onWorkspace={(id) => onProfile(id, 'arquivos')} onProfile={(id) => onProfile(id, 'perfil')} onNew={onNew} onSave={canEdit ? onSave : undefined} onDelete={canEdit ? onDelete : undefined} executor={executor} heavyJobs={heavyJobs} onOpenExecutor={() => onTab('executor')} />
               : <Office views={views} onOpen={onOpen} onNew={onNew} heading={false} executor={executor} heavyJobs={heavyJobs} onOpenExecutor={() => onTab('executor')} />}
           </>
         )}

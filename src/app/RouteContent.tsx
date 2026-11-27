@@ -144,7 +144,7 @@ export function RouteContent({ route, agentRoute, isMobile, isAdmin, capsKnown, 
                   meetings={c.meetings} onMeetingsGet={c.onMeetingsGet} onMeetingStart={c.onMeetingStart}
                   executor={c.executor} heavyJobs={c.heavyJobs} onHeavyGet={c.onHeavyGet} onHeavyRun={c.onHeavyRun} onHeavyCancel={c.onHeavyCancel}
                   views={agent.views} bots={c.bots} skills={c.skills} connected={connected} canEdit={isAdmin} onSkillList={c.onSkillList}
-                  onSave={c.onTeamSave} onOpen={agent.open} onProfile={(id, tab) => agentRoute.open(id, tab)} onNew={agent.openNew} />
+                  onSave={c.onTeamSave} onDelete={c.onTeamDelete} onOpen={agent.open} onProfile={(id, tab) => agentRoute.open(id, tab)} onNew={agent.openNew} />
               : <SkeletonCards />}
           </div>
         </div>
