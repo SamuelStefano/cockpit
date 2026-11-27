@@ -3,7 +3,7 @@ import type { TurnStats } from '../../../shared/protocol';
 import { ExportMenu } from './ExportMenu';
 import { HistoryControls } from './HistoryControls';
 import { prettyModel, turnStatParts } from './toolbar-format';
-import { Icon, Menu, MenuItem, MenuSeparator } from '../primitives';
+import { Badge, Icon, Menu, MenuItem, MenuSeparator, type IconName } from '../primitives';
 
 interface HistoryProps {
   sessionId: string;
@@ -34,8 +34,10 @@ interface ChatHeaderMenuProps {
   onDelete?: () => void;
   onDone: () => void;
   // Phone: the header keeps only the essentials, the rest lives here.
-  phone?: { usage?: { text: string; hot: boolean; onOpen: () => void }; onTerminal?: () => void; terminalOpen?: boolean };
+  phone?: { items?: PhoneItem[]; usage?: { text: string; hot: boolean; onOpen: () => void }; onTerminal?: () => void; terminalOpen?: boolean };
 }
+
+export interface PhoneItem { icon: IconName; label: string; onClick: () => void; count?: number }
 
 export function ChatHeaderMenu({ title, messages, lastTurn, ranOn, selectedModel, history, canExport, profile, pause, contextPct = null, onRestart, running, onRename, onDelete, onDone, phone }: ChatHeaderMenuProps) {
   const turn = turnStatParts(lastTurn);
@@ -57,6 +59,8 @@ export function ChatHeaderMenu({ title, messages, lastTurn, ranOn, selectedModel
             <MenuSeparator />
           </>
         )}
+        {phone?.items?.map((i) => <MenuItem key={i.label} icon={i.icon} label={i.label} onClick={i.onClick} right={i.count ? <Badge tone="orange">{i.count}</Badge> : undefined} />)}
+        {!!phone?.items?.length && <MenuSeparator />}
         {phone?.usage && <MenuItem icon="clock" label={phone.usage.text} aria-haspopup="dialog" onClick={phone.usage.onOpen} right={<>{phone.usage.hot && <span aria-hidden className="h-2 w-2 rounded-full bg-amber-400" />}<Icon name="chevronRight" size={14} /></>} />}
         {phone?.onTerminal && <MenuItem icon="terminal" label="Abrir terminais" aria-pressed={phone.terminalOpen} onClick={phone.onTerminal} />}
         {profile && <MenuItem icon="user" label="Perfil do agente" aria-pressed={profile.open} onClick={profile.toggle} />}

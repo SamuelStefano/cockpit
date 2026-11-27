@@ -44,10 +44,11 @@ const PAIRS: readonly (readonly [string, string])[] = [['iris', 'luffy'], ['ande
 
 export function demoTeamState(now: number, tick = 0): TeamState {
   const [from, to] = PAIRS[tick % PAIRS.length]!;
+  const doing = demoDoing(tick);
   return {
     at: now,
     followUpHours: 4,
-    bots: DEMO_BOTS,
+    bots: DEMO_BOTS.map((b) => (doing.has(b.id) ? { ...b, doing: true } : b)),
     handoffs: [{ from, to, point: 'demo', at: now, taskId: `demo-${tick}` }],
     followUps: [],
   };
@@ -60,4 +61,14 @@ export function demoMergedCounts(tick: number): Record<string, number> {
   const out: Record<string, number> = Object.fromEntries(MERGE_ORDER.map((id) => [id, 3]));
   for (let k = 1; k <= Math.floor(tick / 2); k++) out[MERGE_ORDER[k % MERGE_ORDER.length]!]! += 1;
   return out;
+}
+
+const DOING_ORDER = ['luffy', 'zoro', 'anderson', 'ada'];
+export const DEMO_DOING_CYCLE = 16;
+
+// One working bot at a time claims a task for 8 ticks, then lets it go; the next bot in turn.
+export function demoDoing(tick: number): ReadonlySet<string> {
+  const phase = tick % DEMO_DOING_CYCLE;
+  if (phase < 2 || phase >= 10) return new Set();
+  return new Set([DOING_ORDER[Math.floor(tick / DEMO_DOING_CYCLE) % DOING_ORDER.length]!]);
 }

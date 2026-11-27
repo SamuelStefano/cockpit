@@ -127,7 +127,8 @@ export function TeamWorld({ state, connected, onRefresh, bots, meetings, onMeeti
         },
         onToggleBot: (id) => setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : p.length >= MEETING_LIMITS.maxParticipants ? p : [...p, id])),
         onReady: () => { setReady(true); h.update(viewRef.current); },
-      });
+        onError: () => { if (!dead) setFailed(true); },
+      } as Parameters<typeof create>[0]);
       world.current = h;
       ro = new ResizeObserver(() => h.refresh());
       ro.observe(el);

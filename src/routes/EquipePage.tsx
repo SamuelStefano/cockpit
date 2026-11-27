@@ -1,6 +1,9 @@
 import { useEffect } from 'react';
-import { Button, PageTitle, IconButton, Tabs, type TabItem } from '../components/primitives';
+import { Button, IconButton } from '../components/primitives';
 import { TopBarAction } from '../components/chrome/sidebar/TopBarSlot';
+import { TeamTabs } from '../components/chrome/team/TeamTabs';
+import type { TeamTabId } from '../components/chrome/team/team-tabs';
+import type { Route } from '../useRoute';
 import type { Memory, MemoryInput, TeamBot } from '../../shared/protocol';
 import type { BotView } from './equipe/team-view';
 import { Rotinas } from './equipe/Rotinas';
@@ -42,7 +45,7 @@ interface EquipePageProps {
   cron: CronApi & { loaded: boolean };
   bots: TeamBot[];
   onOpenChat: (id: string) => void;
-  onGo: (to: '/' | '/equipe/rotinas' | '/equipe/memoria' | '/equipe/mundo') => void;
+  onGo: (to: Route) => void;
   capsKnown?: boolean;
 }
 
@@ -56,42 +59,43 @@ export function EquipePage(p: EquipePageProps) {
   useEffect(() => { if (capsKnown && ((p.tab === 'memoria' && !canSeeMemory) || (p.tab === 'mundo' && !canSeeWorld))) onGo('/'); }, [capsKnown, p.tab, canSeeMemory, canSeeWorld, onGo]);
   const r = useRotinas({ ...p.cron, bots: p.bots, connected });
   if (!capsKnown && (p.tab === 'memoria' || p.tab === 'mundo')) return <div className="flex min-h-0 flex-1" />;
-  const items: TabItem<Tab>[] = [
-    { id: 'rotinas', label: 'Rotinas', count: p.cron.loaded ? p.cron.crons.length : undefined },
-    ...(canSeeMemory && p.memory ? [{ id: 'memoria' as const, label: 'Memória', count: p.memory.loaded ? p.memory.memories.length : undefined }] : []),
-    ...(canSeeWorld ? [{ id: 'mundo' as const, label: 'Mundo' }] : []),
-  ];
-  const onTab = (t: Tab) => onGo(t === 'memoria' ? '/equipe/memoria' : t === 'mundo' ? '/equipe/mundo' : '/equipe/rotinas');
+  const allow: TeamTabId[] = ['pedidos', 'rotinas', ...(canSeeMemory ? ['memoria' as const] : []), ...(canSeeWorld ? ['mundo' as const] : [])];
+  const counts = {
+    pedidos: p.teamState ? p.teamState.followUps.length : undefined,
+    rotinas: p.cron.loaded ? p.cron.crons.length : undefined,
+    memoria: canSeeMemory && p.memory?.loaded ? p.memory.memories.length : undefined,
+  };
+  const newRoutine = isAdmin && tab === 'rotinas'
+    ? <Button size="sm" variant="outline" icon="plus" onClick={r.openNew} className="max-lg:hidden">Nova rotina</Button> : undefined;
+  const header = <TeamTabs role={isAdmin ? 'admin' : 'student'} active={tab} counts={counts} allow={allow} actions={newRoutine} onSelect={onGo} />;
   if (tab === 'mundo' && p.onTeamStateGet) {
     return (
-      <div className="flex min-h-0 flex-1 flex-col p-4 max-lg:pt-1 md:p-8">
-        <Tabs items={items} active={tab} onChange={onTab} className="mb-2.5 lg:mb-4" />
+      <div className="flex min-h-0 flex-1 flex-col">
+        {header}
+        <div className="flex min-h-0 flex-1 flex-col p-4 md:p-8">
         <TeamWorld
           state={p.teamState ?? null} connected={connected} onRefresh={p.onTeamStateGet} bots={p.bots} meetings={p.meetings ?? []}
           onMeetingsGet={p.onMeetingsGet ?? (() => {})} onMeetingStart={p.onMeetingStart ?? (() => {})}
           paused={p.teamPaused ?? false} onPauseSet={p.onTeamPauseSet}
           talk={p.talk} onTalkOpen={p.onTalkOpen} onTalkSend={p.onTalkSend} onTalkClose={p.onTalkClose} />
+        </div>
       </div>
     );
   }
   return (
-    <div className="scroll-thin min-h-0 flex-1 overflow-y-auto">
-      <div className="mx-auto w-full max-w-[960px] p-4 max-lg:pt-1 md:p-8">
-        <header className="mb-5 flex flex-wrap items-center gap-3 max-lg:hidden">
-          <PageTitle icon="clock" tone="sky">{tab === 'memoria' ? 'Memória' : 'Rotinas'}</PageTitle>
-          <div className="ml-auto flex gap-2">
-            {isAdmin && tab === 'rotinas' && <Button size="sm" variant="outline" icon="plus" onClick={r.openNew}>Nova rotina</Button>}
-          </div>
-        </header>
-        <TopBarAction>
-          {isAdmin && tab === 'rotinas' && <IconButton icon="plus" label="Nova rotina" side="bottom" onClick={r.openNew} className="pointer-coarse:h-11 pointer-coarse:w-11" />}
-        </TopBarAction>
-        <Tabs items={items} active={tab} onChange={onTab} className="mb-2.5 lg:mb-5" />
-        {tab === 'memoria' && p.memory ? (
-          <Memoria bots={views.map((v) => v.bot)} connected={connected} {...p.memory} />
-        ) : (
-          <Rotinas r={r} bots={p.bots} loaded={p.cron.loaded} connected={connected} isAdmin={isAdmin} onChat={p.onOpenChat} onReload={p.cron.onCronsGet} />
-        )}
+    <div className="flex min-h-0 flex-1 flex-col">
+      {header}
+      <div className="scroll-thin min-h-0 flex-1 overflow-y-auto">
+        <div className="mx-auto w-full max-w-[960px] p-4 md:p-8">
+          <TopBarAction>
+            {isAdmin && tab === 'rotinas' && <IconButton icon="plus" label="Nova rotina" side="bottom" onClick={r.openNew} className="pointer-coarse:h-11 pointer-coarse:w-11" />}
+          </TopBarAction>
+          {tab === 'memoria' && p.memory ? (
+            <Memoria bots={views.map((v) => v.bot)} connected={connected} {...p.memory} />
+          ) : (
+            <Rotinas r={r} bots={p.bots} loaded={p.cron.loaded} connected={connected} isAdmin={isAdmin} onChat={p.onOpenChat} onReload={p.cron.onCronsGet} />
+          )}
+        </div>
       </div>
     </div>
   );
