@@ -1,9 +1,10 @@
 import type { WebSocket } from 'ws';
-import type { TeamBot } from '../../shared/protocol';
+import type { BotComputer, TeamBot } from '../../shared/protocol';
 import type { Role } from '../auth';
 import { getTeam } from '../team';
-import { listBotFiles, readBotFile } from '../team-files';
+import { listBotFiles, readBotFile, writeBotFile } from '../team-files';
 import { botComputer } from '../team-computer';
+import { recordSave } from '../agents-repo/history';
 import { send } from './broadcast';
 
 // Only a bot of this account's team: a leftover workspace of a deleted bot, or
@@ -26,7 +27,21 @@ export async function sendBotFile(ws: WebSocket, botId: unknown, path: unknown):
   const p = typeof path === 'string' ? path : '';
   const r = id ? await readBotFile(id, path) : { error: 'bot não encontrado' };
   if ('error' in r) send(ws, { t: 'team-file', botId: echo, path: p, error: r.error });
-  else send(ws, { t: 'team-file', botId: echo, path: p, mime: r.mime, size: r.size, dataB64: r.dataB64 });
+  else send(ws, { t: 'team-file', botId: echo, path: p, mime: r.mime, size: r.size, mtime: r.mtime, dataB64: r.dataB64 });
+}
+
+// Any role, but only on a bot of this account's team (ownBotId, one team.json per
+// account); the workspace and settings guards live in writeBotFile.
+export async function saveBotFile(ws: WebSocket, botId: unknown, path: unknown, text: unknown, baseMtime: unknown, role: Role = 'student'): Promise<void> {
+  const team = await getTeam();
+  const id = ownBotId(team, botId);
+  const echo = typeof botId === 'string' ? botId : '';
+  const p = typeof path === 'string' ? path : '';
+  const r = id ? await writeBotFile(id, path, text, baseMtime, { admin: role === 'admin' }) : { error: 'bot não encontrado' };
+  if ('error' in r) { send(ws, { t: 'team-file-saved', botId: echo, path: p, ok: false, error: r.error }); return; }
+  send(ws, { t: 'team-file-saved', botId: echo, path: p, ok: true, mtime: r.mtime });
+  // History is best-effort: a git failure never turns a saved file into an error.
+  await recordSave(id!, team.find((b) => b.id === id)?.name ?? id!, r.path).catch(() => false);
 }
 
 export async function sendBotComputer(ws: WebSocket, botId: unknown, role: Role = 'student'): Promise<void> {
@@ -34,5 +49,11 @@ export async function sendBotComputer(ws: WebSocket, botId: unknown, role: Role 
   const echo = typeof botId === 'string' ? botId : '';
   const r = id ? await botComputer(id) : { error: 'bot não encontrado' };
   if ('error' in r) send(ws, { t: 'team-computer', botId: echo, error: r.error });
-  else send(ws, { t: 'team-computer', botId: echo, computer: role === 'admin' ? r : { ...r, preview: [] } });
+  else send(ws, { t: 'team-computer', botId: echo, computer: role === 'admin' ? r : studentView(r) });
+}
+
+// Student sees what the bot is doing (step, tool), never its pane, diff or command text.
+function studentView(c: BotComputer): BotComputer {
+  const live = c.live ? { at: c.live.at, status: c.live.status, step: c.live.step, stepIndex: c.live.stepIndex, stepTotal: c.live.stepTotal, tool: c.live.tool } : undefined;
+  return { ...c, preview: [], ...(live ? { live } : {}) };
 }

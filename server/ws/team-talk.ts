@@ -140,7 +140,13 @@ export async function sendTalkMessage(ws: WebSocket, msg: Extract<ClientMsg, { t
   if (!subs.has(ws)) { subs.set(ws, { botId: bot.id, recording: msg.recording === true, tail: '' }); ws.on('close', () => { subs.delete(ws); stopIfIdle(); }); start(); }
   else subs.set(ws, { botId: bot.id, recording: msg.recording === true, tail: '' });
   inFlight.set(bot.id, { msgId: msg.msgId, at: Date.now() });
-  await handle(ws, { t: 'send', sessionKey: botThreadKey(bot.id), sessionId: bot.sessionId, text, msgId: msg.msgId }, role);
+  try {
+    await handle(ws, { t: 'send', sessionKey: botThreadKey(bot.id), sessionId: bot.sessionId, text, msgId: msg.msgId }, role);
+  } catch (e) {
+    // A throwing handler would otherwise keep the bot 'busy' until the TTL.
+    inFlight.delete(bot.id);
+    throw e;
+  }
 }
 
 export function _resetTalkForTests(): void {

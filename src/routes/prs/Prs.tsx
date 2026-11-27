@@ -1,7 +1,8 @@
 import { Button } from '../../components/primitives/Button';
 import { Drawer } from '../../components/primitives/Drawer';
 import { EmptyState } from '../../components/primitives/EmptyState';
-import { RouteHeader } from '../../components/primitives/RouteHeader';
+import { WorkTabs } from '../../components/chrome/work/WorkTabs';
+import type { NavRole } from '../../components/chrome/nav-routes';
 import { Segmented } from '../../components/primitives/Segmented';
 import { SkeletonCards } from '../../components/primitives/SkeletonCards';
 import { useIsMobile } from '../../app/useIsMobile';
@@ -18,9 +19,9 @@ const TABS = [
   { id: 'merged' as const, label: 'Mergeadas' },
 ];
 
-type PrsProps = PrActionDeps & { connected: boolean };
+type PrsProps = PrActionDeps & { connected: boolean; role: NavRole };
 
-export function Prs({ connected, ...deps }: PrsProps) {
+export function Prs({ connected, role, ...deps }: PrsProps) {
   const s = usePrs(connected);
   const mobile = useIsMobile();
   const snap = s.snapshot;
@@ -51,10 +52,14 @@ export function Prs({ connected, ...deps }: PrsProps) {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <RouteHeader
-        title="Pull requests" icon="gitPullRequest"
-        subtitle={snap ? `atualizado ${relativeTime(snap.fetchedAt)}` : undefined}
-        actions={<Button variant="secondary" size="sm" icon="rotate" loading={s.loading} onClick={s.refresh} disabled={!connected}>Atualizar</Button>}
+      <WorkTabs
+        role={role} active="prs"
+        actions={(
+          <>
+            {snap && <span className="hidden text-[12px] text-neutral-500 sm:inline">atualizado {relativeTime(snap.fetchedAt)}</span>}
+            <Button variant="secondary" size="sm" icon="rotate" loading={s.loading} onClick={s.refresh} disabled={!connected}>Atualizar</Button>
+          </>
+        )}
       />
       <div className={mobile ? '' : 'min-[1500px]:hidden'}><PrsSidebar horizontal orgs={s.orgs} total={s.total} filter={s.filter} onChange={s.setFilter} /></div>
       <div className="flex min-h-0 flex-1">

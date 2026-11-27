@@ -49,6 +49,23 @@ describe('buildBotIdentity', () => {
   });
 });
 
+describe('executor rule', () => {
+  it('is absent by default and for a restricted bot', () => {
+    expect(buildBotIdentity(team[0], team)).not.toContain('deckctl heavy run');
+    expect(buildBotIdentity(mk('r1', { profile: 'restricted' }), team, undefined, true)).not.toContain('deckctl heavy run');
+  });
+  it('tells a full bot to use the executor under its own name and not to run heavy work here', () => {
+    const t = buildBotIdentity(team[1], team, undefined, true);
+    expect(t).toContain('deckctl heavy run <repo> <branch> --as lead1 --wait -- <comando>');
+    expect(t).toContain('nunca roda nesta máquina');
+  });
+  it('reaches the turn only when the caller says the executor is configured', () => {
+    expect(botTurnParams(team, 'new-bot-capo1', undefined)?.appendSystemPrompt).not.toContain('deckctl heavy run');
+    expect(botTurnParams(team, 'new-bot-capo1', undefined, undefined, true)?.appendSystemPrompt).toContain('deckctl heavy run');
+    expect(botTurnFor(team, 'new-bot-capo1', undefined, 'admin', undefined, true)?.appendSystemPrompt).toContain('deckctl heavy run');
+  });
+});
+
 describe('findTurnBot / botTurnParams', () => {
   const bound = [mk('capo1', { sessionId: SID, effort: 'high' })];
   it('finds by key or by bound session', () => {

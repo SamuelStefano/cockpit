@@ -4,13 +4,17 @@ import type { BotFile, ClientMsg, ServerMsg } from '../../shared/protocol';
 export type BotFileData =
   | { status: 'loading' }
   | { status: 'error'; error: string }
-  | { status: 'ok'; mime: string; size: number; url: string; text?: string };
+  | { status: 'ok'; mime: string; size: number; url: string; text?: string; truncated?: boolean; mtime?: number };
+
+export type BotFileSave = { status: 'saving' } | { status: 'saved'; mtime?: number } | { status: 'error'; error: string };
 
 export interface BotFiles {
   botFiles: Record<string, BotFile[]>;
   botFileData: Record<string, BotFileData>;
   onBotFilesGet: (botId: string) => void;
   onBotFileGet: (botId: string, path: string, force?: boolean) => void;
+  botFileSaves: Record<string, BotFileSave>;
+  onBotFilePut: (botId: string, path: string, text: string, baseMtime?: number) => boolean;
   onMsg: (msg: ServerMsg) => boolean;
 }
 
@@ -19,7 +23,7 @@ export const botFileKey = (botId: string, path: string) => `${botId}:${path}`;
 // Image previews can be up to 10MB each: keep the most recent few only.
 const MAX_CACHED = 24;
 
-function decode(dataB64: string, mime: string, size: number): BotFileData {
+export function decode(dataB64: string, mime: string, size: number): BotFileData {
   const url = `data:${mime};base64,${dataB64}`;
   if (!mime.startsWith('text/') && mime !== 'application/json') return { status: 'ok', mime, size, url };
   const bytes = Uint8Array.from(atob(dataB64), (c) => c.charCodeAt(0));
@@ -29,6 +33,7 @@ function decode(dataB64: string, mime: string, size: number): BotFileData {
 export function useBotFiles(send: (m: ClientMsg) => boolean): BotFiles {
   const [botFiles, setBotFiles] = useState<Record<string, BotFile[]>>({});
   const [botFileData, setBotFileData] = useState<Record<string, BotFileData>>({});
+  const [botFileSaves, setBotFileSaves] = useState<Record<string, BotFileSave>>({});
   const asked = useRef(new Set<string>());
 
   const put = useCallback((key: string, v: BotFileData) => {
@@ -48,11 +53,21 @@ export function useBotFiles(send: (m: ClientMsg) => boolean): BotFiles {
     if (msg.t === 'team-file') {
       const key = botFileKey(msg.botId, msg.path);
       if (msg.error || !msg.dataB64 || !msg.mime) put(key, { status: 'error', error: msg.error ?? 'arquivo indisponível' });
-      else put(key, decode(msg.dataB64, msg.mime, msg.size ?? 0));
+      else put(key, { ...decode(msg.dataB64, msg.mime, msg.size ?? 0), ...(msg.mtime !== undefined ? { mtime: msg.mtime } : {}) });
+      return true;
+    }
+    if (msg.t === 'team-file-saved') {
+      const key = botFileKey(msg.botId, msg.path);
+      setBotFileSaves((prev) => ({ ...prev, [key]: msg.ok ? { status: 'saved', mtime: msg.mtime } : { status: 'error', error: msg.error ?? 'não foi possível salvar' } }));
+      if (msg.ok) {
+        send({ t: 'team-files-get', botId: msg.botId });
+        // Loading until the re-read lands: the cached copy is the pre-save one.
+        if (send({ t: 'team-file-get', botId: msg.botId, path: msg.path })) { asked.current.add(key); put(key, { status: 'loading' }); }
+      }
       return true;
     }
     return false;
-  }, [put]);
+  }, [put, send]);
 
   const onBotFilesGet = useCallback((botId: string) => { send({ t: 'team-files-get', botId }); }, [send]);
   const onBotFileGet = useCallback((botId: string, path: string, force = false) => {
@@ -63,5 +78,11 @@ export function useBotFiles(send: (m: ClientMsg) => boolean): BotFiles {
     put(key, { status: 'loading' });
   }, [send, put]);
 
-  return { botFiles, botFileData, onBotFilesGet, onBotFileGet, onMsg };
+  const onBotFilePut = useCallback((botId: string, path: string, text: string, baseMtime?: number) => {
+    if (!send({ t: 'team-file-put', botId, path, text, ...(baseMtime !== undefined ? { baseMtime } : {}) })) return false;
+    setBotFileSaves((prev) => ({ ...prev, [botFileKey(botId, path)]: { status: 'saving' } }));
+    return true;
+  }, [send]);
+
+  return { botFiles, botFileData, onBotFilesGet, onBotFileGet, botFileSaves, onBotFilePut, onMsg };
 }

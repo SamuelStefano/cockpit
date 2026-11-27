@@ -32,6 +32,11 @@ describe('authorize', () => {
     expect(authorize('student', 'team-file-get')).toBe(true);
   });
 
+  it('admin and student write a bot workspace file (team-file-put)', () => {
+    expect(authorize('student', 'team-file-put')).toBe(true);
+    expect(authorize('admin', 'team-file-put')).toBe(true);
+  });
+
   it('student may poll grok usage like Claude, and read computer counts', () => {
     expect(authorize('student', 'grok-usage-get')).toBe(true);
     expect(authorize('student', 'plan-usage-get')).toBe(true);
@@ -108,7 +113,7 @@ describe('authorize', () => {
       'admin-cli-install', 'admin-cli-update', 'admin-deck-restart',
       'agent-add-custom', 'agent-probe-draft', 'provider-probe',
       'claude-import-scan', 'claude-import-apply',
-      'versions-restore',
+      'versions-restore', 'team-ws-repos-get', 'team-ws-connect',
       'vault-put', 'vault-list', 'vault-rm', 'prs-get', 'prs-detail-get', 'prs-diff-get', 'prs-session-get', 'prs-merge', 'claude-account-get', 'claude-logout',
     ] as const;
     expect([...ROOT_ONLY].sort()).toEqual([...owner].sort());
@@ -151,6 +156,14 @@ describe('authorize', () => {
     }
   });
 
+  it('executor frames are admin-only and never owner-only', () => {
+    for (const t of ['heavy-run', 'heavy-cancel', 'heavy-get'] as const) {
+      expect(authorize('admin', t)).toBe(true);
+      expect(authorize('student', t)).toBe(false);
+      expect(ROOT_ONLY.has(t)).toBe(false);
+    }
+  });
+
   it('connections-get is admin-only and never owner-only', () => {
     expect(authorize('admin', 'connections-get')).toBe(true);
     expect(authorize('student', 'connections-get')).toBe(false);
@@ -164,5 +177,16 @@ describe('village frames', () => {
       expect(authorize('admin', t)).toBe(true);
       expect(authorize('student', t)).toBe(false);
     }
+  });
+});
+
+describe('agents repo frames', () => {
+  it('students read history only; connect is root-only', () => {
+    expect(authorize('student', 'team-ws-log-get')).toBe(true);
+    expect(authorize('student', 'team-ws-diff-get')).toBe(true);
+    expect(authorize('student', 'team-ws-restore')).toBe(false);
+    expect(authorize('student', 'team-ws-sync')).toBe(false);
+    expect(authorize('admin', 'team-ws-connect', false)).toBe(false);
+    expect(authorize('admin', 'team-ws-repos-get', true)).toBe(true);
   });
 });

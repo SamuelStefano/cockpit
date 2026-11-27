@@ -1,8 +1,9 @@
-import { Button, ListRow, SectionTitle } from '../../components/primitives';
+import { Button, ListRow } from '../../components/primitives';
 import { AdminConfirm } from '../AdminConfirm';
 import { useDeckUpdate } from '../useDeckUpdate';
 import type { Caps } from '../../../shared/protocol';
 import { SwitchRow } from './SwitchRow';
+import { SettingsCard } from './SettingsCard';
 import { useAdminOpToast } from './useAdminOpToast';
 
 interface AvancadoProps {
@@ -22,8 +23,7 @@ export function Avancado({ caps, bypass, setBypass, isRoot, isMobile, adminOp, o
   const u = useDeckUpdate(adminOp, onCliUpdate, onDeckRestart);
   return (
     <>
-      <SectionTitle className="max-lg:hidden">Avançado</SectionTitle>
-      <div className="overflow-hidden rounded-xl border border-red-500/25 bg-neutral-900/60 hairline">
+      <SettingsCard tone="danger" flush>
         {caps?.canBypass && (
           <SwitchRow
             danger label="Pular aprovações" checked={bypass} onChange={() => setBypass(!bypass)}
@@ -42,7 +42,7 @@ export function Avancado({ caps, bypass, setBypass, isRoot, isMobile, adminOp, o
             trailing={<Button variant="danger" size="sm" loading={u.busy === 'restart'} disabled={u.busy !== null} onClick={u.askRestartNow}>Reiniciar</Button>}
           />
         )}
-      </div>
+      </SettingsCard>
       {u.confirmNow && (
         <AdminConfirm
           heading="Reiniciar o Deck agora?" icon="zap" tone="danger" cta="Reiniciar"
