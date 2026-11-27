@@ -1,4 +1,4 @@
-import { Badge, Button, Icon, IconButton } from '../../components/primitives';
+import { Badge, Button, IconButton } from '../../components/primitives';
 import { TopBarAction } from '../../components/chrome/sidebar/TopBarSlot';
 
 interface Props {
@@ -11,7 +11,7 @@ interface Props {
   onNewEpic: () => void;
 }
 
-// Page title row: the route and month, the month-cap state, DFL sync freshness
+// Month row under the Work tabs: the month, the month-cap state, DFL sync freshness
 // and the one top-level action.
 export function PontosTopBar({ month, state, syncLabel, stale, syncing, onSync, onNewEpic }: Props) {
   return (
@@ -21,8 +21,6 @@ export function PontosTopBar({ month, state, syncLabel, stale, syncing, onSync, 
       <IconButton icon="rotate" label="Sincronizar com o DFL" side="bottom" loading={syncing} onClick={onSync} className={`pointer-coarse:h-11 pointer-coarse:w-11 ${stale ? 'text-yellow-300' : ''}`} />
     </TopBarAction>
     <div className="flex h-11 shrink-0 items-center gap-2 border-b border-neutral-800/80 px-4 max-lg:hidden">
-      <Icon name="star" size={15} className="shrink-0 text-orange-400" />
-      <h1 className="text-[15px] font-semibold tracking-tight text-neutral-50">Pontos</h1>
       {/* On a phone the month yields its room to the cap state: squeezed, "teto
           estourado" broke into two lines inside its pill. */}
       {month && <span className="hidden font-mono text-[13px] text-neutral-500 sm:inline">{month}</span>}

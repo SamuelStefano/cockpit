@@ -13,6 +13,8 @@ import { CanvasInspector } from './canvas/CanvasInspector';
 import { CanvasLoadingState } from './canvas/CanvasLoadingState';
 import { CanvasSurface } from './canvas/CanvasSurface';
 import { CanvasTimeline } from './canvas/CanvasTimeline';
+import { WorkTabs } from '../components/chrome/work/WorkTabs';
+import type { NavRole } from '../components/chrome/nav-routes';
 import { Kanban } from './canvas/Kanban';
 import { KanbanDock } from './canvas/KanbanDock';
 import { CanvasAnalysis } from './canvas/CanvasAnalysis';
@@ -26,7 +28,7 @@ import { useCanvasRoute, type CanvasRouteProps } from './canvas/useCanvasRoute';
 import { MAX_OPEN_TERMS, pickRecentSessions } from './canvas/canvas-terms';
 import { termTarget, useCanvasTerms } from './canvas/useCanvasTerms';
 
-export function Canvas(p: CanvasRouteProps) {
+export function Canvas(p: CanvasRouteProps & { role: NavRole }) {
   const terms = useCanvasTerms(p.term, p.discoveredTerms, p.listTerms);
   const r = useCanvasRoute(p, terms.open, terms.shells);
   // Sessions alive in a `cockpit-cv-*` shell: feeds the "ao vivo" badge and the "sessões" quick-open ranking.
@@ -123,6 +125,7 @@ export function Canvas(p: CanvasRouteProps) {
           phone, the "filtros" button ended up
           off-screen. */}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <WorkTabs role={p.role} active={view === 'kanban' ? 'kanban' : 'canvas'} />
         <CanvasFilters
           coarse={coarse} mode={view} onMode={r.setMode} scope={r.scope} onScope={r.setScope} archived={r.archived} onArchived={r.setArchived}
           showAutomation={r.showAutomation} onShowAutomation={r.setShowAutomation}

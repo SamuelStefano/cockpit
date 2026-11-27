@@ -78,8 +78,11 @@ interface AnimatedTile { tile: Phaser.Tilemaps.Tile; anim: TileAnim }
 
 type KeyName = 'W' | 'A' | 'S' | 'D' | 'UP' | 'DOWN' | 'LEFT' | 'RIGHT' | 'SHIFT';
 
+const TALK_REACH = 28;
+
 class WorldSceneV2 extends Phaser.Scene {
-  private readonly opts: WorldOptions;
+  private readonly opts: WorldOptions & { onError?: () => void };
+  private failed = false;
   private mode: CameraMode;
   private recording = false;
   private ready = false;
@@ -110,6 +113,7 @@ class WorldSceneV2 extends Phaser.Scene {
   private userZoomed = false;
   private userMoved = false;
   private selecting = false;
+  private followId: string | null = null;
   private selected = new Set<string>();
   private rings = new Map<string, Phaser.GameObjects.Ellipse>();
   private lastCelebrate: string[] | null = null;
@@ -118,13 +122,27 @@ class WorldSceneV2 extends Phaser.Scene {
   private fpsFrames = 0;
   private fpsSince = 0;
 
-  constructor(opts: WorldOptions) {
+  constructor(opts: WorldOptions & { onError?: () => void }) {
     super('world-v2');
     this.opts = opts;
     this.mode = opts.mode;
   }
 
+  private fail(): void {
+    if (this.failed) return;
+    this.failed = true;
+    this.opts.onError?.();
+  }
+
+  private watchCritical(): void {
+    this.load.on('loaderror', (f: { key?: string }) => {
+      const k = f.key ?? '';
+      if (k === MAP_KEY || k === BOTS_KEY || k === PC_KEY || k.startsWith('v2-ts-')) this.fail();
+    });
+  }
+
   preload(): void {
+    this.watchCritical();
     this.load.tilemapTiledJSON(MAP_KEY, `${V2}world.tmj`);
     this.load.json(BOTS_KEY, `${V2}bots.json`);
     this.load.json(PC_KEY, `${V2}pc.json`);
@@ -160,13 +178,16 @@ class WorldSceneV2 extends Phaser.Scene {
     cam.roundPixels = true;
     const raw = (this.cache.tilemap.get(MAP_KEY) as { data?: V2Map } | undefined)?.data;
     const meta = this.cache.json.get(BOTS_KEY) as BotsMeta | undefined;
-    if (!raw || !meta) throw new Error('world v2: map or bots.json failed to load');
+    if (this.failed || !raw || !meta) { this.fail(); return; }
     this.raw = raw;
     this.meta = meta;
     for (const ts of raw.tilesets) if (ts.image) this.load.image(`v2-ts-${ts.name}`, `${V2}${ts.image}`);
     this.load.image(PC_KEY, `${V2}pc.png`);
     this.queueSheet(sheetFor(meta, AVATAR_SHEET, AVATAR_SHEET));
-    this.load.once('complete', () => this.build());
+    this.load.once('complete', () => {
+      if (this.failed) return;
+      try { this.build(); } catch { this.fail(); }
+    });
     this.load.start();
   }
 
@@ -192,7 +213,10 @@ class WorldSceneV2 extends Phaser.Scene {
     const seats = resolveSeats(this.layout, view.npcs);
     const live = new Set(view.npcs.map((n) => n.id));
     for (const [id, bot] of this.bots) if (!live.has(id)) this.removeBot(id, bot);
-    for (const v of view.npcs) this.upsertBot(v, seats.get(v.id)!);
+    for (const v of view.npcs) {
+      const seat = seats.get(v.id);
+      if (seat) this.upsertBot(v, seat);
+    }
     if (view.celebrate.length > 0 && view.celebrate !== this.lastCelebrate) for (const id of view.celebrate) this.celebrate(id);
     this.lastCelebrate = view.celebrate;
   }
@@ -200,6 +224,7 @@ class WorldSceneV2 extends Phaser.Scene {
   setMode(mode: CameraMode): void {
     if (mode === this.mode) return;
     this.mode = mode;
+    this.followId = null;
     this.userZoomed = false;
     this.userMoved = false;
     if (this.ready) this.applyMode();
@@ -449,7 +474,10 @@ class WorldSceneV2 extends Phaser.Scene {
       id: b.view.id, x: b.sprite.x, y: b.sprite.y - head - (b.pill.h * this.labelScale) / 2, w: b.pill.w * this.labelScale, h: b.pill.h * this.labelScale,
     }));
     const lifts = nudgePills(boxes);
-    for (const b of this.bots.values()) b.pill.c.setPosition(Math.round(b.sprite.x), Math.round(b.sprite.y - head - b.lift - (lifts.get(b.view.id) ?? 0)));
+    for (const b of this.bots.values()) {
+      const o = lifts.get(b.view.id);
+      b.pill.c.setPosition(Math.round(b.sprite.x + (o?.dx ?? 0)), Math.round(b.sprite.y - head - b.lift + (o?.dy ?? 0)));
+    }
     this.avatarPill.c.setPosition(Math.round(this.avatar.x), Math.round(this.avatar.y - head));
   }
 
@@ -478,6 +506,7 @@ class WorldSceneV2 extends Phaser.Scene {
     const kb = this.input.keyboard;
     if (kb) {
       const k = (c: string): Phaser.Input.Keyboard.Key => kb.addKey(c, false);
+      kb.addKey('E', false).on('down', () => { if (!isTypingTarget(document.activeElement as HTMLElement | null) && this.mode === 'avatar') { const id = this.botNearAvatar(); if (id) this.opts.onOpenBot(id); } });
       this.keys = { W: k('W'), A: k('A'), S: k('S'), D: k('D'), UP: k('UP'), DOWN: k('DOWN'), LEFT: k('LEFT'), RIGHT: k('RIGHT'), SHIFT: k('SHIFT') };
     }
     this.input.addPointer(1);
@@ -488,6 +517,7 @@ class WorldSceneV2 extends Phaser.Scene {
     });
     this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
       if (this.mode !== 'god' || !p.isDown || p.rightButtonDown() || this.pinching) return;
+      if (this.followId) this.releaseFollow();
       const cam = this.cameras.main;
       cam.setScroll(cam.clampX(cam.scrollX - (p.x - p.prevPosition.x) / cam.zoom), cam.clampY(cam.scrollY - (p.y - p.prevPosition.y) / cam.zoom));
       this.userMoved = true;
@@ -509,6 +539,37 @@ class WorldSceneV2 extends Phaser.Scene {
       this.wheelAcc = 0;
       this.stepCameraZoom(dir);
     });
+  }
+
+  screenPos(id: string): { x: number; y: number; w: number; h: number } | null {
+    const b = this.bots.get(id);
+    if (!b) return null;
+    const c = this.cameras.main;
+    return { x: (b.sprite.x - c.worldView.x) * c.zoom, y: (b.sprite.y - c.worldView.y) * c.zoom, w: c.width, h: c.height };
+  }
+
+  private botNearAvatar(): string | null {
+    let best: string | null = null;
+    let bestD = TALK_REACH;
+    for (const [id, b] of this.bots) {
+      const d = Math.hypot(b.sprite.x - this.avatar.x, b.sprite.y - this.avatar.y);
+      if (d <= bestD) { best = id; bestD = d; }
+    }
+    return best;
+  }
+
+  follow(id: string | null): void {
+    const b = id ? this.bots.get(id) : undefined;
+    this.followId = b ? id : null;
+    if (!this.ready) return;
+    if (b) this.cameras.main.startFollow(b.sprite, true, 0.15, 0.15);
+    else this.releaseFollow();
+  }
+
+  private releaseFollow(): void {
+    this.followId = null;
+    if (this.mode === 'avatar') this.cameras.main.startFollow(this.avatar, true, 0.15, 0.15);
+    else this.cameras.main.stopFollow();
   }
 
   private stepCameraZoom(dir: number): void {
@@ -580,6 +641,7 @@ class WorldSceneV2 extends Phaser.Scene {
     const step = (runSpeed(AVATAR_SPEED, running) * dt) / 1000;
     let routed = false;
     if (vx !== 0 || vy !== 0) {
+      if (this.followId) this.releaseFollow();
       this.route = [];
       this.marker.setVisible(false);
     } else if (this.route.length > 0) {
@@ -727,7 +789,7 @@ class WorldSceneV2 extends Phaser.Scene {
   }
 }
 
-export function createWorldV2(opts: WorldOptions): WorldHandle {
+export function createWorldV2(opts: WorldOptions & { onError?: () => void }): WorldHandle {
   const scene = new WorldSceneV2(opts);
   const game = new Phaser.Game({
     type: Phaser.AUTO,
@@ -747,6 +809,8 @@ export function createWorldV2(opts: WorldOptions): WorldHandle {
     setMode: (m) => scene.setMode(m),
     setRecording: (r) => scene.setRecording(r),
     setSelection: (s, ids) => scene.setSelection(s, ids),
+    follow: (id) => scene.follow(id),
+    screenPos: (id) => scene.screenPos(id),
     celebrate: (id) => scene.celebrate(id),
     setStick: (x, y) => scene.setStick(x, y),
     refresh: () => game.scale.refresh(),

@@ -6,10 +6,16 @@ const m = vi.hoisted(() => ({
   send: vi.fn(),
   taps: new Set<(msg: unknown) => void>(),
   team: [] as Record<string, unknown>[],
+  paused: false,
+  drop: null as null | ((msg: unknown) => boolean),
+  recording: new Set<unknown>(),
 }));
+vi.mock('../team-log', () => ({ isTeamPaused: () => m.paused }));
 vi.mock('./broadcast', () => ({
   send: m.send, broadcast: vi.fn(),
   addBroadcastTap: (fn: (msg: unknown) => void) => { m.taps.add(fn); return () => m.taps.delete(fn); },
+  setRecordingDrop: (fn: ((msg: unknown) => boolean) | null) => { m.drop = fn; },
+  setSocketRecording: (ws: unknown, on: boolean) => { if (on) m.recording.add(ws); else m.recording.delete(ws); },
 }));
 vi.mock('../team', () => ({ getTeam: async () => m.team }));
 vi.mock('./team-state-frames', () => ({
@@ -33,7 +39,7 @@ const bot = (extra = {}) => ({ id: 'ana1', name: 'Ana', label: 'dev', ...extra }
 const frames = () => m.send.mock.calls.map((c) => c[1] as { t: string; [k: string]: unknown });
 const emit = (msg: unknown) => { for (const t of m.taps) t(msg); };
 
-beforeEach(() => { vi.clearAllMocks(); m.taps.clear(); m.team = [bot({ sessionId: 'sess-1' })]; threads.clear(); });
+beforeEach(() => { vi.clearAllMocks(); m.taps.clear(); m.paused = false; m.drop = null; m.recording.clear(); m.team = [bot({ sessionId: 'sess-1' })]; threads.clear(); });
 afterEach(() => { _resetTalkForTests(); });
 
 describe('team talk', () => {
@@ -74,9 +80,14 @@ describe('team talk', () => {
     const ws = sock();
     await sendTalk(ws, { t: 'team-talk-get', botId: 'ana1' }, 'admin');
     m.send.mockClear();
-    emit({ t: 'delta', sessionKey: 'bot-ana1', text: 'olá' });
-    emit({ t: 'delta', sessionKey: 'bot-zzzz', text: 'other' });
-    expect(frames()).toEqual([{ t: 'team-talk-chunk', botId: 'ana1', chunk: { kind: 'delta', text: 'olá' } }]);
+    emit({ t: 'delta', sessionKey: 'bot-ana1', text: 'olá mundo' });
+    emit({ t: 'delta', sessionKey: 'bot-zzzz', text: 'other ' });
+    emit({ t: 'done', sessionKey: 'bot-ana1', sessionId: 's' });
+    expect(frames().slice(0, 3)).toEqual([
+      { t: 'team-talk-chunk', botId: 'ana1', chunk: { kind: 'delta', text: 'olá ' } },
+      { t: 'team-talk-chunk', botId: 'ana1', chunk: { kind: 'delta', text: 'mundo' } },
+      { t: 'team-talk-chunk', botId: 'ana1', chunk: { kind: 'done' } },
+    ]);
   });
 
   it('recording mode redacts snapshot and stream on the server', async () => {
@@ -99,7 +110,64 @@ describe('team talk', () => {
     const ws = sock();
     await sendTalk(ws, { t: 'team-talk-get', botId: 'ana1' }, 'admin');
     m.send.mockClear();
-    emit({ t: 'delta', sessionKey: 'tab-key', text: 'x' });
+    emit({ t: 'delta', sessionKey: 'tab-key', text: 'x ' });
     expect(frames()).toHaveLength(1);
+  });
+
+  it('redacts secrets in deltas and in the snapshot even when not recording, also when split across deltas', async () => {
+    const ws = sock();
+    await sendTalk(ws, { t: 'team-talk-get', botId: 'ana1' }, 'admin');
+    m.send.mockClear();
+    emit({ t: 'delta', sessionKey: 'bot-ana1', text: 'key is ghp_abcdefgh' });
+    emit({ t: 'delta', sessionKey: 'bot-ana1', text: 'ijklmnopqrst done ' });
+    emit({ t: 'done', sessionKey: 'bot-ana1', sessionId: 's' });
+    const text = frames().filter((f) => (f.chunk as { kind: string }).kind === 'delta').map((f) => (f.chunk as { text: string }).text).join('');
+    expect(text).not.toContain('ghp_abcdefgh');
+    expect(text).toContain('[secret]');
+  });
+
+  it('scrubs secrets from the snapshot task and PR titles', async () => {
+    const { scrubTalkSnapshot } = await import('../../shared/team-talk');
+    const s = scrubTalkSnapshot({ redacted: false, botId: 'a', name: 'A', label: '', state: 'idle', task: 'use token=abcd1234efgh5678', prs: [{ number: 1, title: 'ghp_abcdefghijklmnopqrstu', url: 'u', state: 'open' }], needs: ['password=hunter22222'], at: 1 });
+    expect(JSON.stringify(s)).not.toMatch(/abcd1234efgh5678|ghp_abcdefghijklmnopqrstu|hunter22222/);
+  });
+
+  it('refuses while the team is paused, and keeps one message in flight per bot', async () => {
+    const handle = vi.fn(async () => {});
+    const ws = sock();
+    m.paused = true;
+    await sendTalkMessage(ws, { t: 'team-talk-send', botId: 'ana1', text: 'oi', msgId: 'a' }, 'admin', handle);
+    expect(frames().at(-1)).toMatchObject({ chunk: { kind: 'refused', reason: 'paused' } });
+    m.paused = false;
+    await sendTalkMessage(ws, { t: 'team-talk-send', botId: 'ana1', text: 'oi', msgId: 'a' }, 'admin', handle);
+    await sendTalkMessage(ws, { t: 'team-talk-send', botId: 'ana1', text: 'de novo', msgId: 'b' }, 'admin', handle);
+    expect(handle).toHaveBeenCalledTimes(1);
+    expect(frames().at(-1)).toMatchObject({ chunk: { kind: 'refused', reason: 'busy' } });
+    emit({ t: 'done', sessionKey: 'bot-ana1', sessionId: 's' });
+    await sendTalkMessage(ws, { t: 'team-talk-send', botId: 'ana1', text: 'agora sim', msgId: 'c' }, 'admin', handle);
+    expect(handle).toHaveBeenCalledTimes(2);
+  });
+
+  it('a rejected send frees the bot', async () => {
+    const handle = vi.fn(async () => {});
+    const ws = sock();
+    await sendTalkMessage(ws, { t: 'team-talk-send', botId: 'ana1', text: 'oi', msgId: 'a' }, 'admin', handle);
+    emit({ t: 'send-reject', sessionKey: 'bot-ana1', reason: 'ctx-hard', text: 'oi', message: 'no' });
+    await sendTalkMessage(ws, { t: 'team-talk-send', botId: 'ana1', text: 'de novo', msgId: 'b' }, 'admin', handle);
+    expect(handle).toHaveBeenCalledTimes(2);
+  });
+
+  it('marks the socket as recording and the drop filter cuts bot text from the normal fan-out', async () => {
+    const ws = sock();
+    await sendTalk(ws, { t: 'team-talk-get', botId: 'ana1', recording: true }, 'admin');
+    expect(m.recording.has(ws)).toBe(true);
+    const drop = m.drop!;
+    expect(drop({ t: 'delta', sessionKey: 'bot-ana1', text: 'x' })).toBe(true);
+    expect(drop({ t: 'tool', sessionKey: 'bot-ana1' })).toBe(true);
+    expect(drop({ t: 'team-message', item: {} })).toBe(true);
+    expect(drop({ t: 'done', sessionKey: 'bot-ana1' })).toBe(false);
+    expect(drop({ t: 'delta', sessionKey: 'some-human-chat', text: 'x' })).toBe(false);
+    await sendTalk(ws, { t: 'team-talk-get', botId: 'ana1' }, 'admin');
+    expect(m.recording.has(ws)).toBe(false);
   });
 });

@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Button, IconButton, SectionTitle } from '../../components/primitives';
+import { Button, IconButton } from '../../components/primitives';
 import { VpsMeters } from '../../components/chrome/sidebar/VpsMeters';
 import { TopBarAction } from '../../components/chrome/sidebar/TopBarSlot';
 import { AdminHostOps } from '../AdminHostOps';
@@ -9,6 +9,7 @@ import { Collapsible } from '../Collapsible';
 import { ClaudeAccountCard } from './ClaudeAccountCard';
 import type { AdminHealth, ClaudeAccount, ClaudeLoginView, SysStats } from '../../../shared/protocol';
 import { useAdminOpToast } from './useAdminOpToast';
+import { SettingsCard } from './SettingsCard';
 
 interface MaquinaProps {
   stats: SysStats | null;
@@ -46,26 +47,25 @@ export function Maquina(p: MaquinaProps) {
 
   return (
     <>
-      <div className="flex items-center max-lg:hidden">
-        <SectionTitle className="flex-1">Máquina</SectionTitle>
+      <div className="flex justify-end max-lg:hidden">
         <Button variant="secondary" size="sm" icon="rotate" title="Atualizar agora" onClick={onHealthList}>Atualizar</Button>
       </div>
       <TopBarAction>
         <IconButton icon="rotate" label="Atualizar agora" side="bottom" onClick={onHealthList} className="pointer-coarse:h-11 pointer-coarse:w-11" />
       </TopBarAction>
-      <div className="overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900/60 hairline [&>div]:border-t-0 max-lg:rounded-none max-lg:border-0 max-lg:bg-transparent [&>div]:max-lg:px-0">
+      <SettingsCard flush className="[&>div]:border-t-0">
         <VpsMeters stats={p.stats} />
-      </div>
+      </SettingsCard>
       {p.health && <Collapsible title="Inventário"><AdminInventory health={p.health} /></Collapsible>}
       {p.isRoot && (
-        <div className="mt-6 max-lg:mt-0">
+        <>
           <ClaudeAccountCard
             account={p.claudeAccount} login={p.claudeLogin} onGet={p.onClaudeAccountGet} onLogout={p.onClaudeLogout}
             onLoginStart={p.onClaudeLoginStart} onLoginCode={p.onClaudeLoginCode} onLoginCancel={p.onClaudeLoginCancel}
           />
           <AdminDeckUpdate health={p.health} adminOp={p.adminOp} onCliUpdate={p.onCliUpdate} onDeckRestart={p.onDeckRestart} />
           <AdminHostOps health={p.health} adminOp={p.adminOp} onEnvSet={p.onEnvSet} onEnvUnset={p.onEnvUnset} onMcpAdd={p.onMcpAdd} onMcpRemove={p.onMcpRemove} onCliInstall={p.onCliInstall} />
-        </div>
+        </>
       )}
     </>
   );

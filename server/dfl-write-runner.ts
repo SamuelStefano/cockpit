@@ -15,7 +15,7 @@ export type DflWriteCmd =
   | { kind: 'points-change'; taskId: string; taskName: string; currentPoints: number; newPoints: number; reason?: string }
   | { kind: 'invoice-create'; deliveryId: string; deliveryName: string; projectId?: string | null; projectName?: string | null; referenceMonth: string; pricePerPoint: number; tasks: { id: string; title: string; points: number; deliveryId?: string; deliveryName?: string }[] }
   | { kind: 'task-create'; epicId: string; deliveryId: string; taskName: string; why: string; what: string }
-  | { kind: 'task-status'; taskId: string; status: DflTaskDbStatus };
+  | { kind: 'task-status'; taskId: string; status: DflTaskDbStatus; unlessFinished?: boolean };
 
 // Safety net for a Playwright/manual test backend: set DFL_WRITE_DISABLED=1
 // and every write refuses BEFORE spawning the child process (never a live

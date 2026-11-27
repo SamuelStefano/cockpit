@@ -9,6 +9,8 @@ import { handoffPromptBlock } from './team-rotate';
 
 const MAX_IDENTITY_BYTES = 16 * 1024;
 
+const EXECUTOR_RULE = (name: string) => `Trabalho pesado (suíte de testes, build, e2e, render) nunca roda nesta máquina. Rode no executor: \`deckctl heavy run <repo> <branch> --as ${/\s/.test(name) ? JSON.stringify(name) : name} --wait -- <comando>\`. Se o executor estiver desligado, o job espera na fila: avise o humano em vez de rodar localmente.`;
+
 function rosterLine(b: TeamBot, byId: Map<string, TeamBot>, team: TeamBot[]): string {
   const parts = [`- ${b.name}${b.primary ? ' (principal)' : ''}${b.label ? ` — ${b.label}` : ''}`];
   const dept = departmentById(b.department);
@@ -25,7 +27,7 @@ function rosterLine(b: TeamBot, byId: Map<string, TeamBot>, team: TeamBot[]): st
 // session without a recorded snapshot (older CLI, or one compacted since) still
 // gets it. The CLI's default --system-prompt-snapshot records the first launch's
 // text, so an instructions edit reaches an existing thread only after a compact.
-export function buildBotIdentity(bot: TeamBot, team: TeamBot[], memories?: Memory[]): string {
+export function buildBotIdentity(bot: TeamBot, team: TeamBot[], memories?: Memory[], executorOn = false): string {
   const byId = new Map(team.map((b) => [b.id, b]));
   const lines = [
     `Você é ${bot.name}${bot.label ? `, ${bot.label}` : ''}, um bot da equipe do Deck. Fale sempre como ${bot.name}.`,
@@ -41,6 +43,7 @@ export function buildBotIdentity(bot: TeamBot, team: TeamBot[], memories?: Memor
     for (const b of team) lines.push(rosterLine(b, byId, team));
     lines.push('', 'Tarefas: as que você é dona aparecem em `team_tasks`. Quando o trabalho de uma delas deixa a sua área, passe-a com `team_handoff`, preenchendo os quatro campos (feito, falta, por que troca de mão, ponto da troca) junto com quem vai receber; ele vira o dono e você segue como consultor.');
   }
+  if (executorOn && bot.profile === 'full') lines.push('', EXECUTOR_RULE(bot.name));
   const text = lines.join('\n');
   const bytes = new TextEncoder().encode(text);
   const base = bytes.length <= MAX_IDENTITY_BYTES ? text : new TextDecoder().decode(bytes.slice(0, MAX_IDENTITY_BYTES));
@@ -82,13 +85,13 @@ export async function botDenyRules(turn: Pick<BotTurn, 'skills' | 'permissions'>
 // A turn driven by anyone but admin is always restricted, whatever team.json says:
 // a non-admin account can reach that file through other means, the profile it
 // stored there must not be what unlocks Bash.
-export function botTurnFor(team: TeamBot[], sessionKey: string, sessionId: string | undefined, role: Role | undefined, memories?: Memory[]): BotTurn | undefined {
-  const turn = botTurnParams(team, sessionKey, sessionId, memories);
+export function botTurnFor(team: TeamBot[], sessionKey: string, sessionId: string | undefined, role: Role | undefined, memories?: Memory[], executorOn = false): BotTurn | undefined {
+  const turn = botTurnParams(team, sessionKey, sessionId, memories, executorOn);
   if (!turn || role === 'admin') return turn;
   return { ...turn, profile: 'restricted', ...(turn.permissions ? { permissions: { ...turn.permissions, write: false } } : {}) };
 }
 
-export function botTurnParams(team: TeamBot[], sessionKey: string, sessionId?: string, memories?: Memory[]): BotTurn | undefined {
+export function botTurnParams(team: TeamBot[], sessionKey: string, sessionId?: string, memories?: Memory[], executorOn = false): BotTurn | undefined {
   const bot = findTurnBot(team, sessionKey, sessionId);
   if (!bot) return undefined;
   // After `team rotate` the bot has no bound session: a stale id from a tab must not
@@ -97,7 +100,7 @@ export function botTurnParams(team: TeamBot[], sessionKey: string, sessionId?: s
   return {
     botId: bot.id,
     resumeId: rotated ? undefined : bot.sessionId ?? (sessionId && bot.previousSessionIds?.includes(sessionId) ? undefined : sessionId),
-    appendSystemPrompt: buildBotIdentity(bot, team, memories) + (rotated ? handoffPromptBlock(bot.id) : ''),
+    appendSystemPrompt: buildBotIdentity(bot, team, memories, executorOn) + (rotated ? handoffPromptBlock(bot.id) : ''),
     profile: bot.profile === 'full' ? 'full' : 'restricted',
     ...(bot.model ? { model: bot.model } : {}),
     ...(bot.mode ? { mode: bot.mode } : {}),

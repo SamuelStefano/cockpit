@@ -65,7 +65,7 @@ describe('usePoints', () => {
     await Promise.resolve();
     expect(resolvida).toBe(false);
     await act(async () => { vi.advanceTimersByTime(65_000); });
-    await expect(p).resolves.toEqual({ ok: false, message: 'tempo esgotado' });
+    await expect(p).resolves.toEqual({ ok: false, unknown: true, message: 'sem resposta a tempo — pode ter sido gravado' });
   });
 
   // Sem conexão o frame nem sai: resolver na hora evita o modal travado 65s.
@@ -84,7 +84,7 @@ describe('usePoints', () => {
     act(() => { p = result.current.onDflChange(mudanca); });
     const { reqId } = enviados[0] as { reqId: string };
     await act(async () => { vi.advanceTimersByTime(65_000); });
-    await expect(p).resolves.toEqual({ ok: false, message: 'tempo esgotado' });
+    await expect(p).resolves.toEqual({ ok: false, unknown: true, message: 'sem resposta a tempo — pode ter sido gravado' });
     act(() => { expect(result.current.onMsg({ t: 'points-dfl-write', reqId, kind: 'change', ok: true })).toBe(true); });
   });
 
