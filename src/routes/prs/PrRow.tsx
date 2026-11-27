@@ -9,8 +9,8 @@ export function PrRow({ pr, active, onSelect, hideRepo = false, tag }: PrRowProp
   return (
     <button
       type="button" onClick={() => onSelect(pr.url)} aria-current={active}
-      className={`block w-full rounded-xl border px-3 py-2.5 text-left transition ${
-        active ? 'border-orange-500/40 bg-orange-500/6' : 'border-neutral-800 bg-neutral-900/40 hover:border-neutral-700'}`}
+      className={`block min-h-12 w-full rounded-2xl border px-3 py-2.5 text-left transition ${
+        active ? 'border-orange-500/40 bg-orange-500/6' : 'border-neutral-800 bg-neutral-900/60 hover:border-neutral-700'}`}
     >
       <span className="block truncate text-[14px] font-medium text-neutral-100">{pr.title}</span>
       <span className="mt-0.5 block truncate font-mono text-[12px] text-neutral-500">

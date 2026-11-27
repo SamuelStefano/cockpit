@@ -3,9 +3,12 @@ import type { DflDraft, DraftOp } from '../../shared/dfl-drafts';
 import { usePontos } from './pontos/usePontos';
 import { useDflPontos } from './pontos/useDflPontos';
 import { usePontosControlsState, PontosControlsProvider, type DflWriteApi } from './pontos/pontosControls';
+import { WorkTabs } from '../components/chrome/work/WorkTabs';
+import type { NavRole } from '../components/chrome/nav-routes';
 import { PontosWorkspace } from './pontos/PontosWorkspace';
 
 interface Props {
+  role: NavRole;
   connected: boolean;
   points: PointsEntry[];
   total: number;
@@ -39,6 +42,7 @@ export function Pontos(props: Props) {
   const controls = usePontosControlsState({ onDflChange, onDflInvoice, onPontosAgent });
   return (
     <PontosControlsProvider value={controls}>
+      <WorkTabs role={props.role} active="pontos" />
       <PontosWorkspace
         connected={connected} now={p.now} snapshot={dflSnapshot} waiting={!dflLoaded && connected}
         syncing={props.dflSyncing} onSync={props.onDflSync}

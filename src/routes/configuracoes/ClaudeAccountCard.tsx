@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import { Button, ListRow, SectionTitle } from '../../components/primitives';
+import { Button, ListRow } from '../../components/primitives';
+import { SettingsCard } from './SettingsCard';
 import { ClaudeLoginDetail } from '../onboarding/ClaudeLoginDetail';
 import type { ClaudeAccount, ClaudeLoginView } from '../../../shared/protocol';
 
@@ -22,9 +23,7 @@ export function ClaudeAccountCard(p: ClaudeAccountCardProps) {
   const hint = connected ? (p.account?.orgName ?? p.account?.authMethod) : undefined;
 
   return (
-    <div className="mb-6">
-      <SectionTitle>Conta do Claude</SectionTitle>
-      <div className="overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900/60 hairline">
+    <SettingsCard title="Conta do Claude" flush>
         <ListRow
           label={label}
           hint={hint}
@@ -52,7 +51,6 @@ export function ClaudeAccountCard(p: ClaudeAccountCardProps) {
         ) : (
           <p className="border-t border-neutral-800 px-4 py-2 text-[12px] text-neutral-500">A conta atual continua ativa até a nova concluir</p>
         )}
-      </div>
-    </div>
+    </SettingsCard>
   );
 }

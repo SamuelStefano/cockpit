@@ -4,6 +4,7 @@ import { applyTaskUpdate, registerTaskCreate, taskSnapshot } from '../sessions/t
 import { broadcast } from './broadcast';
 import { resolveApp, parseMcpToolName } from '../mcp/apps';
 import { threads, type Thread } from './threads';
+import { recordLiveTool } from '../agent-live';
 
 // Teto de tools retidas por thread: um run de horas com centenas de tools não
 // pode crescer sem limite na memória (cada entrada é re-serializada no replay).
@@ -73,6 +74,7 @@ export function emitTool(thread: Thread, sessionKey: string, block: any, status:
   };
   snapshotTool(thread, tool);
   broadcast({ t: 'tool', sessionKey, tool });
+  if (thread.params.botId) recordLiveTool(thread.params.botId, tool);
 }
 
 // Resolve a UI de uma tool MCP fora do stream e re-emite o card com o app anexado.
@@ -142,4 +144,5 @@ export function closeTool(thread: Thread, sessionKey: string, c: any) {
   };
   snapshotTool(thread, tool);
   broadcast({ t: 'tool', sessionKey, tool });
+  if (thread.params.botId) recordLiveTool(thread.params.botId, tool);
 }

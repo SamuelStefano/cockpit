@@ -88,13 +88,10 @@ export const MessageRow = memo(function MessageRow({ msg, avatar, bit, caretOnLa
     // data-mid em toda linha (não só nas do usuário): é a âncora que o
     // "carregar antigas" usa pra reposicionar o scroll. Uma resposta longa pode
     // ocupar a viewport inteira — sem âncora ali, a leitura saltava.
-    <div data-mid={msg.id} data-role="assistant" className="fade-up group/msg flex flex-col gap-2">
-      {showModelLabel && (
-        <div className="flex min-w-0 items-center gap-2 text-[13px] font-medium text-neutral-300">
-          {avatar ?? <Bit state={bit ?? 'idle'} still={!bit} size={24} />}
-          <span className="max-w-[260px] truncate">{modelLabel || 'Claude'}</span>
-        </div>
-      )}
+    <div data-mid={msg.id} data-role="assistant" className="fade-up group/msg flex gap-3">
+      {showModelLabel && <span className="mt-0.5 shrink-0">{avatar ?? <Bit state={bit ?? 'idle'} still={!bit} size={24} />}</span>}
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+      {showModelLabel && <span className="max-w-[260px] truncate text-[12px] font-medium text-(--text-weak)">{modelLabel || 'Claude'}</span>}
       <MessageActionsHost className="min-w-0 flex-1" spec={{ text: hasText ? messageToText(msg.blocks) : '', speak: true, onRegenerate, onQuote, onMemorize }}>
         {msg.quick && (
           <div className="mb-1 inline-flex items-center gap-1 rounded-full bg-sky-500/15 px-2 py-0.5 text-[12px] font-medium text-sky-300">
@@ -119,6 +116,7 @@ export const MessageRow = memo(function MessageRow({ msg, avatar, bit, caretOnLa
         )}
         {hasText && !caretOnLast && msg.ts && <time className="hidden text-[11px] tabular-nums text-neutral-600 max-[719px]:block pointer-coarse:block">{fmtClock(msg.ts)}</time>}
       </MessageActionsHost>
+      </div>
     </div>
   );
 });

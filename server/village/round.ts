@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import type { TeamBot } from '../../shared/protocol';
 import { PLANNER_LIMITS, READY_BY_RE, type PlannerTask } from '../../shared/planner';
 import { isUnsafeTask, matchesUnsafeNet, normalizeText, UNSAFE_NET } from '../../shared/village-risk';
-import type { TeamMessage } from '../../shared/team-messages';
+import { VILLAGE_SENDER, type TeamMessage } from '../../shared/team-messages';
 import { VILLAGE_DEFAULT_DAILY_CAP, type VillagePlanView, type VillageState } from '../../shared/village';
 import { readTasksChained, updateTasks } from '../planner/store';
 import { getTeam } from '../team';
@@ -132,10 +132,8 @@ export async function defaultDeps(): Promise<RoundDeps> {
   };
 }
 
-function senderFor(team: TeamBot[], botId: string): string | undefined {
-  const primary = team.find((b) => b.primary && b.id !== botId);
-  return (primary ?? team.find((b) => b.id !== botId))?.id;
-}
+// The round never borrows a bot's identity (it used to send as the primary bot).
+const senderFor = (_team: TeamBot[], _botId: string): string => VILLAGE_SENDER;
 
 async function spool(from: string, to: string, text: string, now: number): Promise<string> {
   const dir = join(teamOutboxDir(), 'village');

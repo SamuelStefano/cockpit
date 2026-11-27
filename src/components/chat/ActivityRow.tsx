@@ -27,7 +27,7 @@ export function ActivityRow({ tools }: ActivityRowProps) {
       <button
         onClick={() => setManual(!open)}
         aria-expanded={open}
-        className={`flex h-[30px] max-w-full items-center gap-2 border bg-transparent pl-2 pr-2.5 text-left text-[13px] text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-300 ${open ? 'rounded-t-md' : 'rounded-md'} ${failed ? 'border-red-500/30' : 'border-neutral-800'} ${tokens.focusRing}`}
+        className={`flex h-10 max-w-full items-center gap-2 border bg-transparent pl-2 pr-2.5 text-left text-[13px] text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-300 ${open ? 'rounded-t-[10px]' : 'rounded-[10px]'} ${failed ? 'border-red-500/30' : 'border-neutral-800'} ${tokens.focusRing}`}
       >
         <span className="flex shrink-0 gap-0.5">
           {activityIcons(tools).map((name) => <Icon key={name} name={name} size={14} />)}
@@ -37,7 +37,7 @@ export function ActivityRow({ tools }: ActivityRowProps) {
         <Icon name={open ? 'chevronDown' : 'chevronRight'} size={14} className="shrink-0" />
       </button>
       {open && (
-        <div className={`flex w-full min-w-0 flex-col gap-1 rounded-b-md border border-t-0 px-2.5 py-1.5 font-mono text-[12px] text-neutral-500 sm:w-fit sm:min-w-80 sm:max-w-full ${failed ? 'border-red-500/30' : 'border-neutral-800'}`}>
+        <div className={`flex w-full min-w-0 flex-col gap-1 rounded-b-[10px] border border-t-0 px-2.5 py-1.5 font-mono text-[12px] text-neutral-500 sm:w-fit sm:min-w-80 sm:max-w-full ${failed ? 'border-red-500/30' : 'border-neutral-800'}`}>
           {tools.map((t) => {
             const st = itemStatus(t);
             const expanded = !!detail[t.id];

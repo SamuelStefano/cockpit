@@ -2,9 +2,9 @@ import { useState, useEffect, useCallback } from 'react';
 
 // Router minúsculo (sem dep): só troca a VIEW principal. useCockpit fica ACIMA
 // deste switch no App, então o WebSocket/terminais nunca desmontam ao navegar.
-export type Route = '/' | '/equipe' | '/equipe/memoria' | '/pontos' | '/equipe/rotinas' | '/equipe/mundo' | '/configuracoes' | '/configuracoes/uso' | '/configuracoes/pessoas' | '/configuracoes/maquina' | '/configuracoes/maquinas' | '/configuracoes/avancado' | '/configuracoes/skills' | '/configuracoes/conexoes' | '/configuracoes/docs' | '/graph' | '/canvas' | '/ds' | '/onboarding' | '/agentes' | '/agentes/loja' | '/base' | '/arcade' | '/prs';
+export type Route = '/' | '/equipe' | '/equipe/memoria' | '/pontos' | '/equipe/rotinas' | '/equipe/mundo' | '/configuracoes' | '/configuracoes/uso' | '/configuracoes/pessoas' | '/configuracoes/maquina' | '/configuracoes/maquinas' | '/configuracoes/avancado' | '/configuracoes/skills' | '/configuracoes/conexoes' | '/configuracoes/docs' | '/graph' | '/canvas' | '/ds' | '/onboarding' | '/agentes' | '/agentes/loja' | '/base' | '/arcade' | '/prs' | '/explorar';
 
-const ROUTES: Route[] = ['/', '/equipe', '/equipe/memoria', '/pontos', '/equipe/rotinas', '/equipe/mundo', '/configuracoes', '/configuracoes/uso', '/configuracoes/pessoas', '/configuracoes/maquina', '/configuracoes/maquinas', '/configuracoes/avancado', '/configuracoes/skills', '/configuracoes/conexoes', '/configuracoes/docs', '/graph', '/canvas', '/ds', '/onboarding', '/agentes', '/base', '/arcade', '/prs'];
+const ROUTES: Route[] = ['/', '/equipe', '/equipe/memoria', '/pontos', '/equipe/rotinas', '/equipe/mundo', '/configuracoes', '/configuracoes/uso', '/configuracoes/pessoas', '/configuracoes/maquina', '/configuracoes/maquinas', '/configuracoes/avancado', '/configuracoes/skills', '/configuracoes/conexoes', '/configuracoes/docs', '/graph', '/canvas', '/ds', '/onboarding', '/agentes', '/base', '/arcade', '/prs', '/explorar'];
 
 // Old URLs (bookmarks, deep links) keep working; the retired screens fall back to chat.
 const LEGACY: Record<string, string> = { '/notas': '/', '/play': '/', '/sala': '/', '/placar': '/', '/harness': '/', '/contextos': '/equipe/memoria', '/crons': '/equipe/rotinas', '/uso': '/configuracoes/uso' };
@@ -38,13 +38,14 @@ function redirectLegacy(): void {
 // conversa, duas abas em chats diferentes. A VIEW continua sendo '/', então o id
 // só alimenta a sessão ativa — nada remonta ao trocar de chat.
 const CHAT = '/c/';
-export type AgentTab = 'perfil' | 'rotinas' | 'arquivos' | 'computador';
-const AGENT_TABS: readonly AgentTab[] = ['perfil', 'rotinas', 'arquivos', 'computador'];
+export type AgentTab = 'perfil' | 'rotinas' | 'arquivos' | 'versoes' | 'computador';
+const AGENT_TABS: readonly AgentTab[] = ['perfil', 'rotinas', 'arquivos', 'versoes', 'computador'];
 const AGENTS = '/agentes/';
 // Reserved agent ids: they are pages under /agentes, never a bot (real ids come from newBotId).
 export const AGENT_NEW = 'novo';
 export const AGENT_STORE = 'loja';
 export const AGENT_MEETINGS = 'reunioes';
+export const AGENT_EXECUTOR = 'executor';
 // The menu entry for the Store: current() reads it back as route '/agentes' + agentId AGENT_STORE.
 export const STORE_ROUTE: Route = '/agentes/loja';
 // The menu route to highlight: the Store is a page under /agentes, so it needs its own key.

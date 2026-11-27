@@ -70,3 +70,13 @@ describe('team_task_done', () => {
     expect(again).toMatchObject({ status: 'blocked' });
   });
 });
+
+describe('team_task_done summary', () => {
+  it('redacts secrets before they reach the board', async () => {
+    await seed(claimed());
+    await applyTaskDone(done('bob', 't1', 'deployed with token=abcd1234efgh5678 and ghp_abcdefghijklmnopqrstu'), [], 5000);
+    const [t] = await readTasks();
+    expect(t.description).not.toContain('abcd1234efgh5678');
+    expect(t.description).not.toContain('ghp_abcdefghijklmnopqrstu');
+  });
+});

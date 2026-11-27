@@ -13,6 +13,12 @@ describe('useRoute', () => {
     expect(result.current.route).toBe('/configuracoes/pessoas');
   });
 
+  it('abre /explorar', () => {
+    history.replaceState(null, '', '/explorar');
+    const { result } = renderHook(() => useRoute());
+    expect(result.current.route).toBe('/explorar');
+  });
+
   it('/painel e /uso redirecionam pra Configurações', () => {
     for (const [from, to] of [['/painel', '/configuracoes/maquina'], ['/painel#overview', '/configuracoes/maquina'], ['/painel#accounts', '/configuracoes/pessoas'], ['/uso', '/configuracoes/uso']]) {
       history.replaceState(null, '', from);

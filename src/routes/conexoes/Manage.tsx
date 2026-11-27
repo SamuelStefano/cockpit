@@ -18,7 +18,7 @@ export interface ManageProps {
 
 export function ManageProviders({ agents, term, models, isRoot, onOpenAgentChat }: ManageProps) {
   return (
-    <Collapsible title="Gerenciar provedores e modelos">
+    <Collapsible className="mt-6" title="Gerenciar provedores e modelos">
       <AdminAgents agents={agents} term={term} isRoot={isRoot} onOpenChat={onOpenAgentChat} />
       <AdminModels models={models} />
     </Collapsible>
@@ -27,7 +27,7 @@ export function ManageProviders({ agents, term, models, isRoot, onOpenAgentChat 
 
 export function ManageTools({ onMcpsGet, term }: ManageProps) {
   return (
-    <Collapsible title="Gerenciar ferramentas" openOn={MCP_LOGIN_EVENT}>
+    <Collapsible className="mt-6" title="Gerenciar ferramentas" openOn={MCP_LOGIN_EVENT}>
       <AdminMcps onRefresh={onMcpsGet} term={term} />
     </Collapsible>
   );

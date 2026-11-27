@@ -21,7 +21,7 @@ const field = 'w-full rounded-lg border border-neutral-800 bg-neutral-950 px-3 p
 function Field({ label, help, children }: { label: string; help?: string; children: ReactNode }) {
   return (
     <div className="flex flex-col gap-1.5 max-lg:gap-1">
-      <label className="text-[12px] font-medium text-neutral-400">{label}</label>
+      <label className="text-[12px] font-medium text-(--text-weak)">{label}</label>
       {children}
       {help && <p className="text-[12px] text-neutral-500">{help}</p>}
     </div>
@@ -54,7 +54,7 @@ export function AgentForm({ bot, bots, models, locked, skills = [], onSave, onSa
   const b = useBuilderPanels(patch);
   return (
     <>
-      <form className="flex flex-col gap-5 max-lg:gap-3" onSubmit={(e) => { e.preventDefault(); submit(); }}>
+      <form className="flex flex-col gap-5 rounded-2xl border border-(--border) bg-neutral-900/60 p-4 max-lg:gap-3 max-lg:rounded-none max-lg:border-0 max-lg:bg-transparent max-lg:p-0" onSubmit={(e) => { e.preventDefault(); submit(); }}>
         {onAgentBuild && !locked && (
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant="secondary" size="sm" icon="sparkles" onClick={() => b.setPanel('builder')}>{bot ? 'Ajustar conversando' : 'Criar conversando'}</Button>
