@@ -1,22 +1,22 @@
 import { Icon, type IconName } from '../../primitives';
 import type { Route } from '../../../useRoute';
-import { navFor, type NavRole } from '../nav-routes';
+import type { NavRole } from '../nav-routes';
+import { canOpen, isWorkRoute, workRoute } from '../rail/rail-order';
 
-export type TabId = 'equipe' | 'conversas' | 'canvas' | 'mais';
+export type TabId = 'chats' | 'agentes' | 'trabalho' | 'mais';
 
-interface Tab { id: TabId; label: string; icon: IconName; route?: Route }
+interface Tab { id: TabId; label: string; icon: IconName }
 
 const TABS: Tab[] = [
-  { id: 'equipe', label: 'Equipe', icon: 'users', route: '/equipe' },
-  { id: 'conversas', label: 'Conversas', icon: 'message' },
-  { id: 'canvas', label: 'Canvas', icon: 'grip', route: '/canvas' },
+  { id: 'chats', label: 'Chats', icon: 'message' },
+  { id: 'agentes', label: 'Agentes', icon: 'users' },
+  { id: 'trabalho', label: 'Trabalho', icon: 'grip' },
   { id: 'mais', label: 'Mais', icon: 'ellipsis' },
 ];
 
-// Tabs a role can open: route tabs follow the same menu list as the sidebar.
+// Tabs a role can open: the route tabs follow the same menu list as the sidebar.
 export function tabsFor(role: NavRole): Tab[] {
-  const allowed = new Set(navFor(role).map((n) => n.to));
-  return TABS.filter((t) => !t.route || allowed.has(t.route));
+  return TABS.filter((t) => (t.id === 'agentes' ? canOpen(role, '/agentes') : t.id === 'trabalho' ? workRoute(role) !== null : true));
 }
 
 interface MobileTabBarProps {
@@ -30,14 +30,20 @@ interface MobileTabBarProps {
 // Phone bottom bar. The app root already pads the bottom safe-area inset, so the bar adds none;
 // the page hides it while the keyboard is open.
 export function MobileTabBar({ role, route, onNavigate, onConversations, onMore }: MobileTabBarProps) {
+  const work = workRoute(role);
   return (
     <nav
       aria-label="Navegação principal"
       className="flex shrink-0 border-t border-neutral-800 bg-neutral-950"
     >
       {tabsFor(role).map((t) => {
-        const active = t.route !== undefined && route === t.route;
-        const press = () => (t.route ? onNavigate(t.route) : t.id === 'conversas' ? onConversations() : onMore());
+        const active = t.id === 'agentes' ? route === '/agentes' || route.startsWith('/agentes/') : t.id === 'trabalho' && isWorkRoute(route);
+        const press = () => {
+          if (t.id === 'chats') onConversations();
+          else if (t.id === 'agentes') onNavigate('/agentes');
+          else if (t.id === 'trabalho') { if (work) onNavigate(work); }
+          else onMore();
+        };
         return (
           <button
             key={t.id} type="button" onClick={press} aria-current={active ? 'page' : undefined}

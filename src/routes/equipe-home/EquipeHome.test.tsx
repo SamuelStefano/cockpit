@@ -39,6 +39,11 @@ describe('EquipeHome', () => {
     expect(screen.getByText('Trabalhando agora')).toBeTruthy();
     expect(screen.getByText('Redesenho do Deck')).toBeTruthy();
   });
+  it('shows the team tabs with the pending count', () => {
+    mount();
+    expect(screen.getByRole('tab', { name: /Pedidos/ }).getAttribute('aria-selected')).toBe('true');
+    expect(screen.getByRole('tab', { name: /Rotinas/ })).toBeTruthy();
+  });
   it('Cobrar sends to the bot that owes the answer', () => {
     const p = mount();
     fireEvent.click(screen.getByRole('button', { name: 'Cobrar' }));

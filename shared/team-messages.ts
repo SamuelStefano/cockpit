@@ -93,7 +93,11 @@ export function trafficLine(botId: string, m: TeamMessage, nameOf: (id: string) 
   return m.from === botId ? `Mandou para ${nameOf(m.to)}: ${m.text}` : `Mensagem de ${nameOf(m.from)}: ${m.text}`;
 }
 
+// The village round speaks as a system sender, never as a team member's identity.
+export const VILLAGE_SENDER = 'village';
+
 export function botName(team: Pick<TeamBot, 'id' | 'name'>[], id: string): string {
+  if (id === VILLAGE_SENDER) return 'a Vila';
   return team.find((b) => b.id === id)?.name ?? id;
 }
 

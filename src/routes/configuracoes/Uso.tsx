@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { SectionTitle } from '../../components/primitives';
+import { SettingsCard } from './SettingsCard';
 import { UsagePanel } from '../../components/chrome/UsagePanel';
 import { usageRows } from '../../components/chrome/usage-rows';
 import { usageChip } from '../../components/chrome/usage-agent';
@@ -31,14 +31,12 @@ export function Uso({ dock, connected, usageStats, onUsageList, sessions, rate, 
 
   return (
     <>
-      <SectionTitle className="max-lg:hidden">Uso</SectionTitle>
-      <div className="rounded-xl border border-neutral-800 bg-neutral-900/60 hairline [&>div]:w-full">
+      <SettingsCard className="[&>div]:w-full">
         <UsagePanel inline rows={usageRows(chip.usage)} reset={resetAt ? relReset(resetAt) : ''} warn={warn || paused} blockedUntil={chip.blockedUntil} readAt={chip.readAt} nextReadAt={chip.nextReadAt} title={title} secondary={chip.secondary} />
-      </div>
-      <SectionTitle>Por conversa e por modelo</SectionTitle>
-      <div className="flex flex-col lg:h-[640px] overflow-hidden rounded-xl border border-neutral-800">
+      </SettingsCard>
+      <SettingsCard title="Por conversa e por modelo" flush className="flex flex-col lg:h-[640px]">
         <Observatorio connected={connected} usageStats={usageStats} onUsageList={onUsageList} sessions={sessions} rate={rate} onOpenSession={onOpenSession} />
-      </div>
+      </SettingsCard>
     </>
   );
 }

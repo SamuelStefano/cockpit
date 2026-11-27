@@ -37,6 +37,7 @@ import { run } from '../engine/claude';
 import { broadcast } from './broadcast';
 import { runAgent } from '../agents/acp-run';
 import { readPendingQuestions, setPendingQuestion } from '../team-pending';
+import { recordLiveTool, getLive } from '../agent-live';
 
 type Ev = (ev: unknown) => void;
 const lastOnEvent = (): Ev => (vi.mocked(run).mock.calls.at(-1)![0] as unknown as { onEvent: Ev }).onEvent;
@@ -97,5 +98,18 @@ describe('a restricted bot turn (fatia E)', () => {
   it('a full bot may still use an ACP agent', () => {
     startRun({ ws: null, sessionKey: 'new-bot-capo1', prompt: 'oi', botId: 'capo1', profile: 'full', model: 'agent:grok' });
     expect(runAgent).toHaveBeenCalledOnce();
+  });
+});
+
+describe('live view of a bot turn', () => {
+  beforeEach(() => { threads.clear(); vi.clearAllMocks(); });
+
+  it('is dropped when the turn closes, so a dead run never shows as live', () => {
+    startRun({ ws: null, sessionKey: 'bot-capo1', prompt: 'oi', botId: 'capo1' });
+    recordLiveTool('capo1', { id: 't', name: 'Bash', label: 'Bash', command: 'ls', status: 'running', output: [] });
+    const { onError, onClose } = vi.mocked(run).mock.calls.at(-1)![0] as unknown as { onError: (r: string) => void; onClose: () => void };
+    onError('boom');
+    onClose();
+    expect(getLive('capo1')).toBeUndefined();
   });
 });
