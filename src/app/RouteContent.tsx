@@ -7,13 +7,13 @@ import { RouteFallback } from './RouteFallback';
 import { ChunkErrorBoundary } from './ChunkErrorBoundary';
 import {
   Pontos,
-  Graph, Canvas, DesignSystem, Onboarding, EquipePage, EquipeHome, Agente, Base, Arcade, Prs,
+  Graph, Canvas, DesignSystem, Onboarding, EquipePage, EquipeHome, Agente, Base, Arcade, Prs, Explorar,
 } from './lazyRoutes';
 import type { ChatPanelProps } from '../components/chat/chat-panel-props';
 import type { TerminalsPanelProps } from '../components/Terminals';
 import type { Terminal } from '../data/types';
 import type { useCockpit } from '../useCockpit';
-import { AGENT_MEETINGS, AGENT_STORE, type AgentTab, type Route } from '../useRoute';
+import { AGENT_EXECUTOR, AGENT_MEETINGS, AGENT_STORE, type AgentTab, type Route } from '../useRoute';
 import { SkeletonCards } from '../components/primitives';
 import { AgentsHome } from '../routes/agentes-office/AgentsHome';
 import { navigateTo } from '../lib/route-nav';
@@ -74,17 +74,18 @@ export function RouteContent({ route, agentRoute, isMobile, isAdmin, capsKnown, 
     }
     if (route === '/equipe' && isAdmin) {
       return (
-        <EquipeHome state={c.teamState} bots={c.bots} connected={connected} onLoad={c.onTeamStateGet}
+        <EquipeHome role={isRoot ? 'root' : 'admin'} state={c.teamState} bots={c.bots} connected={connected} onLoad={c.onTeamStateGet}
           onOpenAgent={agent.open} onSendTo={c.onSendTo} />
       );
     }
     if (route === '/arcade') return <Arcade />;
+    if (route === '/explorar' && isAdmin) return <Explorar role={isRoot ? 'root' : 'admin'} onOpen={navigateTo} />;
     if (route === '/prs' && isRoot) {
-      return <Prs connected={connected} onOpenSession={onOpenSession} onSendTo={c.onSendTo} onLaunchAgent={c.onLaunchAgent} />;
+      return <Prs role="root" connected={connected} onOpenSession={onOpenSession} onSendTo={c.onSendTo} onLaunchAgent={c.onLaunchAgent} />;
     }
     if (route === '/pontos' && isRoot) {
       return (
-        <Pontos connected={connected} points={c.points} total={c.pointsTotal} loaded={c.pointsLoaded}
+        <Pontos role="root" connected={connected} points={c.points} total={c.pointsTotal} loaded={c.pointsLoaded}
           onPointsGet={c.onPointsGet} onPointsAdd={c.onPointsAdd} onPointsCorrect={c.onPointsCorrect}
           onPointsNote={c.onPointsNote} onPointsDelete={c.onPointsDelete}
           dflSnapshot={c.dflSnapshot} dflLoaded={c.dflLoaded} dflSyncing={c.dflSyncing}
@@ -113,7 +114,7 @@ export function RouteContent({ route, agentRoute, isMobile, isAdmin, capsKnown, 
     }
     if (route === '/canvas' && isAdmin) {
       return (
-        <Canvas connected={connected} graph={c.canvasGraph} board={c.canvasBoard} loading={c.canvasLoading}
+        <Canvas role={isRoot ? 'root' : 'admin'} connected={connected} graph={c.canvasGraph} board={c.canvasBoard} loading={c.canvasLoading}
           loadingSince={c.canvasLoadingSince} stale={c.canvasStale} sessions={c.sessions} running={c.running} runStart={c.runStart}
           onCanvasGet={c.onCanvasGet} onCanvasPos={c.onCanvasPos} onCanvasPosReset={c.onCanvasPosReset}
           onCanvasCardSave={c.onCanvasCardSave} onCanvasCardDelete={c.onCanvasCardDelete} onCanvasBudgetSave={c.onCanvasBudgetSave}
@@ -133,16 +134,17 @@ export function RouteContent({ route, agentRoute, isMobile, isAdmin, capsKnown, 
           cvLiveSessionIds={c.cvLiveSessionIds} cvIdleSessionIds={c.cvIdleSessionIds} sessionPeeks={c.sessionPeeks} onSessionPeek={c.onSessionPeek} />
       );
     }
-    if (route === '/agentes' && agentRoute && (!agentRoute.id || agentRoute.id === AGENT_STORE || agentRoute.id === AGENT_MEETINGS)) {
+    if (route === '/agentes' && agentRoute && (!agentRoute.id || agentRoute.id === AGENT_STORE || agentRoute.id === AGENT_MEETINGS || agentRoute.id === AGENT_EXECUTOR)) {
       return (
         <div className="scroll-thin min-h-0 flex-1 overflow-y-auto">
           <div className="mx-auto w-full max-w-350 px-4 pb-8 pt-6 max-lg:pt-2 sm:px-8">
             {c.teamLoaded
-              ? <AgentsHome tab={agentRoute.id === AGENT_MEETINGS ? 'reunioes' : agentRoute.id ? 'loja' : 'escritorio'}
-                  onTab={(t) => agentRoute.open(t === 'loja' ? AGENT_STORE : t === 'reunioes' ? AGENT_MEETINGS : '')}
+              ? <AgentsHome tab={agentRoute.id === AGENT_MEETINGS ? 'reunioes' : agentRoute.id === AGENT_EXECUTOR ? 'executor' : agentRoute.id ? 'loja' : 'escritorio'}
+                  onTab={(t) => agentRoute.open(t === 'loja' ? AGENT_STORE : t === 'reunioes' ? AGENT_MEETINGS : t === 'executor' ? AGENT_EXECUTOR : '')}
                   meetings={c.meetings} onMeetingsGet={c.onMeetingsGet} onMeetingStart={c.onMeetingStart}
+                  executor={c.executor} heavyJobs={c.heavyJobs} onHeavyGet={c.onHeavyGet} onHeavyRun={c.onHeavyRun} onHeavyCancel={c.onHeavyCancel}
                   views={agent.views} bots={c.bots} skills={c.skills} connected={connected} canEdit={isAdmin} onSkillList={c.onSkillList}
-                  onSave={c.onTeamSave} onOpen={agent.open} onProfile={(id) => agentRoute.open(id)} onNew={agent.openNew} />
+                  onSave={c.onTeamSave} onDelete={c.onTeamDelete} onOpen={agent.open} onProfile={(id, tab) => agentRoute.open(id, tab)} onNew={agent.openNew} />
               : <SkeletonCards />}
           </div>
         </div>

@@ -18,6 +18,9 @@ interface UseSessionsPanelArgs {
   onSelect: (id: string) => void;
 }
 
+// Fired by the shell after it brings the all-conversations panel back, so the search can take focus once it mounts.
+export const FOCUS_SESSION_SEARCH = 'deck:focus-session-search';
+
 export function useSessionsPanel({ sessions, archived = [], searchResults, onSearch, userId, activeId, onClose, onUnhide, onSelect }: UseSessionsPanelArgs) {
   const [query, setQuery] = useState('');
   // Archiving only flips metadata on the server, so it runs at once and the toast
@@ -68,6 +71,12 @@ export function useSessionsPanel({ sessions, archived = [], searchResults, onSea
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  useEffect(() => {
+    const focus = () => requestAnimationFrame(() => { searchRef.current?.focus(); searchRef.current?.select(); });
+    window.addEventListener(FOCUS_SESSION_SEARCH, focus);
+    return () => window.removeEventListener(FOCUS_SESSION_SEARCH, focus);
   }, []);
 
   // Busca de conteúdo no backend (debounce 350ms, só se a query mudou). O filtro local (título/snippet)

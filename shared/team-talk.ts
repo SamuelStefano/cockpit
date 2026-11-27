@@ -1,6 +1,7 @@
 import type { TeamBot } from './protocol';
 import type { TeamBotStatus } from './team-state';
 import type { PrSummary, PrsSnapshot } from './prs';
+import { redactText } from './diag';
 
 export const TALK_MAX_TEXT = 4000;
 
@@ -37,7 +38,7 @@ export type TalkChunk =
   | { kind: 'delta'; text: string }
   | { kind: 'done' }
   | { kind: 'error'; message: string }
-  | { kind: 'refused'; reason: 'no-session' | 'empty' | 'too-long' };
+  | { kind: 'refused'; reason: 'no-session' | 'empty' | 'too-long' | 'paused' | 'busy' };
 
 export type TalkChunkPayload = TalkChunk | { kind: 'delta'; redacted: true; chars: number } | { kind: 'error'; redacted: true };
 
@@ -100,7 +101,17 @@ export function redactTalkSnapshot(s: TalkSnapshot): RedactedTalkSnapshot {
   };
 }
 
-export const talkPayloadFor = (s: TalkSnapshot, recording: boolean): TalkPayload => (recording ? redactTalkSnapshot(s) : s);
+// Secrets never leave the server in the snapshot, recording or not.
+export function scrubTalkSnapshot(s: TalkSnapshot): TalkSnapshot {
+  return {
+    ...s,
+    ...(s.task ? { task: redactText(s.task) } : {}),
+    prs: s.prs.map((p) => ({ ...p, title: redactText(p.title) })),
+    needs: s.needs.map(redactText),
+  };
+}
+
+export const talkPayloadFor = (s: TalkSnapshot, recording: boolean): TalkPayload => (recording ? redactTalkSnapshot(s) : scrubTalkSnapshot(s));
 
 export function redactChunk(c: TalkChunk): TalkChunkPayload {
   if (c.kind === 'delta') return { kind: 'delta', redacted: true, chars: c.text.length };
@@ -108,4 +119,18 @@ export function redactChunk(c: TalkChunk): TalkChunkPayload {
   return c;
 }
 
-export const talkChunkFor = (c: TalkChunk, recording: boolean): TalkChunkPayload => (recording ? redactChunk(c) : c);
+const scrubChunk = (c: TalkChunk): TalkChunk => (c.kind === 'delta' ? { kind: 'delta', text: redactText(c.text) } : c.kind === 'error' ? { kind: 'error', message: redactText(c.message) } : c);
+
+export const talkChunkFor = (c: TalkChunk, recording: boolean): TalkChunkPayload => (recording ? redactChunk(c) : scrubChunk(c));
+
+// A secret can be split across two deltas, and neither half matches a redaction rule. The
+// stream is released word by word: the unfinished last word waits for the next delta (or
+// for the end of the turn) so the rules see it whole.
+export const DELTA_HOLD_MAX = 200;
+
+export function releaseDelta(tail: string, delta: string): { out: string; tail: string } {
+  const raw = tail + delta;
+  let cut = raw.search(/\S*$/);
+  if (raw.length - cut > DELTA_HOLD_MAX) cut = raw.length - 64;
+  return { out: redactText(raw.slice(0, cut)), tail: raw.slice(cut) };
+}

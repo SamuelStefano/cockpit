@@ -46,7 +46,8 @@ describe('ChatEmpty layout', () => {
     const { getAllByRole, getByText } = render(<ChatEmpty onPrompt={vi.fn()}><div>composer</div></ChatEmpty>);
     expect(getAllByRole('button')).toHaveLength(3);
     expect(getByText('composer')).toBeTruthy();
-    expect(getByText('O que vamos trabalhar hoje?')).toBeTruthy();
+    expect(getByText('O que vamos fazer hoje?')).toBeTruthy();
+    expect(getByText(/Arquivos, PRs e Kanban aparecem dentro da conversa/)).toBeTruthy();
   });
 
   it('has no mascot and renders rows without borders', () => {
