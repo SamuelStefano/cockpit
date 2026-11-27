@@ -77,6 +77,13 @@ describe('writeBotFile', () => {
     writeFileSync(join(root, 'outside.md'), 'fora');
   });
 
+  it('creates the workspace dir when it does not exist yet', async () => {
+    expect(existsSync(ws('novo1'))).toBe(false);
+    const r = await writeBotFile('novo1', 'notes.md', '# oi');
+    expect(r).toMatchObject({ path: 'notes.md' });
+    expect(readFileSync(join(ws('novo1'), 'notes.md'), 'utf8')).toBe('# oi');
+  });
+
   it('writes a text file atomically and creates folders', async () => {
     const r = await writeBotFile('capo1', 'skills/x/SKILL.md', '# oi');
     expect(r).toMatchObject({ path: 'skills/x/SKILL.md' });
