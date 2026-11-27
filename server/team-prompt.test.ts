@@ -1,0 +1,144 @@
+import { describe, it, expect } from 'vitest';
+import { buildBotIdentity, findTurnBot, botTurnParams, botTurnFor } from './team-prompt';
+import type { TeamBot } from '../shared/protocol';
+
+const mk = (id: string, over: Partial<TeamBot> = {}): TeamBot => ({
+  id, name: id, label: '', instructions: '', mascot: { shape: 'blob', color: '#22c55e' }, profile: 'full', createdAt: 0, updatedAt: 0, ...over,
+});
+const team = [mk('capo1', { label: 'coo do tainan', primary: true }), mk('lead1', { parentId: 'capo1', instructions: 'escolha a hipótese' }), mk('kid11', { parentId: 'lead1' })];
+const SID = '11111111-1111-1111-1111-111111111111';
+
+describe('buildBotIdentity', () => {
+  it('names the bot, carries its instructions and the chain of command', () => {
+    const t = buildBotIdentity(team[1], team);
+    expect(t.startsWith('Você é lead1')).toBe(true);
+    expect(t).toContain('escolha a hipótese');
+    expect(t).toContain('- capo1 (principal) — coo do tainan; chefe de lead1');
+    expect(t).toContain('- lead1; responde a capo1; chefe de kid11');
+  });
+  it('names the department in the roster and in the bot identity', () => {
+    const t = [mk('capo1', { label: 'coo', department: 'direction' }), mk('lead1', { parentId: 'capo1', department: 'engineering' })];
+    const text = buildBotIdentity(t[1], t);
+    expect(text).toContain('Seu setor: Engenharia.');
+    expect(text).toContain('- capo1 — coo; setor Direção; chefe de lead1');
+    expect(text).toContain('- lead1; setor Engenharia; responde a capo1');
+    expect(buildBotIdentity(team[1], team)).not.toContain('setor');
+  });
+  it('asks for decisions as AskUserQuestion with 2-4 options and images as workspace files', () => {
+    const t = buildBotIdentity(team[0], team);
+    expect(t).toContain('AskUserQuestion com uma pergunta e 2 a 4 opções curtas e mutuamente exclusivas');
+    expect(t).toContain('![legenda](nome.png)');
+  });
+  it('tells the bot about the optional image and deadline of a proposal', () => {
+    const t = buildBotIdentity(team[0], team);
+    expect(t).toContain('`image`');
+    expect(t).toContain('`deadline`');
+  });
+  it('teaches team_tasks and team_handoff only when there is a team', () => {
+    const t = buildBotIdentity(team[1], team);
+    expect(t).toContain('`team_tasks`');
+    expect(t).toContain('`team_handoff`');
+    expect(t).toContain('quatro campos');
+    expect(buildBotIdentity(mk('solo1'), [mk('solo1')])).not.toContain('team_handoff');
+  });
+  it('omits the roster for a team of one and caps the size', () => {
+    const solo = mk('solo1', { instructions: 'z'.repeat(40_000) });
+    const t = buildBotIdentity(solo, [solo]);
+    expect(t).not.toContain('A equipe');
+    expect(new TextEncoder().encode(t).length).toBeLessThanOrEqual(16 * 1024);
+  });
+});
+
+describe('executor rule', () => {
+  it('is absent by default and for a restricted bot', () => {
+    expect(buildBotIdentity(team[0], team)).not.toContain('deckctl heavy run');
+    expect(buildBotIdentity(mk('r1', { profile: 'restricted' }), team, undefined, true)).not.toContain('deckctl heavy run');
+  });
+  it('tells a full bot to use the executor under its own name and not to run heavy work here', () => {
+    const t = buildBotIdentity(team[1], team, undefined, true);
+    expect(t).toContain('deckctl heavy run <repo> <branch> --as lead1 --wait -- <comando>');
+    expect(t).toContain('nunca roda nesta máquina');
+  });
+  it('reaches the turn only when the caller says the executor is configured', () => {
+    expect(botTurnParams(team, 'new-bot-capo1', undefined)?.appendSystemPrompt).not.toContain('deckctl heavy run');
+    expect(botTurnParams(team, 'new-bot-capo1', undefined, undefined, true)?.appendSystemPrompt).toContain('deckctl heavy run');
+    expect(botTurnFor(team, 'new-bot-capo1', undefined, 'admin', undefined, true)?.appendSystemPrompt).toContain('deckctl heavy run');
+  });
+});
+
+describe('findTurnBot / botTurnParams', () => {
+  const bound = [mk('capo1', { sessionId: SID, effort: 'high' })];
+  it('finds by key or by bound session', () => {
+    expect(findTurnBot(bound, 'new-bot-capo1')?.id).toBe('capo1');
+    expect(findTurnBot(bound, 'bot-capo1')?.id).toBe('capo1');
+    expect(findTurnBot(bound, SID, SID)?.id).toBe('capo1');
+    expect(findTurnBot(bound, 'k1', 'other')).toBeUndefined();
+    expect(findTurnBot(bound, 'bot-ghost1')).toBeUndefined();
+  });
+  it('resumes the bound session and pins the bot settings', () => {
+    expect(botTurnParams(bound, 'new-bot-capo1', undefined)).toMatchObject({ botId: 'capo1', resumeId: SID, effort: 'high' });
+    expect(botTurnParams([mk('capo1')], 'new-bot-capo1', undefined)?.resumeId).toBeUndefined();
+  });
+});
+
+describe('botTurnFor (fatia E)', () => {
+  it('carries the stored profile for admin', () => {
+    expect(botTurnFor([mk('capo1', { profile: 'full' })], 'new-bot-capo1', undefined, 'admin')?.profile).toBe('full');
+    expect(botTurnFor([mk('capo1', { profile: 'restricted' })], 'new-bot-capo1', undefined, 'admin')?.profile).toBe('restricted');
+  });
+  it('forces restricted for a student or an unknown role', () => {
+    expect(botTurnFor([mk('capo1', { profile: 'full' })], 'new-bot-capo1', undefined, 'student')?.profile).toBe('restricted');
+    expect(botTurnFor([mk('capo1', { profile: 'full' })], 'new-bot-capo1', undefined, undefined)?.profile).toBe('restricted');
+  });
+  it('a stored profile that is neither value reads as restricted', () => {
+    const odd = mk('capo1', { profile: 'weird' as never });
+    expect(botTurnParams([odd], 'new-bot-capo1', undefined)?.profile).toBe('restricted');
+  });
+  it('no bot, no turn', () => {
+    expect(botTurnFor([], 'k1', undefined, 'student')).toBeUndefined();
+  });
+});
+
+describe('bot access on the turn', () => {
+  it('a bot without the fields produces the same turn as before', () => {
+    const t = botTurnParams(team, 'bot-lead1');
+    expect(t).not.toHaveProperty('skills');
+    expect(t).not.toHaveProperty('permissions');
+  });
+  it('carries skills and permissions through', () => {
+    const t = botTurnParams([mk('lead1', { skills: ['a'], permissions: { read: true, write: false, net: true } })], 'bot-lead1');
+    expect(t).toMatchObject({ skills: ['a'], permissions: { write: false } });
+  });
+  it('a non-admin turn can never regain write', () => {
+    const t = botTurnFor([mk('lead1', { permissions: { read: true, write: true, net: true } })], 'bot-lead1', undefined, 'student');
+    expect(t?.permissions?.write).toBe(false);
+    expect(t?.profile).toBe('restricted');
+  });
+});
+
+describe('memory block in the bot prompt', () => {
+  const mem = (agents: string[], body = 'Tom caloroso.') => ({ id: 'm1', title: 'Marca', body, agents, updatedAt: 1, updatedBy: 'user' });
+
+  it('is byte-identical to today without memories or readers', () => {
+    const base = buildBotIdentity(team[1], team);
+    expect(buildBotIdentity(team[1], team, [])).toBe(base);
+    expect(buildBotIdentity(team[1], team, [mem(['kid11'])])).toBe(base);
+  });
+
+  it('appends the memories the bot reads', () => {
+    const t = buildBotIdentity(team[1], team, [mem(['lead1'])]);
+    expect(t).toContain('## Marca\nTom caloroso.');
+    expect(t.startsWith(buildBotIdentity(team[1], team))).toBe(true);
+  });
+
+  it('caps the memory part at 8 KB and keeps the identity cap separate', () => {
+    const base = buildBotIdentity(team[1], team);
+    const t = buildBotIdentity(team[1], team, [mem(['lead1'], 'x'.repeat(50_000))]);
+    expect(new TextEncoder().encode(t).length - new TextEncoder().encode(base).length).toBeLessThanOrEqual(8 * 1024 + 2);
+  });
+
+  it('reaches botTurnParams and botTurnFor', () => {
+    expect(botTurnParams(team, 'bot-lead1', undefined, [mem(['lead1'])])?.appendSystemPrompt).toContain('Tom caloroso.');
+    expect(botTurnFor(team, 'bot-lead1', undefined, 'admin', [mem(['lead1'])])?.appendSystemPrompt).toContain('Tom caloroso.');
+  });
+});

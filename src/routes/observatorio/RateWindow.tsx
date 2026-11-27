@@ -11,15 +11,15 @@ export function RateWindow({ rate }: { rate: { resetsAt: number; status: string 
   return (
     <div className="mb-4 rounded-xl border border-neutral-800 bg-neutral-900/40 p-4 hairline">
       <div className="mb-2 flex items-center justify-between">
-        <span className="flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-neutral-500">
+        <span className="flex items-center gap-1.5 text-[12px] uppercase tracking-wider text-neutral-500">
           <Icon name="clock" size={12} /> janela de limite · {label}
         </span>
-        <span className="font-mono text-[11px] text-neutral-400">reseta {relReset(rate.resetsAt)}</span>
+        <span className="font-mono text-[12px] text-neutral-400">reseta {relReset(rate.resetsAt)}</span>
       </div>
       <div className="h-2 w-full overflow-hidden rounded-full bg-neutral-800">
         <div className={`h-full rounded-full ${tone} transition-all`} style={{ width: `${fill}%` }} />
       </div>
-      <p className="mt-2 text-[10.5px] leading-snug text-neutral-600">
+      <p className="mt-2 text-[12px] leading-snug text-neutral-600">
         O CLI do Claude não expõe a % exata de uso — só sinaliza quando está perto do teto. A barra reflete esse status, não um percentual de tokens.
       </p>
     </div>

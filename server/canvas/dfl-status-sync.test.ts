@@ -6,7 +6,8 @@ import { dflStatusIsBillableFinished, type CanvasBoard, type CanvasCard, type Ca
 import type { DflPointsSnapshot, DflTaskNode } from '../../shared/protocol';
 
 // --- mocks for pushCardDflStatus's impure deps -------------------------------
-const { runDflWriteMock, readDflSnapshotMock, emitCanvasMsgMock, config } = vi.hoisted(() => ({
+const { runDflWriteMock, readDflSnapshotMock, emitCanvasMsgMock, withPlainMock, config } = vi.hoisted(() => ({
+  withPlainMock: vi.fn((b: unknown) => b),
   runDflWriteMock: vi.fn(),
   readDflSnapshotMock: vi.fn(async () => null as DflPointsSnapshot | null),
   emitCanvasMsgMock: vi.fn(),
@@ -15,11 +16,12 @@ const { runDflWriteMock, readDflSnapshotMock, emitCanvasMsgMock, config } = vi.h
 vi.mock('../dfl-write-runner', () => ({ runDflWrite: (...a: unknown[]) => runDflWriteMock(...a) }));
 vi.mock('../dfl-points', () => ({ readDflSnapshot: () => readDflSnapshotMock() }));
 vi.mock('../ws/canvas-clients', () => ({ emitCanvasMsg: (m: unknown) => emitCanvasMsgMock(m) }));
+vi.mock('../mission-summary', () => ({ withPlain: (b: CanvasBoard) => withPlainMock(b) }));
 vi.mock('../config', () => ({ CONFIG: config }));
 
 import { readBoard, sanitizeCard, setCardDflLink, updateBoard, upsertCard } from './board';
 import {
-  cancelPendingPush, pushBackoffMs, pushCardDflStatus, resolveDflStatusForCard, syncBoardFromDflSnapshot,
+  applyDflSyncToBoard, cancelPendingPush, pushBackoffMs, pushCardDflStatus, resolveDflStatusForCard, syncBoardFromDflSnapshot,
 } from './dfl-status-sync';
 
 describe('resolveDflStatusForCard — status mapping + conflict resolution, DFL clock vs DFL clock', () => {
@@ -121,6 +123,8 @@ beforeEach(() => {
   readDflSnapshotMock.mockReset();
   readDflSnapshotMock.mockResolvedValue(null);
   emitCanvasMsgMock.mockClear();
+  withPlainMock.mockReset();
+  withPlainMock.mockImplementation((b) => b);
   config.localOnly = true;
 });
 
@@ -130,11 +134,21 @@ async function linkedCard(cardId: string, status: CanvasCard['status'] = 'todo')
 }
 
 describe('pushCardDflStatus — review/done need a human, todo/doing never touch the network unconfirmed', () => {
+  it('an unconfirmed push asks for confirmation when DFL says the task is already finished (stale snapshot)', async () => {
+    await linkedCard('card-f');
+    runDflWriteMock.mockResolvedValue({ ok: false, error: 'dfl-write falhou: FINISHED_IN_DFL: a task já está concluída no DFL' });
+    await pushCardDflStatus('card-f', 'doing', TASK);
+    expect(runDflWriteMock).toHaveBeenCalledTimes(1); // no retries
+    expect(runDflWriteMock).toHaveBeenCalledWith({ kind: 'task-status', taskId: TASK, status: 'in_progress', unlessFinished: true });
+    const card = (await readBoard()).cards.find((c) => c.id === 'card-f')!;
+    expect(card.dfl?.awaitingConfirm).toBe(true);
+  });
+
   it('todo/doing push for real automatically (unconfirmed) on success', async () => {
     await linkedCard('card-1');
     runDflWriteMock.mockResolvedValue({ ok: true, result: { taskId: TASK, status: 'in_progress', updatedAt: '2026-09-23T00:00:00.000Z' } });
     await pushCardDflStatus('card-1', 'doing', TASK);
-    expect(runDflWriteMock).toHaveBeenCalledWith({ kind: 'task-status', taskId: TASK, status: 'in_progress' });
+    expect(runDflWriteMock).toHaveBeenCalledWith({ kind: 'task-status', taskId: TASK, status: 'in_progress', unlessFinished: expect.any(Boolean) });
     const board = await readBoard();
     expect(board.cards[0].dfl?.pending).toBeUndefined();
     expect(board.cards[0].dfl?.dflUpdatedAt).toBe(Date.parse('2026-09-23T00:00:00.000Z'));
@@ -159,7 +173,7 @@ describe('pushCardDflStatus — review/done need a human, todo/doing never touch
     await linkedCard('card-1');
     runDflWriteMock.mockResolvedValue({ ok: true, result: { taskId: TASK, status: 'done' } });
     await pushCardDflStatus('card-1', 'done', TASK, { confirmed: true });
-    expect(runDflWriteMock).toHaveBeenCalledWith({ kind: 'task-status', taskId: TASK, status: 'done' });
+    expect(runDflWriteMock).toHaveBeenCalledWith({ kind: 'task-status', taskId: TASK, status: 'done', unlessFinished: expect.any(Boolean) });
     const board = await readBoard();
     expect(board.cards[0].dfl?.pending).toBeUndefined();
   });
@@ -195,7 +209,7 @@ describe('pushCardDflStatus — reopening a billable/finished DFL task needs con
     readDflSnapshotMock.mockResolvedValue(snapshotWithTask(baseTask({ id: TASK, rawStatus: 'done', updatedAt: 100 })));
     runDflWriteMock.mockResolvedValue({ ok: true, result: { taskId: TASK, status: 'to_do' } });
     await pushCardDflStatus('card-1', 'todo', TASK, { confirmed: true });
-    expect(runDflWriteMock).toHaveBeenCalledWith({ kind: 'task-status', taskId: TASK, status: 'to_do' });
+    expect(runDflWriteMock).toHaveBeenCalledWith({ kind: 'task-status', taskId: TASK, status: 'to_do', unlessFinished: expect.any(Boolean) });
     const board = await readBoard();
     expect(board.cards[0].dfl?.pending).toBeUndefined();
   });
@@ -205,7 +219,7 @@ describe('pushCardDflStatus — reopening a billable/finished DFL task needs con
     readDflSnapshotMock.mockResolvedValue(snapshotWithTask(baseTask({ id: TASK, rawStatus: 'to_do', updatedAt: 100 })));
     runDflWriteMock.mockResolvedValue({ ok: true, result: { taskId: TASK, status: 'in_progress' } });
     await pushCardDflStatus('card-1', 'doing', TASK);
-    expect(runDflWriteMock).toHaveBeenCalledWith({ kind: 'task-status', taskId: TASK, status: 'in_progress' });
+    expect(runDflWriteMock).toHaveBeenCalledWith({ kind: 'task-status', taskId: TASK, status: 'in_progress', unlessFinished: expect.any(Boolean) });
   });
 
   it('no local baseline at all (never synced yet): nothing to detect a reopen with, pushes normally', async () => {
@@ -298,5 +312,24 @@ describe('pushCardDflStatus — never rejects (callers fire it with void)', () =
     writeFileSync(process.env.COCKPIT_CANVAS_BOARD!, '{ corrupt');
     await expect(pushCardDflStatus('card-1', 'doing', TASK)).resolves.toBeUndefined();
     expect(emitCanvasMsgMock).toHaveBeenCalledWith(expect.objectContaining({ t: 'canvas-dfl-sync-error', cardId: 'card-1' }));
+  });
+});
+
+describe('applyDflSyncToBoard — the pushed board carries the plain summaries', () => {
+  it('runs the outgoing board through withPlain so a DFL sync does not wipe summaries', async () => {
+    await linkedCard('card-1');
+    withPlainMock.mockImplementation((b) => ({ ...(b as CanvasBoard), cards: (b as CanvasBoard).cards.map((c) => ({ ...c, plain: { title: 'T', what: 'W', why: 'Y' } })) }));
+    await applyDflSyncToBoard(snapshotWithTask(baseTask({ id: TASK, rawStatus: 'done', updatedAt: 500 })));
+    expect(withPlainMock).toHaveBeenCalledTimes(1);
+    const frame = emitCanvasMsgMock.mock.calls.find(([m]) => (m as { t: string }).t === 'canvas-board')?.[0] as { board: CanvasBoard };
+    expect(frame.board.cards[0].status).toBe('done');
+    expect(frame.board.cards[0].plain).toEqual({ title: 'T', what: 'W', why: 'Y' });
+  });
+
+  it('pushes nothing when no card changed', async () => {
+    await linkedCard('card-1');
+    await applyDflSyncToBoard(snapshotWithTask(baseTask({ id: 'other', rawStatus: 'done', updatedAt: 500 })));
+    expect(withPlainMock).not.toHaveBeenCalled();
+    expect(emitCanvasMsgMock).not.toHaveBeenCalled();
   });
 });

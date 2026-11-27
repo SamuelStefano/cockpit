@@ -1,0 +1,152 @@
+import { describe, it, expect } from 'vitest';
+import type { TeamState } from '../../../../shared/team-state';
+import { badgeText, deriveWorld, npcSprite, stationOf } from './world-state';
+
+const state = (over: Partial<TeamState> = {}): TeamState => ({
+  at: 1_000_000,
+  followUpHours: 4,
+  bots: [
+    { id: 'a', name: 'Íris', role: 'cargo', status: 'working', task: 'secret task text', lastSend: { to: 'b', at: 1, preview: 'secret preview' } },
+    { id: 'b', name: 'Otto', role: 'cargo', status: 'idle' },
+    { id: 'c', name: 'Luffy', role: 'cargo', status: 'waiting', project: 'itera' },
+  ],
+  handoffs: [],
+  followUps: [],
+  ...over,
+});
+
+describe('npcSprite', () => {
+  it('maps each status to an animation and bubble', () => {
+    expect(npcSprite('working')).toEqual({ anim: 'work', bubble: null, tool: true });
+    expect(npcSprite('idle')).toEqual({ anim: 'idle', bubble: 'zz', tool: false });
+    expect(npcSprite('waiting')).toEqual({ anim: 'wait', bubble: '!', tool: false });
+  });
+});
+
+describe('badgeText', () => {
+  it('hides missing and zero counts, caps large ones', () => {
+    expect(badgeText(undefined)).toBeNull();
+    expect(badgeText(0)).toBeNull();
+    expect(badgeText(NaN)).toBeNull();
+    expect(badgeText(7)).toBe('7');
+    expect(badgeText(250)).toBe('99+');
+  });
+});
+
+describe('deriveWorld', () => {
+  it('returns an empty world without a snapshot', () => {
+    expect(deriveWorld(null)).toEqual({ npcs: [], flights: [], projects: {}, meetingSize: 0, celebrate: [] });
+  });
+
+  it('keeps only name, mode and badge per bot', () => {
+    const w = deriveWorld(state(), { counts: { a: 3 } });
+    expect(w.npcs).toEqual([
+      { id: 'a', name: 'Íris', mode: 'working', badge: '3', home: 'escritorio', onBreak: false, meeting: false },
+      { id: 'b', name: 'Otto', mode: 'idle', badge: null, home: 'escritorio', onBreak: false, meeting: false },
+      { id: 'c', name: 'Luffy', mode: 'waiting', badge: null, home: 'itera', onBreak: false, meeting: false },
+    ]);
+    const dump = JSON.stringify(w);
+    expect(dump).not.toContain('secret');
+  });
+
+  it('formats project counts and hides empty ones', () => {
+    expect(deriveWorld(state(), { projects: { itera: 4, dfl: 0 } }).projects).toEqual({ itera: '4' });
+  });
+
+  it('shows no badges with real data: counts only come from the demo', () => {
+    const w = deriveWorld(state({ bots: [{ id: 'z', name: 'Luffy', role: 'r', status: 'working', project: 'itera' }] }));
+    expect(w.projects).toEqual({});
+    expect(w.npcs[0]?.badge).toBeNull();
+  });
+
+  it('turns recent handoffs into flights and drops stale or unknown ones', () => {
+    const w = deriveWorld(state({
+      handoffs: [
+        { from: 'a', to: 'b', point: 'secret point', at: 999_000, taskId: 't1' },
+        { to: 'c', point: 'x', at: 999_500, taskId: 't2' },
+        { from: 'a', to: 'ghost', point: 'x', at: 999_900, taskId: 't3' },
+        { from: 'a', to: 'b', point: 'x', at: 1_000_000 - 3_600_000, taskId: 't4' },
+      ],
+    }));
+    expect(w.flights).toEqual([
+      { key: 't1:999000', from: 'a', to: 'b' },
+      { key: 't2:999500', from: null, to: 'c' },
+    ]);
+    expect(JSON.stringify(w)).not.toContain('secret');
+  });
+});
+
+describe('deriveWorld homeSeat', () => {
+  it('keeps homeSeat only when the house is the bot own', () => {
+    const w = deriveWorld(state({ bots: [{ id: 'z', name: 'X', role: 'r', status: 'idle', home: 'deck', homeSeat: 2 }, { id: 'y', name: 'Y', role: 'r', status: 'idle', home: 'qa', homeSeat: 1 }] }));
+    expect(w.npcs.map((n) => n.homeSeat)).toEqual([2, undefined]);
+  });
+});
+
+describe('deriveWorld home', () => {
+  it('resolves the home through the real map', () => {
+    const w = deriveWorld(state({ bots: [{ id: 'z', name: 'X', role: 'r', status: 'working', home: 'deck' }, { id: 'y', name: 'Y', role: 'r', status: 'idle', sector: 'growth' }] }));
+    expect(w.npcs.map((n) => n.home)).toEqual(['deck', 'corte-radar']);
+  });
+});
+
+describe('stationOf', () => {
+  it('keeps every bot at home, sends meeting bots to the room and strollers to the plaza', () => {
+    expect(stationOf({ home: 'dfl', onBreak: false, meeting: false })).toBe('dfl');
+    expect(stationOf({ home: 'dfl', onBreak: true, meeting: false })).toBe('plaza');
+    expect(stationOf({ home: 'dfl', onBreak: false, meeting: true })).toBe('sala');
+    expect(stationOf({ home: 'dfl', onBreak: true, meeting: true })).toBe('sala');
+  });
+
+  it('marks meeting participants from the running meeting only', () => {
+    const w = deriveWorld(state(), { meeting: { participantIds: ['a', 'zzz'] } });
+    expect(w.meetingSize).toBe(1);
+    expect(w.npcs.map((n) => n.meeting)).toEqual([true, false, false]);
+  });
+});
+
+describe('deriveWorld celebrate', () => {
+  it('passes known ids only', () => {
+    const w = deriveWorld(state(), { celebrate: ['a', 'ghost'] });
+    expect(w.celebrate).toEqual(['a']);
+    const list = ['a'];
+    expect(deriveWorld(state(), { celebrate: list }).celebrate).toBe(list);
+  });
+});
+
+describe('deriveWorld colour', () => {
+  it('passes a hex mascot colour and drops anything else', () => {
+    const w = deriveWorld(state({ bots: [
+      { id: 'a', name: 'A', role: 'r', status: 'idle', color: '#3fd17f' },
+      { id: 'b', name: 'B', role: 'r', status: 'idle', color: 'red; drop' },
+      { id: 'c', name: 'C', role: 'r', status: 'idle' },
+    ] }));
+    expect(w.npcs.map((n) => n.color)).toEqual(['#3fd17f', undefined, undefined]);
+  });
+});
+
+describe('deriveWorld moderator', () => {
+  it('flags the moderator and counts it as a participant', () => {
+    const w = deriveWorld(state(), { meeting: { participantIds: ['a'], moderatorId: 'c' } });
+    expect(w.npcs.find((n) => n.id === 'c')).toMatchObject({ meeting: true, moderator: true });
+    expect(w.npcs.find((n) => n.id === 'a')?.moderator).toBeUndefined();
+    expect(w.meetingSize).toBe(2);
+  });
+
+  it('ignores an unknown moderator', () => {
+    const w = deriveWorld(state(), { meeting: { participantIds: ['a'], moderatorId: 'zzz' } });
+    expect(w.npcs.some((n) => n.moderator)).toBe(false);
+    expect(w.meetingSize).toBe(1);
+  });
+});
+
+describe('deriveWorld doing', () => {
+  it('passes only a boolean flag, never the task', () => {
+    const s = state();
+    s.bots[1] = { ...s.bots[1]!, doing: true };
+    const w = deriveWorld(s);
+    expect(w.npcs.find((n) => n.id === 'b')?.doing).toBe(true);
+    expect(w.npcs.find((n) => n.id === 'a')?.doing).toBeUndefined();
+    expect(JSON.stringify(w)).not.toContain('secret');
+  });
+});

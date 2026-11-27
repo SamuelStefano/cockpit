@@ -48,7 +48,7 @@ describe('fetchBuild', () => {
     vi.stubGlobal('fetch', fetchMock);
     expect((await fetchBuild())?.entry).toBe('/assets/index-abc.js');
     const [url, init] = fetchMock.mock.calls[0];
-    expect(url).toBe(`${ORIGIN}/api/build`);
+    expect(url).toBe(`${ORIGIN}/build.json`);
     expect(init).toMatchObject({ cache: 'no-store', credentials: 'omit' });
   });
 
@@ -59,6 +59,11 @@ describe('fetchBuild', () => {
 
   it('returns null when the network is down', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')));
+    expect(await fetchBuild()).toBeNull();
+  });
+
+  it('returns null when the host answers HTML instead of JSON', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => { throw new SyntaxError('html'); } }));
     expect(await fetchBuild()).toBeNull();
   });
 

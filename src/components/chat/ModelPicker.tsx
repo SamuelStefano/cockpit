@@ -1,52 +1,106 @@
-import type { ModelInfo } from '../../../shared/protocol';
-import { prettyModel, normalizeModelId } from './toolbar-format';
-import { modelOptions } from './model-options';
-import { usePersisted } from '../../lib/persist';
-import { Icon, tokens } from '../primitives';
+import { useEffect, useState } from 'react';
+import type { Effort, ModelInfo } from '../../../shared/protocol';
+import { isAgentModel } from '../../../shared/agents';
+import { shortModelName } from '../../../shared/model-catalog';
+import { OPEN_MODEL_EVENT } from './model-events';
+import { useModelPicker } from './useModelPicker';
+import { ModelPanel } from './ModelPanel';
+import { EffortColumn } from './EffortColumn';
+import { effortLabel } from './effort-levels';
+import { Icon, Sheet, tokens } from '../primitives';
+import { useConnectionsCtx } from '../../cockpit/ConnectionsContext';
+import { openAdminTab } from '../../lib/admin-nav';
+import { openConexoes } from '../../lib/conexoes-nav';
 
-const ADD = '__add__';
+const chip = 'inline-flex h-[30px] max-w-28 cursor-pointer items-center gap-1 truncate rounded-full border border-(--border-strong) bg-neutral-800 px-2.5 text-[12px] text-(--text-body) pointer-coarse:h-11 pointer-coarse:max-w-56 pointer-coarse:gap-1.5 pointer-coarse:px-3 pointer-coarse:text-[14px] pointer-coarse:font-medium pointer-coarse:text-neutral-200 outline-hidden transition hover:border-neutral-600 hover:text-neutral-100 sm:max-w-60';
+const boxed = 'inline-flex items-center gap-1 rounded-md border border-neutral-800 bg-neutral-950 px-2 py-1 text-[12px] font-medium text-neutral-300 transition hover:border-neutral-700';
+const tag = 'hidden text-[12px] font-semibold uppercase tracking-wide text-neutral-600 sm:inline';
 
-export function ModelPicker({ model, setModel, models, onRefreshModels }: {
+const nameOf = (id: string, models: ModelInfo[]) => shortModelName(id, models.find((m) => m.id === id)?.displayName);
+
+export function ModelPicker({ model, setModel, models, onRefreshModels, canManage = false, locked, compact = false, effort, setEffort }: {
   model: string; setModel: (m: string) => void;
   models: ModelInfo[];
   onRefreshModels: () => void;
+  canManage?: boolean;
+  locked?: string;
+  compact?: boolean;
+  effort?: Effort;
+  setEffort?: (e: Effort) => void;
 }) {
-  const [customIds, setCustomIds] = usePersisted<string[]>('customModels', []);
-  const sel = 'max-w-[130px] rounded-md border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-[11px] font-medium text-neutral-300 outline-hidden transition hover:border-neutral-700 focus:border-orange-500/40 sm:max-w-none sm:px-1.5 sm:py-1';
-  const tag = 'hidden text-[9px] font-semibold uppercase tracking-wide text-neutral-600 sm:inline';
-  // Modelos digitados à mão (ex: um recém-lançado ainda fora do /v1/models da conta).
-  const customOpts: ModelInfo[] = customIds.map((id) => ({ id, displayName: id }));
-  const list = modelOptions(models, model, customOpts).filter((o, i, a) => a.findIndex((x) => x.id === o.id) === i);
+  if (locked) return <LockedModel model={model} models={models} reason={locked} compact={compact} />;
+  return <ModelSelect model={model} setModel={setModel} models={models} onRefreshModels={onRefreshModels} canManage={canManage} compact={compact} effort={effort} setEffort={setEffort} />;
+}
 
-  const onChange = (value: string) => {
-    if (value !== ADD) { setModel(value); return; }
-    const id = normalizeModelId(window.prompt('ID do modelo (ex: claude-opus-5 ou claude-mythos-1):') ?? '');
-    if (!id) return;
-    if (!list.some((o) => o.id === id)) setCustomIds([...customIds, id]);
-    setModel(id);
-  };
+function LockedModel({ model, models, reason, compact }: { model: string; models: ModelInfo[]; reason: string; compact: boolean }) {
+  if (compact) {
+    return (
+      <span className="hidden max-w-28 shrink-0 items-center gap-1 truncate px-2 text-[13px] text-neutral-400 sm:inline-flex sm:max-w-44" title={`Modelo ${reason} — troque no perfil do bot`}>
+        <Icon name="lock" size={10} />
+        {nameOf(model, models)}
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex shrink-0 items-center gap-1" title={`Modelo ${reason} — troque no perfil do bot`}>
+      <span className={tag}>versão</span>
+      <span className="inline-flex items-center gap-1 rounded-md border border-neutral-800 bg-neutral-900 px-2 py-1 text-[12px] font-medium text-neutral-300">
+        <Icon name="lock" size={10} />
+        {nameOf(model, models)}
+        <span className="text-neutral-600">· {reason}</span>
+      </span>
+    </span>
+  );
+}
+
+function ModelSelect({ model, setModel, models, onRefreshModels, canManage, compact, effort, setEffort }: {
+  model: string; setModel: (m: string) => void;
+  models: ModelInfo[];
+  onRefreshModels: () => void;
+  canManage: boolean;
+  compact: boolean;
+  effort?: Effort;
+  setEffort?: (e: Effort) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const { options, refreshing, refresh, rememberCustom } = useModelPicker({ model, models, onRefreshModels });
+  const conns = useConnectionsCtx();
+  const toggle = () => { if (!open) conns.refresh(); setOpen((o) => !o); };
+  const close = () => setOpen(false);
+  const showEffort = !!effort && !!setEffort && !isAgentModel(model);
+  const name = nameOf(model, models);
+  useEffect(() => {
+    const onOpen = () => { conns.refresh(); setOpen(true); };
+    window.addEventListener(OPEN_MODEL_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_MODEL_EVENT, onOpen);
+  }, [conns]);
 
   return (
-    <label className="inline-flex shrink-0 items-center gap-1" title="Versão do agente do próximo prompt">
-      <span className={tag}>versão</span>
-      <select
-        // The visible "versão" tag is hidden on mobile, which left the select nameless.
-        aria-label="Versão do agente do próximo prompt"
-        value={model}
-        onChange={(e) => onChange(e.target.value)}
-        className={sel}
-      >
-        {list.map((o) => <option key={o.id} value={o.id}>{prettyModel(o.id, o.displayName)}</option>)}
-        <option value={ADD}>+ outro modelo…</option>
-      </select>
-      <button
-        type="button"
-        onClick={onRefreshModels}
-        title="Buscar modelos novos da Anthropic agora"
-        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-neutral-800 bg-neutral-950 text-neutral-500 transition hover:border-neutral-700 hover:text-neutral-200 sm:h-[22px] sm:w-[22px] ${tokens.focusRing}`}
-      >
-        <Icon name="rotate" size={12} />
-      </button>
-    </label>
+    <span className="relative inline-flex shrink-0 items-center gap-1" title="Versão do agente do próximo prompt">
+      {!compact && <span className={tag}>versão</span>}
+      <Sheet open={open} onClose={close} label="Escolher modelo" side="top" align="end" className={showEffort ? 'w-[550px]' : 'w-[380px]'}
+        content={
+          <div className="flex w-full flex-col sm:flex-row">
+            <ModelPanel
+              options={options} current={model} connections={conns.connections}
+              onPick={(id) => { rememberCustom(id); setModel(id); close(); }}
+              onAdd={() => { close(); openConexoes(true); }}
+              onExpired={() => { close(); openConexoes(); }}
+              onRefresh={refresh} refreshing={refreshing}
+              onManage={canManage ? () => { close(); openAdminTab('models'); } : undefined}
+              allowCustomId
+            />
+            {showEffort && <EffortColumn effort={effort} setEffort={setEffort} />}
+          </div>
+        }>
+        <button type="button" onClick={toggle} aria-haspopup="dialog" aria-expanded={open}
+          aria-label={showEffort ? `Modelo e raciocínio do próximo prompt: ${name}, ${effortLabel(effort)}` : 'Versão do agente do próximo prompt'}
+          className={`${compact ? chip : boxed} ${tokens.focusRing}`}>
+          <span className="truncate">{name}</span>
+          {showEffort && <span className="shrink-0 text-neutral-500">· {effortLabel(effort)}</span>}
+          <Icon name="chevronDown" size={12} className="shrink-0 text-neutral-500" />
+        </button>
+      </Sheet>
+    </span>
   );
 }

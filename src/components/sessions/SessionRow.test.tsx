@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { describe, it, expect, afterEach } from 'vitest';
-import { render, cleanup, screen } from '@testing-library/react';
+import { describe, it, expect, afterEach, vi } from 'vitest';
+import { render, cleanup, screen, fireEvent } from '@testing-library/react';
 import { SessionRow } from './SessionRow';
 import type { Session } from '../../data/types';
 
@@ -15,36 +15,62 @@ const row = (props: Partial<Parameters<typeof SessionRow>[0]> = {}) =>
   render(<SessionRow s={s} active={false} onSelect={() => {}} onRename={() => {}} onClose={() => {}} {...props} />).container;
 
 describe('SessionRow', () => {
-  it('active row keeps the orange ring regardless of its group', () => {
-    const cls = (row({ active: true }).firstElementChild as HTMLElement).className;
-    expect(cls).toContain('border-orange-500/40');
-    expect(cls).toContain('glow-active');
+  it('shows the title on one line with the relative time on the right, no snippet', () => {
+    const c = row();
+    const title = screen.getByText('Nova sessão');
+    expect(title.className).toContain('whitespace-nowrap');
+    expect(title.className).not.toContain('line-clamp');
+    expect(c.querySelector('[data-row-meta]')).toBeNull();
+    expect(screen.getByText('há 3m').className).toContain('tabular-nums');
+    expect(title.parentElement?.className).toContain('text-[14px]');
+    expect(screen.queryByText('Pegue o contexto')).toBeNull();
   });
 
-  it('running: green dot and elapsed time in the footer, no extra line', () => {
-    row({ running: true, runStart: Date.now() - 65_000 });
-    expect(screen.getByText(/^trabalhando · 1m/)).toBeTruthy();
-    expect(screen.queryByText('há 3m')).toBeNull();
+  it('active row gets an orange-tinted chip and no side bar', () => {
+    const c = row({ active: true });
+    const el = c.firstElementChild as HTMLElement;
+    expect(el.className).not.toContain('before:');
+    expect(el.className).toContain('bg-orange-500/12');
   });
 
-  it('stalled: amber footer', () => {
-    row({ running: true, stalled: true, runStart: Date.now() - 3_000 });
-    expect(screen.getByText(/^sem resposta/).className).toContain('text-amber-400');
+  it('running: green dot', () => {
+    const c = row({ running: true, runStart: Date.now() - 65_000 });
+    expect(c.querySelectorAll('.bg-green-400').length).toBe(1);
   });
 
-  it('waiting: violet footer keeps the relative time', () => {
-    row({ s: { ...s, waiting: true } });
-    expect(screen.getByText('aguarda você · há 3m').className).toContain('text-violet-300');
+  it('stalled: amber dot', () => {
+    const c = row({ running: true, stalled: true, runStart: Date.now() - 3_000 });
+    expect(c.querySelectorAll('.bg-amber-400').length).toBe(1);
   });
 
-  it('idle with new output: single orange dot, neutral footer', () => {
+  it('waiting: violet dot', () => {
+    const c = row({ s: { ...s, waiting: true } });
+    expect(c.querySelectorAll('.bg-violet-400').length).toBe(1);
+  });
+
+  it('idle with new output: no dot', () => {
     const c = row({ updated: true });
-    expect(c.querySelectorAll('.bg-orange-400').length).toBe(1);
-    expect(screen.getByText('há 3m')).toBeTruthy();
+    expect(c.querySelectorAll('.bg-orange-400').length).toBe(0);
   });
 
   it('idle without signals: no dot at all', () => {
     const c = row();
     expect(c.querySelector('.rounded-full.h-1\\.5')).toBeNull();
+  });
+
+  it('the card is not a button around other controls; the title is the button', () => {
+    const c = row({ active: true });
+    const card = c.firstElementChild as HTMLElement;
+    expect(card.getAttribute('role')).toBeNull();
+    const title = screen.getByRole('button', { name: /Nova sessão/ });
+    expect(title.getAttribute('aria-current')).toBe('true');
+    expect(card.contains(title)).toBe(true);
+  });
+
+  it('activating the title selects the session', () => {
+    const onSelect = vi.fn();
+    row({ onSelect });
+    fireEvent.click(screen.getByRole('button', { name: /Nova sessão/ }));
+    expect(onSelect).toHaveBeenCalledWith('a');
   });
 });

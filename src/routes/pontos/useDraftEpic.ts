@@ -66,6 +66,7 @@ export function useDraftEpic({ draft, pointValue, op, ask }: Args) {
     selected, toggle, setMany, clear,
     selection: { count: ids.length, points: selPoints, valueCents: centsFromPoints(selPoints, pointValue), pending: selTasks.filter((t) => t.status === 'draft').length },
     moveTo, moveToNew, drop, splitSelected, canAutoSplit: split.length > 0, autoSplit,
+    splitPreview: draft.tasks.filter((t) => split.includes(t.id)).map((t) => t.title),
     armed, clickDelete,
     resetStatus: () => op({ op: 'set-status', id: epicId, status: 'draft' }),
     createAll: () => ask(draft.status === 'draft' && draftProgress(draft) === 'partial' ? 'Criar o restante do épico no DFL' : 'Criar épico no DFL', [epicUnit(draft)]),

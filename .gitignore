@@ -11,3 +11,11 @@ cockpit-doc.pdf
 .vercel
 graphify-out/
 .claude/
+relay/deploy/dist/
+*.tsbuildinfo
+
+/bin/deck-agent
+e2e-onboarding-runs/
+scripts/prs-harness/fixture.json
+__pycache__/
+*.pyc

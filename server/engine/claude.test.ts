@@ -1,16 +1,34 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, afterAll } from 'vitest';
+import { readdirSync, rmSync, readFileSync, existsSync } from 'node:fs';
+import { join, sep } from 'node:path';
+import { homedir } from 'node:os';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 
 let managed: Record<string, string> = {};
 let mcpDefs: Record<string, unknown> = {};
+const agentDir = vi.hoisted(() => ({ value: undefined as string | undefined }));
+vi.mock('../agent-dir', async (orig) => ({ ...(await orig<typeof import('../agent-dir')>()), agentCwdSync: () => agentDir.value, agentCloneRootSync: () => (agentDir.value ? '/tmp/bots/abcd1/source' : undefined) }));
 vi.mock('../admin-ops', () => ({ managedEnvSync: () => managed, mcpServerDefsSync: () => mcpDefs }));
+
+// run() writes its MCP config under tmpdir(); keep the ones these tests create out of the real /tmp.
+const tmp = vi.hoisted(() => ({ dir: '' }));
+vi.mock('node:os', async (orig) => {
+  const os = await orig<typeof import('node:os')>();
+  const { mkdtempSync } = await import('node:fs');
+  tmp.dir = mkdtempSync(`${os.tmpdir()}/deck-claude-test-`);
+  return { ...os, tmpdir: () => tmp.dir };
+});
 
 // `claude` é um binário REAL na máquina do Samuel: sem este mock os testes de run()
 // subiriam um turno de verdade e queimariam token.
-const spawned = vi.hoisted(() => ({ child: null as FakeChild | null }));
+const spawned = vi.hoisted(() => ({ child: null as FakeChild | null, throws: null as Error | null, last: null as { args: string[]; opts: { cwd?: string; env?: Record<string, string | undefined> } } | null }));
 vi.mock('node:child_process', () => ({
-  spawn: () => spawned.child,
+  spawn: (_cmd: string, args: string[], opts: { cwd?: string; env?: Record<string, string | undefined> }) => {
+    spawned.last = { args, opts };
+    if (spawned.throws) throw spawned.throws;
+    return spawned.child;
+  },
   execFileSync: () => '',
 }));
 
@@ -22,9 +40,10 @@ class FakeChild extends EventEmitter {
   kill = vi.fn();
 }
 
-import { sanitize, resolveMode, buildArgs, bypassAllowed, shouldReportExit, minimalEnv, run, effectiveBudget, pickMcpDefs, resolveMcpSelection, validModel, withWorkflowGrant, mcpConfigBody, encodeUserLine, shouldCloseStdin, PERMISSION_MCP_NAME, PERMISSION_PROMPT_TOOL, sweepMcpConfigs, MCP_CONFIG_GRACE_MS } from './claude';
+import { TEAM_MCP_NAME, TEAM_MCP_TOOLS } from '../../shared/team-messages';
+import { sanitize, resolveMode, buildArgs, bypassAllowed, shouldReportExit, minimalEnv, run, effectiveBudget, pickMcpDefs, resolveMcpSelection, validModel, withWorkflowGrant, mcpConfigBody, encodeUserLine, shouldCloseStdin, PERMISSION_MCP_NAME, PERMISSION_PROMPT_TOOL, sweepMcpConfigs, MCP_CONFIG_GRACE_MS, profilePermissions, explainExit } from './claude';
 import { ALL_MCPS } from '../../shared/mcp';
-import { CONFIG } from '../config';
+import { CONFIG, projectSlug } from '../config';
 
 beforeEach(() => { managed = {}; });
 
@@ -80,6 +99,32 @@ describe('permission prompt tool (destrava AskUserQuestion)', () => {
   it('o server de permissão vence um MCP homônimo da sessão', () => {
     const body = JSON.parse(mcpConfigBody({ [PERMISSION_MCP_NAME]: { type: 'http', url: 'https://evil' } }));
     expect(body.mcpServers[PERMISSION_MCP_NAME].type).toBe('stdio');
+  });
+
+  it('loads the team MCP only on a bot turn, as that bot and hop', () => {
+    expect(JSON.parse(mcpConfigBody({ [TEAM_MCP_NAME]: { type: 'http', url: 'https://evil' } })).mcpServers[TEAM_MCP_NAME]).toBeUndefined();
+    const args: string[] = JSON.parse(mcpConfigBody({}, false, { botId: 'capo1', hop: 2 })).mcpServers[TEAM_MCP_NAME].args;
+    expect(args[0]).toMatch(/team-mcp\.mjs$/);
+    expect(args[args.indexOf('--bot') + 1]).toBe('capo1');
+    expect(args[args.indexOf('--hop') + 1]).toBe('2');
+    for (const flag of ['--team', '--outbox', '--log', '--pause']) expect(args[args.indexOf(flag) + 1]).toMatch(/^\//);
+  });
+
+  it('allows the team tools on a bot turn, plan mode included', () => {
+    const allowOf = (a: string[]) => valAfter(a, '--allowedTools')?.split(' ') ?? [];
+    const bot = buildArgs({ prompt: 'x', mode: 'plan', botId: 'capo1' }, '/tmp/deck-mcp-x.json');
+    if ('error' in bot) throw new Error(bot.error);
+    for (const t of TEAM_MCP_TOOLS) expect(allowOf(bot.args)).toContain(t);
+    const plain = buildArgs({ prompt: 'x', mode: 'plan' }, '/tmp/deck-mcp-x.json');
+    if ('error' in plain) throw new Error(plain.error);
+    expect(allowOf(plain.args)).not.toContain(TEAM_MCP_TOOLS[0]);
+  });
+
+  it('passa --allow-all ao server só quando pedido', () => {
+    const off = JSON.parse(mcpConfigBody({}));
+    const on = JSON.parse(mcpConfigBody({}, true));
+    expect(off.mcpServers[PERMISSION_MCP_NAME].args).toHaveLength(1);
+    expect(on.mcpServers[PERMISSION_MCP_NAME].args[1]).toBe('--allow-all');
   });
 });
 
@@ -273,6 +318,19 @@ describe('buildArgs', () => {
     expect(buildArgs({ prompt: 'x', resumeId: '../etc/passwd' })).toEqual({ error: 'sessionId inválido' });
   });
 
+  it('passes a bot identity as one --append-system-prompt argv element', () => {
+    const identity = 'Você é capo, coo.\nInstruções: "x" $(rm -rf /)';
+    expect(valAfter(argsOf({ prompt: 'x', appendSystemPrompt: identity }), '--append-system-prompt')).toBe(identity);
+    expect(argsOf({ prompt: 'x', appendSystemPrompt: '  ' })).not.toContain('--append-system-prompt');
+    expect(argsOf({ prompt: 'x' })).not.toContain('--append-system-prompt');
+  });
+
+  it('puts the Deck context before the bot identity in one --append-system-prompt, resume included', () => {
+    const args = argsOf({ prompt: 'x', deckContext: 'Box: pc-samuel', appendSystemPrompt: 'Você é capo.', resumeId: '11111111-1111-1111-1111-111111111111' });
+    expect(args.filter((a) => a === '--append-system-prompt')).toHaveLength(1);
+    expect(valAfter(args, '--append-system-prompt')).toBe('Box: pc-samuel\n\nVocê é capo.');
+  });
+
   it('forkId vira --fork-session --session-id, e só junto do --resume', () => {
     const fork = argsOf({ prompt: 'x', resumeId: '11111111-1111-1111-1111-111111111111', forkId: '22222222-2222-2222-2222-222222222222' });
     expect(fork).toContain('--fork-session');
@@ -362,6 +420,11 @@ describe('pickMcpDefs', () => {
   });
   it('ignora nome desconhecido e definição que não é objeto', () => {
     expect(pickMcpDefs(all, ['nada', 'lixo'], 'admin')).toEqual({});
+  });
+  it('claude.ai connector loads for admin only', () => {
+    const withConnector = { ...all, 'claude.ai dfl': { type: 'claudeai-proxy', url: 'https://x.example/mcp', id: 'mcpsrv_1' } };
+    expect(Object.keys(pickMcpDefs(withConnector, ['claude.ai dfl'], 'admin'))).toEqual(['claude.ai dfl']);
+    expect(pickMcpDefs(withConnector, ['claude.ai dfl', 'remote'], 'student')).toEqual({ remote: all.remote });
   });
 });
 
@@ -622,5 +685,212 @@ describe('sweepMcpConfigs', () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe('restricted bot turn (fatia E)', () => {
+  const prevBots = process.env.COCKPIT_BOTS_DIR;
+  beforeEach(() => { process.env.COCKPIT_BOTS_DIR = join(tmp.dir, 'bots'); });
+  afterEach(() => {
+    if (prevBots === undefined) delete process.env.COCKPIT_BOTS_DIR; else process.env.COCKPIT_BOTS_DIR = prevBots;
+    mcpDefs = {};
+  });
+  const ws = () => join(tmp.dir, 'bots', 'abcd1', 'workspace');
+  const restrictedArgs = (o: Partial<Parameters<typeof buildArgs>[0]> = {}) =>
+    argsOf({ prompt: 'oi', botId: 'abcd1', profile: 'restricted', mode: 'auto', ...o });
+
+  it('no Bash anywhere in the allow-list, and Bash denied explicitly', () => {
+    const args = restrictedArgs({ mode: 'acceptEdits' });
+    const allow = valAfter(args, '--allowedTools')!.split(' ');
+    expect(allow.some((t) => /^(Bash|BashOutput|KillShell|NotebookEdit)\b/.test(t))).toBe(false);
+    const deny = valAfter(args, '--disallowedTools')!.split(' ');
+    for (const t of ['Bash', 'BashOutput', 'KillShell', 'NotebookEdit']) expect(deny).toContain(t);
+    expect(valAfter(args, '--tools')!.split(' ')).not.toContain('Bash');
+    expect(args).toContain('--restricted');
+  });
+
+  it('file tools only with rules pinned to the workspace', () => {
+    const allow = valAfter(restrictedArgs(), '--allowedTools')!.split(' ');
+    const fileRules = allow.filter((t) => /^(Read|Edit|Write)/.test(t));
+    expect(fileRules).toEqual([`Edit(/${ws()}/**)`, `Read(/${ws()}/**)`, `Write(/${ws()}/**)`]);
+  });
+
+  it('bypass, acceptEdits and the workflow grant never survive', () => {
+    const prev = { allow: CONFIG.allowBypass, local: CONFIG.localOnly };
+    CONFIG.allowBypass = true; CONFIG.localOnly = true;
+    try {
+      const args = restrictedArgs({ bypass: true, role: 'admin', mode: 'acceptEdits', allowWorkflow: true });
+      expect(valAfter(args, '--permission-mode')).toBe('default');
+      expect(valAfter(args, '--allowedTools')!.split(' ')).not.toContain('Workflow');
+    } finally { CONFIG.allowBypass = prev.allow; CONFIG.localOnly = prev.local; }
+  });
+
+  it('a full bot keeps the normal allow-list (Bash included)', () => {
+    const args = argsOf({ prompt: 'oi', botId: 'abcd1', profile: 'full', mode: 'auto' });
+    expect(args).not.toContain('--restricted');
+    expect(valAfter(args, '--allowedTools')!.split(' ')).toContain('Bash');
+  });
+
+  it('a restricted turn without a valid bot fails closed', () => {
+    expect(buildArgs({ prompt: 'oi', profile: 'restricted' })).toEqual({ error: expect.stringMatching(/workspace/) });
+    expect(profilePermissions({ profile: 'full', botId: 'abcd1' })).toBeUndefined();
+  });
+
+  it('run(): spawns in the workspace (created on demand), project dir pinned, no MCP of the session, permission server without --allow-all', () => {
+    spawned.child = new FakeChild();
+    mcpDefs = { supabase: { type: 'http', url: 'https://x' } };
+    run({ prompt: 'oi', botId: 'abcd1', profile: 'restricted', mode: 'auto', mcps: ['supabase', ALL_MCPS], onEvent: () => {}, onError: () => {}, onClose: () => {} });
+    const { args, opts } = spawned.last!;
+    expect(opts.cwd).toBe(ws());
+    expect(existsSync(ws())).toBe(true);
+    expect(opts.env?.CLAUDE_CODE_PROJECT_DIR_NAME).toBe(projectSlug(CONFIG.workdir));
+    expect(opts.env?.ANTHROPIC_API_KEY).toBe('');
+    const servers = JSON.parse(readFileSync(valAfter(args, '--mcp-config')!, 'utf8')).mcpServers;
+    expect(Object.keys(servers).sort()).toEqual([PERMISSION_MCP_NAME, TEAM_MCP_NAME].sort());
+    expect(servers[PERMISSION_MCP_NAME].args).toContain('--restricted');
+    expect(servers[PERMISSION_MCP_NAME].args).not.toContain('--allow-all');
+    expect(servers[TEAM_MCP_NAME].args).toEqual(expect.arrayContaining(['--bot', 'abcd1']));
+    const allow = valAfter(args, '--allowedTools')!.split(' ');
+    for (const t of TEAM_MCP_TOOLS) expect(allow).toContain(t);
+    expect(allow.filter((t) => t.startsWith('mcp__'))).toEqual([...TEAM_MCP_TOOLS].sort());
+    spawned.child.emit('close', 0);
+  });
+
+  it('the team outbox, log, pause and team files sit outside the workspace the file tools are pinned to', () => {
+    const saved = Object.fromEntries(['COCKPIT_BOTS_DIR', 'COCKPIT_TEAM', 'COCKPIT_TEAM_LOG', 'COCKPIT_TEAM_OUTBOX', 'COCKPIT_TEAM_PAUSE'].map((k) => [k, process.env[k]]));
+    for (const k of Object.keys(saved)) delete process.env[k];
+    try {
+      const args = restrictedArgs();
+      const workspace = join(homedir(), '.cockpit', 'bots', 'abcd1', 'workspace');
+      const writable = valAfter(args, '--allowedTools')!.split(' ').filter((t) => /^(Edit|Write)\(/.test(t));
+      expect(writable).toEqual([`Edit(/${workspace}/**)`, `Write(/${workspace}/**)`]);
+      const teamArgs: string[] = JSON.parse(mcpConfigBody({}, false, { botId: 'abcd1' }, true)).mcpServers[TEAM_MCP_NAME].args;
+      const files = ['--team', '--outbox', '--log', '--pause'].map((f) => teamArgs[teamArgs.indexOf(f) + 1]);
+      expect(files).toHaveLength(4);
+      for (const f of files) {
+        expect(f.startsWith(join(homedir(), '.cockpit') + sep)).toBe(true);
+        expect(f === workspace || f.startsWith(workspace + sep)).toBe(false);
+      }
+    } finally {
+      for (const [k, v] of Object.entries(saved)) if (v === undefined) delete process.env[k]; else process.env[k] = v;
+    }
+  });
+
+  it('plan and full bots keep the team tools too; a non-bot turn never gets them', () => {
+    for (const o of [{ profile: 'restricted' as const, mode: 'plan' }, { profile: 'full' as const }]) {
+      const built = buildArgs({ prompt: 'oi', botId: 'abcd1', ...o }, '/tmp/deck-mcp-x.json');
+      if ('error' in built) throw new Error(built.error);
+      const allow = valAfter(built.args, '--allowedTools')!.split(' ');
+      for (const t of TEAM_MCP_TOOLS) expect(allow).toContain(t);
+    }
+    expect(valAfter(argsOf({ prompt: 'oi' }), '--allowedTools')!.split(' ').some((t) => t.startsWith('mcp__deck-team'))).toBe(false);
+  });
+});
+
+describe('repo agent isolation', () => {
+  afterEach(() => { agentDir.value = undefined; });
+  const go = () => {
+    spawned.child = new FakeChild();
+    run({ prompt: 'oi', botId: 'abcd1', profile: 'full', onEvent: () => {}, onError: () => {}, onClose: () => {} });
+    return spawned.last!;
+  };
+
+  it('a repo agent drops the user setting source and auto-memory but keeps the config dir for auth', () => {
+    agentDir.value = '/tmp/bots/abcd1/source/maria';
+    const { args, opts } = go();
+    expect(opts.cwd).toBe('/tmp/bots/abcd1/source/maria');
+    expect(valAfter(args, '--setting-sources')).toBe('project,local');
+    const ex: string[] = JSON.parse(valAfter(args, '--settings')!).claudeMdExcludes;
+    expect(ex).toEqual(expect.arrayContaining(['/tmp/bots/abcd1/CLAUDE.md', '/tmp/.claude/CLAUDE.md', '/CLAUDE.md']));
+    expect(ex.some((p) => p.startsWith('/tmp/bots/abcd1/source/'))).toBe(false);
+    expect(opts.env?.CLAUDE_CODE_DISABLE_AUTO_MEMORY).toBe('1');
+    expect(opts.env?.CLAUDE_CONFIG_DIR).toBe(join(process.env.HOME ?? '', '.claude'));
+  });
+
+  it('a bot without a repo is unchanged', () => {
+    const { args, opts } = go();
+    expect(args).not.toContain('--setting-sources');
+    expect(args).not.toContain('--settings');
+    expect(opts.env?.CLAUDE_CODE_DISABLE_AUTO_MEMORY).toBeUndefined();
+  });
+});
+
+describe('run: spawn that throws', () => {
+  afterEach(() => { spawned.throws = null; });
+  afterAll(() => rmSync(tmp.dir, { recursive: true, force: true }));
+
+  it('removes the MCP config before rethrowing', () => {
+    spawned.throws = Object.assign(new Error('spawn EAGAIN'), { code: 'EAGAIN' });
+    const before = readdirSync(tmp.dir).filter((f) => f.startsWith('deck-mcp-')).length;
+    expect(() => run({ prompt: 'go', onEvent: () => {}, onError: () => {}, onClose: () => {} } as Parameters<typeof run>[0])).toThrow('EAGAIN');
+    expect(readdirSync(tmp.dir).filter((f) => f.startsWith('deck-mcp-')).length).toBe(before);
+  });
+});
+
+describe('explainExit', () => {
+  it('traduz unknown option --restricted em ação', () => {
+    const msg = explainExit(1, "error: unknown option '--restricted'");
+    expect(msg).toContain('perfil travado');
+    expect(msg).toContain('Atualize o claude');
+  });
+
+  it('traduz também --tools', () => {
+    expect(explainExit(1, "error: unknown option '--tools'")).toContain('--tools');
+  });
+
+  it('não traduz um exit comum', () => {
+    expect(explainExit(127, 'command not found')).toBeNull();
+    expect(explainExit(1, 'API Error: 500')).toBeNull();
+  });
+});
+
+describe('buildArgs bot tool permissions', () => {
+  const bot = { prompt: 'x', botId: 'abcd1', profile: 'full' as const };
+  it('no deny rules: args identical to a turn without the fields', () => {
+    expect(argsOf({ ...bot, disallowedSkills: [] })).toEqual(argsOf(bot));
+    expect(valAfter(argsOf(bot), '--disallowedTools')).toBe(valAfter(argsOf({ ...bot, disallowedSkills: undefined }), '--disallowedTools'));
+  });
+  it('write off denies exactly Edit/Write/NotebookEdit/Bash', () => {
+    const deny = valAfter(argsOf({ ...bot, disallowedSkills: ['Edit', 'Write', 'NotebookEdit', 'Bash'] }), '--disallowedTools')!.split(' ');
+    expect(deny).toEqual([...new Set([...deny])].sort());
+    for (const t of ['Edit', 'Write', 'NotebookEdit', 'Bash']) expect(deny).toContain(t);
+    expect(deny).not.toContain('WebFetch');
+  });
+  it('net off denies WebFetch/WebSearch and a restricted bot keeps its own deny list', () => {
+    const deny = valAfter(argsOf({ ...bot, profile: 'restricted', disallowedSkills: ['WebFetch', 'WebSearch'] }), '--disallowedTools')!.split(' ');
+    expect(deny).toEqual(expect.arrayContaining(['WebFetch', 'WebSearch', 'Bash', 'Agent']));
+  });
+});
+
+describe('run: Deck context', () => {
+  const env = { ...process.env };
+  beforeEach(() => {
+    spawned.child = new FakeChild();
+    process.env.DECK_BOX_LABEL = 'pc-samuel';
+    process.env.DECK_BOX_ROSTER_FILE = join(homedir(), '.cockpit', 'missing-roster-for-test.json');
+  });
+  afterEach(() => { process.env = { ...env }; });
+  const start = (over: Partial<Parameters<typeof run>[0]> = {}) => {
+    run({ prompt: 'oi', onEvent: () => {}, onError: () => {}, onClose: () => {}, ...over });
+    const { args } = spawned.last!;
+    spawned.child!.emit('close', 0);
+    return args;
+  };
+
+  it('every session gets --append-system-prompt naming its box', () => {
+    const text = valAfter(start(), '--append-system-prompt');
+    expect(text).toContain('You are running inside the Deck');
+    expect(text).toContain('Box: pc-samuel');
+  });
+
+  it('a resumed session passes the same single flag', () => {
+    const args = start({ resumeId: '11111111-1111-1111-1111-111111111111' });
+    expect(args.filter((a) => a === '--append-system-prompt')).toHaveLength(1);
+    expect(valAfter(args, '--append-system-prompt')).toContain('Box: pc-samuel');
+  });
+
+  it('DECK_AGENT_CONTEXT=0 turns it off', () => {
+    process.env.DECK_AGENT_CONTEXT = '0';
+    expect(start()).not.toContain('--append-system-prompt');
   });
 });

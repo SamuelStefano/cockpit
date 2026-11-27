@@ -3,12 +3,17 @@ import type { Cmd, IconName } from './command-palette-types';
 import type { Route } from '../useRoute';
 import type { PermMode } from '../../shared/protocol';
 import type { Session } from '../data/types';
-import { UI_SEEDS } from './paletteSeeds';
-import { navFor } from './chrome/nav-routes';
+import { buildPromptLink } from '../cockpit/prompt-link';
+import { toast } from './primitives/toast-bus';
+import { navFor, type NavRole } from './chrome/nav-routes';
+import { gameEnabled } from '../game/game-bus';
+import { foundEgg } from '../game/found-egg';
+import { triggerEgg, type EggTrigger } from '../game/egg-bus';
+import { appOrigin } from '../lib/origin';
+import { SECTION_ROUTE, settingsSections } from '../routes/configuracoes/sections';
 
-const NAV_ICON: Partial<Record<Route, IconName>> = {
-  '/': 'message', '/contextos': 'sparkles', '/skills': 'zap', '/uso': 'arrowUp', '/docs': 'file',
-};
+const SUDO_QUERY = 'sudo make me a sandwich';
+const HIDDEN_EGGS: EggTrigger[] = ['iddqd', 'matrix', 'konami'];
 
 const MODE_LABEL: Record<PermMode, string> = { plan: 'Planejar', auto: 'Auto', acceptEdits: 'Executar' };
 
@@ -23,30 +28,63 @@ interface PaletteCommandsArgs {
   running: Set<string>;
   onStop: (key?: string) => void;
   onFocusComposer: () => void;
-  onSeedComposer: (text: string) => void;
   onShowHelp: () => void;
-  isAdmin?: boolean;
+  draft?: string;
+  role?: NavRole;
+  query?: string;
 }
 
 export function usePaletteCommands(args: PaletteCommandsArgs): Cmd[] {
-  const { onClose, nav, onNew, mode, setMode, sessions, onSelectSession, running, onStop, onFocusComposer, onSeedComposer, onShowHelp, isAdmin = false } = args;
+  const { onClose, nav, onNew, mode, setMode, sessions, onSelectSession, running, onStop, onFocusComposer, onShowHelp, draft = '', role = 'student', query = '' } = args;
+  const arcade = gameEnabled();
+  const q = query.trim().toLowerCase();
+  const sudo = arcade && q === SUDO_QUERY;
+  const hiddenEgg = arcade ? HIDDEN_EGGS.find((e) => e === q) : undefined;
   return useMemo<Cmd[]>(() => {
     const go = (to: Route) => () => { nav(to); onClose(); };
     const setM = (m: PermMode) => () => { setMode(m); onClose(); };
     // Every route the header offers, from the same list (navFor): the palette used
-    // to reach only 5 of them, so ⌘K could not open notas, pontos, crons, canvas…
-    const nav_: Cmd[] = navFor(isAdmin).map((n) => ({
+    // to reach only 5 of them, so ⌘K could not open pontos, crons, canvas…
+    const nav_: Cmd[] = navFor(role).map((n) => ({
       id: `go-${n.to === '/' ? 'chat' : n.to.slice(1)}`,
-      label: `Ir para ${n.label[0].toUpperCase()}${n.label.slice(1)}`,
-      icon: NAV_ICON[n.to] ?? 'file',
+      label: `Ir para ${n.label}`,
+      icon: n.icon,
       group: 'Navegar',
       run: go(n.to),
     }));
+    // Skills, Conexões and Docs live inside Configurações now; ⌘K still jumps straight to them.
+    const inSettings = settingsSections(role, false).filter((s) => s.id === 'skills' || s.id === 'conexoes' || s.id === 'docs').map<Cmd>((s) => ({
+      id: `go-${s.id}`, label: `Ir para ${s.label}`, icon: s.icon, group: 'Navegar', run: go(SECTION_ROUTE[s.id]),
+    }));
+    nav_.push(...inSettings);
     const actions: Cmd[] = [
-      { id: 'new', label: 'Nova sessão', icon: 'plus', group: 'Ações', run: () => { onNew(); onClose(); } },
+      { id: 'new', label: 'Nova conversa', icon: 'plus', group: 'Ações', run: () => { onNew(); onClose(); } },
       { id: 'focus', label: 'Focar campo de mensagem', hint: '↵', icon: 'pencil', group: 'Ações', run: () => { nav('/'); onFocusComposer(); onClose(); } },
       { id: 'help', label: 'Mostrar atalhos de teclado', hint: '?', icon: 'command', group: 'Ações', run: () => { onClose(); onShowHelp(); } },
     ];
+    if (arcade) {
+      actions.push(
+        { id: 'arcade', label: 'Abrir Arcade', icon: 'zap', group: 'Ações', run: go('/arcade') },
+      );
+    }
+    // Shown only on the exact phrase (the filter would otherwise list it for "sudo").
+    if (sudo) {
+      actions.push({ id: 'sudo-sandwich', label: SUDO_QUERY, icon: 'terminal', group: 'Ações', run: () => { foundEgg('sudo'); toast('Feito. 🥪 Você não é root, mas o Bit abriu uma exceção.'); onClose(); } });
+    }
+    // Hidden like the sandwich: listed only on the exact word, never in the empty palette.
+    if (hiddenEgg) {
+      actions.push({ id: `egg-${hiddenEgg}`, label: hiddenEgg, icon: 'zap', group: 'Ações', run: () => { onClose(); triggerEgg(hiddenEgg); } });
+    }
+    if (draft.trim()) {
+      actions.push({
+        id: 'copy-prompt-link', label: 'Copiar link de prompt', icon: 'copy', group: 'Ações',
+        run: () => {
+          navigator.clipboard.writeText(buildPromptLink(appOrigin(), draft))
+            .then(() => toast('Link copiado'), () => toast('Não foi possível copiar o link.', { tone: 'error' }));
+          onClose();
+        },
+      });
+    }
     if (running.size) {
       // Com 1 só rodando, mira nela explicitamente — senão onStop() cairia no
       // activeRef (a sessão que você está vendo, que pode estar ociosa).
@@ -71,19 +109,11 @@ export function usePaletteCommands(args: PaletteCommandsArgs): Cmd[] {
         run: () => { onSelectSession(key); nav('/'); onClose(); },
       };
     });
-    const seeds: Cmd[] = UI_SEEDS.map((s) => ({
-      id: s.id,
-      label: s.label,
-      hint: '↵ envia',
-      icon: s.icon,
-      group: 'Gerar UI',
-      run: () => { nav('/'); onSeedComposer(s.prompt); onFocusComposer(); onClose(); },
-    }));
-    const modes: Cmd[] = (['plan', 'auto', 'acceptEdits'] as PermMode[]).map((m) => ({
+    const modes: Cmd[] = (['auto', 'acceptEdits'] as PermMode[]).map((m) => ({
       id: `mode-${m}`,
       label: `Modo: ${MODE_LABEL[m]}`,
       hint: mode === m ? 'atual' : undefined,
-      icon: m === 'plan' ? 'pencil' : m === 'auto' ? 'sparkles' : 'play',
+      icon: m === 'auto' ? 'sparkles' : 'play',
       group: 'Modo',
       run: setM(m),
     }));
@@ -96,6 +126,7 @@ export function usePaletteCommands(args: PaletteCommandsArgs): Cmd[] {
       group: 'Sessões',
       run: () => { onSelectSession(s.id); nav('/'); onClose(); },
     }));
-    return [...nav_, ...actions, ...seeds, ...runningCmds, ...modes, ...sess];
-  }, [isAdmin, nav, onClose, onNew, mode, setMode, sessions, onSelectSession, running, onStop, onFocusComposer, onSeedComposer, onShowHelp]);
+    // Empty-palette order: what is running, recent sessions, actions, then routes.
+    return [...runningCmds, ...sess, ...actions, ...nav_, ...modes];
+  }, [role, arcade, sudo, hiddenEgg, nav, onClose, onNew, mode, setMode, sessions, onSelectSession, running, onStop, onFocusComposer, onShowHelp, draft]);
 }

@@ -1,0 +1,70 @@
+/* Bit at play: gait and prop poses layered over the face states. Each pose is a
+   class on the <svg> (and on the .bit-actor wrapper for props); limbs swing around
+   their joints in view-box units, like bit.css. */
+.bit .bit-legL { transform-origin: 44px 101px; transform-box: view-box; }
+.bit .bit-legR { transform-origin: 76px 101px; transform-box: view-box; }
+.bit .bit-gaze { transform: translate(var(--bit-gx, 0px), var(--bit-gy, 0px)); transition: transform 0.22s ease-out; }
+
+.bit-sneaky .bit-eyes, .bit-surprised .bit-eyes { animation: bitBlink 3.6s ease-in-out infinite; }
+.bit-sneaky .bit-body, .bit-surprised .bit-body, .bit-dizzy .bit-body { animation: bitBreathe 2.6s ease-in-out infinite; }
+.bit-surprised .bit-ant { animation: bitAnt 0.3s ease-in-out 3; }
+.bit-dizzy .bit-eyes { animation: bitSpin 0.9s linear infinite; }
+.bit-dizzy .bit-ant { animation: bitAnt 0.45s ease-in-out infinite; }
+
+@keyframes bitSpin { from { transform: rotate(0); } to { transform: rotate(360deg); } }
+@keyframes bitStepL { 0%, 100% { transform: rotate(28deg); } 50% { transform: rotate(-28deg); } }
+@keyframes bitStepR { 0%, 100% { transform: rotate(-28deg); } 50% { transform: rotate(28deg); } }
+@keyframes bitSwingL { 0%, 100% { transform: rotate(-24deg); } 50% { transform: rotate(20deg); } }
+@keyframes bitSwingR { 0%, 100% { transform: rotate(-20deg); } 50% { transform: rotate(24deg); } }
+@keyframes bitStepBob { 0%, 50%, 100% { transform: translateY(0) scale(1.02, 0.98); } 25%, 75% { transform: translateY(-4px) scale(0.98, 1.02); } }
+@keyframes bitTiptoeBob { 0%, 50%, 100% { transform: translateY(-2px); } 25%, 75% { transform: translateY(-7px); } }
+@keyframes bitJuggleL { 0%, 100% { transform: rotate(150deg); } 50% { transform: rotate(105deg); } }
+@keyframes bitJuggleR { 0%, 100% { transform: rotate(-105deg); } 50% { transform: rotate(-150deg); } }
+@keyframes bitSweepArm { 0%, 100% { transform: rotate(-8deg); } 50% { transform: rotate(-48deg); } }
+@keyframes bitSweepBroom { 0%, 100% { transform: rotate(10deg); } 50% { transform: rotate(-26deg); } }
+@keyframes bitDust { 0% { opacity: 0; transform: translate(0, 0) scale(0.4); } 25% { opacity: 0.8; } 100% { opacity: 0; transform: translate(-22px, -14px) scale(1.4); } }
+@keyframes bitSneeze { 0%, 100% { transform: translateX(0); } 20%, 60% { transform: translateX(-3px); } 40%, 80% { transform: translateX(3px); } }
+
+.bit.bit-walking .bit-legL { animation: bitStepL var(--bit-step, 0.3s) linear infinite; }
+.bit.bit-walking .bit-legR { animation: bitStepR var(--bit-step, 0.3s) linear infinite; }
+.bit.bit-walking .bit-armL { animation: bitSwingL var(--bit-step, 0.3s) ease-in-out infinite; }
+.bit.bit-walking .bit-armR { animation: bitSwingR var(--bit-step, 0.3s) ease-in-out infinite; }
+.bit.bit-walking .bit-body { animation: bitStepBob var(--bit-step, 0.3s) ease-in-out infinite; }
+.bit.bit-tiptoe { --bit-step: 0.34s; }
+.bit.bit-tiptoe .bit-body { animation: bitTiptoeBob 0.34s ease-in-out infinite; }
+.bit.bit-tiptoe .bit-armL { animation: none; transform: rotate(48deg); }
+.bit.bit-tiptoe .bit-armR { animation: none; transform: rotate(-62deg); }
+.bit.bit-running { --bit-step: 0.2s; }
+.bit.bit-walking .bit-all, .bit.bit-walking .bit-shadow { animation: none; }
+.bit.bit-running .bit-all { transform: rotate(7deg); }
+
+.bit .bit-armL, .bit .bit-armR { transition: transform 0.14s ease-out; }
+.bit.bit-reach .bit-armR { transform: rotate(-112deg); }
+.bit.bit-carry .bit-armL, .bit.bit-cheer .bit-armL { animation: none; transform: rotate(132deg); }
+.bit.bit-carry .bit-armR, .bit.bit-cheer .bit-armR { animation: none; transform: rotate(-132deg); }
+.bit.bit-cheer .bit-armL { transform: rotate(100deg); }
+.bit.bit-cheer .bit-armR { transform: rotate(-100deg); }
+.bit.bit-juggle .bit-armL { animation: bitJuggleL 0.36s ease-in-out infinite; }
+.bit.bit-juggle .bit-armR { animation: bitJuggleR 0.36s ease-in-out infinite; }
+.bit.bit-sit .bit-legL, .bit.bit-sit .bit-legR { animation: none; transform: rotate(-75deg); }
+.bit.bit-broom .bit-armR { animation: none; transform: rotate(-24deg); }
+.bit.bit-sweeping .bit-armR { animation: bitSweepArm 0.32s ease-in-out infinite; }
+.bit.bit-sweeping .bit-body { animation: bitStepBob 0.32s ease-in-out infinite; }
+.bit.bit-sneeze .bit-all { animation: bitSneeze 0.3s ease-in-out 2; }
+
+.bit-actor { position: absolute; left: 0; top: 0; transform-origin: 50% 100%; will-change: transform; }
+.bit-actor .bit-broom-prop { transform-origin: 30% 8%; transform-box: fill-box; transform: rotate(10deg); }
+.bit-actor.bit-sweeping .bit-broom-prop { animation: bitSweepBroom 0.32s ease-in-out infinite; }
+.bit-actor .bit-dust { opacity: 0; transform-box: fill-box; transform-origin: center; }
+.bit-actor.bit-sweeping .bit-dust { animation: bitDust 0.64s ease-out infinite; }
+.bit-actor.bit-sweeping .bit-dust:nth-child(2) { animation-delay: 0.21s; }
+.bit-actor.bit-sweeping .bit-dust:nth-child(3) { animation-delay: 0.42s; }
+.bit-actor.bit-sneeze .bit-dust { animation: bitDust 0.5s ease-out 1; }
+
+.bit-stage-letter { position: absolute; left: 0; top: 0; display: block; text-align: center; white-space: pre; will-change: transform; }
+::highlight(bit-stolen) { color: transparent; }
+
+@media (prefers-reduced-motion: reduce) {
+  .bit-stage { display: none; }
+}
+.bit.bit-stroll { --bit-step: 0.4s; }

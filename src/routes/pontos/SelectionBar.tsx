@@ -19,10 +19,10 @@ export function SelectionBar({ projects }: { projects: DflProjectNode[] }) {
   return (
     <div className="sticky bottom-0 z-10 mt-2 flex items-center gap-3 rounded-xl border border-orange-500/30 bg-neutral-950/90 px-3.5 py-2.5 backdrop-blur-sm">
       <div className="min-w-0 flex-1">
-        <span className="text-[12.5px] font-semibold text-neutral-100">{s.count} {s.count === 1 ? 'delivery' : 'deliveries'}</span>
-        <span className="ml-2 text-[12px] tabular-nums text-neutral-400">{fmtPts(s.points)} pt em aberto · {brl(s.amountCents)}</span>
+        <span className="text-[13px] font-semibold text-neutral-100">{s.count} {s.count === 1 ? 'delivery' : 'deliveries'}</span>
+        <span className="ml-2 text-[13px] tabular-nums text-neutral-400">{fmtPts(s.points)} pt em aberto · {brl(s.amountCents)}</span>
         {/* "Off" is a per-device flag: say why a selected delivery doesn't count. */}
-        {s.off > 0 && <span className="ml-2 text-[11.5px] text-amber-300/80">{s.off} off (fora da fatura)</span>}
+        {s.off > 0 && <span className="ml-2 text-[12px] text-amber-300/80">{s.off} off (fora da fatura)</span>}
       </div>
       <Button variant="ghost" size="sm" onClick={clearSelected} disabled={s.count === 0}>limpar</Button>
       <Button variant="primary" size="sm" onClick={() => setConfirming(true)} disabled={s.billable === 0}>

@@ -1,3 +1,5 @@
+import { claudeBin } from '../engine/cli-path';
+import { detachedGroup, killGroup, platformEnv } from '../platform';
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { CONFIG } from '../config';
@@ -12,11 +14,12 @@ import { applySlashCommands } from './slash';
 export function probeSlashCommands(): void {
   let child;
   try {
-    child = spawn('claude', ['-p', '.', '--output-format', 'stream-json', '--verbose', '--permission-mode', 'plan', '--strict-mcp-config'], {
+    child = spawn(claudeBin(), ['-p', '.', '--output-format', 'stream-json', '--verbose', '--permission-mode', 'plan', '--strict-mcp-config'], {
       cwd: CONFIG.workdir,
-      env: { PATH: process.env.PATH, HOME: process.env.HOME, LANG: process.env.LANG ?? 'en_US.UTF-8', TERM: 'dumb' },
+      env: { ...platformEnv(), PATH: process.env.PATH, HOME: process.env.HOME, LANG: process.env.LANG ?? 'en_US.UTF-8', TERM: 'dumb' },
       shell: false,
-      detached: true,
+      detached: detachedGroup,
+      windowsHide: true,
       stdio: ['ignore', 'pipe', 'pipe'],
     });
   } catch { return; }
@@ -25,7 +28,7 @@ export function probeSlashCommands(): void {
   const finish = () => {
     if (done) return;
     done = true;
-    try { if (child.pid) process.kill(-child.pid, 'SIGKILL'); } catch { try { child.kill('SIGKILL'); } catch { /* já morto */ } }
+    killGroup(child);
   };
   // Trava de segurança: se nenhum system event vier, não deixa o processo vivo.
   const timer = setTimeout(finish, 30_000);

@@ -5,6 +5,7 @@ import {
 import type { DflPointsSnapshot, DflTaskNode } from '../../shared/protocol';
 import { CONFIG } from '../config';
 import { emitCanvasMsg } from '../ws/canvas-clients';
+import { withPlain } from '../mission-summary';
 import { runDflWrite } from '../dfl-write-runner';
 import { readDflSnapshot } from '../dfl-points';
 import { findTaskInSnapshot } from './dfl-link';
@@ -31,7 +32,7 @@ export async function applyDflSyncToBoard(snapshot: DflPointsSnapshot): Promise<
   // blindly letting it complete later would overwrite what DFL now has with
   // a stale local value (review point 5).
   for (const id of changedIds) cancelPendingPush(id);
-  emitCanvasMsg({ t: 'canvas-board', board, flowRuns: [] });
+  emitCanvasMsg({ t: 'canvas-board', board: withPlain(board), flowRuns: [] });
 }
 
 // DFL -> Deck direction: the periodic dfl-sync read (server/dfl-sync.ts's
@@ -196,11 +197,17 @@ async function pushCardDflStatusUnsafe(cardId: string, status: CardStatus, taskI
       await updateBoard((b) => setCardDflPending(b, cardId, undefined));
       return;
     }
-    const r = await runDflWrite({ kind: 'task-status', taskId, status: dflStatus });
+    const r = await runDflWrite({ kind: 'task-status', taskId, status: dflStatus, unlessFinished: !opts.confirmed });
     if (superseded()) return;
     if (r.ok) {
       const updatedAt = typeof r.result.updatedAt === 'string' ? Date.parse(r.result.updatedAt) : undefined;
       await updateBoard((b) => setCardDflSynced(b, cardId, Date.now(), Number.isFinite(updatedAt) ? updatedAt : undefined));
+      return;
+    }
+    // DFL itself says the task is finished (the local snapshot was stale): same
+    // gate as the up-front reopen check — ask, don't retry.
+    if (!opts.confirmed && r.error.includes('FINISHED_IN_DFL')) {
+      await updateBoard((b) => setCardDflPending(b, cardId, status, { awaitingConfirm: true }));
       return;
     }
     if (attempt === MAX_PUSH_ATTEMPTS) {

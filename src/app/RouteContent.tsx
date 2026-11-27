@@ -1,30 +1,29 @@
-import { Suspense } from 'react';
+import { Suspense, useMemo, type ReactNode } from 'react';
 import { MobileLayout } from '../components/Mobile';
 import { DesktopLayout } from './DesktopLayout';
-import { SkeletonCards } from '../components/primitives';
+import { AgentCenter } from './AgentCenter';
+import type { AgentNav } from './useAgentNav';
+import { RouteFallback } from './RouteFallback';
 import { ChunkErrorBoundary } from './ChunkErrorBoundary';
 import {
-  Contextos, Skills, Notas, Pontos, Crons, Observatorio,
-  Graph, Canvas, Harness, Admin, Docs, DesignSystem, Playground,
+  Pontos,
+  Graph, Canvas, DesignSystem, Onboarding, EquipePage, EquipeHome, Agente, Base, Arcade, Prs, Explorar,
 } from './lazyRoutes';
-import type { SessionsPanelProps } from '../components/Sessions';
 import type { ChatPanelProps } from '../components/chat/chat-panel-props';
 import type { TerminalsPanelProps } from '../components/Terminals';
 import type { Terminal } from '../data/types';
 import type { useCockpit } from '../useCockpit';
-import type { Route } from '../useRoute';
-import type { PanelSide } from './usePanelResize';
+import { AGENT_EXECUTOR, AGENT_MEETINGS, AGENT_STORE, type AgentTab, type Route } from '../useRoute';
+import { SkeletonCards } from '../components/primitives';
+import { AgentsHome } from '../routes/agentes-office/AgentsHome';
+import { navigateTo } from '../lib/route-nav';
+import { ChatPrDepsContext, type ChatPrDeps } from '../routes/prs/chat/pr-deps-context';
+
+// The DFL snapshot is root-only on the server: the Canvas of a plain admin skips it.
+const noop = () => {};
 
 interface LayoutState {
   rowRef: React.RefObject<HTMLDivElement | null>;
-  leftW: number;
-  rightW: number;
-  leftCollapsed: boolean;
-  setLeftCollapsed: (v: boolean) => void;
-  rightCollapsed: boolean;
-  setRightCollapsed: (v: boolean) => void;
-  startDrag: (which: PanelSide) => (e: React.PointerEvent<HTMLDivElement>) => void;
-  nudge: (which: PanelSide, e: React.KeyboardEvent) => void;
 }
 
 interface MobileState {
@@ -33,68 +32,66 @@ interface MobileState {
   termSheet: boolean;
   setTermSheet: (v: boolean) => void;
   runningTerm: Terminal | undefined;
+  drawerNav?: ReactNode;
 }
 
 interface RouteContentProps {
   route: Route;
+  agentRoute?: { id: string; tab: AgentTab; open: (id: string, tab?: AgentTab) => void };
   isMobile: boolean;
   isAdmin: boolean;
+  capsKnown: boolean;
+  isRoot: boolean;
   connected: boolean;
   cockpit: ReturnType<typeof useCockpit>;
-  sessionsProps: SessionsPanelProps;
   chatProps: ChatPanelProps;
   termProps: TerminalsPanelProps;
   onOpenSession: (id: string) => void;
-  onAnalyzeNotes: (text: string) => void;
+  agent: AgentNav;
   layout: LayoutState;
   mobile: MobileState;
 }
 
-export function RouteContent({ route, isMobile, isAdmin, connected, cockpit, sessionsProps, chatProps, termProps, onOpenSession, onAnalyzeNotes, layout, mobile }: RouteContentProps) {
+export function RouteContent({ route, agentRoute, isMobile, isAdmin, capsKnown, isRoot, connected, cockpit, chatProps, termProps, onOpenSession, agent, layout, mobile }: RouteContentProps) {
   const c = cockpit;
+  const { onSendTo, onLaunchAgent } = c;
+  const prDeps = useMemo<ChatPrDeps | null>(
+    () => (isRoot ? { onOpenSession, onSendTo, onLaunchAgent, connected, onAllPrs: () => navigateTo('/prs') } : null),
+    [isRoot, connected, onOpenSession, onSendTo, onLaunchAgent],
+  );
   const view = (() => {
-    if (route === '/contextos') {
+    if (route === '/equipe/rotinas' || route === '/equipe/memoria' || route === '/equipe/mundo') {
       return (
-        <Contextos connected={connected} contexts={c.contexts} loaded={c.ctxLoaded} openContext={c.openContext}
-          onCtxList={c.onCtxList} onCtxOpen={c.onCtxOpen} onCtxClose={c.onCtxClose} />
+        <EquipePage
+          tab={route === '/equipe/memoria' ? 'memoria' : route === '/equipe/mundo' ? 'mundo' : 'rotinas'}
+          teamState={c.teamState} onTeamStateGet={c.onTeamStateGet} meetings={c.meetings} onMeetingsGet={c.onMeetingsGet} onMeetingStart={c.onMeetingStart} teamPaused={c.teamPaused} onTeamPauseSet={c.onTeamPauseSet}
+          memory={{ memories: c.memories, loaded: c.memoriesLoaded, onList: c.onMemList, onSave: c.onMemSave, onDelete: c.onMemDelete }}
+          views={agent.views} connected={connected} isAdmin={isAdmin} capsKnown={capsKnown}
+          bots={c.bots} onOpenChat={agent.open}
+          cron={{ crons: c.crons, loaded: c.cronsLoaded, onCronsGet: c.onCronsGet, onCronSave: c.onCronSave, onCronDelete: c.onCronDelete, onCronRun: c.onCronRun }}
+          onGo={navigateTo} />
       );
     }
-    if (route === '/skills') {
+    if (route === '/equipe' && isAdmin) {
       return (
-        <Skills connected={connected} skills={c.skills} loaded={c.skillsLoaded} openSkill={c.openSkill}
-          registry={c.registry} registryLoading={c.registryLoading} registryError={c.registryError} installing={c.installing}
-          onSkillList={c.onSkillList} onSkillOpen={c.onSkillOpen} onSkillClose={c.onSkillClose}
-          onRegistryGet={c.onRegistryGet} onRegistryInstall={c.onRegistryInstall} />
+        <EquipeHome role={isRoot ? 'root' : 'admin'} state={c.teamState} bots={c.bots} connected={connected} onLoad={c.onTeamStateGet}
+          onOpenAgent={agent.open} onSendTo={c.onSendTo} />
       );
     }
-    if (route === '/notas') {
-      return (
-        <Notas connected={connected} notes={c.notes} notesLoaded={c.notesLoaded}
-          onNotesGet={c.onNotesGet} onNotesSave={c.onNotesSave} onAnalyze={onAnalyzeNotes} />
-      );
+    if (route === '/arcade') return <Arcade />;
+    if (route === '/explorar' && isAdmin) return <Explorar role={isRoot ? 'root' : 'admin'} onOpen={navigateTo} />;
+    if (route === '/prs' && isRoot) {
+      return <Prs role="root" connected={connected} onOpenSession={onOpenSession} onSendTo={c.onSendTo} onLaunchAgent={c.onLaunchAgent} />;
     }
-    if (route === '/pontos') {
+    if (route === '/pontos' && isRoot) {
       return (
-        <Pontos connected={connected} points={c.points} total={c.pointsTotal} loaded={c.pointsLoaded}
+        <Pontos role="root" connected={connected} points={c.points} total={c.pointsTotal} loaded={c.pointsLoaded}
           onPointsGet={c.onPointsGet} onPointsAdd={c.onPointsAdd} onPointsCorrect={c.onPointsCorrect}
           onPointsNote={c.onPointsNote} onPointsDelete={c.onPointsDelete}
           dflSnapshot={c.dflSnapshot} dflLoaded={c.dflLoaded} dflSyncing={c.dflSyncing}
           onDflGet={c.onDflGet} onDflSync={c.onDflSync} onDflChange={c.onDflChange} onDflInvoice={c.onDflInvoice}
           onPontosAgent={c.onPontosAgent}
           drafts={c.drafts} draftsLoaded={c.draftsLoaded} onDraftsGet={c.onDraftsGet} onDraftOp={c.onDraftOp} />
-      );
-    }
-    if (route === '/crons') {
-      return (
-        <Crons connected={connected} crons={c.crons} loaded={c.cronsLoaded}
-          onCronsGet={c.onCronsGet} onCronSave={c.onCronSave} onCronDelete={c.onCronDelete} onCronRun={c.onCronRun}
-          planUsage={c.planUsage} models={c.models} />
-      );
-    }
-    if (route === '/uso') {
-      return (
-        <Observatorio connected={connected} usageStats={c.usageStats} onUsageList={c.onUsageList} sessions={c.sessions} rate={c.rate}
-          onOpenSession={onOpenSession} />
       );
     }
     if (route === '/graph' && isAdmin) {
@@ -104,9 +101,20 @@ export function RouteContent({ route, isMobile, isAdmin, connected, cockpit, ses
           onGraphList={c.onGraphList} onGraphOpen={c.onGraphOpen} onGraphBuild={c.onGraphBuild} onClearBuildError={c.onClearBuildError} onGraphDelete={c.onGraphDelete} onGraphQuery={c.onGraphQuery} onGraphNodeOp={c.onGraphNodeOp} />
       );
     }
+    if (route === '/base' && isAdmin) {
+      return (
+        <Base source={{
+          connected, sessions: c.sessions, running: c.runningAnywhere, termStats: c.canvasTermStats, threads: c.threads, peeks: c.sessionPeeks, todos: c.allSessionTodos, bgAgents: c.allBgAgents,
+          teamQuestions: c.pendingQuestions, graph: c.canvasGraph, board: c.canvasBoard, boardLoaded: c.canvasGraph !== null,
+          stats: c.stats, crons: c.cronsLoaded ? c.crons : null, mcpServers: c.mcpServers.length ? c.mcpServers : null, bots: c.bots,
+          onCtxStats: c.onCanvasCtxStats, onPeek: c.onSessionPeek, onLoadThread: c.onLoadThread, onCanvasGet: c.onCanvasGet, onCanvasCardSave: c.onCanvasCardSave, onCronsGet: c.onCronsGet,
+          onSendTo: c.onSendTo, onStop: c.onStop, onOpenSession,
+        }} />
+      );
+    }
     if (route === '/canvas' && isAdmin) {
       return (
-        <Canvas connected={connected} graph={c.canvasGraph} board={c.canvasBoard} loading={c.canvasLoading}
+        <Canvas role={isRoot ? 'root' : 'admin'} connected={connected} graph={c.canvasGraph} board={c.canvasBoard} loading={c.canvasLoading}
           loadingSince={c.canvasLoadingSince} stale={c.canvasStale} sessions={c.sessions} running={c.running} runStart={c.runStart}
           onCanvasGet={c.onCanvasGet} onCanvasPos={c.onCanvasPos} onCanvasPosReset={c.onCanvasPosReset}
           onCanvasCardSave={c.onCanvasCardSave} onCanvasCardDelete={c.onCanvasCardDelete} onCanvasBudgetSave={c.onCanvasBudgetSave}
@@ -120,47 +128,60 @@ export function RouteContent({ route, isMobile, isAdmin, connected, cockpit, ses
           term={c.term} discoveredTerms={c.discoveredTerms} listTerms={c.listTerms}
           termStats={c.canvasTermStats} onTermStats={c.onCanvasTermStats} onCanvasCtxStats={c.onCanvasCtxStats}
           areaUsage={c.canvasAreaUsage} interrupted={c.interrupted}
-          dflSnapshot={c.dflSnapshot} onDflGet={c.onDflGet}
+          dflSnapshot={c.dflSnapshot} onDflGet={isRoot ? c.onDflGet : noop}
           onDflTaskLink={c.onDflTaskLink} onDflTaskCreateLink={c.onDflTaskCreateLink} onDflTaskUnlink={c.onDflTaskUnlink}
           onDflTaskConfirmSync={c.onDflTaskConfirmSync}
-          orchestratorActivity={c.orchestratorActivity} onOrchestratorActivityGet={c.onOrchestratorActivityGet}
           cvLiveSessionIds={c.cvLiveSessionIds} cvIdleSessionIds={c.cvIdleSessionIds} sessionPeeks={c.sessionPeeks} onSessionPeek={c.onSessionPeek} />
       );
     }
-    if (route === '/harness' && isAdmin) {
+    if (route === '/agentes' && agentRoute && (!agentRoute.id || agentRoute.id === AGENT_STORE || agentRoute.id === AGENT_MEETINGS || agentRoute.id === AGENT_EXECUTOR)) {
       return (
-        <Harness connected={connected} config={c.harnessConfig} tasks={c.harnessTasks} events={c.harnessEvents}
-          onHarnessGet={c.onHarnessGet} onHarnessRun={c.onHarnessRun} />
+        <div className="scroll-thin min-h-0 flex-1 overflow-y-auto">
+          <div className="mx-auto w-full max-w-350 px-4 pb-8 pt-6 max-lg:pt-2 sm:px-8">
+            {c.teamLoaded
+              ? <AgentsHome tab={agentRoute.id === AGENT_MEETINGS ? 'reunioes' : agentRoute.id === AGENT_EXECUTOR ? 'executor' : agentRoute.id ? 'loja' : 'escritorio'}
+                  onTab={(t) => agentRoute.open(t === 'loja' ? AGENT_STORE : t === 'reunioes' ? AGENT_MEETINGS : t === 'executor' ? AGENT_EXECUTOR : '')}
+                  meetings={c.meetings} onMeetingsGet={c.onMeetingsGet} onMeetingStart={c.onMeetingStart}
+                  executor={c.executor} heavyJobs={c.heavyJobs} onHeavyGet={c.onHeavyGet} onHeavyRun={c.onHeavyRun} onHeavyCancel={c.onHeavyCancel}
+                  views={agent.views} bots={c.bots} skills={c.skills} connected={connected} canEdit={isAdmin} onSkillList={c.onSkillList}
+                  onSave={c.onTeamSave} onDelete={c.onTeamDelete} onOpen={agent.open} onProfile={(id, tab) => agentRoute.open(id, tab)} onNew={agent.openNew} />
+              : <SkeletonCards />}
+          </div>
+        </div>
       );
     }
-    if (route === '/admin' && isAdmin) {
+    if (route === '/agentes' && agentRoute) {
       return (
-        <Admin health={c.health} stats={c.stats} onHealthList={c.onHealthList}
-          accounts={c.accounts} accountsLoaded={c.accountsLoaded} onAccountsList={c.onAccountsList} onSetAdmin={c.onSetAdmin} isRoot={c.caps?.role === 'root'}
-          adminOp={c.adminOp} onEnvSet={c.onEnvSet} onEnvUnset={c.onEnvUnset} onMcpAdd={c.onMcpAdd} onMcpRemove={c.onMcpRemove} onCliInstall={c.onCliInstall}
-          onCliUpdate={c.onCliUpdate} onDeckRestart={c.onDeckRestart} />
+        <Agente agentId={agentRoute.id} tab={agentRoute.tab} views={agent.views} api={c} connected={connected} isAdmin={isAdmin} isMobile={isMobile}
+          onTab={agentRoute.open} onList={() => agentRoute.open('')} onChat={agent.open} />
       );
     }
-    if (route === '/docs') return <Docs />;
     if (route === '/ds') return <DesignSystem />;
-    if (route === '/play') return <Playground />;
+    if (route === '/onboarding') {
+      return (
+        <Onboarding agents={c.agents} claudeImport={isRoot ? c.claudeImport : undefined} byoKeys={isRoot} claudeReady={c.claudeReady} login={c.claudeLogin}
+          onStart={c.onClaudeLoginStart} onCode={c.onClaudeLoginCode} onCancel={c.onClaudeLoginCancel}
+          onDone={() => navigateTo('/')} connected={connected} />
+      );
+    }
+    // '/' is the default agent's chat; the header picker switches agents.
+    const center = agent.active
+      ? <AgentCenter view={agent.active} agent={agent} cockpit={c} chatProps={chatProps} connected={connected} isMobile={isMobile} isAdmin={isAdmin} />
+      : undefined;
     if (isMobile) {
       return (
         <MobileLayout
-          sessionsProps={sessionsProps} chatProps={chatProps} termProps={termProps}
+          chatProps={chatProps} termProps={termProps} center={center}
           drawer={mobile.drawer} setDrawer={mobile.setDrawer}
           termSheet={mobile.termSheet} setTermSheet={mobile.setTermSheet}
-          runningTerm={mobile.runningTerm}
+          runningTerm={mobile.runningTerm} drawerNav={mobile.drawerNav}
         />
       );
     }
     return (
       <DesktopLayout
-        sessionsProps={sessionsProps} chatProps={chatProps} termProps={termProps}
-        rowRef={layout.rowRef} leftW={layout.leftW} rightW={layout.rightW}
-        leftCollapsed={layout.leftCollapsed} setLeftCollapsed={layout.setLeftCollapsed}
-        rightCollapsed={layout.rightCollapsed} setRightCollapsed={layout.setRightCollapsed}
-        startDrag={layout.startDrag} nudge={layout.nudge}
+        chatProps={chatProps} termProps={termProps} center={center} hideTerminals={agent.profileOpen}
+        rowRef={layout.rowRef}
       />
     );
   })();
@@ -175,7 +196,9 @@ export function RouteContent({ route, isMobile, isAdmin, connected, cockpit, ses
   return (
     <div key={route} className="route-fade flex min-h-0 min-w-0 flex-1 flex-col">
       <ChunkErrorBoundary>
-        <Suspense fallback={<div className="p-4"><SkeletonCards /></div>}>{view}</Suspense>
+        <ChatPrDepsContext.Provider value={prDeps}>
+          <Suspense fallback={<RouteFallback />}>{view}</Suspense>
+        </ChatPrDepsContext.Provider>
       </ChunkErrorBoundary>
     </div>
   );

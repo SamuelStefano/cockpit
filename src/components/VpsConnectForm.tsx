@@ -29,7 +29,7 @@ export function VpsConnectForm({ onDone }: { onDone?: () => void }) {
   return (
     <form onSubmit={save} className="space-y-3">
       <div>
-        <label htmlFor="vps-url" className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-neutral-400">
+        <label htmlFor="vps-url" className="mb-1.5 flex items-center gap-1.5 text-[12px] font-medium text-neutral-400">
           <Icon name="terminal" size={12} /> Endereço do backend
         </label>
         <Input
@@ -43,15 +43,15 @@ export function VpsConnectForm({ onDone }: { onDone?: () => void }) {
           autoCorrect="off"
           spellCheck={false}
         />
-        {urlErr && <p className="mt-1.5 text-[11px] leading-relaxed text-red-300">{urlErr}</p>}
+        {urlErr && <p className="mt-1.5 text-[12px] leading-relaxed text-red-300">{urlErr}</p>}
         {!urlErr && insecureWsUrl(url) && (
-          <p role="alert" className="mt-1.5 text-[11px] leading-relaxed text-yellow-300">
+          <p role="alert" className="mt-1.5 text-[12px] leading-relaxed text-yellow-300">
             ws:// sem TLS pra um host público: o token e tudo o que passa pelo Deck vão em texto claro. Use wss:// (ou o endereço Tailscale).
           </p>
         )}
       </div>
       <div>
-        <label htmlFor="vps-token" className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-neutral-400">
+        <label htmlFor="vps-token" className="mb-1.5 flex items-center gap-1.5 text-[12px] font-medium text-neutral-400">
           <Icon name="shield" size={12} /> Token <span className="text-neutral-600">(opcional)</span>
         </label>
         <Input
@@ -65,7 +65,7 @@ export function VpsConnectForm({ onDone }: { onDone?: () => void }) {
       <Button type="submit" className="w-full">
         Salvar e conectar
       </Button>
-      <p className="text-[11px] leading-relaxed text-neutral-600">
+      <p className="text-[12px] leading-relaxed text-neutral-600">
         Deixe o endereço em branco pra usar o servidor da mesma origem. O endereço e o token ficam salvos só neste navegador.
       </p>
     </form>

@@ -6,13 +6,13 @@ type ChipTone = 'accent' | 'danger';
 
 interface ToggleChipProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   on: boolean;
-  icon: IconName;
+  icon?: IconName;
   tone?: ChipTone;
   children?: ReactNode;
 }
 
 const onTone: Record<ChipTone, string> = {
-  accent: `border-orange-500/50 bg-orange-500/15 text-orange-300 ${tokens.insetRing.accent}`,
+  accent: `border-(--accent-border) bg-orange-500/15 text-(--accent-soft) ${tokens.insetRing.accent}`,
   danger: `border-red-500/50 bg-red-500/15 text-red-300 ${tokens.insetRing.err}`,
 };
 
@@ -28,11 +28,11 @@ export function ToggleChip({ on, icon, tone = 'accent', children, className = ''
   return (
     <button
       type="button"
-      className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-[11px] font-medium transition sm:px-2 sm:py-1 ${ring[tone]}
-        ${on ? onTone[tone] : 'border-neutral-800 bg-neutral-950 text-neutral-500 hover:text-neutral-300'} ${className}`}
+      className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border h-8 px-3 text-[12px] transition ${ring[tone]}
+        ${on ? onTone[tone] : 'border-(--border-strong) bg-neutral-950 text-(--text-weak) hover:text-(--text)'} ${className}`}
       {...rest}
     >
-      <Icon name={icon} size={12} />
+      {icon && <Icon name={icon} size={12} />}
       {children}
     </button>
   );

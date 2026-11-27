@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { splitFences } from './markdown/split-fences';
 import { proseBlocks } from './markdown/prose-blocks';
 import { CodeBlock } from './CodeBlock';
+import { DeckPanelBlock } from './deck-panel/DeckPanelBlock';
 
 interface MarkdownProps {
   md: string;
@@ -18,12 +19,15 @@ function MarkdownImpl({ md, caret = false }: MarkdownProps) {
     for (let i = s.length - 1; i >= 0; i--) { if (s[i].t === 'prose') { lp = i; break; } }
     return { segs: s, lastProse: lp };
   }, [md]);
+  const slugs = new Map<string, number>();
   return (
-    <div className="space-y-4 wrap-break-word text-[15.5px] leading-7 text-neutral-300">
+    <div className="space-y-4 wrap-break-word text-[16px] leading-8 text-neutral-300">
       {segs.map((s, si) =>
-        s.t === 'code'
+        s.t === 'code' && s.lang === 'deck-panel'
+          ? <DeckPanelBlock key={`seg${si}`} code={s.code} />
+          : s.t === 'code'
           ? <CodeBlock key={`seg${si}`} code={s.code} lang={s.lang || undefined} />
-          : <React.Fragment key={`seg${si}`}>{proseBlocks(s.text, `s${si}`, caret && si === lastProse)}</React.Fragment>
+          : <React.Fragment key={`seg${si}`}>{proseBlocks(s.text, `s${si}`, caret && si === lastProse, slugs)}</React.Fragment>
       )}
     </div>
   );

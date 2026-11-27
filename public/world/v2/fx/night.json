@@ -1,0 +1,392 @@
+{
+ "version": 1,
+ "lut": {
+  "file": "night-lut.png",
+  "width": 256,
+  "height": 1,
+  "index": [
+   "ol0",
+   "ol1",
+   "s0",
+   "s1",
+   "s2",
+   "s3",
+   "h0",
+   "h1",
+   "h2",
+   "h3",
+   "g0",
+   "g1",
+   "g2",
+   "g3",
+   "p0",
+   "p1",
+   "p2",
+   "w0",
+   "w1",
+   "w2",
+   "w3",
+   "t0",
+   "t1",
+   "t2",
+   "t3",
+   "t4",
+   "q0",
+   "q1",
+   "q2",
+   "q3",
+   "q4",
+   "q5",
+   "a0",
+   "a1",
+   "a2",
+   "a3",
+   "y0",
+   "y1",
+   "y2",
+   "r0",
+   "r1",
+   "r2",
+   "wh",
+   "m0",
+   "m1",
+   "m2",
+   "k0",
+   "k1",
+   "c0",
+   "c1"
+  ],
+  "note": "pixel x = index of the colour in `index` (the 48 tile colours, then the 2 bot lilacs); pixels 50-255 are unused (transparent)",
+  "map": {
+   "#2a1d2e": "#18193a",
+   "#4a3045": "#212147",
+   "#a0565a": "#373058",
+   "#ee9a80": "#4d4873",
+   "#ffc9a0": "#545886",
+   "#ffe6cc": "#56619a",
+   "#4a1f2a": "#1f1b3a",
+   "#7d3324": "#2c233d",
+   "#b8562e": "#3c3048",
+   "#e88a4a": "#4a425c",
+   "#156a4e": "#18314e",
+   "#23a067": "#1f425e",
+   "#3fd17f": "#29536f",
+   "#a8f0b8": "#43618f",
+   "#262e5a": "#181f4c",
+   "#3d4a85": "#202961",
+   "#5a6cb0": "#293578",
+   "#52321f": "#222139",
+   "#7f4f2c": "#2e2c44",
+   "#b0743f": "#3c3952",
+   "#d9a066": "#484969",
+   "#76604f": "#2e3152",
+   "#a3836a": "#3a3e64",
+   "#c9a982": "#454c73",
+   "#e3cba6": "#4e5787",
+   "#f6e7cf": "#54619b",
+   "#1f4a35": "#182741",
+   "#2f6e35": "#1e3246",
+   "#4c9a3c": "#27414f",
+   "#72c048": "#334f5b",
+   "#a6dd5a": "#405a68",
+   "#e0f58a": "#506481",
+   "#2b4a8a": "#1c2862",
+   "#3a78c8": "#233880",
+   "#5fb4e8": "#2f4c96",
+   "#a8e4f5": "#435ea5",
+   "#f0a830": "#4d4c56",
+   "#ffd166": "#545970",
+   "#fff4b0": "#576591",
+   "#a02b3a": "#342247",
+   "#e04848": "#442e53",
+   "#ff8a7a": "#504470",
+   "#ffffff": "#586ab1",
+   "#2e3048": "#1a2046",
+   "#474b6b": "#222958",
+   "#6b7192": "#2d376e",
+   "#c46aa8": "#41387b",
+   "#f6a5d0": "#504d94",
+   "#7d62b8": "#31337c",
+   "#c3b1ec": "#464f9d"
+  }
+ },
+ "transform": {
+  "formula": "lum = .30R+.59G+.11B; c' = c*(1-desat) + lum*desat; out = c'*mul + add",
+  "desat": 0.35,
+  "mul": [
+   0.3,
+   0.36,
+   0.56
+  ],
+  "add": [
+   12,
+   14,
+   34
+  ],
+  "note": "affine, so it can run as a shader / colour matrix on the whole frame and gives the same result as the LUT on blended pixels"
+ },
+ "order": [
+  "1. world (ground, shadows, props, buildings; NOT characters) recoloured by the LUT / transform, then layer=emissive sprites (lit_windows over each bay, lamp_head, wall_lamp_head, string_lights) unrecoloured",
+  "2. characters, never recoloured by the LUT: multiply tint `characters.shade` (mild night shade, faint blue), lerped to white (= original colours) by the light factor of the nearest light source; they stay in the same depth-sorted layer as the props",
+  "3. layer=light sprites with blend=add on top of everything (lamp glows, window lights, cone, siren, underglow, string_lights_glow)"
+ ],
+ "characters": {
+  "shade": [
+   0.82,
+   0.85,
+   0.96
+  ],
+  "lit_inner": 0.6,
+  "formula": "light = max over sources of clamp((1 - dist/radius) / (1 - lit_inner), 0, 1); dist from the body centre (origin - 24 px) to the light centre; tint = shade + (1 - shade) * light (per channel, multiply)",
+  "sources": "lamp heads (radius of their lamp_glow), wall lamps (24), lit panes (half the pane diagonal + 16), fountain underglow (40)"
+ },
+ "lit_windows": {
+  "window_arched": 0,
+  "window_square": 1,
+  "window_shop": 2,
+  "window_pair": 3,
+  "door_glass": 4,
+  "door_panel": 5,
+  "door_arched": 6
+ },
+ "animations": {
+  "lamp_glow_s": {
+   "sheet": "night.png",
+   "x": 0,
+   "y": 0,
+   "frame_w": 48,
+   "frame_h": 48,
+   "frames": 2,
+   "fps": 3,
+   "anchor": [
+    24,
+    24
+   ],
+   "blend": "add",
+   "loop": true,
+   "note": "radius 24 px, warm (y0 rim, y2 core), Bayer-dithered edge; centre on the lamp head; alternate frames at random for flicker",
+   "layer": "light"
+  },
+  "lamp_glow_m": {
+   "sheet": "night.png",
+   "x": 0,
+   "y": 48,
+   "frame_w": 80,
+   "frame_h": 80,
+   "frames": 2,
+   "fps": 3,
+   "anchor": [
+    40,
+    40
+   ],
+   "blend": "add",
+   "loop": true,
+   "note": "radius 40 px, warm (y0 rim, y2 core), Bayer-dithered edge; centre on the lamp head; alternate frames at random for flicker",
+   "layer": "light"
+  },
+  "lamp_glow_l": {
+   "sheet": "night.png",
+   "x": 0,
+   "y": 128,
+   "frame_w": 112,
+   "frame_h": 112,
+   "frames": 2,
+   "fps": 3,
+   "anchor": [
+    56,
+    56
+   ],
+   "blend": "add",
+   "loop": true,
+   "note": "radius 56 px, warm (y0 rim, y2 core), Bayer-dithered edge; centre on the lamp head; alternate frames at random for flicker",
+   "layer": "light"
+  },
+  "window_light_s": {
+   "sheet": "night.png",
+   "x": 0,
+   "y": 240,
+   "frame_w": 20,
+   "frame_h": 24,
+   "frames": 2,
+   "fps": 2,
+   "anchor": [
+    10,
+    12
+   ],
+   "blend": "add",
+   "loop": true,
+   "note": "pane 8x12 px + 6 px dithered halo; centre on the window glass",
+   "layer": "light"
+  },
+  "window_light_m": {
+   "sheet": "night.png",
+   "x": 0,
+   "y": 264,
+   "frame_w": 26,
+   "frame_h": 34,
+   "frames": 2,
+   "fps": 2,
+   "anchor": [
+    13,
+    17
+   ],
+   "blend": "add",
+   "loop": true,
+   "note": "pane 14x22 px + 6 px dithered halo; centre on the window glass",
+   "layer": "light"
+  },
+  "window_light_l": {
+   "sheet": "night.png",
+   "x": 0,
+   "y": 298,
+   "frame_w": 36,
+   "frame_h": 40,
+   "frames": 2,
+   "fps": 2,
+   "anchor": [
+    18,
+    20
+   ],
+   "blend": "add",
+   "loop": true,
+   "note": "pane 24x28 px + 6 px dithered halo; centre on the window glass",
+   "layer": "light"
+  },
+  "delegacia_cone": {
+   "sheet": "night.png",
+   "x": 0,
+   "y": 338,
+   "frame_w": 64,
+   "frame_h": 80,
+   "frames": 1,
+   "fps": 0,
+   "anchor": [
+    32,
+    0
+   ],
+   "blend": "add",
+   "loop": true,
+   "note": "security (Delegacia) door lamp: top centre at the lamp, falls onto the sidewalk",
+   "layer": "light"
+  },
+  "siren_flash": {
+   "sheet": "night.png",
+   "x": 0,
+   "y": 418,
+   "frame_w": 96,
+   "frame_h": 64,
+   "frames": 2,
+   "fps": 4,
+   "anchor": [
+    48,
+    32
+   ],
+   "blend": "add",
+   "loop": true,
+   "note": "frame 0 red, 1 blue; top-left = siren tile top-left + (-16, -16)",
+   "layer": "light"
+  },
+  "fountain_underglow": {
+   "sheet": "night.png",
+   "x": 0,
+   "y": 482,
+   "frame_w": 96,
+   "frame_h": 96,
+   "frames": 4,
+   "fps": 4,
+   "anchor": [
+    48,
+    54
+   ],
+   "blend": "add",
+   "loop": true,
+   "note": "warm, dithered; same top-left as the fountain",
+   "layer": "light"
+  },
+  "string_lights": {
+   "sheet": "night.png",
+   "x": 0,
+   "y": 578,
+   "frame_w": 64,
+   "frame_h": 16,
+   "frames": 2,
+   "fps": 2,
+   "anchor": [
+    0,
+    3
+   ],
+   "blend": "normal",
+   "loop": true,
+   "note": "64 px segment, wire ends at y=3 on both edges",
+   "layer": "emissive"
+  },
+  "string_lights_glow": {
+   "sheet": "night.png",
+   "x": 0,
+   "y": 594,
+   "frame_w": 64,
+   "frame_h": 16,
+   "frames": 2,
+   "fps": 2,
+   "anchor": [
+    0,
+    3
+   ],
+   "blend": "add",
+   "loop": true,
+   "note": "draw on top of string_lights",
+   "layer": "light"
+  },
+  "lamp_head": {
+   "sheet": "night.png",
+   "x": 0,
+   "y": 610,
+   "frame_w": 32,
+   "frame_h": 64,
+   "frames": 1,
+   "fps": 0,
+   "anchor": [
+    16,
+    63
+   ],
+   "blend": "normal",
+   "loop": true,
+   "note": "lit pixels of `lamp_night`, same placement; draw after the LUT so the lamp stays bright",
+   "layer": "emissive"
+  },
+  "wall_lamp_head": {
+   "sheet": "night.png",
+   "x": 0,
+   "y": 674,
+   "frame_w": 32,
+   "frame_h": 32,
+   "frames": 1,
+   "fps": 0,
+   "anchor": [
+    16,
+    31
+   ],
+   "blend": "normal",
+   "loop": true,
+   "note": "lit pixels of `wall_lamp_night`",
+   "layer": "emissive"
+  },
+  "lit_windows": {
+   "sheet": "night.png",
+   "x": 0,
+   "y": 706,
+   "frame_w": 32,
+   "frame_h": 64,
+   "frames": 7,
+   "fps": 0,
+   "anchor": [
+    0,
+    0
+   ],
+   "blend": "normal",
+   "loop": true,
+   "note": "night versions of the 1x2 bay overlays, frame order = window_arched, window_square, window_shop, window_pair, door_glass, door_panel, door_arched",
+   "layer": "emissive"
+  }
+ }
+}

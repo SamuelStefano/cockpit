@@ -14,13 +14,13 @@ export function RepoMap() {
               <span className={`flex h-7 w-7 items-center justify-center rounded-lg border ${g.tone}`}>
                 <Icon name="file" size={13} />
               </span>
-              <h3 className="text-[13.5px] font-semibold text-neutral-100">{g.group}</h3>
+              <h3 className="text-[14px] font-semibold text-neutral-100">{g.group}</h3>
             </div>
             <div className="space-y-2">
               {g.files.map((f) => (
                 <div key={f.path} className="flex flex-col gap-0.5 sm:flex-row sm:items-baseline sm:gap-3">
                   <span className="shrink-0 sm:w-60"><Pill>{f.path}</Pill></span>
-                  <span className="text-[12.5px] leading-snug text-neutral-400">{f.what}</span>
+                  <span className="text-[13px] leading-snug text-neutral-400">{f.what}</span>
                 </div>
               ))}
             </div>

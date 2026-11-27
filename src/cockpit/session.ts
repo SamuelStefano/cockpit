@@ -9,8 +9,18 @@ export { isCronPing };
 // deploy do front separado do back (ex: Vercel servindo a SPA, backend atrás de
 // Tailscale serve) seta VITE_WS_URL pra apontar pro host real do backend. Sem
 // isso a SPA tenta wss://<host-do-front>/ws e não acha ninguém atendendo.
-const ENV_WS = (import.meta.env.VITE_WS_URL ?? '').trim();
-export const WS_URL = ENV_WS || `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`;
+// A bundled build has no host of its own (custom scheme): there the same-host
+// fallback is meaningless and the production relay is used.
+export const DEFAULT_RELAY_WS = 'wss://deck-relay.devfellowship.com/ws';
+
+export function resolveWsUrl(env: string | undefined, loc: { protocol: string; host: string } | undefined): string {
+  const fromEnv = (env ?? '').trim();
+  if (fromEnv) return fromEnv;
+  if (loc && (loc.protocol === 'https:' || loc.protocol === 'http:')) return `${loc.protocol === 'https:' ? 'wss' : 'ws'}://${loc.host}/ws`;
+  return DEFAULT_RELAY_WS;
+}
+
+export const WS_URL = resolveWsUrl(import.meta.env.VITE_WS_URL, typeof location === 'undefined' ? undefined : location);
 
 // Override por dispositivo (#147): um build único no Vercel não consegue setar
 // VITE_WS_URL por aparelho. Salvar o endereço do backend no localStorage deixa o
@@ -33,6 +43,17 @@ export function buildWsUrl(base: string, token: string): string {
     return u.toString();
   } catch {
     return base;
+  }
+}
+
+// Adds the relay box selector. Pure; works with or without an existing query.
+export function withBox(url: string, box: string): string {
+  try {
+    const u = new URL(url);
+    u.searchParams.set('box', box);
+    return u.toString();
+  } catch {
+    return `${url}${url.includes('?') ? '&' : '?'}box=${encodeURIComponent(box)}`;
   }
 }
 
@@ -115,9 +136,13 @@ export function dedupById<T extends { id: string }>(rows: T[]): T[] {
 // locais são preservados, e ids sumidos (arquivados/apagados) são podados. Só
 // mtime que AVANÇA depois é que marca a sessão como "atualizada". `changed`
 // avisa o chamador se vale persistir/atualizar o estado.
+// `keepLocal`: the `new-` ids still open here. Any other `new-` key is a draft
+// session that was abandoned or reloaded before its first turn; keeping them all
+// grew `cockpit:seen` in localStorage forever.
 export function mergeSeen(
   prev: Record<string, number>,
   items: { id: string; mtime: number }[],
+  keepLocal: ReadonlySet<string> = new Set(),
 ): { next: Record<string, number>; changed: boolean } {
   const live = new Set(items.map((m) => m.id));
   const next: Record<string, number> = {};
@@ -127,7 +152,11 @@ export function mergeSeen(
     if (prev[m.id] === undefined) changed = true;
   }
   for (const id of Object.keys(prev)) {
-    if (id.startsWith('new-')) { next[id] = prev[id]; continue; }
+    if (id.startsWith('new-')) {
+      if (keepLocal.has(id)) next[id] = prev[id];
+      else changed = true;
+      continue;
+    }
     if (!live.has(id)) changed = true;
   }
   return { next, changed };

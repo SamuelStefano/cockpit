@@ -1,5 +1,6 @@
 import type { ClientMsg } from '../../shared/protocol';
 import type { Role } from '../auth';
+import { isRootOnly } from '../../shared/root-frames';
 
 // Checkpoint único de autorização por papel (DR-011 Fase 2 / DR-014). ALLOWLIST,
 // não blocklist: só o que está listado é permitido — default-deny. Um blocklist
@@ -17,7 +18,13 @@ import type { Role } from '../auth';
 const STUDENT_ALLOWED: ReadonlySet<ClientMsg['t']> = new Set([
   'send', 'stop', 'ping', 'list', 'sync', 'open', 'open-full', 'search',
   'ctx-list', 'ctx-open', 'skill-list', 'skill-open', 'usage-list', 'upload-chunk', 'att-open',
-  'refresh-models', 'points-get', 'plan-usage-get',
+  'refresh-models', 'plan-usage-get', 'grok-usage-get',
+  // Read-only report about the box, and one cheap prompt through the same path as 'send'.
+  'box-health-get', 'box-smoke-test',
+  // Logs in the box's own CLI with a code only the human holds: no privilege gained.
+  'claude-login-start', 'claude-login-code', 'claude-login-cancel',
+  // Read-only `claude mcp list`.
+  'mcps-get',
   // Read-only identity, not the admin-gated canvas-get graph build — needed
   // for the normal chat view's "this is the Orchestrator" banner.
   'orchestrator-get',
@@ -28,9 +35,36 @@ const STUDENT_ALLOWED: ReadonlySet<ClientMsg['t']> = new Set([
   // Só reordena e interrompe: o item continua rodando com o role de quem o
   // enfileirou, e 'stop' o student já tem. Não concede privilégio novo.
   'queue-run-now',
+  // Equipe (fatia E): the dispatch coerces every bot a non-admin saves to the
+  // restricted profile and limits the cron frames to bot routines
+  // (ws/student-team.ts) — the frame alone grants no Bash.
+  'team-get', 'team-save', 'team-delete',
+  // Text-only one-shot with no tools (ws/agent-build.ts); one in flight per socket.
+  'agent-build',
+  // Text in, mp3 out, no tools and no state; same level as sending a chat message.
+  'tts',
+  // Mints a single-use transcription token; the account key stays on the box.
+  'stt-token',
+  'crons-get', 'cron-save', 'cron-delete', 'cron-run',
+  // Read-only, limited to a bot in this account's team.json and to that bot's
+  // workspace after realpath (ws/team-files-frames.ts, team-files.ts).
+  'team-files-get', 'team-file-get',
+  // Write: same scoping (ownBotId), plus writeBotFile limits a non-admin's
+  // .claude/settings.json to deny/ask rules (an allow rule would widen the restricted profile).
+  'team-file-put',
+  // Read-only git history of a bot of this team (agents-repo-frames.ts); restore,
+  // sync and the GitHub connect frames stay admin/root.
+  'team-ws-log-get', 'team-ws-diff-get',
+  // Counts/cwd/state of that bot. Pane preview is emptied for student in
+  // sendBotComputer; taking over is term-* (admin-only).
+  'team-computer-get',
 ]);
 
-export function authorize(role: Role, t: ClientMsg['t']): boolean {
+// `root` = this connection is the box owner's (listen mode, or the owner's dial
+// agent behind a relay that already dropped these frames for non-root accounts).
+// Default false: a caller that forgets it denies the owner frames.
+export function authorize(role: Role, t: ClientMsg['t'], root = false): boolean {
+  if (isRootOnly(t) && !root) return false;
   if (role === 'admin') return true;
   return STUDENT_ALLOWED.has(t);
 }

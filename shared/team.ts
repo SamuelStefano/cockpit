@@ -1,0 +1,120 @@
+import { VILLAGE_SENDER } from './team-messages';
+import type { DepartmentId } from './departments';
+import type { Effort, MascotShape, PermMode, TeamBot, TeamBotInput, TeamProfile } from './protocol';
+import { isDepartmentId } from './departments';
+import { isAgentModel } from './agents';
+import { validateAgentSource } from './agent-source';
+import { parsePermissions, parseSkillIds, profileFromPermissions } from './bot-access';
+
+export const MAX_BOTS = 50;
+export const MAX_NAME = 40;
+export const MAX_LABEL = 60;
+export const MAX_INSTRUCTIONS_BYTES = 8 * 1024;
+
+const ID_RE = /^[a-z0-9]{4,24}$/;
+const NAME_RE = new RegExp(`^[\\p{L}\\p{N}][\\p{L}\\p{N}_.-]{0,${MAX_NAME - 1}}$`, 'u');
+const HEX_RE = /^#[0-9a-fA-F]{6}$/;
+const SHAPES: ReadonlySet<MascotShape> = new Set(['drop', 'blob', 'tri', 'bean']);
+const PROFILES: ReadonlySet<TeamProfile> = new Set(['full', 'restricted']);
+const MODES: ReadonlySet<PermMode> = new Set(['plan', 'auto', 'acceptEdits']);
+const EFFORTS: ReadonlySet<Effort> = new Set(['low', 'medium', 'high', 'xhigh', 'max']);
+export const PROJECT_RE = /^[a-z0-9-]{1,32}$/;
+export const HOME_RE = /^[a-z0-9-]{1,40}$/;
+export const MAX_HOME_SEAT = 63;
+export const SPRITE_RE = /^[a-z0-9-]{1,24}$/;
+const MODEL_RE = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,63}$/;
+
+export const BOT_KEY_PREFIX = 'bot-';
+// The browser opens a bot's first turn under a `new-bot-<id>` draft key so the
+// existing new-→sessionId migration in useCockpit applies unchanged; server-side
+// turns (fatias B/D) use the bare `bot-<id>`.
+export const botDraftKey = (id: string) => `new-${BOT_KEY_PREFIX}${id}`;
+export const botThreadKey = (id: string) => `${BOT_KEY_PREFIX}${id}`;
+export function botIdFromKey(key: string): string | undefined {
+  const m = /^(?:new-)?bot-([a-z0-9]{4,24})$/.exec(key);
+  return m?.[1];
+}
+
+export function newBotId(): string {
+  return `b${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+}
+
+const str = (v: unknown) => (typeof v === 'string' ? v : undefined);
+
+export type BotValidation = { ok: true; bot: TeamBotInput } | { ok: false; error: string };
+
+// Edge validation of a raw frame: only a well-formed bot reaches the store. Unknown
+// fields are dropped so the browser can never smuggle sessionId/createdAt in.
+export function validateBotInput(raw: unknown): BotValidation {
+  if (!raw || typeof raw !== 'object') return { ok: false, error: 'bot inválido' };
+  const r = raw as Record<string, unknown>;
+  const id = str(r.id);
+  if (!id || !ID_RE.test(id) || id === VILLAGE_SENDER) return { ok: false, error: 'id inválido' };
+  const name = str(r.name)?.trim();
+  if (!name || !NAME_RE.test(name)) return { ok: false, error: `nome inválido (letras, números, - _ . e até ${MAX_NAME} caracteres)` };
+  const label = (str(r.label) ?? '').trim();
+  if (label.length > MAX_LABEL) return { ok: false, error: `cargo passa de ${MAX_LABEL} caracteres` };
+  const instructions = str(r.instructions) ?? '';
+  if (new TextEncoder().encode(instructions).length > MAX_INSTRUCTIONS_BYTES) return { ok: false, error: 'instruções passam de 8KB' };
+  const m = r.mascot as Record<string, unknown> | undefined;
+  const shape = str(m?.shape) as MascotShape | undefined;
+  const color = str(m?.color);
+  if (!shape || !SHAPES.has(shape)) return { ok: false, error: 'forma do mascote inválida' };
+  if (!color || !HEX_RE.test(color)) return { ok: false, error: 'cor do mascote inválida' };
+  let profile = str(r.profile) as TeamProfile | undefined;
+  const permissions = r.permissions === undefined ? undefined : parsePermissions(r.permissions);
+  if (permissions === null) return { ok: false, error: 'permissões inválidas' };
+  const skills = r.skills === undefined ? undefined : parseSkillIds(r.skills);
+  if (skills === null) return { ok: false, error: 'skills inválidas' };
+  if (permissions) profile = profileFromPermissions(permissions);
+  if (!profile || !PROFILES.has(profile)) return { ok: false, error: 'perfil inválido' };
+  const parentId = str(r.parentId) || undefined;
+  if (parentId !== undefined && !ID_RE.test(parentId)) return { ok: false, error: 'chefe inválido' };
+  if (parentId === id) return { ok: false, error: 'um bot não pode ser chefe de si mesmo' };
+  if (r.department !== undefined && !isDepartmentId(r.department)) return { ok: false, error: 'setor inválido' };
+  const model = str(r.model) || undefined;
+  if (model !== undefined && !MODEL_RE.test(model)) return { ok: false, error: 'modelo inválido' };
+  // The ACP agent runs its own tool loop, outside the restricted profile's rules.
+  if (profile === 'restricted' && isAgentModel(model)) return { ok: false, error: 'bot com perfil travado não pode usar agente externo' };
+  const fallbackModel = str(r.fallbackModel) || undefined;
+  if (fallbackModel !== undefined && !MODEL_RE.test(fallbackModel)) return { ok: false, error: 'reserva inválida' };
+  if (profile === 'restricted' && isAgentModel(fallbackModel)) return { ok: false, error: 'bot com perfil travado não pode usar agente externo' };
+  const mode = str(r.mode) as PermMode | undefined;
+  if (mode !== undefined && !MODES.has(mode)) return { ok: false, error: 'modo inválido' };
+  const effort = str(r.effort) as Effort | undefined;
+  if (effort !== undefined && !EFFORTS.has(effort)) return { ok: false, error: 'esforço inválido' };
+  const bot: TeamBotInput = { id, name, label, instructions, mascot: { shape, color: color.toLowerCase() }, profile };
+  if (parentId) bot.parentId = parentId;
+  if (r.department !== undefined) bot.department = r.department as DepartmentId;
+  if (typeof r.project === 'string' && PROJECT_RE.test(r.project)) bot.project = r.project;
+  if (typeof r.home === 'string' && HOME_RE.test(r.home)) bot.home = r.home;
+  if (typeof r.homeSeat === 'number' && Number.isInteger(r.homeSeat) && r.homeSeat >= 0 && r.homeSeat <= MAX_HOME_SEAT) bot.homeSeat = r.homeSeat;
+  if (typeof r.sprite === 'string' && SPRITE_RE.test(r.sprite)) bot.sprite = r.sprite;
+  if (r.primary === true) bot.primary = true;
+  if (model) bot.model = model;
+  if (fallbackModel) bot.fallbackModel = fallbackModel;
+  if (mode) bot.mode = mode;
+  if (effort) bot.effort = effort;
+  if (permissions) bot.permissions = permissions;
+  if (skills && skills.length) bot.skills = skills;
+  if (r.source !== undefined && r.source !== null) {
+    const s = validateAgentSource(r.source);
+    if (!s.ok) return { ok: false, error: s.error };
+    bot.source = s.source;
+  }
+  return { ok: true, bot };
+}
+
+// True when giving `id` the parent `parentId` would close a loop in the chain.
+export function wouldCycle(bots: Pick<TeamBot, 'id' | 'parentId'>[], id: string, parentId: string | undefined): boolean {
+  const parentOf = new Map(bots.map((b) => [b.id, b.parentId]));
+  let cur = parentId;
+  const seen = new Set<string>();
+  while (cur) {
+    if (cur === id) return true;
+    if (seen.has(cur)) return true;
+    seen.add(cur);
+    cur = parentOf.get(cur);
+  }
+  return false;
+}

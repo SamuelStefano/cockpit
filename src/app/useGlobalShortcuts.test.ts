@@ -9,6 +9,8 @@ const sess = (id: string): Session => ({ id }) as Session;
 function mount(over: Partial<Parameters<typeof useGlobalShortcuts>[0]> = {}) {
   const args = {
     sessions: [sess('a'), sess('b'), sess('c')],
+    running: new Set<string>(),
+    onNew: vi.fn(),
     activeSessionId: 'a',
     setActiveSessionId: vi.fn(),
     updated: new Set<string>(),
@@ -110,5 +112,68 @@ describe('useGlobalShortcuts', () => {
     key({ key: 'ArrowDown', altKey: true });
     key({ key: 'n' });
     expect(setActiveSessionId).not.toHaveBeenCalled();
+  });
+
+  it('Alt+↓ also navigates to the chat', () => {
+    const { nav } = mount({ activeSessionId: 'a' });
+    key({ key: 'ArrowDown', altKey: true });
+    expect(nav).toHaveBeenCalledWith('/');
+  });
+
+  it('Alt+↓ follows the sidebar grouping: running sessions come first', () => {
+    const { setActiveSessionId } = mount({ activeSessionId: 'c', running: new Set(['b']) });
+    key({ key: 'ArrowDown', altKey: true });
+    // order: b (running), a, c → from c wraps to b
+    expect(setActiveSessionId).toHaveBeenCalledWith('b');
+  });
+
+  it('⌘⇧O starts a new chat and ⌘⇧K opens the canvas', () => {
+    const { onNew, nav } = mount();
+    key({ key: 'O', altKey: true, shiftKey: true });
+    key({ key: 'K', altKey: true, shiftKey: true });
+    expect(onNew).toHaveBeenCalledTimes(1);
+    expect(nav).toHaveBeenCalledWith('/canvas');
+  });
+
+  it('⌘2 jumps to the second sidebar session', () => {
+    const { setActiveSessionId, nav } = mount();
+    key({ key: '2', altKey: true });
+    expect(setActiveSessionId).toHaveBeenCalledWith('b');
+    expect(nav).toHaveBeenCalledWith('/');
+  });
+
+  it('g then p opens pontos, but not while typing', () => {
+    const { nav } = mount();
+    key({ key: 'g' });
+    key({ key: 'p' });
+    expect(nav).toHaveBeenCalledWith('/pontos');
+  });
+
+  it('Alt+B (non-Apple modifier) toggles the persisted sidebar state', () => {
+    mount();
+    key({ key: 'b', altKey: true });
+    expect(localStorage.getItem('cockpit:sidebarCollapsed')).toBe('true');
+  });
+
+  it('ignores Ctrl+B and skips B/J while typing', () => {
+    mount();
+    key({ key: 'b', ctrlKey: true });
+    expect(localStorage.getItem('cockpit:sidebarCollapsed')).toBeNull();
+    const ta = document.createElement('textarea');
+    document.body.appendChild(ta);
+    ta.focus();
+    key({ key: 'b', altKey: true });
+    expect(localStorage.getItem('cockpit:sidebarCollapsed')).toBeNull();
+    ta.remove();
+  });
+
+  it('ignores shortcuts that originate inside the terminal', () => {
+    const { onNew } = mount();
+    const x = document.createElement('div');
+    x.className = 'xterm';
+    document.body.appendChild(x);
+    x.dispatchEvent(new KeyboardEvent('keydown', { key: 'O', altKey: true, shiftKey: true, bubbles: true, cancelable: true }));
+    expect(onNew).not.toHaveBeenCalled();
+    x.remove();
   });
 });
