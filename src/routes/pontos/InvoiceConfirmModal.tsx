@@ -1,3 +1,4 @@
+import { isSnapshotStale } from '../../../shared/dfl-stale';
 import { useMemo, useState } from 'react';
 import type { DflProjectNode } from '../../../shared/protocol';
 import { Modal, Button, Input, Badge, toast } from '../../components/primitives';
@@ -15,7 +16,14 @@ import { markUnconfirmed, releaseUnconfirmed, unconfirmedKeys } from './unconfir
 // 01–12 only: a plain \d{2} let 2026-13 or 2026-00 reach DFL prod.
 export const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
 
-export function InvoiceConfirmModal({ projects, onClose }: { projects: DflProjectNode[]; onClose: () => void }) {
+export function InvoiceConfirmModal({ projects, onClose, stale: staleFromServer = false, syncedAt }: { projects: DflProjectNode[]; onClose: () => void; stale?: boolean; syncedAt?: number }) {
+  // Re-derived here (at render and again at confirm): the server's flag is only
+  // as fresh as the last snapshot push.
+  const staleNow = () => staleFromServer || (syncedAt !== undefined && isSnapshotStale(syncedAt, Date.now()));
+  // Nothing re-renders the modal on a timer, so a snapshot that ages past the
+  // limit while it is open is only caught at click time; that must show the alert.
+  const [staleAtConfirm, setStaleAtConfirm] = useState(false);
+  const stale = staleAtConfirm || staleNow();
   const { selected, clearSelected, deselect, write, excluded } = usePontosControls();
   const [month, setMonth] = useState(() => currentMonthKey(Date.now()));
   const [busy, setBusy] = useState(false);
@@ -35,6 +43,7 @@ export function InvoiceConfirmModal({ projects, onClose }: { projects: DflProjec
   const resultOf = useMemo(() => new Map(results.map((r) => [r.key, r])), [results]);
 
   const confirm = async () => {
+    if (staleNow()) { setStaleAtConfirm(true); return; }
     if (busy || !pending.length || !monthValid) return;
     setBusy(true);
     const batch = await runInvoiceBatch(drafts.filter((d) => !held.has(invoiceKey(d))), created, (d) => write.onDflInvoice({
@@ -69,13 +78,20 @@ export function InvoiceConfirmModal({ projects, onClose }: { projects: DflProjec
       footer={
         <>
           <Button variant="ghost" onClick={onClose} disabled={busy}>Cancelar</Button>
-          <Button onClick={confirm} loading={busy} disabled={!pending.length || !monthValid}>
+          <Button onClick={confirm} loading={busy} disabled={!pending.length || !monthValid || stale}>
             {results.length ? 'Tentar de novo' : `Criar ${pending.length || ''} fatura${pending.length > 1 ? 's' : ''}`}
           </Button>
         </>
       }
     >
       <div className="flex flex-col gap-4">
+        {stale && (
+          // Open/paid status comes from the last DFL sync: invoicing from an old one
+          // can bill tasks that were already invoiced since.
+          <p role="alert" className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-200">
+            Os dados do DFL estão velhos. Sincronize antes de gerar a fatura: o que aparece como em aberto pode já estar faturado.
+          </p>
+        )}
         <label className="flex items-center gap-3">
           <span className="text-[13px] text-neutral-400">Mês de referência</span>
           <Input value={month} onChange={(e) => setMonth(e.target.value)} error={!monthValid} mono size="sm" className="w-28" placeholder="2026-07" />
