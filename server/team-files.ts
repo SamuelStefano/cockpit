@@ -118,7 +118,7 @@ export async function writeBotFile(botId: string, rel: unknown, text: unknown, b
     if (!opts.admin) { const denied = settingsDeniedForStudent(text); if (denied) return { error: denied }; }
   }
   let root: string;
-  try { root = await realpath(ws); } catch { return { error: 'workspace não encontrado' }; }
+  try { await mkdir(ws, { recursive: true }); root = await realpath(ws); } catch { return { error: 'workspace não encontrado' }; }
   const target = resolve(root, path);
   const parent = dirname(target);
   try {
