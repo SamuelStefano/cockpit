@@ -9,29 +9,6 @@ export interface RecomputedTotals {
   offAmountCents: number;
 }
 
-export interface DeliverySum {
-  count: number;
-  points: number;
-  amountCents: number;
-}
-
-// Soma pontos/valor das deliveries selecionadas (pra barra de seleção → gerar
-// invoice). Valor = pontos × valor do ponto vigente (recalcula quando o usuário
-// troca o valor na UI).
-export function sumDeliveries(projects: DflProjectNode[], selected: Set<string>, pointValue: number): DeliverySum {
-  let count = 0, points = 0;
-  for (const p of projects) {
-    for (const e of p.epics) {
-      for (const d of e.deliveries) {
-        if (!selected.has(d.id)) continue;
-        count++; points += d.points;
-      }
-    }
-  }
-  const pts = round2(points);
-  return { count, points: pts, amountCents: centsFromPoints(pts, pointValue) };
-}
-
 // Recalcula os totais a partir da árvore, tirando do "em aberto" as deliveries
 // marcadas como fora do recebível (trabalho feito, mas que ainda não pode ser
 // faturado — ex: auditoria de segurança). O que sai vira o balde "off", exibido à

@@ -43,3 +43,17 @@ describe('Loja (agent Store)', () => {
     expect(roleRedirect('student', '/agentes/loja')).toBe('/');
   });
 });
+
+describe('Explorar', () => {
+  it('is in the admin and root menus, never the student one', () => {
+    for (const role of ['root', 'admin'] as const) expect(navFor(role).find((n) => n.label === 'Explorar')?.to).toBe('/explorar');
+    expect(navFor('student').some((n) => n.to === '/explorar')).toBe(false);
+  });
+
+  it('keeps a student off the URL and leaves it off the sidebar', async () => {
+    expect(roleRedirect('student', '/explorar')).toBe('/');
+    expect(roleRedirect('admin', '/explorar')).toBeNull();
+    const { sidebarNav } = await import('./sidebar/sidebar-nav');
+    expect(sidebarNav('root').some((n) => n.to === '/explorar')).toBe(false);
+  });
+});

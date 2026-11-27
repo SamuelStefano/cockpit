@@ -139,3 +139,14 @@ describe('deriveWorld moderator', () => {
     expect(w.meetingSize).toBe(1);
   });
 });
+
+describe('deriveWorld doing', () => {
+  it('passes only a boolean flag, never the task', () => {
+    const s = state();
+    s.bots[1] = { ...s.bots[1]!, doing: true };
+    const w = deriveWorld(s);
+    expect(w.npcs.find((n) => n.id === 'b')?.doing).toBe(true);
+    expect(w.npcs.find((n) => n.id === 'a')?.doing).toBeUndefined();
+    expect(JSON.stringify(w)).not.toContain('secret');
+  });
+});

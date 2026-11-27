@@ -32,6 +32,19 @@ export function addBroadcastTap(fn: (msg: ServerMsg) => void): () => void {
   return () => { taps.delete(fn); };
 }
 
+// Sockets that asked for recording mode never get a bot's text through the normal fan-out
+// either: the filter (set by the team talk module, which knows which keys are bot turns)
+// decides per frame. Applied here, on the server, per socket.
+const recordingSockets = new Set<WebSocket>();
+let recordingDrop: ((msg: ServerMsg) => boolean) | null = null;
+export function setRecordingDrop(fn: ((msg: ServerMsg) => boolean) | null) { recordingDrop = fn; }
+export function setSocketRecording(ws: WebSocket, on: boolean) {
+  if (on) {
+    if (!recordingSockets.has(ws)) ws.once('close', () => recordingSockets.delete(ws));
+    recordingSockets.add(ws);
+  } else recordingSockets.delete(ws);
+}
+
 export function broadcast(msg: ServerMsg) {
   for (const t of taps) { try { t(msg); } catch { /* observer failure is its own problem */ } }
   if (!source) return;
@@ -39,6 +52,7 @@ export function broadcast(msg: ServerMsg) {
   const droppable = DROPPABLE.has(msg.t);
   for (const c of source.clients) {
     if (c.readyState !== c.OPEN) continue;
+    if (recordingDrop && recordingSockets.has(c) && recordingDrop(msg)) continue;
     if (droppable && c.bufferedAmount > BACKPRESSURE_BYTES) continue;
     // ws.send pode lançar se o socket fechar entre o check e o envio; um cliente
     // morto não pode abortar o fan-out pros demais (perderiam o `done`).

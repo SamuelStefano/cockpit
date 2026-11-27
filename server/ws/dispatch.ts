@@ -26,9 +26,11 @@ import { fireCron, type CronFire } from './runs';
 import { getTeam, saveBot, deleteBot } from '../team';
 import { getMemories, saveMemory, deleteMemory, validateMemoryInput, readMemoriesSafe } from '../memories';
 import { botTurnFor, botDenyRules } from '../team-prompt';
+import { executorConfigured } from '../heavy-executor';
 import { refreshAgentSource, removeAgentSource } from '../agent-source';
 import { agentBuilderTurn } from '../engine/triage';
 import { sendMeetings, startMeetingFrame } from './team-meeting-frames';
+import { cancelHeavyFrame, runHeavyFrame, sendHeavy } from './heavy-frames';
 import { cleanBuildRequest } from './agent-build';
 import { parseTtsText, synthesize, mintSttToken } from '../tts';
 import { sendTeamMessages, sendTeamPaused, setTeamPause } from './team-frames';
@@ -37,7 +39,9 @@ import { refuseReady, sendVillage, sendVillagePlan, setVillageConfig } from './v
 import { sendTeamState } from './team-state-frames';
 import { sendTalk, sendTalkMessage } from './team-talk';
 import { clearBotQuestion, sendTeamPending } from './team-pending-frames';
-import { sendBotComputer, sendBotFile, sendBotFiles } from './team-files-frames';
+import { sendSessionFile } from './session-file-frames';
+import { saveBotFile, sendBotComputer, sendBotFile, sendBotFiles } from './team-files-frames';
+import { sendWsDiff, sendWsLog, sendWsRepos, wsConnect, wsRestore, wsSync } from './agents-repo-frames';
 import { validateBotInput } from '../../shared/team';
 import { builderPrompt, builderSystemPrompt } from '../../shared/agent-builder';
 import { queueReleaseAt } from './ctx-guard';
@@ -1026,6 +1030,38 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role, ctx: Ha
       await sendBotFile(ws, msg.botId, msg.path);
       return;
     }
+    case 'team-file-put': {
+      await saveBotFile(ws, msg.botId, msg.path, msg.text, msg.baseMtime, role ?? 'student');
+      return;
+    }
+    case 'team-ws-log-get': {
+      await sendWsLog(ws, msg.botId);
+      return;
+    }
+    case 'team-ws-diff-get': {
+      await sendWsDiff(ws, msg.botId, msg.hash);
+      return;
+    }
+    case 'team-ws-restore': {
+      await wsRestore(ws, msg.botId, msg.hash, msg.path, role ?? 'student');
+      return;
+    }
+    case 'team-ws-sync': {
+      await wsSync(ws, role ?? 'student');
+      return;
+    }
+    case 'team-ws-repos-get': {
+      await sendWsRepos(ws);
+      return;
+    }
+    case 'team-ws-connect': {
+      await wsConnect(ws, msg.repo);
+      return;
+    }
+    case 'session-file-get': {
+      await sendSessionFile(ws, msg.sessionId, msg.path);
+      return;
+    }
     case 'team-computer-get': {
       await sendBotComputer(ws, msg.botId, role ?? 'student');
       return;
@@ -1059,6 +1095,18 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role, ctx: Ha
       const r = await rotateBot(botId, (b) => !!botLiveKey(b.id, b.sessionId));
       if (r.ok) { broadcast({ t: 'team', bots: r.bots }); send(ws, { t: 'team-rotate-result', botId, ok: true, words: r.words }); }
       else send(ws, { t: 'team-rotate-result', botId, ok: false, error: r.error });
+      return;
+    }
+    case 'heavy-get': {
+      await sendHeavy(ws);
+      return;
+    }
+    case 'heavy-run': {
+      await runHeavyFrame(ws, msg);
+      return;
+    }
+    case 'heavy-cancel': {
+      await cancelHeavyFrame(ws, msg.id);
       return;
     }
     case 'team-pause-set': {
@@ -1422,7 +1470,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role, ctx: Ha
       // Skills selecionadas pela UI viram regras de negação das NÃO-selecionadas
       // (Skill(id)). Resolvido aqui (async) e passado adiante; vazio = todas ativas.
       const team = await getTeam();
-      const bot = botTurnFor(team, msg.sessionKey, msg.sessionId, role, await readMemoriesSafe());
+      const bot = botTurnFor(team, msg.sessionKey, msg.sessionId, role, await readMemoriesSafe(), executorConfigured());
       if (bot?.profile === 'full') await refreshAndBroadcast(team.find((b) => b.id === bot.botId));
       const disallowedSkills = [...new Set([...(await resolveSkillDeny(msg.skills)), ...(await botDenyRules(bot))])];
       // The human's next message in the bot's thread is the answer, picked or typed.
@@ -1564,7 +1612,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role, ctx: Ha
     // depender do browser aberto. Mesma resolução de skills do 'send'. Broadcast do
     // snapshot pra todos os aparelhos verem a fila mudar ao vivo.
     case 'queue-add': {
-      const bot = botTurnFor(await getTeam(), msg.sessionKey, msg.sessionId, role, await readMemoriesSafe());
+      const bot = botTurnFor(await getTeam(), msg.sessionKey, msg.sessionId, role, await readMemoriesSafe(), executorConfigured());
       const disallowedSkills = [...new Set([...(await resolveSkillDeny(msg.skills)), ...(await botDenyRules(bot))])];
       const r = addParked(msg.sessionKey, {
         prompt: msg.text,

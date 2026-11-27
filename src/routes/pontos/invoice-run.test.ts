@@ -27,7 +27,7 @@ describe('runInvoiceBatch', () => {
     const create = vi.fn(ok);
     const r = await runInvoiceBatch([draft('d1'), draft('d2')], new Set(), create);
     expect(create).toHaveBeenCalledTimes(2);
-    expect(summarize(r.results)).toEqual({ created: 2, skipped: 0, failed: 0 });
+    expect(summarize(r.results)).toEqual({ created: 2, skipped: 0, failed: 0, unknown: 0 });
     expect(r.settled).toEqual([invoiceKey(draft('d1')), invoiceKey(draft('d2'))]);
     expect(r.failed).toEqual([]);
   });
@@ -35,7 +35,7 @@ describe('runInvoiceBatch', () => {
   it('numa falha parcial só a delivery que falhou continua pendente', async () => {
     const create = vi.fn<CreateInvoice>(async (d) => (d.deliveryId === 'd2' ? { ok: false, message: 'boom' } : { ok: true }));
     const r = await runInvoiceBatch([draft('d1'), draft('d2'), draft('d3')], new Set(), create);
-    expect(summarize(r.results)).toEqual({ created: 2, skipped: 0, failed: 1 });
+    expect(summarize(r.results)).toEqual({ created: 2, skipped: 0, failed: 1, unknown: 0 });
     expect(r.settled).toEqual([invoiceKey(draft('d1')), invoiceKey(draft('d3'))]);
     expect(r.failed).toEqual([invoiceKey(draft('d2'))]);
     expect(r.results.find((x) => x.deliveryId === 'd2')).toMatchObject({ outcome: 'failed', message: 'boom' });
@@ -50,14 +50,14 @@ describe('runInvoiceBatch', () => {
     const b = await runInvoiceBatch(drafts, new Set(a.settled), second);
     expect(second).toHaveBeenCalledTimes(1);
     expect(second.mock.calls[0][0].deliveryId).toBe('d2');
-    expect(summarize(b.results)).toEqual({ created: 1, skipped: 1, failed: 0 });
+    expect(summarize(b.results)).toEqual({ created: 1, skipped: 1, failed: 0, unknown: 0 });
   });
 
   it('a mesma delivery repetida no lote só é escrita uma vez', async () => {
     const create = vi.fn(ok);
     const r = await runInvoiceBatch([draft('d1'), draft('d1')], new Set(), create);
     expect(create).toHaveBeenCalledOnce();
-    expect(summarize(r.results)).toEqual({ created: 1, skipped: 1, failed: 0 });
+    expect(summarize(r.results)).toEqual({ created: 1, skipped: 1, failed: 0, unknown: 0 });
   });
 
   it('uma exceção conta como falha e mantém a delivery pendente', async () => {
@@ -72,6 +72,19 @@ describe('runInvoiceBatch', () => {
     const done = new Set([invoiceKey(draft('d1', '2026-09'))]);
     const r = await runInvoiceBatch([draft('d1', '2026-10')], done, create);
     expect(create).toHaveBeenCalledOnce();
-    expect(summarize(r.results)).toEqual({ created: 1, skipped: 0, failed: 0 });
+    expect(summarize(r.results)).toEqual({ created: 1, skipped: 0, failed: 0, unknown: 0 });
+  });
+});
+
+describe('runInvoiceBatch — reply timed out', () => {
+  it('marks the delivery unknown and never re-sends it in this batch or the next', async () => {
+    const d = { deliveryId: 'd1', deliveryName: 'D', referenceMonth: '2026-09' } as never;
+    const create = vi.fn(async () => ({ ok: false, unknown: true, message: 'sem resposta a tempo' }));
+    const first = await runInvoiceBatch([d], new Set(), create);
+    expect(first.results[0].outcome).toBe('unknown');
+    expect(first.settled).toContain('d1@2026-09');
+    const second = await runInvoiceBatch([d], new Set(first.settled), create);
+    expect(second.results[0].outcome).toBe('skipped');
+    expect(create).toHaveBeenCalledOnce();
   });
 });
