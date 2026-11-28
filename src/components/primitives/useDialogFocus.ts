@@ -8,7 +8,7 @@ const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select
 // when it closes. Without this, Tab walked the page behind the dialog.
 // `opener` is what had focus before the dialog rendered: content with autoFocus
 // takes focus during commit, before this effect can see who had it.
-export function useDialogFocus(ref: RefObject<HTMLElement | null>, open = true, opener?: RefObject<Element | null>): void {
+export function useDialogFocus(ref: RefObject<HTMLElement | null>, open = true, opener?: RefObject<Element | null>, focusContainer = false): void {
   useEffect(() => {
     const root = ref.current;
     if (!open || !root) return;
@@ -16,7 +16,7 @@ export function useDialogFocus(ref: RefObject<HTMLElement | null>, open = true, 
     const previous = before instanceof HTMLElement && !root.contains(before) ? before : null;
     const items = () => [...root.querySelectorAll<HTMLElement>(FOCUSABLE)];
     // Content that focused itself on mount (an input with autoFocus) keeps it.
-    if (!root.contains(document.activeElement)) (root.querySelector<HTMLElement>('[data-autofocus]') ?? items()[0] ?? root).focus();
+    if (!root.contains(document.activeElement)) (root.querySelector<HTMLElement>('[data-autofocus]') ?? (focusContainer ? root : (items()[0] ?? root))).focus();
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Tab') return;
       const list = items();
@@ -31,5 +31,5 @@ export function useDialogFocus(ref: RefObject<HTMLElement | null>, open = true, 
       root.removeEventListener('keydown', onKey);
       if (previous && document.contains(previous)) previous.focus();
     };
-  }, [ref, open]);
+  }, [ref, open, focusContainer]);
 }

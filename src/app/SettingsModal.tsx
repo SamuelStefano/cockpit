@@ -13,7 +13,7 @@ type SettingsProps = Omit<ComponentProps<typeof Configuracoes>, 'onOpenTerminal'
 export function SettingsModal({ open, onClose, ...props }: SettingsProps & { open: boolean; onClose: () => void }) {
   const label = settingsSections(props.role, SUPABASE_ENABLED).find((s) => s.id === sectionOf(props.route))?.label;
   return (
-    <Modal open={open} onClose={onClose} fill maxWidth="max-w-[980px]" icon="sliders" label="Configurações"
+    <Modal open={open} onClose={onClose} fill focusDialog maxWidth="max-w-[980px]" icon="sliders" label="Configurações"
       title={label ? `Configurações · ${label}` : 'Configurações'}>
       <ChunkErrorBoundary>
         <Suspense fallback={<RouteFallback />}>

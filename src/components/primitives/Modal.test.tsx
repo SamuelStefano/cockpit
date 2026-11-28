@@ -51,3 +51,15 @@ describe.each(['modal', 'drawer'] as const)('%s keyboard focus', (kind) => {
     expect(document.activeElement).toBe(trigger);
   });
 });
+
+describe('Modal focusDialog', () => {
+  it('focuses the dialog itself instead of the close button', () => {
+    const { getByRole } = render(<Modal open onClose={() => {}} title="T" focusDialog><button>inside</button></Modal>);
+    expect(document.activeElement).toBe(getByRole('dialog'));
+  });
+
+  it('keeps focusing the first control by default', () => {
+    const { getByRole } = render(<Modal open onClose={() => {}} title="T"><button>inside</button></Modal>);
+    expect(document.activeElement).toBe(getByRole('button', { name: 'Fechar' }));
+  });
+});

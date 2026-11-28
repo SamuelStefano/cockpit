@@ -25,11 +25,11 @@ export function ClaudeAccountCard(p: ClaudeAccountCardProps) {
   return (
     <SettingsCard title="Conta do Claude" flush>
         <ListRow
-          label={label}
-          hint={hint}
+          label={<span title={label}>{label}</span>}
+          hint={hint && <span className="block truncate" title={hint}>{hint}</span>}
           className="max-sm:flex-wrap"
           trailing={
-            <span className="flex gap-2">
+            <span className="flex gap-2 max-sm:w-full">
               <Button variant="secondary" size="sm" disabled={switching} onClick={p.onLoginStart}>Trocar conta</Button>
               {connected && (
                 <Button
