@@ -377,7 +377,7 @@ function CockpitBody() {
         <MobileNavDrawer open={drawer} onClose={() => setDrawer(false)}>{drawerNav}</MobileNavDrawer>
       )}
       <BoxHealthHost />
-      <Toaster phoneTop={isMobile && chatSurface} />
+      <Toaster phoneTop={isMobile && chatSurface} aboveTabBar={isMobile && !keyboardOpen && !chatSurface} />
       <ConfettiHost />
       <RewardHost />
       <EggsHost />

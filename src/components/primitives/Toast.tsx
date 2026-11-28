@@ -36,7 +36,7 @@ function ToastCard({ item, onDismiss }: { item: ToastItem; onDismiss: (id: numbe
 
 // On phones the stack hugs the bottom edge, or the top under the bar on the chat
 // surface where the composer and its actions live at the bottom.
-export function Toaster({ phoneTop = false }: { phoneTop?: boolean }) {
+export function Toaster({ phoneTop = false, aboveTabBar = false }: { phoneTop?: boolean; aboveTabBar?: boolean }) {
   const [items, setItems] = useState<ToastItem[]>([]);
 
   useEffect(() => subscribeToast((item) => {
@@ -53,7 +53,7 @@ export function Toaster({ phoneTop = false }: { phoneTop?: boolean }) {
     <div
       role="status"
       aria-live="polite"
-      className={`pointer-events-none fixed inset-x-0 z-50 flex flex-col items-center gap-2 px-4 ${phoneTop ? 'max-lg:top-[calc(env(safe-area-inset-top)+3.5rem)] lg:bottom-0' : 'bottom-0'}`}
+      className={`pointer-events-none fixed inset-x-0 z-50 flex flex-col items-center gap-2 px-4 ${phoneTop ? 'max-lg:top-[calc(env(safe-area-inset-top)+3.5rem)] lg:bottom-0' : aboveTabBar ? 'max-lg:bottom-[3.125rem] lg:bottom-0' : 'bottom-0'}`}
       style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 1rem)' }}
     >
       {items.map((t) => <ToastCard key={t.id} item={t} onDismiss={dismiss} />)}
