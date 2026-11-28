@@ -18,13 +18,13 @@ export function TeamTabs({ role, active, counts, allow, actions, onSelect = navi
   const tabs = teamTabsFor(role).filter((t) => !allow || allow.includes(t.id));
   if (!tabs.length) return null;
   return (
-    <div className="flex min-h-14 shrink-0 items-center gap-6 border-b border-neutral-800/80 px-4 lg:px-7">
+    <div className="flex min-h-14 shrink-0 items-center gap-6 border-b border-neutral-800/80 px-4 max-lg:flex-wrap max-lg:gap-x-0 lg:px-7">
       <h2 className="font-display text-[19px] font-bold text-neutral-50 max-lg:hidden">Equipe</h2>
       <Tabs
-        className="min-w-0 flex-1 border-0" items={tabs.map((t) => ({ id: t.id, label: t.label, count: counts?.[t.id] }))} active={active}
+        className="min-w-0 flex-1 border-0 max-lg:basis-full" items={tabs.map((t) => ({ id: t.id, label: t.label, count: counts?.[t.id] }))} active={active}
         onChange={(id) => onSelect(tabs.find((t) => t.id === id)!.route)}
       />
-      {actions && <div className="flex shrink-0 items-center gap-1.5">{actions}</div>}
+      {actions && <div className="flex shrink-0 items-center gap-1.5 max-lg:w-full max-lg:justify-between max-lg:pb-2">{actions}</div>}
     </div>
   );
 }

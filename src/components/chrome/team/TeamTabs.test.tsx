@@ -38,4 +38,13 @@ describe('TeamTabs', () => {
     render(<TeamTabs role="admin" active="rotinas" actions={<button>Nova rotina</button>} />);
     expect(screen.getByText('Nova rotina')).toBeTruthy();
   });
+
+  it('wraps the actions below the tabs on phone', () => {
+    const { container } = render(<TeamTabs role="admin" active="pedidos" actions={<button>Modo gravação</button>} />);
+    const row = container.firstElementChild!;
+    expect(row.className).toContain('max-lg:flex-wrap');
+    expect(screen.getByRole('tablist').parentElement!.className).toContain('max-lg:basis-full');
+    expect(screen.getByText('Modo gravação').parentElement!.className).toContain('max-lg:w-full');
+    expect(screen.getAllByRole('tab')).toHaveLength(4);
+  });
 });
