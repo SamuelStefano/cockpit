@@ -248,4 +248,19 @@ describe('CLI too old for the model', () => {
     expect(t.cliTooOld).toBeUndefined();
     expect(t.text).toContain('does not support');
   });
+
+  it('separates consecutive text blocks of one turn with a paragraph break', () => {
+    const t = register();
+    const start = { type: 'stream_event', event: { type: 'content_block_start', content_block: { type: 'text' } } };
+    const delta = (text: string) => ({ type: 'stream_event', event: { type: 'content_block_delta', delta: { type: 'text_delta', text } } });
+    translate(KEY, t, start as never);
+    translate(KEY, t, delta('first') as never);
+    translate(KEY, t, start as never);
+    translate(KEY, t, delta('second') as never);
+    const texts = vi.mocked(broadcast).mock.calls.map((c) => (c[0] as { text?: string }).text);
+    expect(texts).toEqual(['first', '\n\n', 'second']);
+    expect(t.text).toBe('first\n\nsecond');
+    translate(KEY, t, { type: 'assistant', message: { content: [{ type: 'text', text: 'second' }] } } as never);
+    expect(t.text).toBe('first\n\nsecond');
+  });
 });

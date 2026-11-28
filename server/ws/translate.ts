@@ -94,6 +94,11 @@ export function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
       } else if (e?.type === 'content_block_delta' && e.delta?.type === 'thinking_delta' && e.delta.thinking) {
         thread.thinking = capTail(thread.thinking + e.delta.thinking);
         broadcast({ t: 'thinking', sessionKey, text: e.delta.thinking });
+      } else if (e?.type === 'content_block_start' && e.content_block?.type === 'text') {
+        if (thread.text && !thread.text.endsWith('\n')) {
+          thread.text = capTail(thread.text + '\n\n');
+          broadcast({ t: 'delta', sessionKey, text: '\n\n' });
+        }
       } else if (e?.type === 'content_block_start' && e.content_block?.type === 'tool_use') {
         emitTool(thread, sessionKey, e.content_block, 'running');
       }
