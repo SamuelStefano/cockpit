@@ -50,6 +50,7 @@ import { takeNewIntent } from './cockpit/box-intent';
 import { AGENT_EXECUTOR, AGENT_MEETINGS, AGENT_NEW, AGENT_STORE, menuRoute, useRoute } from './useRoute';
 import { capacityBlocksSend } from './lib/capacity';
 import { loadPref } from './lib/persist';
+import { pickRestoredSession } from './app/restore-session';
 import { SUPABASE_ENABLED } from './lib/supabase';
 import { useSupabaseAuth } from './lib/useSupabaseAuth';
 import { useProfileHydration } from './lib/profile';
@@ -195,11 +196,9 @@ function CockpitBody() {
   // (persistida); só cai na mais recente se nenhuma existir mais ou no 1º acesso.
   useEffect(() => {
     if (activeSessionId || !sessions.length) return;
-    const has = (id: string) => !!id && (sessions.some((s) => s.id === id) || archived.some((s) => s.id === id));
-    const saved = loadPref('activeId', '');
-    const pick = has(chatId) ? chatId : has(saved) ? saved : sessions[0].id;
-    setActiveSessionId(pick);
-  }, [activeSessionId, sessions, archived, chatId, setActiveSessionId]);
+    const pick = pickRestoredSession({ chatId, saved: loadPref('activeId', ''), sessions, archived, loading });
+    if (pick) setActiveSessionId(pick);
+  }, [activeSessionId, sessions, archived, chatId, loading, setActiveSessionId]);
 
   useRoleLanding({ route, capsKnown: !!caps, role, nav, landOnTeam: entryLandsOnTeamHome && !isMobile });
 
